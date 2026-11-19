@@ -100,8 +100,8 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 
 ## 15. Tree queries
 
-- [ ] 15.1 Create `Morphir.Diagrams.Query` with the version 1 compiler, diagnostics and limits; verify compile tests, including unsupported features.
-- [ ] 15.2 Add the evaluator, ordering, projections, batch cursors and the BPMN adapter; verify match-order and batch-size tests.
+- [x] 15.1 Create `Morphir.Diagrams.Query` with the version 1 compiler, diagnostics and limits; verify compile tests, including unsupported features.
+- [x] 15.2 Add the evaluator, ordering, projections, batch cursors and the BPMN adapter; verify match-order and batch-size tests.
 
 ## 16. Playback exploration
 

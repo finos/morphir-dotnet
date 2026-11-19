@@ -24,6 +24,13 @@
           "Morphir.Svg": "[1.0.0, )"
         }
       },
+      "morphir.diagrams.query": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Bpmn": "[1.0.0, )"
+        }
+      },
       "morphir.knowledge": {
         "type": "Project",
         "dependencies": {

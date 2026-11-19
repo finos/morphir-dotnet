@@ -3,7 +3,9 @@
 
 using System;
 using System.Text;
+using Morphir.Bpmn;
 using Morphir.Diagrams;
+using Morphir.Diagrams.Query;
 using Morphir.Knowledge;
 using Morphir.Knowledge.Rdf;
 
@@ -63,6 +65,13 @@ var bpmn = DiagramSource.RenderSvg("""
 if (bpmn.Output is not { } bpmnSvg || !bpmnSvg.Contains("data-ref=\"node=Review\"", StringComparison.Ordinal))
     return Fail(bpmn);
 Console.WriteLine("bpmn render: ok");
+
+// A structural query over the same kind of document.
+if (!BpmnDocument.TryRead("""<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="urn:q"><bpmn:process id="P"><bpmn:userTask id="Review"/></bpmn:process></bpmn:definitions>""", out var bpmnDocument, out _)
+    || !TreeQuery.TryCompile("(bpmn.process (bpmn.userTask) @task)", null, QueryLimits.Default, out var query, out _))
+    return 1;
+var found = query.Run(BpmnQueryTree.Create(bpmnDocument), null).Next(10);
+Console.WriteLine(found.Matches.Length == 1 && found.Matches[0].Captures[0].Node.Id == "Review" ? "query: ok" : "query: FAIL");
 
 var expected = Canonical(dataset);
 var actual = Canonical(extracted);
