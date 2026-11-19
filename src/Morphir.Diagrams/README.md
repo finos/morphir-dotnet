@@ -77,7 +77,7 @@ exports are tracked in the migration PRD.
 Every theme has a dark and a light palette. The built-in themes are
 `DiagramThemes.Archify` (the default), `DiagramThemes.Monokai`,
 `DiagramThemes.Cobalt`, `DiagramThemes.Solarized`, `DiagramThemes.Gruvbox`,
-`DiagramThemes.Ocean` and `DiagramThemes.Darcula`. Archify is the classic preset of archify, as
+`DiagramThemes.Ocean`, `DiagramThemes.Darcula` and `DiagramThemes.Material`. Archify is the classic preset of archify, as
 diagrams.mbt adapts it. Pass a theme and a mode in `SvgRenderOptions`:
 
 ```fsharp

@@ -24,7 +24,7 @@ Status: In Progress
 | Finite scenarios with repeated and concurrent connector occurrences | Implemented |
 | Offline viewport zoom, fit, pan, and fullscreen | Implemented |
 | Archify classic theme with adaptive dark and light palettes and colour families | Implemented |
-| Custom themes, Monokai, Cobalt, Solarized, Gruvbox, Ocean and Darcula built-ins, and fixed dark or light output | Implemented |
+| Custom themes, Monokai, Cobalt, Solarized, Gruvbox, Ocean, Darcula and Material built-ins, and fixed dark or light output | Implemented |
 | Playback route exploration, rounded and bridged connector styling, trace evidence, and raster export | Planned |
 
 ## Implementation notes

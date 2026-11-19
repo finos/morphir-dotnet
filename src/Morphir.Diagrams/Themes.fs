@@ -767,8 +767,45 @@ type DiagramThemes private () =
                 ]
         )
 
+    static let material =
+        DiagramTheme(
+            "Material",
+            accents
+                0.18m
+                0x263238
+                0xeeffff
+                0xb0bec5
+                0x1e272c
+                0xb0bec5
+                [
+                    0x89ddff, 0x89ddff
+                    0xc3e88d, 0xc3e88d
+                    0xc792ea, 0xc792ea
+                    0xffcb6b, 0xffcb6b
+                    0xff5370, 0xff5370
+                    0xf78c6c, 0xf78c6c
+                    0x78909c, 0x78909c
+                ],
+            accents
+                0.16m
+                0xfafafa
+                0x263238
+                0x546e7a
+                0xffffff
+                0x546e7a
+                [
+                    0x89ddff, 0x27757b
+                    0xc3e88d, 0x597432
+                    0xc792ea, 0x884daf
+                    0xffcb6b, 0x9e5e07
+                    0xff5370, 0xc41d19
+                    0xf78c6c, 0xc53109
+                    0x78909c, 0x546973
+                ]
+        )
+
     static let all: IReadOnlyList<DiagramTheme> =
-        ImmutableArray.Create(archify, monokai, cobalt, solarized, gruvbox, ocean, darcula)
+        ImmutableArray.Create(archify, monokai, cobalt, solarized, gruvbox, ocean, darcula, material)
 
     /// The classic preset of archify v3.2 by tt-a1i (MIT), as diagrams.mbt adapts it. The default.
     static member Archify = archify
@@ -790,6 +827,9 @@ type DiagramThemes private () =
 
     /// Muted IDE accents on charcoal or light grey, with a hand-tuned light variant.
     static member Darcula = darcula
+
+    /// Bright pastel accents on blue-grey or near-white, with a hand-tuned light variant.
+    static member Material = material
 
     /// Every built-in theme, Archify first.
     static member All = all
