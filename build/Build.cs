@@ -138,6 +138,8 @@ partial class Build : FalloutBuild
         ("Morphir.Svg", SourceDirectory / "Morphir.Svg" / "Morphir.Svg.fsproj", true),
         // No Morphir dependency: BPMN 2.0.2 documents, which Morphir.Diagrams draws.
         ("Morphir.Bpmn", SourceDirectory / "Morphir.Bpmn" / "Morphir.Bpmn.fsproj", true),
+        // Morphir.Diagrams.Query references Morphir.Bpmn for its BPMN adapter.
+        ("Morphir.Diagrams.Query", SourceDirectory / "Morphir.Diagrams.Query" / "Morphir.Diagrams.Query.fsproj", true),
         // Morphir.Models references Morphir.Files, so Morphir.Files comes first.
         ("Morphir.Files", SourceDirectory / "Morphir.Files" / "Morphir.Files.fsproj", true),
         ("Morphir.Knowledge", SourceDirectory / "Morphir.Knowledge" / "Morphir.Knowledge.fsproj", true),
