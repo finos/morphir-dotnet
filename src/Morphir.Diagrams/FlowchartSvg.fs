@@ -442,7 +442,9 @@ module internal FlowchartSvg =
         family
 
     let private dimensions (direction: FlowDirection) (node: FlowNode) =
-        let textWidth = node.Label.Length * 8 |> min 320
+        let lines = node.Label.Split '\n'
+        let textWidth = (lines |> Array.map String.length |> Array.max) * 8 |> min 320
+        let extra = (lines.Length - 1) * 8
 
         match node.Shape with
         | FlowShape.Circle
@@ -451,7 +453,6 @@ module internal FlowchartSvg =
             let radius = max 26 (textWidth / 2 + 12)
 
             radius, radius
-        | FlowShape.Diamond -> max 45 (textWidth + 10), 32
         | FlowShape.FilledCircle
         | FlowShape.CrossedCircle -> 10, 10
         | FlowShape.FramedCircle -> 12, 12
@@ -462,7 +463,8 @@ module internal FlowchartSvg =
             | FlowDirection.RightToLeft -> 4, 36
             | FlowDirection.TopToBottom
             | FlowDirection.BottomToTop -> 36, 4
-        | _ -> max 40 (textWidth / 2 + 18), 23
+        | FlowShape.Diamond -> max 45 (textWidth + 10), 32 + extra
+        | _ -> max 40 (textWidth / 2 + 18), 23 + extra
 
     let render (options: SvgRenderOptions) (metadata: Morphir.Svg.SvgNode list option) (model: Flowchart) =
         let indices = Dictionary<DiagramId, int>()
@@ -493,11 +495,42 @@ module internal FlowchartSvg =
                 | _ -> -1, -1)
             |> Seq.toArray
 
-        let levels = ranks model.Nodes.Length edges
+        // A link to or from a subgraph ranks against every node inside it, so what follows a subgraph comes after all
+        // of it. Flowcharts without such links keep their ranks.
+        let rec members (id: DiagramId) =
+            match indices.TryGetValue id with
+            | true, index -> [ index ]
+            | false, _ ->
+                match groupsById.TryGetValue id with
+                | true, group ->
+                    [
+                        for node in group.NodeIds do
+                            match indices.TryGetValue node with
+                            | true, index -> yield index
+                            | false, _ -> ()
+
+                        for child in model.Groups do
+                            if child.ParentId = group.Id then yield! members child.Id
+                    ]
+                | false, _ -> []
+
+        let rankEdges =
+            model.Edges
+            |> Seq.collect (fun edge ->
+                if groupsById.ContainsKey edge.Source || groupsById.ContainsKey edge.Target then
+                    let inside = Set.ofList (members edge.Source) |> Set.intersect (Set.ofList (members edge.Target))
+
+                    if not inside.IsEmpty then Seq.empty
+                    else seq { for source in members edge.Source do for target in members edge.Target -> source, target }
+                else
+                    Seq.singleton (indices[edge.Source], indices[edge.Target]))
+            |> Seq.toArray
+
+        let levels = ranks model.Nodes.Length rankEdges
 
         let rankCount = 1 + (if levels.Length = 0 then 0 else Array.max levels)
 
-        let slotOf = rows model indices levels edges
+        let slotOf = rows model indices levels rankEdges
 
         let maxWidth = sizes |> Array.fold (fun width (x, _) -> max width x) 40
 
@@ -718,7 +751,7 @@ module internal FlowchartSvg =
                                 edgeCounts[key] <- count + 1
 
                                 let shift =
-                                    (if count % 2 = 0 then -1 else 1) * min 24 (8 * ((count + 1) / 2))
+                                    (if count % 2 = 0 then -1 else 1) * min 36 (14 * ((count + 1) / 2))
 
                                 let os, ot = offset index source, offset index target
 
@@ -749,7 +782,7 @@ module internal FlowchartSvg =
                                         let a, b = sx + sign * sw, tx - sign * tw
 
                                         let mid =
-                                            if abs (levels[target] - levels[source]) > 1 then sx + sign * (xStep / 2 + 12) + shift
+                                            if abs (levels[target] - levels[source]) > 1 && not grouped then sx + sign * (xStep / 2 + 12) + shift
                                             else (a + b) / 2 + shift
 
                                         [| a, sy + os; mid, sy + os; mid, ty + ot; b, ty + ot |], (mid, min (sy + os) (ty + ot) - 9)
@@ -759,7 +792,7 @@ module internal FlowchartSvg =
                                         let a, b = sy + sign * sh, ty - sign * th
 
                                         let mid =
-                                            if abs (levels[target] - levels[source]) > 1 then sy + sign * (yStep / 2 + 12) + shift
+                                            if abs (levels[target] - levels[source]) > 1 && not grouped then sy + sign * (yStep / 2 + 12) + shift
                                             else (a + b) / 2 + shift
 
                                         [| sx + os, a; sx + os, mid; tx + ot, mid; tx + ot, b |], ((sx + os + tx + ot) / 2 + 15, mid - 8)

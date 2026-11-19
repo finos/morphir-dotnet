@@ -54,21 +54,35 @@ module internal SvgWriting =
 
     let empty writer name attributes = element writer name attributes ignore
 
-    /// Centred monospace text with its baseline at `y`.
+    /// Centred monospace text with its baseline at `y`. Text with line breaks becomes one line per row, centred
+    /// vertically on `y`.
     let label writer x y size weight fill (value: string) =
+        let lines = value.Split '\n'
+        let step = size + 3
+
         element
             writer
             "text"
             [
                 "x", number x
-                "y", number y
+                "y", number (y - (lines.Length - 1) * step / 2)
                 "text-anchor", "middle"
                 "font-family", Theme.fontStack
                 "font-size", number size
                 "font-weight", number weight
                 "fill", fill
             ]
-            (fun () -> writer.Add(SvgNode.CreateText value))
+            (fun () ->
+                if lines.Length = 1 then
+                    writer.Add(SvgNode.CreateText value)
+                else
+                    lines
+                    |> Array.iteri (fun index line ->
+                        element
+                            writer
+                            "tspan"
+                            [ "x", number x; "dy", (if index = 0 then "0" else number step) ]
+                            (fun () -> writer.Add(SvgNode.CreateText line))))
 
     /// The estimated advance of monospace text, in whole pixels.
     let textWidth size (value: string) =
@@ -92,7 +106,9 @@ module internal SvgWriting =
 
     /// An opaque chip behind a label, so that lines and tints do not reduce its contrast.
     let chip writer x y size fill (value: string) =
-        let width = textWidth size value + 12
+        let lines = value.Split '\n'
+        let width = (lines |> Array.map (textWidth size) |> Array.max) + 12
+        let extra = (lines.Length - 1) * (size + 3)
 
         empty
             writer
@@ -100,9 +116,9 @@ module internal SvgWriting =
             [
                 "class", "mask"
                 "x", number (x - width / 2)
-                "y", number (y - size - 3)
+                "y", number (y - size - 3 - extra / 2)
                 "width", number width
-                "height", number (size + 9)
+                "height", number (size + 9 + extra)
                 "rx", "3"
                 "fill", fill
             ]

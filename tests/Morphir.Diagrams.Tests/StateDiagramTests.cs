@@ -146,4 +146,38 @@ public class StateDiagramTests
 
         diagnostics.Select(diagnostic => diagnostic.Span!.Start.Line).ShouldBe([3, 5]);
     }
+
+    [Test]
+    public void PseudostatesHaveTheirOwnSymbolsAndStatesTheirReferences()
+    {
+        var svg = XElement.Parse(DiagramSource.RenderSvg("stateDiagram-v2\n  state Fork <<fork>>\n  [*] --> Idle\n  Idle --> Fork\n  Fork --> A\n  A --> [*]\n").Output!);
+        var shapes = svg.Descendants(Svg + "g").Where(g => g.Attribute("data-node") is not null)
+            .ToDictionary(g => (string)g.Attribute("data-node")!, g => (string)g.Attribute("data-shape")!);
+
+        shapes["Fork"].ShouldBe("bar");
+        shapes["root::initial"].ShouldBe("filled-circle");
+        shapes["root::final"].ShouldBe("framed-circle");
+        svg.Descendants(Svg + "g").ShouldContain(g => (string?)g.Attribute("data-ref") == "node=Idle");
+    }
+
+    [Test]
+    public void ACollapsedCompositeHidesItsStatesAndTakesTheirTransitions()
+    {
+        var model = Read("stateDiagram-v2\n  state Active {\n    Working --> Paused\n  }\n  Idle --> Working\n");
+
+        var svg = XElement.Parse(SvgRenderer.Render(Diagram.NewState(model.WithCollapsed(DiagramId.Create("Active")))).Output!);
+
+        svg.Descendants(Svg + "g").Select(g => (string?)g.Attribute("data-node")).OfType<string>().ShouldBe(["Active", "Idle"], ignoreOrder: true);
+        svg.Descendants(Svg + "path").Where(path => (string?)path.Attribute("data-source") == "Idle")
+            .Select(path => (string?)path.Attribute("data-target")).ShouldBe(["Active"]);
+        model.Transitions.Last().Target.Value.ShouldBe("Working");
+    }
+
+    [Test]
+    public void OrdinaryStatesUseTheBackendFamily()
+    {
+        var svg = DiagramSource.RenderSvg("stateDiagram-v2\n  Idle --> Busy\n", SvgRenderOptions.Create(DiagramThemes.Monokai, ThemeMode.Dark)).Output!;
+
+        svg.ShouldContain("var(--backend-stroke)");
+    }
 }
