@@ -197,6 +197,86 @@ using (var writer = XmlWriter.Create(text, new XmlWriterSettings { OmitXmlDeclar
 Console.Write(text.ToString());
 ```
 
+## RDF/XML input
+
+`RdfXml.Read` reads UTF-8 RDF/XML into the default graph. It follows the whole
+RDF 1.1 XML Syntax grammar: node and property elements, `rdf:li`, property
+attributes, `rdf:parseType` `Resource`, `Literal` and `Collection`, `xml:base`,
+`xml:lang`, and reification through `rdf:ID`. An `rdf:XMLLiteral` gets the
+exclusive canonical XML of the element content. Pass a base IRI to resolve
+relative references; without one, a relative reference needs an `xml:base`.
+
+`RdfXml.ReadElement` reads an `rdf:RDF` element already parsed from a larger
+document, such as the `metadata` element of an SVG. The element keeps the
+namespace bindings, `xml:base` and `xml:lang` of its ancestors. The caller's
+parser decides how that tree was read: parse untrusted input with the settings
+below and `LoadOptions.SetLineInfo`, as the C# sample does, or use
+`SvgMetadataReader` from `Morphir.Svg`. Errors carry a location only when the
+tree has line information.
+
+XML input can be hostile, so `RdfXml.Read` always sets
+`DtdProcessing.Prohibit` and `XmlResolver = null`. A document type declaration
+is refused with `rdfxml.doctype`, before any entity is resolved, and the reader
+never opens a file or a network connection. Elements nested more than 1,000
+deep are refused, so input cannot exhaust the stack. Malformed XML is `rdfxml.malformed-xml`;
+grammar, IRI and literal errors are `rdfxml.syntax`, `rdfxml.invalid-iri` and
+`rdfxml.invalid-literal`. Each error carries a line and column when the XML
+reader knows them.
+
+### F#
+
+```fsharp
+open System
+open System.Text
+open Morphir.Knowledge
+open Morphir.Knowledge.Rdf
+
+let xml =
+    """<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dcterms="http://purl.org/dc/terms/">
+  <rdf:Description rdf:about="checkout"><dcterms:title xml:lang="en">Checkout</dcterms:title></rdf:Description>
+</rdf:RDF>"""
+
+match RdfXml.Read(ReadOnlyMemory(Encoding.UTF8.GetBytes xml), Iri.Create "https://example.org/diagrams/") with
+| Ok dataset -> printfn "%d statement(s)" dataset.Quads.Length
+| Error error ->
+    match error.Location with
+    | ValueSome location -> eprintfn "%s at %d:%d" error.Kind.Code location.Line location.Column
+    | ValueNone -> eprintfn "%s" error.Kind.Code
+```
+
+### C#
+
+```csharp
+using System;
+using System.IO;
+using System.Xml;
+using System.Xml.Linq;
+using Morphir.Knowledge.Rdf;
+
+const string markup = """
+    <svg xmlns="http://www.w3.org/2000/svg" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+      <metadata><rdf:RDF><rdf:Description rdf:about="https://example.org/diagrams/checkout"/></rdf:RDF></metadata>
+    </svg>
+    """;
+var settings = new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null };
+using var reader = XmlReader.Create(new StringReader(markup), settings);
+var svg = XDocument.Load(reader, LoadOptions.SetLineInfo);
+XNamespace svgNamespace = "http://www.w3.org/2000/svg";
+var rdf = svg.Root?.Element(svgNamespace + "metadata")?.Element(XName.Get("RDF", RdfNamespaces.Rdf))
+    ?? throw new InvalidOperationException("The SVG has no RDF metadata.");
+
+if (!RdfXml.TryReadElement(rdf, out var dataset, out var error))
+{
+    var where = error.TryGetLocation(out var location) ? $" at {location.Line}:{location.Column}" : "";
+    throw new InvalidOperationException($"{error.Kind.Code}{where}: {error.Message}");
+}
+
+Console.WriteLine($"{dataset.Quads.Length} statement(s)");
+```
+
+The pinned [RDF 1.1 XML syntax tests](../../tests/Fixtures/RdfXml/PROVENANCE.md)
+exercise the reader. No test is excluded.
+
 ## Canonical output
 
 Every read gives blank nodes fresh identities, so two reads of one file write

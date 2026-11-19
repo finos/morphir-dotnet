@@ -8,6 +8,7 @@
     </PropertyGroup>
     <ItemGroup>
         <PackageReference Include="Expecto" />
+        <PackageReference Include="Expecto.FsCheck" />
         <PackageReference Include="FSharp.Core" />
         <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
@@ -27,6 +28,7 @@
         <Compile Include="NTriplesTests.fs" />
         <Compile Include="CanonicalizationTests.fs" />
         <Compile Include="RdfXmlWriterTests.fs" />
+        <Compile Include="RdfXmlReaderTests.fs" />
         <Compile Include="ReadmeTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>

@@ -280,8 +280,12 @@ module internal Rdfc10 =
 
             hash (input.ToString())
 
-        let rec hashNDegree node (issuer: Issuer) : string * Issuer =
+        let rec hashNDegree depth node (issuer: Issuer) : string * Issuer =
             spend ()
+
+            // A long symmetric chain recurses once per node; stop before the stack runs out.
+            if depth > 1000 then raise WorkExceeded
+
             let related = SortedDictionary<string, ResizeArray<BlankNodeId>>(StringComparer.Ordinal)
 
             for quad in quadsOf[node] do
@@ -323,7 +327,7 @@ module internal Rdfc10 =
 
                     for other in recursion do
                         if not skip then
-                            let result, resultIssuer = hashNDegree other copy
+                            let result, resultIssuer = hashNDegree (depth + 1) other copy
                             path.Append("_:").Append(resultIssuer.Issue other: string).Append('<').Append(result).Append('>') |> ignore
                             copy <- resultIssuer
                             skip <- worse (path.ToString())
@@ -360,7 +364,7 @@ module internal Rdfc10 =
                         if not (canonical.Has node) then
                             let temporary = Issuer "b"
                             temporary.Issue node |> ignore
-                            results.Add(hashNDegree node temporary)
+                            results.Add(hashNDegree 1 node temporary)
 
                     for _, issuer in results |> Seq.sortWith (fun (left, _) (right, _) -> String.CompareOrdinal(left, right)) do
                         for node in issuer.Order do

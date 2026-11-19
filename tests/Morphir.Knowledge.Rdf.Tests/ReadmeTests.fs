@@ -58,7 +58,7 @@ let tests =
         let samples = blocks "csharp"
 
         testCase "the README has a C# sample for each codec" <| fun () ->
-            Expect.containsAll (samples |> List.map fst) [ "Read and write"; "N-Triples"; "RDF/XML"; "Canonical output" ] "every codec section has a C# sample"
+            Expect.containsAll (samples |> List.map fst) [ "Read and write"; "N-Triples"; "RDF/XML"; "RDF/XML input"; "Canonical output" ] "every codec section has a C# sample"
 
         for section, source in samples do
             testCase $"the C# sample of '{section}' compiles" <| fun () ->
@@ -73,6 +73,18 @@ let tests =
             match RdfXml.Write dataset with
             | Ok output ->
                 Expect.stringContains (Encoding.UTF8.GetString output.Bytes.Span) """<dcterms:title xml:lang="en">Order</dcterms:title>""" "the title is a dcterms property"
+            | Error error -> failwith (error.ToString())
+
+        testCase "the F# sample of 'RDF/XML input' runs" <| fun () ->
+            let xml =
+                """<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dcterms="http://purl.org/dc/terms/">
+  <rdf:Description rdf:about="checkout"><dcterms:title xml:lang="en">Checkout</dcterms:title></rdf:Description>
+</rdf:RDF>"""
+
+            match RdfXml.Read(ReadOnlyMemory(Encoding.UTF8.GetBytes xml), Morphir.Knowledge.Iri.Create "https://example.org/diagrams/") with
+            | Ok dataset ->
+                Expect.equal dataset.Quads.Length 1 "one statement"
+                Expect.equal dataset.Quads[0].Subject (RdfSubject.Iri(Morphir.Knowledge.Iri.Create "https://example.org/diagrams/checkout")) "the relative subject resolves against the base"
             | Error error -> failwith (error.ToString())
 
         testCase "the F# sample of 'Canonical output' runs" <| fun () ->

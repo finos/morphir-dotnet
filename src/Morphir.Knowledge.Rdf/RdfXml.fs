@@ -11,38 +11,8 @@ open System.IO
 open System.Runtime.InteropServices
 open System.Text
 open System.Xml
+open System.Xml.Linq
 open Morphir.Knowledge
-
-/// Namespace IRIs that RDF/XML output binds to fixed prefixes.
-[<AbstractClass; Sealed>]
-type RdfNamespaces private () =
-    /// RDF, bound to the prefix rdf.
-    static member Rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
-
-    /// RDF Schema, bound to the prefix rdfs.
-    static member Rdfs = "http://www.w3.org/2000/01/rdf-schema#"
-
-    /// XML Schema datatypes, bound to the prefix xsd.
-    static member Xsd = "http://www.w3.org/2001/XMLSchema#"
-
-    /// The W3C Web Annotation vocabulary, bound to the prefix oa.
-    static member WebAnnotation = "http://www.w3.org/ns/oa#"
-
-    /// DCMI Metadata Terms, bound to the prefix dcterms.
-    static member DublinCoreTerms = "http://purl.org/dc/terms/"
-
-    /// The Morphir diagram vocabulary, bound to the prefix md. Proposed; the project owners have
-    /// not agreed the final IRI yet, so this is the only place that names it.
-    static member MorphirDiagram = "https://morphir.finos.org/ns/diagram#"
-
-    /// The fixed prefixes, in the order that RDF/XML output declares them.
-    static member internal WellKnown =
-        [ "rdf", RdfNamespaces.Rdf
-          "rdfs", RdfNamespaces.Rdfs
-          "xsd", RdfNamespaces.Xsd
-          "oa", RdfNamespaces.WebAnnotation
-          "dcterms", RdfNamespaces.DublinCoreTerms
-          "md", RdfNamespaces.MorphirDiagram ]
 
 module internal RdfXmlNames =
     let private isSurrogatePair (text: string) index =
@@ -223,9 +193,36 @@ module internal RdfXmlWriter =
 
         fun node -> labels[node]
 
-/// An RDF 1.1 XML Syntax writer for the default graph.
+/// An RDF 1.1 XML Syntax reader, and a writer for the default graph.
 [<AbstractClass; Sealed>]
 type RdfXml private () =
+    static let readTree (baseIri: Iri option) (element: XElement) =
+        try
+            Ok(RdfXmlGrammar.read (baseIri |> Option.map (fun value -> value.Value)) element)
+        with RdfXmlFailure error ->
+            Error error
+
+    static let readBytes (source: ReadOnlyMemory<byte>) (baseIri: Iri option) =
+        try
+            let document = RdfXmlInput.load source
+
+            match document.Root with
+            | null -> Error { Kind = RdfXmlReadErrorKind.MalformedXml; Message = "The input has no root element."; Location = ValueNone }
+            | root -> readTree baseIri root
+        with RdfXmlFailure error ->
+            Error error
+
+    static let tryResult (result: Result<RdfDataset, RdfXmlReadError>) (dataset: byref<RdfDataset>) (error: byref<RdfXmlReadError>) =
+        match result with
+        | Ok value ->
+            dataset <- value
+            error <- Unchecked.defaultof<_>
+            true
+        | Error failure ->
+            dataset <- Unchecked.defaultof<_>
+            error <- failure
+            false
+
     static let output (plan: Result<RdfXmlWriter.Plan * ImmutableArray<GraphName>, RdfWriteError>) =
         plan |> Result.map (fun (plan, omitted) -> RdfOutput(RdfXmlWriter.document plan, omitted))
 
@@ -241,6 +238,65 @@ type RdfXml private () =
         ArgumentNullException.ThrowIfNull dataset
         ArgumentNullException.ThrowIfNull handling
         RdfXmlWriter.plan dataset label handling
+
+    /// Reads UTF-8 RDF/XML into the default graph, resolving relative references against the base IRI
+    /// and any xml:base. Document type declarations are refused, and no external resource is read.
+    /// For F# callers.
+    static member Read(source: ReadOnlyMemory<byte>, baseIri: Iri) : Result<RdfDataset, RdfXmlReadError> =
+        ArgumentNullException.ThrowIfNull baseIri
+        readBytes source (Some baseIri)
+
+    /// Reads UTF-8 RDF/XML; relative references need an xml:base. For F# callers.
+    static member Read(source: ReadOnlyMemory<byte>) : Result<RdfDataset, RdfXmlReadError> = readBytes source None
+
+    /// Reads an rdf:RDF element, or a single node element, already parsed from a larger document.
+    /// Namespace bindings, xml:base and xml:lang are inherited from its ancestors. The caller's
+    /// parser settings decide how the tree was read, and errors have locations only when the tree
+    /// has line information. For F# callers.
+    static member ReadElement(element: XElement, baseIri: Iri) : Result<RdfDataset, RdfXmlReadError> =
+        ArgumentNullException.ThrowIfNull element
+        ArgumentNullException.ThrowIfNull baseIri
+        readTree (Some baseIri) element
+
+    /// Reads an rdf:RDF element from a larger document; relative references need an xml:base. For F# callers.
+    static member ReadElement(element: XElement) : Result<RdfDataset, RdfXmlReadError> =
+        ArgumentNullException.ThrowIfNull element
+        readTree None element
+
+    /// Reads UTF-8 RDF/XML with a base IRI. For C# callers.
+    static member TryRead(
+        source: ReadOnlyMemory<byte>,
+        baseIri: Iri,
+        [<Out; MaybeNullWhen(false)>] dataset: byref<RdfDataset>,
+        [<Out; MaybeNullWhen(true)>] error: byref<RdfXmlReadError>
+    ) =
+        tryResult (RdfXml.Read(source, baseIri)) &dataset &error
+
+    /// Reads UTF-8 RDF/XML. For C# callers.
+    static member TryRead(
+        source: ReadOnlyMemory<byte>,
+        [<Out; MaybeNullWhen(false)>] dataset: byref<RdfDataset>,
+        [<Out; MaybeNullWhen(true)>] error: byref<RdfXmlReadError>
+    ) =
+        tryResult (RdfXml.Read source) &dataset &error
+
+    /// Reads an rdf:RDF element from a larger document with a base IRI. For C# callers.
+    static member TryReadElement(
+        element: XElement,
+        baseIri: Iri,
+        [<Out; MaybeNullWhen(false)>] dataset: byref<RdfDataset>,
+        [<Out; MaybeNullWhen(true)>] error: byref<RdfXmlReadError>
+    ) =
+        tryResult (RdfXml.ReadElement(element, baseIri)) &dataset &error
+
+    /// Reads an rdf:RDF element from a larger document. For C# callers.
+    static member TryReadElement(
+        element: XElement,
+        [<Out; MaybeNullWhen(false)>] dataset: byref<RdfDataset>,
+        [<Out; MaybeNullWhen(true)>] error: byref<RdfXmlReadError>
+    ) =
+        tryResult (RdfXml.ReadElement element) &dataset &error
+
 
     /// Writes the default graph as a UTF-8 RDF/XML document, one rdf:Description per subject.
     /// Named graphs follow the policy. Nothing is written when the result is an error. For F# callers.

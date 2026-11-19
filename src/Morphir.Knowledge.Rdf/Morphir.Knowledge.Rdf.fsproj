@@ -23,6 +23,8 @@
         <Compile Include="Canonicalization.fs" />
         <Compile Include="NQuads.fs" />
         <Compile Include="NTriples.fs" />
+        <Compile Include="Namespaces.fs" />
+        <Compile Include="RdfXmlReader.fs" />
         <Compile Include="RdfXml.fs" />
     </ItemGroup>
 </Project>

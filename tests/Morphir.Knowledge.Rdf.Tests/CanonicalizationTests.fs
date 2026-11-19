@@ -123,6 +123,12 @@ let tests =
             | Ok _ -> failtest "a ring of six needs more than three units of work"
             Expect.isOk (RdfCanonicalization.Canonicalize(dataset, CanonicalizationOptions.Default)) "the default limit admits it"
 
+        testCase "a long symmetric ring stops with a typed failure instead of exhausting the stack" <| fun () ->
+            let dataset = readNQuads (Encoding.UTF8.GetBytes(CanonicalizationMother.ring 5000))
+            match RdfCanonicalization.Canonicalize dataset with
+            | Error(CanonicalizationError.WorkLimitExceeded _) -> ()
+            | Ok _ -> failtest "a ring of five thousand blank nodes exceeds the default work"
+
         testCase "a work limit must be positive" <| fun () ->
             Expect.throwsT<ArgumentOutOfRangeException> (fun () -> CanonicalizationOptions.Default.WithWorkLimit 0 |> ignore) "zero work cannot finish"
     ]

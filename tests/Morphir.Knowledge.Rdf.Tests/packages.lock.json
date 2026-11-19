@@ -12,6 +12,16 @@
           "Mono.Cecil": "[0.11.4, 1.0.0)"
         }
       },
+      "Expecto.FsCheck": {
+        "type": "Direct",
+        "requested": "[10.2.3, )",
+        "resolved": "10.2.3",
+        "contentHash": "97ZwoxLIvxyG0fU806nvFbW2uMQFTqi2wpCfPfKasySfIpdf41zERtRiUSZtp1q8fY3uK9mN42dmJsUcL2IrcA==",
+        "dependencies": {
+          "Expecto": "10.2.3",
+          "FsCheck": "[2.16.5, 3.0.0)"
+        }
+      },
       "FSharp.Core": {
         "type": "Direct",
         "requested": "[10.1.403, )",
@@ -149,6 +159,15 @@
         "type": "Project",
         "dependencies": {
           "YamlDotNet": "[16.3.0, )"
+        }
+      },
+      "FsCheck": {
+        "type": "CentralTransitive",
+        "requested": "[2.16.5, )",
+        "resolved": "2.16.5",
+        "contentHash": "Tw6Lb/UBqtmUj5porM1rRcAU5xT9NttSlFTaIQ8gn4Fsw2LiZavN/eMAZqSA63laV51t4HRJJAAGeYSWFFxRfA==",
+        "dependencies": {
+          "FSharp.Core": "4.2.3"
         }
       },
       "YamlDotNet": {

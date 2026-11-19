@@ -29,10 +29,10 @@ Decision ids (REF-1 … PKG-1) refer to [design.html](design.html). Before addin
 
 ## 5. RDF/XML reader (rdf-datasets, RDF-2)
 
-- [ ] 5.1 Write failing tests that run the pinned W3C RDF/XML positive, negative and evaluation tests, plus DOCTYPE refusal with no file or network access, and errors with line and column
-- [ ] 5.2 Implement `RdfXml.Read` over bytes and over an `XElement` with inherited namespace bindings, covering `parseType` Resource, Literal and Collection, `xml:base`, `rdf:li`, `rdf:ID` reification and property attributes, with DTDs prohibited and no resolver. Verify the suite, except the listed DTD exclusions
-- [ ] 5.3 Add a writer-to-reader round-trip property test over generated default graphs, and verify that the results are isomorphic
-- [ ] 5.4 Document RDF/XML reading and its security settings in the RDF README, and verify the sample in a test
+- [x] 5.1 Write failing tests that run the pinned W3C RDF/XML positive, negative and evaluation tests, plus DOCTYPE refusal with no file or network access, and errors with line and column
+- [x] 5.2 Implement `RdfXml.Read` over bytes and over an `XElement` with inherited namespace bindings, covering `parseType` Resource, Literal and Collection, `xml:base`, `rdf:li`, `rdf:ID` reification and property attributes, with DTDs prohibited and no resolver. Verify the suite, except the listed DTD exclusions
+- [x] 5.3 Add a writer-to-reader round-trip property test over generated default graphs, and verify that the results are isomorphic
+- [x] 5.4 Document RDF/XML reading and its security settings in the RDF README, and verify the sample in a test
 
 ## 6. SVG namespaces and metadata (svg-metadata, SVG-1)
 
