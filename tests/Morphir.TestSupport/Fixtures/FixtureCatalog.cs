@@ -623,7 +623,16 @@ public static class FixtureCatalog
             "the WASM guest that selects an exact-size frame", Directory + "frame-exact.wasm",
             "99a139a7d0126ffe9fb490dd082aabef9e4bd8ec50db6f557265cf812b0feede", Provenance);
 
-        public static IReadOnlyList<FixtureEntry> Files { get; } = [StateBelowPage, FrameOneUnder, FrameExact];
+        public static IReadOnlyList<FixtureEntry> Files { get; } =
+        [
+            StateBelowPage, FrameOneUnder, FrameExact,
+            Source("state-below-page", "927d631b62442b938799c2a507ab0efbe59a52291b66dd20baab5088604b22e3"),
+            Source("frame-one-under", "39995def01a1f9b411902c109337c69233bf1b7d3ef44505c4983117c4dc208f"),
+            Source("frame-exact", "b1e236f111b8466638514ec427fd8bf880078864ef3154c019b7e5ee5d24397c"),
+        ];
+
+        private static FixtureEntry Source(string name, string sha256) =>
+            new($"the source of the bounded WASM guest {name}", Directory + name + ".wat", sha256, Provenance);
     }
 
     /// <summary>The frozen bounded-generation receipt, schema and replay controls from finos/morphir.</summary>

@@ -87,6 +87,7 @@ src/Morphir.Extensions.Wasm/Kernel/NOTICE text eol=lf
 # Document-tree kit data from finos/morphir, checked by SHA-256 (tests/Fixtures/MorphirTrees/PROVENANCE.md).
 tests/Fixtures/MorphirTrees/** -text
 tests/Fixtures/MorphirBoundedOrders/** -text
+tests/Fixtures/BoundedWasmLimits/** -text
 # Bounded-generation receipts, schema and controls use the exact finos/morphir Git blobs.
 tests/Fixtures/MorphirBoundedGenerationReceipts/** -text
 # The IR fixtures that FixtureCatalog serves are checked by SHA-256, so their bytes are the same on every checkout.
