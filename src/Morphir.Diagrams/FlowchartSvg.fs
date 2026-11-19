@@ -135,6 +135,132 @@ module internal FlowchartSvg =
 
         levels
 
+    /// Nodes and nested subgraphs placed on a grid of ranks and rows, relative to the top of the block.
+    type private Block =
+        {
+            /// Each node of the block with its rank and row.
+            Cells: (int * int * int) list
+            /// The rows that the block takes.
+            Height: int
+            First: int
+            Last: int
+            /// The lowest source index among its nodes, which orders the block among its siblings.
+            Lowest: int
+        }
+
+    /// The row of each node. A subgraph takes a band of rows across all the ranks that it spans, and no other node
+    /// is placed in that band, so that the box of the subgraph holds only its own nodes. In source order, each node
+    /// takes the free row of its rank nearest to the mean row of the nodes already placed that link to it, or the
+    /// first free row when none does.
+    let private rows (model: Flowchart) (indices: Dictionary<DiagramId, int>) (levels: int array) (edges: (int * int) array) =
+        let predecessors = Array.init levels.Length (fun _ -> ResizeArray<int>())
+
+        for source, target in edges do
+            if source <> target then
+                predecessors[target].Add source
+
+        let children = Dictionary<DiagramId, ResizeArray<FlowGroup>>()
+        let topGroups = ResizeArray<FlowGroup>()
+        let grouped = HashSet<int>()
+
+        for group in model.Groups do
+            for id in group.NodeIds do
+                grouped.Add indices[id] |> ignore
+
+            match group.ParentId with
+            | null -> topGroups.Add group
+            | parent ->
+                match children.TryGetValue parent with
+                | true, list -> list.Add group
+                | _ -> children[parent] <- ResizeArray [ group ]
+
+        let childrenOf (group: FlowGroup) =
+            match children.TryGetValue group.Id with
+            | true, list -> list :> seq<FlowGroup>
+            | _ -> Seq.empty
+
+        let rec place (nodes: int seq) (groups: FlowGroup seq) =
+            let blocks = groups |> Seq.choose blockOf |> Seq.map Choice2Of2
+            let items =
+                Seq.append (nodes |> Seq.map Choice1Of2) blocks
+                |> Seq.sortBy (function
+                    | Choice1Of2 node -> node
+                    | Choice2Of2 block -> block.Lowest)
+
+            let taken = HashSet<int * int>()
+            let cells = ResizeArray<int * int * int>()
+            let placed = Dictionary<int, int>()
+
+            for item in items do
+                match item with
+                | Choice1Of2 node ->
+                    let rank = levels[node]
+
+                    let leading =
+                        predecessors[node]
+                        |> Seq.choose (fun source ->
+                            match placed.TryGetValue source with
+                            | true, row -> Some row
+                            | _ -> None
+                        )
+                        |> Seq.toArray
+
+                    let preferred =
+                        if leading.Length = 0 then 0 else Array.sum leading / leading.Length
+
+                    // The nearest free row, below before above.
+                    let candidates =
+                        Seq.initInfinite id
+                        |> Seq.collect (fun distance -> [ preferred + distance; preferred - distance ])
+                        |> Seq.filter (fun row -> row >= 0)
+
+                    let row = candidates |> Seq.find (fun row -> not (taken.Contains((rank, row))))
+
+                    taken.Add((rank, row)) |> ignore
+                    placed[node] <- row
+                    cells.Add((node, rank, row))
+                | Choice2Of2 block ->
+                    let band offset =
+                        [ for rank in block.First .. block.Last do
+                              for row in offset .. offset + block.Height - 1 -> rank, row ]
+
+                    let mutable offset = 0
+
+                    while band offset |> List.exists taken.Contains do
+                        offset <- offset + 1
+
+                    for cell in band offset do
+                        taken.Add cell |> ignore
+
+                    for node, rank, row in block.Cells do
+                        placed[node] <- row + offset
+                        cells.Add((node, rank, row + offset))
+
+            if cells.Count = 0 then
+                None
+            else
+                Some
+                    {
+                        Cells = List.ofSeq cells
+                        Height = 1 + (taken |> Seq.map snd |> Seq.max)
+                        First = cells |> Seq.map (fun (_, rank, _) -> rank) |> Seq.min
+                        Last = cells |> Seq.map (fun (_, rank, _) -> rank) |> Seq.max
+                        Lowest = cells |> Seq.map (fun (node, _, _) -> node) |> Seq.min
+                    }
+
+        and blockOf (group: FlowGroup) =
+            place (group.NodeIds |> Seq.map (fun id -> indices[id])) (childrenOf group)
+
+        let result = Array.zeroCreate<int> levels.Length
+
+        match place (Seq.init levels.Length id |> Seq.filter (grouped.Contains >> not)) topGroups with
+        | Some root ->
+            for node, _, row in root.Cells do
+                result[node] <- row
+        | None -> ()
+
+        result
+
     /// The colour family of a shape, as diagrams.mbt assigns it.
     let private family shape =
         match shape with
@@ -267,7 +393,7 @@ module internal FlowchartSvg =
 
         let rankCount = 1 + (if levels.Length = 0 then 0 else Array.max levels)
 
-        let positionsInRank = Array.zeroCreate<int> rankCount
+        let slotOf = rows model indices levels edges
 
         let maxWidth = sizes |> Array.fold (fun width (x, _) -> max width x) 40
 
@@ -302,9 +428,8 @@ module internal FlowchartSvg =
 
         let positions =
             levels
-            |> Array.map (fun level ->
-                let slot = positionsInRank[level]
-                positionsInRank[level] <- slot + 1
+            |> Array.mapi (fun index level ->
+                let slot = slotOf[index]
 
                 let rank = if reversed then rankCount - level - 1 else level
 
@@ -313,7 +438,7 @@ module internal FlowchartSvg =
                 margin + maxWidth + column * xStep, margin + maxHeight + row * yStep
             )
 
-        let slots = max 1 (Array.max positionsInRank)
+        let slots = 1 + (if slotOf.Length = 0 then 0 else Array.max slotOf)
         let columns, rows = if horizontal then rankCount, slots else slots, rankCount
 
         let baseWidth = 2 * margin + (columns - 1) * xStep + 2 * maxWidth
@@ -377,6 +502,28 @@ module internal FlowchartSvg =
 
                 let edgeCounts = Dictionary<int * int, int>()
                 let edgeRefs = ElementRefs.Edges model
+                let pairOf (source, target) = min source target, max source target
+
+                let pairTotals =
+                    edges |> Array.countBy pairOf |> dict
+
+                let occupied =
+                    HashSet<int * int>(Seq.init levels.Length (fun index -> levels[index], slotOf[index]))
+
+                // A link to a node in another row and another rank turns once: it leaves the source from the side
+                // that faces the target's row, and enters the target from its rank side. It does so only when no
+                // node stands on either leg and no other link joins the same two nodes.
+                let turnsOnce source target =
+                    let sourceRank, sourceRow = levels[source], slotOf[source]
+                    let targetRank, targetRow = levels[target], slotOf[target]
+                    let between first last = seq { min first last + 1 .. max first last - 1 }
+
+                    sourceRank <> targetRank
+                    && sourceRow <> targetRow
+                    && pairTotals[pairOf (source, target)] = 1
+                    && not (occupied.Contains((sourceRank, targetRow)))
+                    && between sourceRow targetRow |> Seq.forall (fun row -> not (occupied.Contains((sourceRank, row))))
+                    && between sourceRank targetRank |> Seq.forall (fun rank -> not (occupied.Contains((rank, targetRow))))
 
                 for index in 0 .. edges.Length - 1 do
                     let source, target = edges[index]
@@ -395,7 +542,19 @@ module internal FlowchartSvg =
                             (if count % 2 = 0 then -1 else 1) * min 24 (8 * ((count + 1) / 2))
 
                         let startPoint, bend1, bend2, endPoint, (labelX, labelY) =
-                            if source = target then
+                            if source <> target && turnsOnce source target then
+                                let signX = if tx > sx then 1 else -1
+                                let signY = if ty > sy then 1 else -1
+
+                                if horizontal then
+                                    let b = tx - signX * tw
+
+                                    (sx, sy + signY * sh), (sx, ty), (sx, ty), (b, ty), ((sx + b) / 2, ty - 9)
+                                else
+                                    let b = ty - signY * th
+
+                                    (sx + signX * sw, sy), (tx, sy), (tx, sy), (tx, b), (tx, (sy + b) / 2 + 5)
+                            elif source = target then
                                 let routeX = sx + sw + 22 + shift
 
                                 let top = sy - sh - 22

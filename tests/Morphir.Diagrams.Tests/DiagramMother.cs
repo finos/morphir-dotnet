@@ -55,6 +55,39 @@ internal static class DiagramMother
           Billing --> Ledgers
         """;
 
+    /// <summary>
+    /// An order pipeline in the given direction: a Checkout subgraph with a decision whose labelled yes and no links
+    /// go to two nodes of one rank, a thick link from inside the subgraph to an Event bus outside it, and an Audit log
+    /// in a rank that the subgraph spans.
+    /// </summary>
+    public static string OrderPipeline(string direction) => $$$"""
+        flowchart {{{direction}}}
+          Browser([Web app]) --> Gateway{{API gateway}}
+          subgraph Checkout
+            Gateway --> Orders[Order service]
+            Orders --> Rules{Valid?}
+            Rules -->|yes| Store[(Orders DB)]
+            Rules -.->|no| Reject((Reject))
+          end
+          Orders ==> Bus[[Event bus]]
+          Bus --> Audit>Audit log]
+        """;
+
+    /// <summary>A decision in a nested subgraph whose yes and no branches each lead on to one node outside it.</summary>
+    public const string NestedDecision = """
+        flowchart LR
+          A[Start] --> B
+          subgraph Outer
+            B[Load] --> C{Ok?}
+            subgraph Inner
+              C -->|yes| D[Save]
+              C -->|no| E[Retry]
+            end
+          end
+          E --> F[Alert]
+          D --> G[Done]
+        """;
+
     public static readonly DocumentId CheckoutDocument = DocumentId.Create(Iri.Create("https://example.org/diagrams/checkout"));
 
     public static readonly DocumentId ExchangeDocument = DocumentId.Create(Iri.Create("https://example.org/diagrams/exchange"));
