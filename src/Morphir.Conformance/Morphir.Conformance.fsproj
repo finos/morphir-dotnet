@@ -21,6 +21,7 @@
     <Compile Include="Runner.fs" />
     <Compile Include="Report.fs" />
     <Compile Include="BoundedGeneration/Receipt.fs" />
+    <Compile Include="BoundedGeneration/Commands.fs" />
     <Compile Include="FrontendAdapter.fs" />
     <Compile Include="CliAdapter.fs" />
     <Compile Include="WasmHost/Model.fs" />
