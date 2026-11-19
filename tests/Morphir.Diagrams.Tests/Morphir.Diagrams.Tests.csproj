@@ -12,6 +12,10 @@
     <PackageReference Include="TUnit" />
     <PackageReference Include="Microsoft.Testing.Extensions.HangDump" />
     <PackageReference Include="Shouldly" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <ProjectReference Include="../../src/Morphir.Diagrams/Morphir.Diagrams.fsproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="../../src/Morphir.Diagrams/README.md" LogicalName="Morphir.Diagrams.README.md" />
   </ItemGroup>
 </Project>

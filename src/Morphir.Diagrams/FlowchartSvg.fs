@@ -346,7 +346,7 @@ module internal FlowchartSvg =
                     SvgWriting.element
                         writer
                         "g"
-                        [ "data-group", group.Id.Value ]
+                        [ "data-ref", (DiagramElementRef.Group group.Id).ToString(); "data-group", group.Id.Value ]
                         (fun () ->
                             SvgWriting.empty
                                 writer
@@ -375,6 +375,7 @@ module internal FlowchartSvg =
                         )
 
                 let edgeCounts = Dictionary<int * int, int>()
+                let edgeRefs = ElementRefs.Edges model
 
                 for index in 0 .. edges.Length - 1 do
                     let source, target = edges[index]
@@ -435,29 +436,35 @@ module internal FlowchartSvg =
                         let route =
                             $"M{point startPoint} L{point bend1} L{point bend2} L{point endPoint}{finish}"
 
-                        SvgWriting.connector
+                        SvgWriting.element
                             writer
-                            route
-                            edge.StartHead
-                            edge.EndHead
-                            Theme.arrow
-                            (if edge.Line = FlowLine.Dotted then Some "5 4" else None)
-                            (if edge.Line = FlowLine.Thick then "3" else "1.5")
-                            [
-                                "class", "connector"
-                                "data-source", edge.Source.Value
-                                "data-target", edge.Target.Value
-                            ]
+                            "g"
+                            [ "class", "edge"; "data-ref", edgeRefs[index].ToString() ]
+                            (fun () ->
+                            SvgWriting.connector
+                                writer
+                                route
+                                edge.StartHead
+                                edge.EndHead
+                                Theme.arrow
+                                (if edge.Line = FlowLine.Dotted then Some "5 4" else None)
+                                (if edge.Line = FlowLine.Thick then "3" else "1.5")
+                                [
+                                    "class", "connector"
+                                    "data-source", edge.Source.Value
+                                    "data-target", edge.Target.Value
+                                ]
 
-                        if edge.StartHead <> EdgeHead.None || edge.EndHead <> EdgeHead.None then
-                            let reversed = edge.EndHead = EdgeHead.None
-                            writer.BindConnector edge.Source edge.Target route reversed
+                            if edge.StartHead <> EdgeHead.None || edge.EndHead <> EdgeHead.None then
+                                let reversed = edge.EndHead = EdgeHead.None
+                                writer.BindConnector edge.Source edge.Target route reversed
 
-                        match edge.Label with
-                        | null -> ()
-                        | label ->
-                            SvgWriting.chip writer labelX labelY 13 Theme.bg label
-                            SvgWriting.label writer labelX labelY 13 400 Theme.text label
+                            match edge.Label with
+                            | null -> ()
+                            | label ->
+                                SvgWriting.chip writer labelX labelY 13 Theme.bg label
+                                SvgWriting.label writer labelX labelY 13 400 Theme.text label
+                            )
 
                 model.Nodes
                 |> Seq.iteri (fun index node ->
@@ -467,7 +474,7 @@ module internal FlowchartSvg =
                     SvgWriting.element
                         writer
                         "g"
-                        [ "data-node", node.Id.Value; "data-shape", node.Shape.WireValue ]
+                        [ "data-ref", (DiagramElementRef.Node node.Id).ToString(); "data-node", node.Id.Value; "data-shape", node.Shape.WireValue ]
                         (fun () ->
                             let family = shape writer node x y w h
                             SvgWriting.label writer x (y + 5) 13 400 (Theme.ink family) node.Label

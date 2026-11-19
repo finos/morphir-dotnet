@@ -43,10 +43,10 @@ Decision ids (REF-1 … PKG-1) refer to [design.html](design.html). Before addin
 
 ## 7. Element references (diagram-linked-metadata, REF-1, REF-2)
 
-- [ ] 7.1 Write failing tests in `tests/Morphir.Diagrams.Tests` for the reference of every element kind, parallel-edge ordinals, references that survive an unrelated insertion, percent-encoding round trips, and rejection of a document IRI with a fragment
-- [ ] 7.2 Implement `DiagramElementRef` (`Parse`/`TryParse`/`ToString`) and the reference enumeration for flowcharts and sequence diagrams, and verify that the tests from 7.1 pass
-- [ ] 7.3 Emit `data-ref` on the outer group of every element in the flowchart and sequence painters, update the golden outputs, and verify the "Rendered elements carry references" scenario
-- [ ] 7.4 Document the reference grammar in `src/Morphir.Diagrams/README.md`, and verify that its examples match the test fixtures
+- [x] 7.1 Write failing tests in `tests/Morphir.Diagrams.Tests` for the reference of every element kind, parallel-edge ordinals, references that survive an unrelated insertion, percent-encoding round trips, and rejection of a document IRI with a fragment
+- [x] 7.2 Implement `DiagramElementRef` (`Parse`/`TryParse`/`ToString`) and the reference enumeration for flowcharts and sequence diagrams, and verify that the tests from 7.1 pass
+- [x] 7.3 Emit `data-ref` on the outer group of every element in the flowchart and sequence painters, update the golden outputs, and verify the "Rendered elements carry references" scenario
+- [x] 7.4 Document the reference grammar in `src/Morphir.Diagrams/README.md`, and verify that its examples match the test fixtures
 
 ## 8. Snapshots and selections (diagram-linked-metadata, SEL-1)
 

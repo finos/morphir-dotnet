@@ -96,8 +96,12 @@ let svg = Mermaid.RenderSvg(source, options)
 ```
 
 ```csharp
+using System;
+using Morphir.Diagrams;
+
+const string source = "flowchart LR\n  Cart --> Billing";
 var options = SvgRenderOptions.Default.WithTheme(DiagramThemes.Monokai);
-var html = Mermaid.RenderAnimated(source, options).Output;
+Console.Write(Mermaid.RenderAnimated(source, options).Output);
 ```
 
 `ThemeMode.Auto`, the default, writes both palettes. The diagram is dark
@@ -117,6 +121,9 @@ behind labels, an arrow colour, and a fill and stroke for each of the seven
 `#rrggbb`, `rgb(r, g, b)` and `rgba(r, g, b, a)`.
 
 ```csharp
+using System;
+using Morphir.Diagrams;
+
 FamilyColors Accent(string stroke, string fill) => FamilyColors.Create(Color.Create(fill), Color.Create(stroke));
 
 var dark = ThemePalette.Create(
@@ -130,8 +137,11 @@ var dark = ThemePalette.Create(
     messageBus: Accent("#f59e5b", "rgba(245, 158, 91, 0.18)"),
     external: Accent("#8a9bab", "rgba(138, 155, 171, 0.2)"));
 
-if (DiagramTheme.TryCreate("Harbour", dark, ThemePalette.DeriveLight(dark), out var theme, out var diagnostics))
-    html = Mermaid.RenderAnimated(source, SvgRenderOptions.Default.WithTheme(theme)).Output;
+if (!DiagramTheme.TryCreate("Harbour", dark, ThemePalette.DeriveLight(dark), out var theme, out var diagnostics))
+    throw new InvalidOperationException(string.Join("\n", diagnostics));
+
+const string source = "flowchart LR\n  Cart --> Billing";
+Console.Write(Mermaid.RenderAnimated(source, SvgRenderOptions.Default.WithTheme(theme)).Output);
 ```
 
 F# callers use `DiagramTheme.Validate(name, dark, light)`, which returns a
@@ -183,6 +193,83 @@ are `frontend`, and plain participants cycle through `frontend`, `backend`,
 dotted replies use `external` with an `--arrow` line, and messages with a
 cross head use `security`. Text uses a monospace font stack and the SVG
 embeds no font data.
+
+## Element references
+
+Every element of a diagram has a reference that depends only on authored
+identifiers and on source order among elements of the same kind. The SVG writes
+it as `data-ref` on the element's outermost group, so tools can find an element
+in the drawing. Adding an element elsewhere does not change the references of
+the others.
+
+| Element | Reference | Example |
+| --- | --- | --- |
+| Flowchart node | `node=<id>` | `node=Billing` |
+| Subgraph | `group=<id>` | `group=payments` |
+| Flowchart link | `edge=<source>/<target>/<n>` | `edge=Cart/Billing/1` |
+| Participant | `participant=<id>` | `participant=Api` |
+| Message | `message=<sender>/<receiver>/<n>` | `message=Api/Db/0` |
+| Note | `note=<n>` | `note=0` |
+| Frame | `frame=<n>` | `frame=1` |
+| Playback step | `step=<n>` | `step=2` |
+
+The ordinal `n` counts from 0 in source order: among links or messages with the
+same two endpoints, among all notes, among all frames with outer frames first,
+and among playback steps. Within identifiers, `%`, `/`, `=` and every character
+that an [RFC 3987](https://www.rfc-editor.org/rfc/rfc3987) IRI fragment does not
+allow are percent-encoded as UTF-8, so `node=a%2Fb` names the node `a/b`.
+`DiagramElementRef.Parse` and `TryParse` read a reference back, and `Match`
+dispatches on its kind.
+
+An element IRI is the diagram's document IRI with the reference as its fragment:
+`https://example.org/diagrams/checkout#edge=Cart/Billing/0`. `TryToIri` forms it,
+and `TryParseIri` reads it back. A document IRI that already has a fragment is
+rejected with `DiagramReferenceError.DocumentHasFragment`.
+
+This flowchart:
+
+```mermaid
+flowchart LR
+  subgraph payments
+    Cart --> Billing
+    Cart --> Billing
+  end
+  Billing --> Ledger
+```
+
+has these references, in the order `DiagramElementRef.Enumerate` lists them:
+
+```text
+node=Cart
+node=Billing
+node=Ledger
+group=payments
+edge=Cart/Billing/0
+edge=Cart/Billing/1
+edge=Billing/Ledger/0
+step=0
+step=1
+step=2
+```
+
+```csharp
+using System;
+using Morphir.Diagrams;
+using Morphir.Knowledge;
+
+const string source = "flowchart LR\n  Cart --> Billing\n  Cart --> Billing";
+if (!Mermaid.TryParse(source, out var document, out var diagnostics))
+    throw new InvalidOperationException(string.Join("\n", diagnostics));
+
+foreach (var reference in DiagramElementRef.Enumerate(document.Diagram))
+    Console.WriteLine(reference);
+
+var second = DiagramElementRef.Create("edge=Cart/Billing/1");
+if (!second.TryToIri(Iri.Create("https://example.org/diagrams/checkout"), out var iri, out var error))
+    throw new InvalidOperationException(error.ToString());
+
+Console.WriteLine(iri);
+```
 
 ## Migration coverage
 

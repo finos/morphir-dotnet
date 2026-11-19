@@ -13,7 +13,9 @@
     <ItemGroup>
         <PackageReference Include="FSharp.Core" />
         <ProjectReference Include="../Morphir.Svg/Morphir.Svg.fsproj" />
+        <ProjectReference Include="../Morphir.Knowledge/Morphir.Knowledge.fsproj" />
         <Compile Include="Model.fs" />
+        <Compile Include="ElementReferences.fs" />
         <Compile Include="Themes.fs" />
         <Compile Include="DiagramScene.fs" />
         <Compile Include="Reading.fs" />

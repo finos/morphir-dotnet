@@ -67,7 +67,7 @@ module internal SequenceSvg =
                     SvgWriting.label writer x (y + 25) 12 600 Theme.text participant.Label
             )
 
-    let private drawNote writer x y (note: SequenceNote) =
+    let private drawNote writer (reference: DiagramElementRef) x y (note: SequenceNote) =
         let px = x note.Participants[0]
         let width = max 76 (min 380 (SvgWriting.textWidth 12 note.Text + 28))
 
@@ -82,7 +82,7 @@ module internal SequenceSvg =
         SvgWriting.element
             writer
             "g"
-            [ "class", "note" ]
+            [ "class", "note"; "data-ref", reference.ToString() ]
             (fun () ->
                 let external = ColorFamily.External
                 SvgWriting.rectangle writer left (y - 21) width 35 4 Theme.mask "none"
@@ -116,7 +116,7 @@ module internal SequenceSvg =
         else
             Theme.stroke family
 
-    let private drawMessage writer families x y (message: SequenceMessage) =
+    let private drawMessage writer (reference: DiagramElementRef) families x y (message: SequenceMessage) =
         let sx, tx = x message.Sender, x message.Receiver
         let family = messageFamily families message
 
@@ -139,7 +139,7 @@ module internal SequenceSvg =
         SvgWriting.element
             writer
             "g"
-            [ "class", $"message f-{family.WireValue}" ]
+            [ "class", $"message f-{family.WireValue}"; "data-ref", reference.ToString() ]
             (fun () ->
                 SvgWriting.connector
                     writer
@@ -164,7 +164,7 @@ module internal SequenceSvg =
             System.Text.RegularExpressions.RegexOptions.CultureInvariant
         )
 
-    let private drawFrame writer width (frame: SequenceLayout.Frame) =
+    let private drawFrame writer (references: Dictionary<SequenceFrame, DiagramElementRef>) width (frame: SequenceLayout.Frame) =
         let left = 18 + frame.Depth * 9
         let right = width - left
         let kind = frame.Model.Kind
@@ -178,7 +178,7 @@ module internal SequenceSvg =
         SvgWriting.element
             writer
             "g"
-            [ "class", "frame"; "data-frame", kind.WireValue ]
+            [ "class", "frame"; "data-ref", references[frame.Model].ToString(); "data-frame", kind.WireValue ]
             (fun () ->
                 let band role fill (extra: (string * string) list) =
                     SvgWriting.empty
@@ -313,6 +313,8 @@ module internal SequenceSvg =
         let height = bottom + 80
 
         let families = families model.Participants
+        let messageRefs = ElementRefs.Messages model
+        let noteRefs = ElementRefs.Notes model
 
         let heads =
             model.Messages
@@ -332,7 +334,7 @@ module internal SequenceSvg =
             (fun writer ->
                 layout.Frames
                 |> Seq.sortBy (fun frame -> frame.Top, frame.Depth)
-                |> Seq.iter (drawFrame writer width)
+                |> Seq.iter (drawFrame writer (ElementRefs.Frames model) width)
 
                 for participant in model.Participants do
                     let px = x participant.Id
@@ -354,13 +356,19 @@ module internal SequenceSvg =
 
                 for row in layout.Rows do
                     match row with
-                    | SequenceLayout.Message(y, message) -> drawMessage writer families x y message
-                    | SequenceLayout.Note(y, note) -> drawNote writer x y note
+                    | SequenceLayout.Message(y, message) -> drawMessage writer messageRefs[message] families x y message
+                    | SequenceLayout.Note(y, note) -> drawNote writer noteRefs[note] x y note
 
                 // Participants paint last, over lifelines and self-messages, as upstream does.
                 for participant in model.Participants do
                     let px = x participant.Id
                     let family = families[participant.Id]
-                    drawParticipant writer participant family px top halfWidth
-                    drawParticipant writer participant family px (bottom + 6) halfWidth
+                    // One element, drawn at the top and the bottom of its lifeline.
+                    SvgWriting.element
+                        writer
+                        "g"
+                        [ "class", "lane"; "data-ref", (DiagramElementRef.Participant participant.Id).ToString() ]
+                        (fun () ->
+                            drawParticipant writer participant family px top halfWidth
+                            drawParticipant writer participant family px (bottom + 6) halfWidth)
             )
