@@ -61,8 +61,10 @@ public sealed class KnowledgePackageSteps(IPackageDriver packages, IScenarioWork
                 """);
 
             var config = packages.WriteNuGetConfig(folder, includeNuGetOrg: true, Mapping);
+            // NuGetAudit=false: the consumers check the packages, not vulnerability data. Parallel restores share
+            // NuGet's vulnerability cache file, and a held file there is NU1900, an error under TreatWarningsAsErrors.
             var restore = await packages.DotnetAsync(folder,
-                ["restore", project, "--packages", folder.Directory("packages").Path, "--configfile", config.Path, "--disable-parallel", "-m:1", "-nodeReuse:false"]);
+                ["restore", project, "--packages", folder.Directory("packages").Path, "--configfile", config.Path, "--disable-parallel", "-m:1", "-nodeReuse:false", "-p:NuGetAudit=false"]);
             restore.ShouldExitWith(0);
             var assets = JsonNode.Parse(workspace.ReadText(folder.File("obj", "project.assets.json")))!
                 ["targets"]![framework]!.AsObject();
