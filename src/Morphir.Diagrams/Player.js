@@ -22,6 +22,7 @@
     let previous = null;
     let request = null;
     const overlays = new Map();
+    const overlayLayer = create("g", { "aria-hidden": "true" });
 
     seek.max = String(duration);
     for (const button of [play, seek, speed, control("step"), control("restart")]) {
@@ -45,12 +46,18 @@
         const time = data.repeat ? elapsed % duration : elapsed;
         const steps = data.repeat ? [data.steps[Math.floor(time / data.steps[0].durationMs)]] : data.steps;
         const active = new Set();
+        let nextGroup = overlayLayer.firstElementChild;
         for (const step of steps) {
             if (time < step.startMs || time >= step.startMs + step.durationMs) continue;
             active.add(step.ordinal);
             const binding = data.paths[step.connector];
             const progress = (time - step.startMs) / step.durationMs;
-            const overlay = overlays.get(step.ordinal) ?? makeOverlay(step, binding);
+            const overlay = overlays.get(step.ordinal) ?? makeOverlay(step, binding, nextGroup);
+            // Restore schedule order even when a seek reactivates an earlier step.
+            if (overlay.group !== nextGroup && overlay.group.nextElementSibling !== nextGroup) {
+                overlayLayer.insertBefore(overlay.group, nextGroup);
+            }
+            nextGroup = overlay.group.nextElementSibling;
             const point = overlay.path.getPointAtLength(overlay.length * (binding.reversed ? 1 - progress : progress));
             overlay.dot.setAttribute("cx", String(point.x));
             overlay.dot.setAttribute("cy", String(point.y));
@@ -66,7 +73,7 @@
         }
     }
 
-    function makeOverlay(step, binding) {
+    function makeOverlay(step, binding, nextGroup) {
         const group = create("g", { class: "motion-overlay", "aria-hidden": "true" });
         group.dataset.ordinal = String(step.ordinal);
         group.dataset.connector = String(binding.ordinal);
@@ -76,7 +83,8 @@
         });
         const dot = create("circle", { r: "4", fill: accent });
         group.append(path, dot);
-        svg.append(group);
+        if (overlayLayer.parentNode === null) svg.append(overlayLayer);
+        overlayLayer.insertBefore(group, nextGroup);
         const overlay = { group, path, dot, length: path.getTotalLength() };
         overlays.set(step.ordinal, overlay);
         return overlay;
