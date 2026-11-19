@@ -39,7 +39,11 @@ Every parsed document SHALL keep the exact source it was read from, including co
 - **THEN** the document's source equals the original text code unit for code unit
 
 ### Requirement: Canonical printing
-Every Mermaid and PlantUML family SHALL have a canonical printer that writes the typed syntax in the native language. Reading printed text SHALL give an equivalent syntax tree, and printing it again SHALL give identical text. An invalid syntax tree SHALL produce diagnostics and no text.
+Every Mermaid and PlantUML family SHALL have a canonical printer that writes the model in its native language. Printing what was printed SHALL give identical text, and a model the language cannot write SHALL produce diagnostics and no text. PlantUML activity diagrams print in the legacy graph dialect, in which decision and merge roles and lanes read back as plain activities outside lanes.
+
+#### Scenario: Activity printed as a graph
+- **WHEN** a modern activity diagram with an `if` is printed with PlantUml.Print
+- **THEN** the text is a legacy `(*) -->` graph, and printing what it reads back gives the same text
 
 #### Scenario: Print twice
 - **WHEN** an architecture diagram is printed, read and printed again

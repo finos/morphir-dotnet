@@ -80,6 +80,8 @@ module internal PlantUmlReader =
         let isActivity (value: string) =
             starts ":" value
             || Text.RegularExpressions.Regex.IsMatch(value, @"^\|[^|]+\|")
+            || Text.RegularExpressions.Regex.IsMatch(value, @"^(?:\*+|-)\s+\S")
+
             || value.Contains "(*)"
             || List.contains value [ "start"; "stop"; "end"; "detach"; "kill"; "fork"; "split"; "repeat" ]
             || List.exists (fun word -> starts (word + " ") value || starts (word + "(") value) [ "if"; "repeat"; "while"; "partition"; "fork again"; "split again" ]
@@ -91,10 +93,14 @@ module internal PlantUmlReader =
         // A body of arrows between names, with nothing else to tell, is a state diagram.
         let isArrow (value: string) = Text.RegularExpressions.Regex.IsMatch(value, @"^\S+\s*[<x]?-.*[->]\s*\S+")
 
-        match Array.exists isState lines, Array.exists isActivity lines, Array.exists isOther lines with
+        // A legacy activity starts a line with a quoted activity and an arrow; quotes are kept for this test.
+        let legacyArrow =
+            body |> Array.exists (fun statement -> Text.RegularExpressions.Regex.IsMatch(text statement, @"^""[^""]*""(?:\s+as\s+\w+)?\s*-+"))
+
+        match Array.exists isState lines, legacyArrow || Array.exists isActivity lines, Array.exists isOther lines with
         | true, false, _ -> Ok "state"
+        | false, true, _ -> Ok "activity"
         | false, false, false when Array.exists isArrow lines -> Ok "state"
-        | false, true, false -> Ok "activity"
         | true, true, _ -> Error "plantuml/ambiguous-kind"
         | _ -> Error "plantuml/unsupported-kind"
 
@@ -179,6 +185,7 @@ type PlantUml private () =
         let result =
             match diagram with
             | Diagram.State model -> MermaidPrinter.stateText true model
+            | Diagram.Swimlane model -> MermaidPrinter.activity model
             | other -> Error [ $"{other} has no PlantUML printer." ]
 
         result |> Result.mapError (List.map (fun message -> Reading.error "plantuml/unprintable" message None) >> ImmutableArray.CreateRange)

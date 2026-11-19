@@ -517,6 +517,76 @@ module internal MermaidPrinter =
 
     let state model = stateText false model
 
+    /// Canonical PlantUML activity text in the legacy dialect, which writes any flow graph: `(*)` for starts and
+    /// stops, `===bar===` for forks and joins, and `"label" as id` for every other step. Decision and merge roles and
+    /// lanes have no legacy form and read back as plain activities outside lanes.
+    let activity (model: SwimlaneDiagram) =
+        let lines = ResizeArray<string>()
+        let errors = ResizeArray<string>()
+        let steps = model.Steps |> Seq.map (fun step -> step.Id, step) |> dict
+        let declared = Collections.Generic.HashSet<DiagramId>()
+
+        lines.Add "@startuml"
+
+        match model.Direction with
+        | FlowDirection.TopToBottom -> ()
+        | FlowDirection.LeftToRight -> lines.Add "left to right direction"
+        | other -> errors.Add $"PlantUML activity diagrams cannot write the direction {direction other}."
+
+        // Names are given in order of first mention, so reading the text back and printing it gives the same names.
+        let aliases = Collections.Generic.Dictionary<DiagramId, string>()
+
+        let name (id: DiagramId) =
+            let step = steps[id]
+            let alias prefix =
+                match aliases.TryGetValue id with
+                | true, found -> found
+                | false, _ ->
+                    let found = $"{prefix}{aliases.Count + 1}"
+                    aliases[id] <- found
+                    found
+
+            match step.Role with
+            | SwimlaneRole.Start
+            | SwimlaneRole.Stop
+            | SwimlaneRole.End -> "(*)"
+            | SwimlaneRole.Fork
+            | SwimlaneRole.Join -> "===" + alias "bar" + "==="
+            | _ when declared.Add id ->
+                // A legacy label cannot hold a double quote; it is written as a single one.
+                "\"" + step.Label.Replace("\"", "'").Replace("\n", "\\n") + "\" as " + alias "a"
+            | _ -> alias "a"
+
+        let notes = model.Steps |> Seq.filter (fun step -> step.Role = SwimlaneRole.Note) |> Seq.map (fun step -> step.Id) |> Collections.Generic.HashSet
+        let attached = Collections.Generic.Dictionary<DiagramId, ResizeArray<string>>()
+
+        for connector in model.Connectors do
+            if notes.Contains connector.Source then
+                match attached.TryGetValue connector.Target with
+                | true, found -> found.Add steps[connector.Source].Label
+                | false, _ -> attached[connector.Target] <- ResizeArray [ steps[connector.Source].Label ]
+
+        for connector in model.Connectors do
+            if not (notes.Contains connector.Source) then
+                let label = match connector.Label with | null -> "" | text -> "[" + text.Replace("\n", "\\n") + "] "
+                lines.Add $"{name connector.Source} -->{label}{name connector.Target}"
+
+                match attached.TryGetValue connector.Target with
+                | true, found ->
+                    for text in found do
+                        if text.Contains '\n' then
+                            lines.Add "note right"
+                            lines.AddRange(text.Split '\n')
+                            lines.Add "end note"
+                        else
+                            lines.Add $"note right: {text}"
+
+                    attached.Remove connector.Target |> ignore
+                | false, _ -> ()
+
+        lines.Add "@enduml"
+        if errors.Count > 0 then Error(List.ofSeq errors) else Ok(String.Join("\n", lines) + "\n")
+
     /// Canonical Mermaid text for a flowchart or sequence diagram.
     let print (diagram: Diagram) =
         let result =
