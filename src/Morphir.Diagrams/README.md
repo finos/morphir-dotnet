@@ -1,7 +1,7 @@
 # Morphir.Diagrams
 
-Read Mermaid into immutable F# models and render them as standalone SVG on
-.NET 10 or .NET 11. The library preserves the original source text, including
+Read Mermaid, PlantUML and BPMN 2.0 into immutable F# models and render them as
+standalone SVG and offline HTML players on .NET 10 or .NET 11. The library preserves the original source text, including
 its line endings and comments. Parse errors have stable codes and carry
 half-open UTF-16 source ranges when a location is available.
 
@@ -39,6 +39,47 @@ if (DiagramSource.TryParse(source, out var document, out var diagnostics))
 For rendering directly from source, call `Mermaid.RenderSvg(source)`. The
 result reports the media type, output, and diagnostics. An input error leaves
 `Output` empty and includes a diagnostic.
+
+## Reading any source
+
+`DiagramSource` reads Mermaid, PlantUML or BPMN through one entry point. It detects the
+language from the first meaningful text: markup is BPMN, a line that starts with `@` or a
+`'` comment is PlantUML, and anything else is Mermaid. `Mermaid` and `PlantUml` read one
+language each. Keywords in comments, strings and labels never choose the family.
+
+```csharp
+using Morphir.Diagrams;
+
+var language = DiagramSource.Detect("@startjson\n{}\n@endjson");
+var rendered = DiagramSource.RenderSvg("stateDiagram-v2\n  [*] --> Draft");
+var warnings = rendered.Diagnostics;
+```
+
+A known family that the library does not draw, such as `classDiagram` or a class
+`@startuml` block, gives an `unsupported-kind` diagnostic. Every reader works within limits
+and reports going past one with a code that ends in `-limit`:
+
+| Limit | Value |
+| --- | --- |
+| Source | 262,144 UTF-16 code units |
+| Nesting of subgraphs, composites, frames, blocks and expressions | 64 levels |
+| Nodes | 512 |
+| Edges and sequence statements | 4,096 |
+| Diagnostics | 100 |
+
+A document keeps the exact source it was read from. Accepted text that rendering does not
+apply, such as styles, classes, callbacks, links, accessibility text and directives,
+gives a warning in `DiagramDocument.Diagnostics` and in the render result; source
+configuration never changes the caller's options. PlantUML preprocessor directives such as
+`!include` are refused without reading a file or the network.
+
+### Printing
+
+`Mermaid.Print` writes flowcharts and sequences as canonical Mermaid, and
+`Mermaid.PrintZenUml` writes sequences as canonical ZenUML. Reading printed text gives the
+same model, and printing it again gives the same text. Presentation that the model does not
+keep is not printed, and a model that the language cannot write gives diagnostics, never
+partial text.
 
 ## Offline playback
 
@@ -542,12 +583,38 @@ referrer; any other scheme, such as `javascript:` or `file:`, is shown as text.
 Markers, outlines and the panel are not part of the downloaded SVG, and printing
 hides them. A player without a dataset has no markers.
 
+## Exploring routes and scenarios
+
+Players of diagrams with connections have an *Explore routes* disclosure under the
+controls. A reader picks two elements for one shortest route, or one element for what lies
+upstream or downstream. Routes follow arrowheads; links without heads are followed only
+when the reader asks for them. Results are structural: no guard, condition or timer is
+evaluated. `DiagramExploration` gives the same answers in F# and C#:
+
+```csharp
+using Morphir.Diagrams;
+
+if (Mermaid.TryParse("flowchart LR\n  A --> B --> C", out var document, out _))
+{
+    var route = DiagramExploration.Route(
+        document.Diagram, DiagramId.Create("A"), DiagramId.Create("C"), LinkFollowing.Arrowheads);
+    var upstream = DiagramExploration.Reachable(
+        document.Diagram, DiagramId.Create("C"), ExplorationDirection.Upstream, LinkFollowing.Arrowheads);
+}
+```
+
+A scenario is a finite schedule of `PlaybackStep` connector occurrences, which may repeat
+and overlap, and `NodeVisit` highlights of any element, passed to
+`AnimatedRenderer.Render(scene, steps, visits)`. A diagram with nothing to play visits its
+elements in order.
+
 ## Migration coverage
 
 | Mermaid family | Supported syntax |
 | --- | --- |
-| Flowcharts | `flowchart`, `graph`, and `flowchart-elk` headers, all four directions, common bracket shapes, chained and grouped node connections, link heads and labels including dotted inline labels, and nested subgraphs with node membership |
-| Sequences | Participant and actor declarations, aliases and implicit participants, paired and single-ended arrows, self-messages, notes, nested activation bars, nested frames and their sections, and `autonumber` |
+| Flowcharts | The Mermaid 12.2.0 grammar: every fixture of the pinned reference is accepted or refused as Mermaid does, with the same nodes and edges. The shape catalogue is drawn with the nearest built-in shape. Links to subgraphs end on the subgraph's box |
+| Sequences | All 38 Mermaid 12.2.0 examples: participant kinds (boundary, control, entity, database, collections, queue), aliases, boxes, create and destroy, central connections, every arrow and half-arrow, notes, activations, frames, and `autonumber` with a start and step |
+| ZenUML | All 25 pinned ZenUML core 3.47.9 examples, read into the sequence model: annotators, asynchronous messages, calls with bodies, creation, assignments, returns and replies, loops, `if`/`else`, `opt`, `par` and `try`/`catch`/`finally` |
 
 The sequence model exposes ordered `Events` at the root and in each frame
 section. `Messages` and `Notes` include nested items in source order.
@@ -557,9 +624,8 @@ The native .NET layout produces deterministic, script-free SVG. It shares the
 upstream theme but uses its own, simpler layout. Source preservation
 includes comments, front matter and directives.
 
-Mermaid style and configuration statements, subgraph endpoints and direction
-overrides, and sequence participant metadata, groups, creation, destruction,
-central connections, and links are pending.
+Mermaid styles, classes, callbacks, links and subgraph directions are kept in the source
+and reported, not drawn.
 The [migration PRD](../../docs/content/contributing/design/prds/migrate-diagrams.md)
 tracks the other formats and renderer features.
 
