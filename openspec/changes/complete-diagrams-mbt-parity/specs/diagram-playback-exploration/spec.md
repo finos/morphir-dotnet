@@ -7,7 +7,7 @@ Extends the offline player beyond authored-order playback: readers explore direc
 ## ADDED Requirements
 
 ### Requirement: Route and reachability exploration
-The player SHALL let a reader pick two elements and see one directed shortest route, and pick one element and see upstream or downstream reachability, over caller-selected connection kinds. Results SHALL distinguish route, unreachable, outside-view, invalid and limit-exhausted, and SHALL terminate on cycles.
+The player and the F# `DiagramExploration` API SHALL let a reader pick two elements and see one directed shortest route, and pick one element and see upstream or downstream reachability, with the same answers. Results SHALL distinguish route, reachable, unreachable, invalid (an element outside the diagram) and limit-exhausted, and SHALL terminate on cycles.
 
 #### Scenario: Unreachable
 - **WHEN** a reader asks for a route from `Done` back to `Start` in an acyclic flowchart
@@ -21,7 +21,7 @@ Exploration SHALL follow arrowheads. Bidirectional connections SHALL be traversa
 - **THEN** the route is unreachable unless undirected exploration is on
 
 ### Requirement: Explicit scenarios and node visits
-Callers SHALL be able to supply finite scenarios naming connection occurrences, repeats, durations, concurrent groups and timed node visits. Invalid targets or durations SHALL produce diagnostics.
+Callers SHALL be able to supply finite scenarios of connector occurrences, which may repeat and overlap, and timed node visits. A visit to an element outside the diagram SHALL produce a diagnostic, and an empty or negative duration SHALL be refused when the step or visit is created.
 
 #### Scenario: Loop taken twice
 - **WHEN** a scenario names a loop-return edge twice
