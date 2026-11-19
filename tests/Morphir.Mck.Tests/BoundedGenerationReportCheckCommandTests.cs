@@ -228,7 +228,9 @@ public sealed class BoundedGenerationReportCheckCommandTests
             var receipt = JsonNode.Parse(File.ReadAllText(Receipt))!.AsObject();
             using var patch = JsonDocument.Parse(new JsonObject
             {
-                ["op"] = "replace", ["path"] = pointer, ["value"] = JsonNode.Parse(json),
+                ["op"] = "replace",
+                ["path"] = pointer,
+                ["value"] = JsonNode.Parse(json),
             }.ToJsonString());
             ApplyPatch(receipt, patch.RootElement);
             File.WriteAllText(Receipt, receipt.ToJsonString());
