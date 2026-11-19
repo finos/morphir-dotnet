@@ -622,6 +622,145 @@ module internal MermaidPrinter =
             let rules = model.Rules |> Seq.map (fun rule -> $"{rule.Name} = {ebnf rule.Body};") |> String.concat "\n"
             Ok($"@startebnf\n{rules}\n@endebnf\n")
 
+    /// A PlantUML `@startjson` or `@startyaml` block: the title first, the highlights, then the data.
+    let dataTree (model: DataTreeDiagram) =
+        let problems = ResizeArray<string>()
+
+        let quote (text: string) =
+            let builder = Text.StringBuilder("\"")
+
+            for c in text do
+                match c with
+                | '"' -> builder.Append "\\\"" |> ignore
+                | '\\' -> builder.Append "\\\\" |> ignore
+                | '\n' -> builder.Append "\\n" |> ignore
+                | '\r' -> builder.Append "\\r" |> ignore
+                | '\t' -> builder.Append "\\t" |> ignore
+                | c when c < ' ' || Char.IsSurrogate c -> builder.Append($"\\u{int c:x4}") |> ignore
+                | c -> builder.Append c |> ignore
+
+            builder.Append('"').ToString()
+
+        let json (root: DataValue) =
+            let output = Text.StringBuilder()
+
+            let rec write (indent: string) (value: DataValue) =
+                let inner = indent + "  "
+
+                match value.Kind with
+                | DataValueKind.Object when value.Members.IsEmpty -> output.Append "{}" |> ignore
+                | DataValueKind.Array when value.Items.IsEmpty -> output.Append "[]" |> ignore
+                | DataValueKind.Object ->
+                    output.Append "{\n" |> ignore
+
+                    value.Members
+                    |> Seq.iteri (fun index item ->
+                        output.Append(inner).Append(quote item.Key).Append(": ") |> ignore
+                        write inner item.Value
+                        output.Append(if index < value.Members.Length - 1 then ",\n" else "\n") |> ignore)
+
+                    output.Append(indent).Append('}') |> ignore
+                | DataValueKind.Array ->
+                    output.Append "[\n" |> ignore
+
+                    value.Items
+                    |> Seq.iteri (fun index item ->
+                        output.Append inner |> ignore
+                        write inner item
+                        output.Append(if index < value.Items.Length - 1 then ",\n" else "\n") |> ignore)
+
+                    output.Append(indent).Append(']') |> ignore
+                | DataValueKind.String -> output.Append(quote value.Text) |> ignore
+                | _ -> output.Append value.Text |> ignore
+
+            write "" root
+            output.Append('\n').ToString()
+
+        // YAML scalars are text; quotes protect text that would read as something else.
+        let yamlText (text: string) =
+            let risky =
+                text <> text.Trim()
+                || text.StartsWith '"' || text.StartsWith '\'' || text.StartsWith '[' || text.StartsWith '#' || text.StartsWith '>'
+                || text.StartsWith "- " || text = "-" || text = "|" || text.Contains " #" || text.Contains '\t'
+
+            if text.Contains '\n' || text.Contains '\r' then problems.Add "A YAML string with a line break has no PlantUML form here."
+            if not risky then text elif text.Contains '"' then $"'{text}'" else $"\"{text}\""
+
+        let yamlKey (key: string) =
+            if key.Contains '"' || key.Contains '\n' then problems.Add $"The key {key} has no PlantUML YAML form."
+            if key = "" || key.Contains ':' || key <> key.Trim() || key.StartsWith '-' || key.StartsWith '#' || key.StartsWith '\'' then $"\"{key}\"" else key
+
+        let yaml (root: DataValue) =
+            let output = Text.StringBuilder()
+
+            let rec members (indent: string) (first: string option) (value: DataValue) =
+                value.Members
+                |> Seq.iteri (fun index item ->
+                    let lead = if index = 0 then defaultArg first indent else indent
+                    output.Append(lead).Append(yamlKey item.Key).Append(':') |> ignore
+                    entry (indent + "  ") item.Value)
+
+            and entry (inner: string) (value: DataValue) =
+                match value.Kind with
+                | DataValueKind.Object when value.Members.IsEmpty ->
+                    problems.Add "An empty YAML map has no PlantUML form."
+                    output.Append '\n' |> ignore
+                | DataValueKind.Array when value.Items.IsEmpty -> output.Append " []\n" |> ignore
+                | DataValueKind.Object ->
+                    output.Append '\n' |> ignore
+                    members inner None value
+                | DataValueKind.Array when value.Items |> Seq.forall (fun item -> item.Kind = DataValueKind.String) && value.Items |> Seq.exists (fun item -> item.Text = "") ->
+                    // A flow list keeps empty items, which a block list cannot hold.
+                    let escaped (text: string) = text.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace(",", "\\,")
+                    let flow = value.Items |> Seq.map (fun item -> $"\"{escaped item.Text}\"") |> String.concat ", "
+                    output.Append(" [").Append(flow).Append("]\n") |> ignore
+                | DataValueKind.Array ->
+                    output.Append '\n' |> ignore
+                    items inner value
+                | _ when value.Text = "" -> output.Append '\n' |> ignore
+                | _ when
+                    value.Text.EndsWith '\n'
+                    && value.Text.TrimEnd('\n').Split('\n') |> Array.forall (fun line -> line <> "" && line = line.Trim())
+                    ->
+                    // A literal block: each line under the key, with the final line break.
+                    output.Append(" |\n") |> ignore
+
+                    for line in value.Text.TrimEnd('\n').Split('\n') do
+                        output.Append(inner).Append(line).Append('\n') |> ignore
+                | _ -> output.Append(' ').Append(yamlText value.Text).Append('\n') |> ignore
+
+            and items (indent: string) (value: DataValue) =
+                for item in value.Items do
+                    match item.Kind with
+                    | DataValueKind.Object when not item.Members.IsEmpty -> members (indent + "  ") (Some(indent + "- ")) item
+                    | DataValueKind.Object
+                    | DataValueKind.Array -> problems.Add "A YAML list item that is a list or an empty map has no PlantUML form."
+                    | _ when item.Text = "" -> problems.Add "An empty YAML list item has no PlantUML form."
+                    | _ -> output.Append(indent).Append("- ").Append(yamlText item.Text).Append('\n') |> ignore
+
+            match root.Kind with
+            | DataValueKind.Object when not root.Members.IsEmpty -> members "" None root
+            | DataValueKind.Array when not root.Items.IsEmpty -> items "" root
+            | _ -> problems.Add "A YAML block needs a map or a list at its root."
+
+            output.ToString()
+
+        let body = if model.Format = DataFormat.Json then json model.Root else yaml model.Root
+
+        let highlights =
+            model.Highlights
+            |> Seq.map (fun highlight ->
+                let path = highlight.Path |> Seq.map (fun segment -> $"\"{segment}\"") |> String.concat " / "
+                let stereotype = match highlight.Stereotype with | null -> "" | value -> " " + value
+                $"#highlight {path}{stereotype}\n")
+            |> String.concat ""
+
+        let title = match model.Title with | null -> "" | value -> $"title {value}\n"
+        let kind = model.Format.WireValue
+
+        if problems.Count > 0 then Error(List.ofSeq problems)
+        else Ok($"@start{kind}\n{title}{highlights}{body}@end{kind}\n")
+
     let activity (model: SwimlaneDiagram) =
         let lines = ResizeArray<string>()
         let errors = ResizeArray<string>()

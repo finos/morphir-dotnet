@@ -188,6 +188,7 @@ type PlantUml private () =
             | Diagram.State model -> MermaidPrinter.stateText true model
             | Diagram.Swimlane model -> MermaidPrinter.activity model
             | Diagram.Railroad model -> MermaidPrinter.railroad model
+            | Diagram.DataTree model -> MermaidPrinter.dataTree model
             | other -> Error [ $"{other} has no PlantUML printer." ]
 
         result |> Result.mapError (List.map (fun message -> Reading.error "plantuml/unprintable" message None) >> ImmutableArray.CreateRange)
