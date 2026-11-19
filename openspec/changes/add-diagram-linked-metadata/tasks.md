@@ -5,7 +5,7 @@ Decision ids (REF-1 … PKG-1) refer to [design.html](design.html). Before addin
 ## 1. Tracking and fixtures
 
 - [x] 1.1 Open a GitHub issue for this change, link it from `proposal.md` under Tracking, and check that the link resolves ([#689](https://github.com/finos/morphir-dotnet/issues/689))
-- [ ] 1.2 Pin the W3C RDF 1.1 XML test suite under `tests/Fixtures/RdfXml/` and the W3C RDFC-1.0 suite under `tests/Fixtures/RdfCanon/`, each with a `PROVENANCE.md` like `tests/Fixtures/RdfNQuads/PROVENANCE.md` (source commit, licence, and RDF/XML tests excluded for DTD processing with the reason). Verify that a fixture catalog test lists the expected test counts
+- [x] 1.2 Pin the W3C RDF 1.1 XML test suite under `tests/Fixtures/RdfXml/` and the W3C RDFC-1.0 suite under `tests/Fixtures/RdfCanon/`, each with a `PROVENANCE.md` like `tests/Fixtures/RdfNQuads/PROVENANCE.md` (source commit, licence, and RDF/XML tests excluded for DTD processing with the reason). Verify that a fixture catalog test lists the expected test counts
 
 ## 2. N-Triples (rdf-datasets, RDF-2)
 

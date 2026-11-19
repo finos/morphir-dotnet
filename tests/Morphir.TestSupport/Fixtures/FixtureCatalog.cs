@@ -722,6 +722,24 @@ public static class FixtureCatalog
             "a0c3dd336f6335e85627f9a49e79f01e16d07036dc7aac02c66dc4718f773a4a", "RdfNQuads/PROVENANCE.md");
     }
 
+    /// <summary>The W3C RDF 1.1 XML syntax tests for the RDF/XML reader.</summary>
+    public static class RdfXml
+    {
+        /// <summary>The evaluation inputs with their expected N-Triples, and the negative syntax inputs.</summary>
+        public static FixtureEntry Corpus { get; } = new(
+            "the RDF 1.1 XML syntax tests", "RdfXml/rdf11-xml.json",
+            "0e7b96c043203942b71a49d0f0499d1880fee58de16ab6482a436a9b4b77307d", "RdfXml/PROVENANCE.md");
+    }
+
+    /// <summary>The W3C RDF Dataset Canonicalization (RDFC-1.0) tests.</summary>
+    public static class RdfCanon
+    {
+        /// <summary>The evaluation, map and negative tests with their inputs and expected results.</summary>
+        public static FixtureEntry Corpus { get; } = new(
+            "the RDFC-1.0 canonicalization tests", "RdfCanon/rdfc10.json",
+            "8de10283843668593cea24874775ed1639e3438fc6020e626d5fdbd3c91059fd", "RdfCanon/PROVENANCE.md");
+    }
+
     /// <summary>The CommonMark examples for the OKF document parser.</summary>
     public static class OkfDocuments
     {
@@ -732,7 +750,7 @@ public static class FixtureCatalog
     }
 
     /// <summary>Every file that the catalog owns and serves.</summary>
-    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, Mep.BoundedGenerationSession, .. BoundedGenerationReceipts.Files, .. Models.All, .. BoundedOrders.Files, .. Trees.AcmeDemo, .. Trees.Written, .. UpstreamIr.Documents, Rfc8785.Text, RdfNQuads.Corpus, OkfDocuments.CommonMark, .. Context.Files, .. Context.Policy.Files, .. Context.Naming.Files];
+    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, Mep.BoundedGenerationSession, .. BoundedGenerationReceipts.Files, .. Models.All, .. BoundedOrders.Files, .. Trees.AcmeDemo, .. Trees.Written, .. UpstreamIr.Documents, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark, .. Context.Files, .. Context.Policy.Files, .. Context.Naming.Files];
 
     /// <summary>
     /// The directories and files below <c>tests/Fixtures</c> that a test project owned before the catalog, with that
