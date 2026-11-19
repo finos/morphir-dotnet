@@ -8,6 +8,8 @@ The expanded IR v4 baseline, `v4/single-file.json`, is the exact [parent file](h
 
 | File | SHA-256 |
 | --- | --- |
+| `expected.json` | `a5e585531daa19b5343130b5cd065eb8ac7ba5a7655d8ea21dc1d605fe134c58` |
+| `cases.json` | `fd72b801461873db04911ade8d4c5b9194da793a0c89cafc55be791290d1f8e4` |
 | `v3.1/plain-json/deps/morphir/_sdk/@/basics/add.value.json` | `34286f5a937e100e8d16e65d900abba4c2604336a8958357b57693fb5188092d` |
 | `v3.1/plain-json/deps/morphir/_sdk/@/basics/int.type.json` | `200803d530066ef7d7b1412c6479382ce7aec12e237669faa212948dfe13ed21` |
 | `v3.1/plain-json/deps/morphir/_sdk/@/basics/module.json` | `a05f890f089a810f0da35ef220ee3e7e09d3dcbd1dd34439f217dff46a380fe6` |

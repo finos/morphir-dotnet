@@ -23,6 +23,8 @@ public static class MckCommandProvider
         mck.Subcommands.Add(wasmHost);
         var bounded = new Command("bounded-generation", $"{Experimental} Frozen bounded-generation receipt replay");
         bounded.Subcommands.Add(new BoundedGenerationReportCheckCommand(stdout));
+        bounded.Subcommands.Add(new BoundedGenerationRunCommand(stdout));
+        bounded.Subcommands.Add(new BoundedGenerationObserveCommand(stdout));
         mck.Subcommands.Add(bounded);
         return mck;
     }
