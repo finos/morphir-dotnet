@@ -131,11 +131,14 @@ Typed classic and v4 Morphir IR models with source-version preservation for in-m
         <Compile Include="IR/Trees/ClassicTreeWriter.fs" />
         <Compile Include="IR/Trees/ClassicTreeReader.fs" />
         <Compile Include="IR/Trees/DocumentTreeStore.fs" />
+        <Compile Include="BoundedGeneration/ReaderObservation.fs" />
+        <Compile Include="BoundedGeneration/ReaderObservationAdapter.fs" />
         <Compile Include="IR/Trees/StoredModel.fs" />
     </ItemGroup>
 
     <ItemGroup>
         <InternalsVisibleTo Include="Morphir.Models.Tests" />
+        <InternalsVisibleTo Include="morphir-mck" />
         <InternalsVisibleTo Include="Morphir.CodeGeneration.FSharp" />
         <!-- The netstandard2.0 pipeline target of Morphir.Lang.CSharp uses the polyfill members of Morphir.Compat. -->
         <InternalsVisibleTo Include="Morphir.Lang.CSharp" />

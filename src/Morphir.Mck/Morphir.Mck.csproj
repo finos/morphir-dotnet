@@ -12,5 +12,8 @@
   <ItemGroup>
     <PackageReference Include="System.CommandLine" />
     <ProjectReference Include="../Morphir.Conformance/Morphir.Conformance.fsproj" />
+    <ProjectReference Include="../Morphir.Models/Morphir.Models.fsproj" />
+    <ProjectReference Include="../Morphir.Toolchain.IO/Morphir.Toolchain.IO.fsproj" />
+    <InternalsVisibleTo Include="Morphir.Mck.Tests" />
   </ItemGroup>
 </Project>

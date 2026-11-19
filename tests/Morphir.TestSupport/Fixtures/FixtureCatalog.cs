@@ -677,6 +677,11 @@ public static class FixtureCatalog
         public const string Directory = "MorphirBoundedOrders/";
         private const string Provenance = Directory + "PROVENANCE.md";
 
+        /// <summary>Independent parent reader facts, never derived from a .NET codec.</summary>
+        public static FixtureEntry Expected { get; } = Document("expected.json", "a5e585531daa19b5343130b5cd065eb8ac7ba5a7655d8ea21dc1d605fe134c58");
+        /// <summary>The frozen parent version/profile selection grammar.</summary>
+        public static FixtureEntry Cases { get; } = Document("cases.json", "fd72b801461873db04911ade8d4c5b9194da793a0c89cafc55be791290d1f8e4");
+
         private static FixtureEntry Document(string path, string sha256) =>
             new($"the frozen bounded orders document {path}", Directory + path, sha256, Provenance);
 
@@ -685,6 +690,7 @@ public static class FixtureCatalog
 
         public static IReadOnlyList<FixtureEntry> Files { get; } =
         [
+            Expected, Cases,
             Document("v3.1/contextual-json/deps/morphir/_sdk/@/basics/add.value.json", "c2cb8924aa3820614f4fde953265512be6fe87aabb9687548f55710109c5bb3b"),
             Document("v3.1/contextual-json/deps/morphir/_sdk/@/basics/int.type.json", "7ec7004dcece668d34211e4a90b25365477ee96c4e7973676e2cc72d084bf755"),
             Document("v3.1/contextual-json/deps/morphir/_sdk/@/basics/module.json", "9ffd7f011f6cccc2491fa94263ccb5591935a97ec00b92f11da1c3438b85ab38"),

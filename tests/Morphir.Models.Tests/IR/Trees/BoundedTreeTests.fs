@@ -588,6 +588,63 @@ let private frozenOrders version profile =
     let source, opened, _ = frozenOrdersFiles version profile
     source, opened
 
+// Native observations are compared with the independently authored parent oracle.
+// This is an in-process unit test, with embedded files only and no kit runner.
+[<Tests>]
+let observationTests =
+    testList "Bounded reader observations" [
+        for version in [ "v3.1"; "v4" ] do
+            for profile in [ "plain-json"; "plain-yaml"; "contextual-json"; "contextual-yaml" ] do
+                test $"Observes parent facts for {version} {profile}" {
+                    use expectedFile = JsonDocument.Parse(FixtureCatalog.ReadText FixtureCatalog.BoundedOrders.Expected)
+                    let expected = expectedFile.RootElement
+                    let source, _ = frozenOrders version profile
+                    let encoding =
+                        if profile.StartsWith "contextual-" then BoundedTreeEncoding.ContextualDraft1
+                        else BoundedTreeEncoding.Plain
+                    let snapshot = read (BoundedTreeReader.openTreeWithEncoding encoding 8192L source)
+                    let inventory = expected.GetProperty "domainInventory"
+                    let selection = "pkg/acme/orders/domain/module"
+                    let actual =
+                        read (Morphir.BoundedGeneration.ReaderObservation.observe selection (inventory.GetProperty("pageSize").GetInt32()) 8192L snapshot)
+                    let equalJson actual expected message =
+                        Expect.isTrue (JsonElement.DeepEquals(actual, expected)) message
+                    for field in [ "distribution"; "package"; "pathBudget"; "dependencies"; "modules" ] do
+                        equalJson (actual.GetProperty field) (expected.GetProperty field) field
+                    equalJson (actual.GetProperty "pages") (inventory.GetProperty "pages") "Production cursor order"
+                    equalJson (actual.GetProperty "finalPageBody") (inventory.GetProperty "finalPageBody") "Typed selected reference and observed target literal"
+                    Expect.equal (actual.GetProperty("scope").GetString()) "native-reader" "Explicit native scope"
+                    Expect.equal (actual.GetProperty("revision").GetString()) snapshot.RevisionId "Caller snapshot"
+                    if version = "v3.1" then
+                        let documents = actual.GetProperty "classicDocuments"
+                        for attribute in expected.GetProperty("classicAttributes").EnumerateArray() do
+                            let pointer = attribute.GetProperty("pointer").GetString() |> nonNull
+                            let mutable value = documents.GetProperty(attribute.GetProperty("document").GetString() |> nonNull)
+                            for token in pointer.Substring(1).Split('/') do
+                                value <-
+                                    if value.ValueKind = JsonValueKind.Array then value[int token]
+                                    else value.GetProperty(token.Replace("~1", "/").Replace("~0", "~"))
+                            equalJson value (attribute.GetProperty "value") pointer
+                }
+        test "Observation retains a stale snapshot refusal" {
+            let source, _, advance = ordersSource (Orders.selectedValues "v4")
+            let snapshot = read (BoundedTreeReader.openTree 8192L source)
+            advance ()
+            let errors =
+                Morphir.BoundedGeneration.ReaderObservation.observe "pkg/acme/orders/domain/module" 2 8192L snapshot
+                |> StoreTestKit.refusal
+            Expect.equal (errors |> List.map _.Code) [ "tree.revision_changed" ] "No synthetic observations"
+        }
+        test "Observation uses the caller selection" {
+            let source, _ = frozenOrders "v4" "plain-json"
+            let snapshot = read (BoundedTreeReader.openTree 8192L source)
+            let errors =
+                Morphir.BoundedGeneration.ReaderObservation.observe "deps/morphir/_sdk/@/basics/module" 2 8192L snapshot
+                |> StoreTestKit.refusal
+            Expect.equal (errors |> List.map _.Code) [ "observation.unsupported_selection" ] "A specification is not a value definition"
+        }
+    ]
+
 [<Tests>]
 let profileTests =
     testList "Frozen orders profiles" [
