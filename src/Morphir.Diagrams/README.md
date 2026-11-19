@@ -356,6 +356,70 @@ var link = new KnowledgeLink<DiagramSelection, TextSelection>(
 Console.WriteLine($"{snapshot.ElementIri(link.Source.Elements[0])} -> {link.Target.Version}");
 ```
 
+## Comments and links in RDF
+
+`DiagramAnnotations.Write` turns comments and links into RDF statements, and
+`DiagramAnnotations.Read` turns them back. Any RDF format of
+`Morphir.Knowledge.Rdf` can then carry them, so a sidecar file next to the
+diagram and the SVG's own metadata hold the same data.
+
+| Value | RDF |
+| --- | --- |
+| Comment | An `oa:Annotation` with `oa:motivatedBy oa:commenting`, `oa:bodyValue`, `dcterms:creator` and `dcterms:created` as an `xsd:dateTime` |
+| Diagram selection | An `oa:SpecificResource` with the document as `oa:hasSource`, `md:revision`, and one `oa:FragmentSelector` per element, whose `rdf:value` is the element reference |
+| Text selection | The same, with one `oa:TextPositionSelector` per range; `oa:start` and `oa:end` count code points, as Web Annotation does, and reading converts them back to UTF-16 offsets |
+| Link | An `md:Link` with `md:linkSource`, `md:linkPredicate` and `md:linkTarget`; an IRI endpoint is the IRI itself |
+| Direct statement | When a link starts at one element and its target resolves to an IRI, `<element IRI> <predicate> <target IRI>` as well, so that consumers without Web Annotation can query it |
+
+The prefixes are `oa:` for the [W3C Web Annotation vocabulary](https://www.w3.org/TR/annotation-vocab/),
+`dcterms:` for DCMI Metadata Terms and `md:` for the Morphir diagram vocabulary,
+`https://morphir.finos.org/ns/diagram#`. That IRI is a proposal that the project
+owners have not agreed yet; `RdfNamespaces.MorphirDiagram` is the only place
+that names it.
+
+Reading needs the revisions that selections name: pass resolvers that return the
+`DiagramSnapshot` and `TextSnapshot` of a `DocumentVersion`, or null. A revision
+they do not resolve is `DiagramAnnotationError.UnresolvedDocument`. Writing a
+text endpoint needs its text too. Reading keeps every statement that belongs to
+no comment or link in `DiagramAnnotationSet.Other`, unchanged, such as the
+`owner` statement below.
+
+The comment, link and owner fact of the checkout example, as N-Triples:
+
+```n-triples
+<urn:review:1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/oa#Annotation> .
+<urn:review:1> <http://www.w3.org/ns/oa#motivatedBy> <http://www.w3.org/ns/oa#commenting> .
+<urn:review:1> <http://www.w3.org/ns/oa#bodyValue> "Is this call idempotent?" .
+<urn:review:1> <http://purl.org/dc/terms/creator> <urn:reviewer:one> .
+<urn:review:1> <http://purl.org/dc/terms/created> "2026-11-18T09:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> .
+<urn:review:1> <http://www.w3.org/ns/oa#hasTarget> _:edge .
+_:edge <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/oa#SpecificResource> .
+_:edge <http://www.w3.org/ns/oa#hasSource> <https://example.org/diagrams/checkout> .
+_:edge <https://morphir.finos.org/ns/diagram#revision> "r1" .
+_:edge <http://www.w3.org/ns/oa#hasSelector> _:edgeSelector .
+_:edgeSelector <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/oa#FragmentSelector> .
+_:edgeSelector <http://www.w3.org/1999/02/22-rdf-syntax-ns#value> "edge=Cart/Billing/0" .
+<urn:link:billing-impl> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://morphir.finos.org/ns/diagram#Link> .
+<urn:link:billing-impl> <https://morphir.finos.org/ns/diagram#linkSource> _:billing .
+<urn:link:billing-impl> <https://morphir.finos.org/ns/diagram#linkPredicate> <https://example.org/vocab/implementedBy> .
+<urn:link:billing-impl> <https://morphir.finos.org/ns/diagram#linkTarget> _:code .
+_:billing <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/oa#SpecificResource> .
+_:billing <http://www.w3.org/ns/oa#hasSource> <https://example.org/diagrams/checkout> .
+_:billing <https://morphir.finos.org/ns/diagram#revision> "r1" .
+_:billing <http://www.w3.org/ns/oa#hasSelector> _:billingSelector .
+_:billingSelector <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/oa#FragmentSelector> .
+_:billingSelector <http://www.w3.org/1999/02/22-rdf-syntax-ns#value> "node=Billing" .
+_:code <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/oa#SpecificResource> .
+_:code <http://www.w3.org/ns/oa#hasSource> <https://example.org/src/Billing.fs> .
+_:code <https://morphir.finos.org/ns/diagram#revision> "4be1" .
+_:code <http://www.w3.org/ns/oa#hasSelector> _:codeSelector .
+_:codeSelector <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://www.w3.org/ns/oa#TextPositionSelector> .
+_:codeSelector <http://www.w3.org/ns/oa#start> "15"^^<http://www.w3.org/2001/XMLSchema#nonNegativeInteger> .
+_:codeSelector <http://www.w3.org/ns/oa#end> "41"^^<http://www.w3.org/2001/XMLSchema#nonNegativeInteger> .
+<https://example.org/diagrams/checkout#node=Billing> <https://example.org/vocab/implementedBy> <https://example.org/src/Billing.fs> .
+<https://example.org/diagrams/checkout#node=Ledger> <https://example.org/vocab/owner> "payments-team" .
+```
+
 ## Migration coverage
 
 | Mermaid family | Supported syntax |

@@ -26,6 +26,13 @@
           "FSharp.Core": "[10.1.403, )"
         }
       },
+      "morphir.knowledge.rdf": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Knowledge": "[1.0.0, )"
+        }
+      },
       "morphir.svg": {
         "type": "Project",
         "dependencies": {
@@ -56,6 +63,13 @@
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )"
+        }
+      },
+      "morphir.knowledge.rdf": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Knowledge": "[1.0.0, )"
         }
       },
       "morphir.svg": {

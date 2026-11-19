@@ -57,9 +57,9 @@ Decision ids (REF-1 … PKG-1) refer to [design.html](design.html). Before addin
 
 ## 9. RDF mapping (diagram-linked-metadata, RDF-1)
 
-- [ ] 9.1 Write failing tests for comment round trips (identity, body, provenance, several elements), link round trips with the direct triple, conversion of code-point offsets for astral characters, and preservation of unknown statements
-- [ ] 9.2 Add the `Morphir.Knowledge.Rdf` reference, and implement `DiagramAnnotations.Write`/`Read` with the Web Annotation and `md:` vocabularies. Verify that the tests from 9.1 pass
-- [ ] 9.3 Document the vocabulary mapping, with the worked example from the design, in the Diagrams README, and verify that the example dataset parses in a test
+- [x] 9.1 Write failing tests for comment round trips (identity, body, provenance, several elements), link round trips with the direct triple, conversion of code-point offsets for astral characters, and preservation of unknown statements
+- [x] 9.2 Add the `Morphir.Knowledge.Rdf` reference, and implement `DiagramAnnotations.Write`/`Read` with the Web Annotation and `md:` vocabularies. Verify that the tests from 9.1 pass
+- [x] 9.3 Document the vocabulary mapping, with the worked example from the design, in the Diagrams README, and verify that the example dataset parses in a test
 
 ## 10. Sidecar and embedded carriage (diagram-linked-metadata, CAR-1)
 

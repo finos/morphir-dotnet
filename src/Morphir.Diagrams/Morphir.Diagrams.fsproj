@@ -14,9 +14,11 @@
         <PackageReference Include="FSharp.Core" />
         <ProjectReference Include="../Morphir.Svg/Morphir.Svg.fsproj" />
         <ProjectReference Include="../Morphir.Knowledge/Morphir.Knowledge.fsproj" />
+        <ProjectReference Include="../Morphir.Knowledge.Rdf/Morphir.Knowledge.Rdf.fsproj" />
         <Compile Include="Model.fs" />
         <Compile Include="ElementReferences.fs" />
         <Compile Include="Selections.fs" />
+        <Compile Include="DiagramAnnotations.fs" />
         <Compile Include="Themes.fs" />
         <Compile Include="DiagramScene.fs" />
         <Compile Include="Reading.fs" />
