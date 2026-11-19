@@ -524,6 +524,9 @@ module internal MermaidPrinter =
             | Diagram.Flowchart model -> flowchart model
             | Diagram.Sequence model -> sequence model
             | Diagram.State model -> state model
+            | Diagram.Swimlane model ->
+                flowchart model.Projection
+                |> Result.map (fun text -> "swimlane-beta" + text.Substring("flowchart".Length))
             | other -> Error [ $"{other} has no Mermaid printer." ]
 
         result

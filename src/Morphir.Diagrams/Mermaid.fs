@@ -125,7 +125,15 @@ module private MermaidReader =
                 fail "mermaid/unexpected-header" "Expected the sequence diagram header on its own."
             | "stateDiagram"
             | "stateDiagram-v2" -> StateReader.read (body ())
-            | "swimlane-beta" -> SwimlaneReader.read (body ())
+            | "swimlane-beta" ->
+                let rawDirection = cursor.ReadWhile Char.IsAsciiLetter
+                cursor.SkipSpace()
+
+                match direction rawDirection with
+                | Some flowDirection when cursor.AtEnd || cursor.Take ";" || cursor.StartsWith "%%" ->
+                    cursor.SkipSpace()
+                    SwimlaneReader.read flowDirection (body ())
+                | _ -> fail "mermaid/swimlane-header" "Expected a swimlane direction (TB, TD, BT, LR or RL)."
             | "architecture-beta" -> ArchitectureReader.read (body ())
             | "zenuml" -> ZenUmlReader.read (body ())
             | "classDiagram"
