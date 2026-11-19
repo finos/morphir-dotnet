@@ -182,6 +182,17 @@ module DocumentTreeStore =
     let openSnapshot options revision provider =
         openSnapshotWithEncoding options BoundedTreeEncoding.Plain revision provider
 
+    /// Open a revision-bound plain tree from a host callback.
+    [<CompiledName("OpenPlainSnapshot")>]
+    let openPlainSnapshot
+        (
+            options: ReadOptions,
+            revision: System.Func<string>,
+            provider: Microsoft.Extensions.FileProviders.IFileProvider
+        ) : Result<BoundedTreeSnapshot, System.Collections.Generic.IReadOnlyList<StoreError>> =
+        openSnapshot options (fun () -> revision.Invoke()) provider
+        |> Result.mapError (fun errors -> List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>)
+
     /// Read the next page of modules in the selected package.
     [<CompiledName("PageModules")>]
     let pageModules limit cursor package snapshot =

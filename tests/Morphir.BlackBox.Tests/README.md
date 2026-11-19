@@ -158,6 +158,13 @@ two steps have the same pattern.
 | Packages | `Then the package depends only on {string} at exactly its own version` |
 | Packages | `When fresh F# and C# consumers use the {string} knowledge package on {string}` |
 | Packages | `Then both knowledge consumers complete the example with their expected dependencies` |
+| Bounded generation | `Then bounded generation reads order {int} from its recorded descriptor` |
+| Bounded generation | `Then bounded generation refuses oversized request {string}` |
+| Bounded generation | `Then the recorded tree reaches the configured WASM loader` |
+| Bounded generation | `Then configured WASM enforces state {int} and frame {int} with diagnostic {string}` |
+| Bounded generation | `Then configured WASM generates order {int}` |
+| Bounded generation | `Then bounded generation protects sibling task records` |
+| Bounded generation | `Then bounded generation refuses a recorded FIFO` |
 | Package consumer | `When I build the consumer` |
 | Package consumer | `When I build the consumer with no restore` |
 | Package consumer | `When I build the consumer and it fails` |

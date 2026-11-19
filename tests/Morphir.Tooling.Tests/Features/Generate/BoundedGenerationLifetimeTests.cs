@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 using System.Diagnostics;
 using System.Globalization;
-using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
 using FluentAssertions;
+using Foundatio.Mediator;
+using Microsoft.Extensions.DependencyInjection;
 using Morphir.Compilation.Mep;
-using Morphir.Extensions.Wasm.Tests;
 using Morphir.Mep;
 using Morphir.TestSupport;
 using Morphir.TestSupport.Drivers;
@@ -14,229 +14,21 @@ using Morphir.TestSupport.Fixtures;
 using Morphir.Tooling.Features.Extensions;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Features.TaskRecords;
+using Morphir.Tooling.Scenarios;
 using Morphir.Tooling.Tests.Features.Compile;
 using Morphir.Tooling.Tests.Features.TaskRecords;
-using Morphir.Tooling.Tests.Integration.CLI;
+using GenerationReport = Morphir.Tooling.Features.Generate.GenerationReport;
 using Versioning = Morphir.IR.Versioning;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
 [Category("PlatformSpecific")]
-public sealed class BoundedGenerateCommandTests
+public sealed class BoundedGenerationLifetimeTests
 {
     private const string OutDir = "build-artifacts";
     private const string DescriptorPath = "recorded/orders-model";
     private static readonly TimeSpan Bound = TimeSpan.FromSeconds(20);
     private static string GuestAssembly => Path.Combine(AppContext.BaseDirectory, "Morphir.Conformance.FakeWorker.dll");
-
-    [Test]
-    [Arguments(73)]
-    [Arguments(74)]
-    public async Task GeneratesFromTheRecordedTreeAtItsDescriptorPath(int order)
-    {
-        using var project = Project("orders");
-        var store = Store(project, new LineWriter());
-        var ir = await RecordTreeAsync(store, order);
-
-        var result = await GenerateAsync(project, "generated");
-        result.ShouldExitWith(0);
-        var report = result.ShouldWriteOneJsonDocument();
-        report.GetProperty("input").GetString().Should().Be(ir);
-        report.GetProperty("artifacts").EnumerateArray().Select(item => item.GetString()).Should().Equal("order.txt");
-        report.GetProperty("diagnostics").EnumerateArray()
-            .Select(note => (note.GetProperty("severity").GetString(), note.GetProperty("code").GetString()))
-            .Should().Equal(("warning", "orders.inventory"), ("warning", "orders.complete"));
-        var bytes = File.ReadAllBytes(project.PathOf("generated/order.txt"));
-        bytes.Should().Equal(System.Text.Encoding.UTF8.GetBytes(order.ToString(CultureInfo.InvariantCulture) + "\n"));
-        var methods = File.ReadAllLines(project.PathOf("bounded-orders.methods"));
-        methods.Should().ContainInOrder(
-            "morphir.backend.generateModel.start",
-            "morphir.backend.generateModel.advance", "morphir.backend.generateModel.advance",
-            "morphir.backend.generateModel.advance", "morphir.backend.generateModel.advance",
-            "morphir.backend.generateModel.advance", "morphir.shutdown", "morphir.exit");
-        methods.Count(method => method == "morphir.backend.generateModel.advance").Should().Be(5);
-        File.Exists(project.PathOf("bounded-orders.exited")).Should().BeTrue();
-
-        if (order != 73) return;
-        var baseline = project.PathOf("expanded.json");
-        File.WriteAllBytes(baseline, FixtureCatalog.ReadBytes(FixtureCatalog.BoundedOrders.ExpandedV4));
-        File.Delete(project.PathOf("bounded-orders.methods"));
-        (await GenerateAsync(project, "expanded-generated", "--input", baseline)).ShouldExitWith(0);
-        File.ReadAllBytes(project.PathOf("expanded-generated/order.txt")).Should().Equal(bytes);
-        File.ReadAllLines(project.PathOf("bounded-orders.methods")).Should()
-            .Contain("morphir.backend.generateModel").And.NotContain("morphir.backend.generateModel.start");
-    }
-
-    [Test]
-    [Arguments(false)]
-    [Arguments(true)]
-    public async Task RefusesFramesAboveTheAgreedWireLimit(bool oversizedRequest)
-    {
-        using var project = Project(oversizedRequest ? "small-frame" : "large-reply");
-        await RecordTreeAsync(Store(project, new LineWriter()), 73);
-        var result = await GenerateAsync(project, "generated",
-            oversizedRequest ? ["--option", "padding=" + new string('x', 6000)] : []);
-
-        result.ShouldExitWith(2);
-        result.StandardOutput.Should().Contain("maxFrameBytes");
-        File.Exists(project.PathOf("generated/order.txt")).Should().BeFalse();
-        var methods = File.ReadAllLines(project.PathOf("bounded-orders.methods"));
-        methods.Should().Contain("morphir.initialized");
-        if (oversizedRequest) methods.Should().NotContain("morphir.backend.generateModel.start");
-        else methods.Count(method => method == "morphir.backend.generateModel.advance").Should().Be(5);
-    }
-
-    [Test]
-    public async Task ARecordedTreeReachesTheConfiguredWasmLoaderWithoutReadingUnselectedBodies()
-    {
-        if (WasmRuntime.Process.Platform == "win-x64")
-            Skip.Test("win_x64_trap_unsupported: guest instantiation is unavailable; #609.");
-        using var project = Project("orders");
-        project.Write("morphir.toml", """
-            [project]
-            name = "acme/orders"
-            [frontend]
-            language = "fsharp"
-            [extensions.text]
-            path = "orders.wasm"
-            abi = "extism-kernel-v1"
-            """);
-        File.Copy(MepWasmFixtures.FullPath("fixtures/wasm/initial-memory-4097.wasm"), project.PathOf("orders.wasm"));
-        // The mutation makes an unrelated split type invalid. Opening the recorded tree does not need that body.
-        await RecordTreeAsync(Store(project, new LineWriter()), 74);
-        var result = await DevelopmentCli.RunAsync(
-            ["generate", "--target", "text", "--out-dir", OutDir, "--output", "generated", "--json=document"],
-            project.Root, project.Context().Environment);
-
-        result.ShouldExitWith(2);
-        result.ShouldWriteOneJsonDocument().GetProperty("diagnostics").EnumerateArray()
-            .Select(note => note.GetProperty("code").GetString()).Should().Contain("extension.memory_limit");
-        Directory.Exists(project.PathOf("generated")).Should().BeFalse();
-        Directory.Exists(project.PathOf(OutDir + "/generate/text.dest")).Should().BeFalse();
-    }
-
-    [Test]
-    [Arguments(1, 32768, "maxGuestStateBytes")]
-    [Arguments(1048576, 4119, "maxFrameBytes")]
-    [Arguments(1048576, 4120, "with a response for the id 0")]
-    public async Task ConfiguredWasmAppliesSelectedStateAndFullFrameLimits(int stateBytes, int frameBytes, string diagnostic)
-    {
-        if (WasmRuntime.Process.Platform == "win-x64")
-            Skip.Test("win_x64_trap_unsupported: guest instantiation is unavailable; #609.");
-
-        using var project = Project("orders");
-        project.Write("morphir.toml", """
-            [project]
-            name = "acme/orders"
-            [frontend]
-            language = "fsharp"
-            [extensions.text]
-            path = "orders.wasm"
-            abi = "extism-kernel-v1"
-            """);
-        var transcript = FixtureCatalog.ReadText(FixtureCatalog.Mep.BoundedGenerationSession);
-        var start = JsonNode.Parse(transcript.Split('\n').First(line =>
-            line.Contains("\"method\":\"morphir.backend.generateModel.start\"", StringComparison.Ordinal)))!["params"]!;
-        var limits = start["limits"]!.DeepClone();
-        limits["maxGuestStateBytes"] = stateBytes;
-        limits["maxFrameBytes"] = frameBytes;
-        var selection = new JsonObject { ["tuples"] = new JsonArray(start["input"]!.DeepClone()), ["limits"] = limits };
-        const string replyPrefix = """
-            {"jsonrpc":"2.0","id":0,"result":{"protocolVersion":"0.2.0-draft.2","extension":{"id":"org.example.orders","name":"Orders","version":"1.0.0","types":["backend"]},"capabilities":{"backend":{"targets":["text"],"irVersions":["4.0.0"],"generate":false},"modelAccess":
-            """;
-        var reply = System.Text.Encoding.UTF8.GetBytes(replyPrefix + selection.ToJsonString() + "}}}");
-        var escaped = string.Concat(reply.Select(value => $"\\{value:x2}"));
-        File.WriteAllBytes(project.PathOf("orders.wasm"), Wasmtime.Module.ConvertText($$"""
-            (module
-              (import "extism:host/env" "alloc" (func $alloc (param i64) (result i64)))
-              (import "extism:host/env" "store_u8" (func $store (param i64 i32)))
-              (import "extism:host/env" "output_set" (func $out (param i64 i64)))
-              (memory 1)
-              (data (i32.const 0) "{{escaped}}")
-              (global $initialized (mut i32) (i32.const 0))
-              (func (export "handle") (result i32) (local $offset i64) (local $index i32) (local $length i32)
-                ;; Once the 1 MiB selection is active, growth to 17 pages must be refused.
-                (if (global.get $initialized)
-                  (then
-                    (if (i32.ne (memory.grow (i32.const 16)) (i32.const -1)) (then unreachable))))
-                (local.set $length (select (i32.const 4096) (i32.const {{reply.Length}}) (global.get $initialized)))
-                (global.set $initialized (i32.const 1))
-                (local.set $offset (call $alloc (i64.extend_i32_u (local.get $length))))
-                (loop $copy
-                  (call $store (i64.add (local.get $offset) (i64.extend_i32_u (local.get $index)))
-                    (select (i32.load8_u (local.get $index)) (i32.const 32)
-                      (i32.lt_u (local.get $index) (i32.const {{reply.Length}}))))
-                  (local.set $index (i32.add (local.get $index) (i32.const 1)))
-                  (br_if $copy (i32.lt_u (local.get $index) (local.get $length))))
-                (call $out (local.get $offset) (i64.extend_i32_u (local.get $length)))
-                (i32.const 0)))
-            """));
-        await RecordTreeAsync(Store(project, new LineWriter()), 73);
-
-        var result = await DevelopmentCli.RunAsync(
-            ["generate", "--target", "text", "--out-dir", OutDir, "--output", "generated", "--json=document"],
-            project.Root, project.Context().Environment);
-
-        result.ShouldExitWith(2);
-        result.StandardOutput.Should().Contain(diagnostic);
-        Directory.Exists(project.PathOf("generated")).Should().BeFalse();
-    }
-
-    [Test]
-    [Arguments(73, "73\n")]
-    [Arguments(74, "74\n")]
-    [Arguments(128, "128\n")]
-    public async Task ConfiguredWasmGeneratesExactOrdersOutput(int order, string expected)
-    {
-        if (WasmRuntime.Process.Platform == "win-x64")
-            Skip.Test("win_x64_trap_unsupported: guest instantiation is unavailable; #609.");
-        var module = Environment.GetEnvironmentVariable("MORPHIR_SHARED_ORDERS_WASM");
-        if (string.IsNullOrEmpty(module))
-            Skip.Test("Set MORPHIR_SHARED_ORDERS_WASM to the shared Orders module assembled from the parent kit.");
-
-        using var project = Project("orders");
-        project.Write("morphir.toml", """
-            [project]
-            name = "acme/orders"
-            [frontend]
-            language = "fsharp"
-            [extensions.text]
-            path = "orders.wasm"
-            abi = "extism-kernel-v1"
-            sha256 = "d12319c81f125c41d4e073e10d11c61bde9e64ebe14671dcf7ffffc8cb2320e0"
-            """);
-        File.Copy(module!, project.PathOf("orders.wasm"));
-        await RecordTreeAsync(Store(project, new LineWriter()), order == 128 ? 73 : order,
-            reserve: order == 128 ? 128 : null);
-        var result = await DevelopmentCli.RunAsync(
-            ["generate", "--target", "text", "--out-dir", OutDir, "--output", "generated", "--json=document"],
-            project.Root, project.Context().Environment);
-
-        result.ShouldExitWith(0);
-        var report = result.ShouldWriteOneJsonDocument();
-        report.GetProperty("backendTransport").GetString().Should().Be("wasm");
-        report.GetProperty("artifacts").EnumerateArray().Select(item => item.GetString()).Should().Equal("order.txt");
-        File.ReadAllBytes(project.PathOf("generated/order.txt")).Should().Equal(System.Text.Encoding.UTF8.GetBytes(expected));
-    }
-
-    [Test]
-    public async Task RefusesPublicationInsideASiblingMembersTaskStore()
-    {
-        using var project = Project("orders");
-        await RecordTreeAsync(Store(project, new LineWriter()), 73);
-        const string sibling = OutDir + "/sibling";
-        const string record = "existing producer record";
-        project.Write(sibling + "/compile.json", record);
-
-        var result = await GenerateAsync(project, sibling);
-
-        result.ShouldExitWith(2);
-        result.ShouldWriteOneJsonDocument().GetProperty("diagnostics").EnumerateArray()
-            .Select(note => note.GetProperty("code").GetString()).Should().Contain("extension.task_output_overlap");
-        File.ReadAllText(project.PathOf(sibling + "/compile.json")).Should().Be(record);
-        File.Exists(project.PathOf(sibling + "/order.txt")).Should().BeFalse();
-        File.Exists(project.PathOf("bounded-orders.methods")).Should().BeFalse();
-    }
 
     [Test]
     public async Task HoldsTheProducerLeaseWhileTheGuestReadsAndShutsDown()
@@ -421,25 +213,6 @@ public sealed class BoundedGenerateCommandTests
         }
     }
 
-    [Test]
-    public async Task ARecordedFifoIsRefusedBeforeOpeningIt()
-    {
-        if (OperatingSystem.IsWindows()) Skip.Test("A POSIX FIFO is required.");
-        using var project = Project("orders");
-        var input = await RecordTreeAsync(Store(project, new LineWriter()), 73);
-        var manifest = Path.Combine(input, "manifest.json");
-        File.Delete(manifest);
-        MkFifo(manifest, 0x180).Should().Be(0);
-        var result = await GenerateAsync(project, "generated");
-        result.ShouldExitWith(2);
-        result.StandardOutput.Should().Contain("Only regular input files are supported.");
-        File.Exists(project.PathOf("bounded-orders.methods")).Should().BeFalse();
-        Directory.Exists(project.PathOf("generated")).Should().BeFalse();
-    }
-
-    [DllImport("libc", EntryPoint = "mkfifo", SetLastError = true)]
-    private static extern int MkFifo([MarshalAs(UnmanagedType.LPUTF8Str)] string path, uint mode);
-
     private static Process? ReadMarkedProcess(string marker)
     {
         var pid = int.Parse(File.ReadAllText(marker), CultureInfo.InvariantCulture);
@@ -530,11 +303,20 @@ public sealed class BoundedGenerateCommandTests
         return root;
     }
 
-    private static Task<CommandResult> GenerateAsync(CompileWorkspace project, string output, params string[] extra) =>
-        DevelopmentCli.RunAsync(
-            ["generate", "--target", "text", "--out-dir", OutDir, "--output", output,
-                "--extension", GuestAssembly, "--json=document", .. extra],
-            project.Root, project.Context().Environment);
+    // Store tests invoke the handler in process to observe its producer lease.
+    private static async Task<CommandResult> GenerateAsync(CompileWorkspace project, string output)
+    {
+        using var app = MorphirCli.CreateBuilder([]).AddScenario<GenerationScenario>().Build();
+        var invocation = new GenerateOverrides(Target: "text", Output: project.PathOf(output))
+        {
+            OutDir = OutDir,
+            Extension = GuestAssembly,
+        };
+        var outcome = await app.Services.GetRequiredService<IMediator>().InvokeAsync<Outcome<GenerationSuccess>>(
+            new GenerateRequest(invocation, new InvocationContext(project.Root) { Environment = project.Context().Environment }));
+        var report = GenerationReport.From(outcome, invocation);
+        return new CommandResult("GenerateHandler", report.ExitCode, report.ToJson(), "", TimeSpan.Zero, []);
+    }
 
     private static async Task WaitForGuestAsync(CompileWorkspace project, string marker, Task<CommandResult> generation)
     {

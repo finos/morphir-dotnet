@@ -203,6 +203,12 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
         else
             MepGenerationSnapshot.Bind(snapshot, start, BoundedTreeWorkBudget(start.Limits.MaxSessionWorkUnits))
 
+    /// Bind the delivery view for a host using a shared work budget.
+    static member BindForHost(snapshot: BoundedTreeSnapshot, start: ModelAccessStart, work: BoundedTreeWorkBudget)
+        : Result<MepGenerationSnapshot, IReadOnlyList<StoreError>> =
+        MepGenerationSnapshot.Bind(snapshot, start, work)
+        |> Result.mapError (fun errors -> List.toArray errors :> IReadOnlyList<StoreError>)
+
     /// Prepare the ordered deliveries for the supplied continuation.
     member _.PrepareAdvance
         (
@@ -304,3 +310,9 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
                         Round = round
                         Deliveries = deliveries.ToArray()
                     }
+
+    /// Prepare host deliveries with a read-only error collection.
+    member this.PrepareHostAdvance(round: int, requests: IReadOnlyList<ModelAccessRequest>)
+        : Result<ModelAccessAdvance, IReadOnlyList<StoreError>> =
+        this.PrepareAdvance(round, requests)
+        |> Result.mapError (fun errors -> List.toArray errors :> IReadOnlyList<StoreError>)

@@ -5,7 +5,6 @@ using System.Collections.Immutable;
 using System.Text.Json;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Primitives;
-using Microsoft.FSharp.Collections;
 using Microsoft.FSharp.Core;
 using Morphir.Compilation;
 using Morphir.Compilation.Mep;
@@ -42,9 +41,9 @@ internal static class RecordedBoundedGeneration
             // This identity belongs to the held lease. It is never reused for another snapshot.
             var revision = Guid.NewGuid().ToString("N");
             var limits = OfferLimits(settings.Limits, request.WasmModule is not null);
-            var opened = DocumentTreeStore.OpenSnapshot(new ReadOptions(settings.Limits.MaxEntries, limits.MaxDecodedBytesPerExchange),
-                    FSharpFunc<Unit, string>.FromConverter(_ => revision), files)
-                .Match<BoundedTreeSnapshot, FSharpList<StoreError>, Outcome<BoundedTreeSnapshot>>(
+            var opened = DocumentTreeStore.OpenPlainSnapshot(
+                    new ReadOptions(settings.Limits.MaxEntries, limits.MaxDecodedBytesPerExchange), () => revision, files)
+                .Match<BoundedTreeSnapshot, IReadOnlyList<StoreError>, Outcome<BoundedTreeSnapshot>>(
                     value => new Outcome<BoundedTreeSnapshot>.Success(value),
                     problems => new Outcome<BoundedTreeSnapshot>.Failure(new(GenerationFailureKind.Operational,
                         problems.Select(problem => new GenerationDiagnostic(problem.Code, problem.Message, problem.FileOrNull)).ToImmutableArray())));
@@ -54,7 +53,7 @@ internal static class RecordedBoundedGeneration
             if (!FormatVersion.SameVersion(producer.Ir.Version.Version, SourceFormatVersion.Create(snapshot.IrVersion).Version))
                 return Refuse("compile.record_version_mismatch",
                     $"The compile record at {producer.Location.Record} names IR {producer.Ir.Spelling}, but {producer.IrPath} declares {snapshot.IrVersion}.");
-            var json = snapshot.Syntax == BoundedTreeSyntax.Json;
+            var json = snapshot.Syntax.Equals(BoundedTreeSyntax.Json);
             if (producer.Ir.Format != (json ? IrStorageFormat.Json : IrStorageFormat.Yaml))
                 return Refuse("compile.record_format_mismatch",
                     $"The manifest at {producer.IrPath} does not match its recorded {IrStorageNames.Name(producer.Ir.Format)} format.");
@@ -118,7 +117,7 @@ internal static class RecordedBoundedGeneration
                 ct.ThrowIfCancellationRequested();
                 var staged = ((Outcome<StagedGenerationOutput>.Success)result).Value;
                 // The publisher streams these files from disk. The VFile tree contains metadata and source paths.
-                var tree = VFileTreeModule.fromFiles(ListModule.OfSeq(staged.Artifacts.Select(file =>
+                var tree = VFileTree.OfFiles(staged.Artifacts.Select(file => KeyValuePair.Create(file.Path,
                     VFileModule.ofDiskFile(file.Path, RecordPath.Parse(file.Path).Under(staged.Directory)))));
                 var published = await publisher.PublishAsync(new GenerationArtifacts(tree, staged.Diagnostics), settings.Input, settings.Publication, ct);
                 if (published is Outcome<GenerationPublication>.Failure refused)

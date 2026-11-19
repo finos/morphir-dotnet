@@ -23,8 +23,10 @@ internal static class BoundedGenerationSession
         if (limits.MaxSessionWorkUnits <= 0)
             return await AbortAsync(Operational("extension.bounded_work_limit", "The negotiated maxSessionWorkUnits must be positive."));
         var work = new BoundedTreeWorkBudget(limits.MaxSessionWorkUnits);
-        var bound = MepGenerationSnapshot.Bind(snapshot, start, work);
-        if (bound.IsError) return await AbortAsync(StoreFailure(bound.ErrorValue));
+        var (bound, bindFailure) = MepGenerationSnapshot.BindForHost(snapshot, start, work).Match(
+            static value => ((MepGenerationSnapshot?)value, (GenerationFailure?)null),
+            static errors => (null, StoreFailure(errors)));
+        if (bound is null) return await AbortAsync(bindFailure!);
         if (limits.MaxSessionMilliseconds <= 0 || limits.MaxCallMilliseconds <= 0)
             return await AbortAsync(Operational("extension.bounded_limits", "The generation deadlines must be positive."));
 
@@ -44,20 +46,22 @@ internal static class BoundedGenerationSession
                     ? host.StartGenerationAsync(start, exchange.Token)
                     : host.AdvanceGenerationAsync(advance, exchange.Token), exchange.Token);
 
+                var (step, replyError) = reply.Match(
+                    static value => ((ModelAccessStep?)value, (string?)null),
+                    static error => (null, error.Message));
                 (int Round, IReadOnlyList<ModelAccessRequest> Requests)? continuation = null;
-                if (reply.IsOk)
+                if (step is not null)
                 {
-                    continuation = reply.ResultValue.Match<(int, IReadOnlyList<ModelAccessRequest>)?>(
+                    continuation = step.Match<(int, IReadOnlyList<ModelAccessRequest>)?>(
                         onContinue: static (_, round, requests, _, _) => (round, requests),
                         onComplete: static (_, _, _) => null,
                         onFailed: static (_, _) => null);
                     awaitingAdvance = continuation.HasValue;
                 }
                 if (exchange.IsCancellationRequested) return await AbortAsync(Interrupted());
-                if (reply.IsError)
-                    return await AbortAsync(Operational("extension.bounded_exchange", reply.ErrorValue.Message));
+                if (step is null)
+                    return await AbortAsync(Operational("extension.bounded_exchange", replyError!));
 
-                var step = reply.ResultValue;
                 var staged = stage.Apply(step, deadline.Token, work);
                 if (staged is Outcome<StagedGenerationOutput?>.Failure refusal)
                 {
@@ -75,10 +79,12 @@ internal static class BoundedGenerationSession
                 if (continuation is not { } next)
                     return await AbortAsync(Operational("extension.bounded_exchange", "The guest did not complete generation."));
 
-                var delivery = bound.ResultValue.PrepareAdvance(next.Round, next.Requests);
+                var (delivery, deliveryFailure) = bound.PrepareHostAdvance(next.Round, next.Requests).Match(
+                    static value => ((ModelAccessAdvance?)value, (GenerationFailure?)null),
+                    static errors => (null, StoreFailure(errors)));
                 deadline.Token.ThrowIfCancellationRequested();
-                if (delivery.IsError) return await AbortAsync(StoreFailure(delivery.ErrorValue));
-                advance = delivery.ResultValue;
+                if (delivery is null) return await AbortAsync(deliveryFailure!);
+                advance = delivery;
             }
         }
         catch (OperationCanceledException)
@@ -115,8 +121,9 @@ internal static class BoundedGenerationSession
                 {
                     var cancelled = await AwaitExchangeAsync(
                         host.CancelGenerationAsync(new ModelAccessCancel(start.SessionId), cancelBudget.Token), cancelBudget.Token);
-                    if (cancelled.IsError)
-                        failure = await TerminateAsync(WithCancelFailure(failure, cancelled.ErrorValue.Message));
+                    var cancelError = cancelled.Match(static _ => (string?)null, static error => error.Message);
+                    if (cancelError is not null)
+                        failure = await TerminateAsync(WithCancelFailure(failure, cancelError));
                 }
                 catch (Exception error) when (error is OperationCanceledException or IOException or InvalidOperationException)
                 {

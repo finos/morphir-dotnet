@@ -542,6 +542,63 @@ let processTreeOwnership =
     |> testSequenced
     |> testLabel "PlatformSpecific"
 
+[<Tests>]
+let legacyModelAccessClose =
+    let run () =
+        if not (OperatingSystem.IsLinux()) then
+            skiptest "This test exercises the legacy Linux process owner."
+
+        let bound = TimeSpan.FromSeconds 5.
+        let scenario = fakeOptions "root-exits-with-child"
+        let working = Directory.CreateDirectory(Path.Combine(guestWork.Value.Work, "legacy-model-access-close")).FullName
+        let marker = Path.Combine(working, "descendant.pid")
+        File.Delete marker
+        let options = MepGuestOptions.Create(
+            scenario.Executable, scenario.Arguments, working, bound, scenario.Stderr,
+            "model-access-close-test", "1.0.0", sandboxEnvironment ()
+        )
+        let offer: ModelTransportSupport =
+            { Tuples = [| MepGenerationTransport.V4Tuple |]
+              Limits = { MaxEncodedBytes = 8192; MaxDecodedBytes = 6144; MaxDepth = 64; MaxNodes = 256 }
+              Guarantees = [||] }
+        let guest =
+            match MepGuestProcess.StartAsync(options, offer, CancellationToken.None).GetAwaiter().GetResult() with
+            | Ok guest -> guest
+            | Error failure -> failtest failure.Message
+        let mutable descendant: Process option = None
+        let mutable descendantStart = 0L
+        try
+            let exchange = guest.HostSession.RequestAsync(Method.CompileModel, Nullable(), CancellationToken.None)
+            Expect.isTrue (SpinWait.SpinUntil((fun () -> File.Exists marker && guest.HasExited), bound)) "the root has exited"
+            let identity = File.ReadAllText(marker).Split '|'
+            let child = Process.GetProcessById(int identity[0])
+            descendant <- Some child
+            descendantStart <- int64 identity[1]
+            Expect.equal (child.StartTime.ToUniversalTime().Ticks) descendantStart "the marked process belongs to this test"
+            use deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds 200.)
+            let refused =
+                try
+                    guest.CloseModelAccessAsync(deadline.Token).WaitAsync(bound).GetAwaiter().GetResult()
+                    |> Result.isError
+                with :? IOException as error ->
+                    Expect.stringContains error.Message "redirected streams" "reports unfinished legacy stream draining"
+                    true
+            Expect.isTrue refused "inherited open pipes prevent a successful bounded close"
+            Expect.isTrue (SpinWait.SpinUntil((fun () -> exchange.IsCompleted), bound)) "the pending exchange settles"
+        finally
+            match descendant with
+            | Some child ->
+                use owned = child
+                if not child.HasExited && child.StartTime.ToUniversalTime().Ticks = descendantStart then
+                    child.Kill(true)
+                    child.WaitForExitAsync().WaitAsync(bound).GetAwaiter().GetResult()
+            | None -> ()
+            (guest :> IAsyncDisposable).DisposeAsync().AsTask().WaitAsync(bound).GetAwaiter().GetResult()
+
+    testCase "bounded close refuses within its deadline when an exited legacy guest leaves its pipes open" run
+    |> testSequenced
+    |> testLabel "PlatformSpecific"
+
 
 [<Tests>]
 let negotiatedObservation =

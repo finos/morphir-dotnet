@@ -19,6 +19,8 @@ type private GuestChild =
     | OwnedDarwin of DarwinChild
     | Legacy of Process
 
+    static member LegacyCleanupBound = TimeSpan.FromSeconds 2.
+
     member this.Input =
         match this with
         | OwnedWindows(_, input, _) -> input
@@ -59,7 +61,7 @@ type private GuestChild =
         | OwnedDarwin child when configured = Timeout.InfiniteTimeSpan -> child.SettlementBound
         | _ -> configured
 
-    member this.SettleAsync(terminate: bool) = task {
+    member this.SettleAsync(terminate: bool, ?legacyBound: TimeSpan) = task {
         match this with
         | OwnedWindows(child, _, _) ->
             if terminate then child.RequestTermination()
@@ -67,7 +69,13 @@ type private GuestChild =
         | OwnedDarwin child -> do! child.SettleAsync()
         | Legacy child when terminate && not child.HasExited -> child.Kill(true)
         | Legacy _ -> ()
-        do! this.WaitForExitAsync(CancellationToken.None)
+        let exited = this.WaitForExitAsync(CancellationToken.None)
+        match this, legacyBound with
+        | Legacy _, Some bound ->
+            try do! exited.WaitAsync(bound)
+            with :? TimeoutException as error ->
+                return raise (IOException("The legacy guest did not exit within its cleanup bound.", error))
+        | _ -> do! exited
     }
 
     member this.DrainAsync(operations: Task) : Task =
@@ -80,6 +88,29 @@ type private GuestChild =
                 return raise error
           }
         | _ -> operations
+
+    member this.DrainModelAccessAsync(operations: Task, stopIo: CancellationTokenSource, deadline: CancellationToken) : Task =
+        match this with
+        | Legacy child -> task {
+            // Process has no independent ownership of descendants once the root exits.
+            // A surviving writer must not turn a bounded request into an endless EOF wait.
+            let grace = GuestChild.LegacyCleanupBound
+            try
+                do! operations.WaitAsync(grace, deadline)
+            with
+            | :? TimeoutException
+            | :? OperationCanceledException ->
+                let cancelled = stopIo.CancelAsync()
+                // Close base streams directly. The stdin writer must not flush to a stopped peer.
+                let close (stream: Stream) =
+                    try stream.Dispose() with :? IOException -> ()
+                close child.StandardInput.BaseStream
+                close child.StandardOutput.BaseStream
+                close child.StandardError.BaseStream
+                try do! Task.WhenAll(operations, cancelled).WaitAsync(grace) with _ -> ()
+                return raise (IOException "The legacy guest's redirected streams did not settle before the deadline.")
+          }
+        | _ -> this.DrainAsync(operations)
 
     member this.DrainAfterShutdownAsync(pump: Task, connection: Task) : Task =
         match this with
@@ -281,7 +312,9 @@ type MepGuestProcess
         session: HostSession,
         connection: Task<ConnectionEnd>,
         negotiated: NegotiatedSession,
-        pump: Task
+        pump: Task,
+        stopIo: CancellationTokenSource,
+        bounded: bool
     ) =
 
     let name = negotiated.Extension.Id
@@ -321,8 +354,8 @@ type MepGuestProcess
     /// The initialized host session of an owned bounded-generation process.
     member internal _.HostSession = session
 
-    static member internal StartUsingAsync
-        (options: MepGuestOptions, openSession: Func<Stream, Stream, HostSession>, cancellation: CancellationToken)
+    static member private StartCoreAsync
+        (options: MepGuestOptions, openSession: Func<Stream, Stream, HostSession>, bounded: bool, cancellation: CancellationToken)
         : Task<Result<MepGuestProcess, MepGuestFailure>> =
         task {
             let start = ProcessStartInfo(options.Executable)
@@ -360,12 +393,13 @@ type MepGuestProcess
             match started with
             | Error message -> return Error(MepGuestFailure.Unavailable message)
             | Ok child ->
+                let stopIo = new CancellationTokenSource()
                 let pump =
                     task {
                         let mutable reading = true
 
                         while reading do
-                            match! child.StandardError.ReadLineAsync() with
+                            match! child.StandardError.ReadLineAsync(stopIo.Token) with
                             | null -> reading <- false
                             | line -> options.Stderr.WriteLine line
                     }
@@ -374,9 +408,11 @@ type MepGuestProcess
                 // A start that fails stops the process tree, waits for the stderr pump, and disposes the child, so
                 // no process, pipe or pump outlives the failure.
                 let mutable startedConnection: Task<ConnectionEnd> option = None
-                let stop () =
-                    AsyncOwnership.runAsync (child :> IAsyncDisposable) (fun () -> task {
-                        do! child.SettleAsync(true)
+                let stop () = task {
+                    use _io = stopIo
+                    do! AsyncOwnership.runAsync (child :> IAsyncDisposable) (fun () -> task {
+                        let legacyBound = if bounded then Some GuestChild.LegacyCleanupBound else None
+                        do! child.SettleAsync(true, ?legacyBound = legacyBound)
                         let draining = task {
                             match startedConnection with
                             | Some connection ->
@@ -384,8 +420,12 @@ type MepGuestProcess
                             | None -> ()
                             try do! pump with _ -> ()
                         }
-                        do! child.DrainAsync(draining)
+                        if bounded then
+                            do! child.DrainModelAccessAsync(draining, stopIo, CancellationToken.None)
+                        else
+                            do! child.DrainAsync(draining)
                     })
+                }
                 use deadline = CancellationTokenSource.CreateLinkedTokenSource cancellation
                 deadline.CancelAfter options.Deadline
 
@@ -395,7 +435,7 @@ type MepGuestProcess
                 let! initialized = task {
                     try
                         let session = openSession.Invoke(child.Output, child.Input)
-                        let connection = session.RunAsync CancellationToken.None
+                        let connection = session.RunAsync stopIo.Token
                         startedConnection <- Some connection
                         let initialize = session.InitializeAsync deadline.Token
 
@@ -407,7 +447,7 @@ type MepGuestProcess
                         | Waited.Reply ->
                             match! initialize with
                             | Ok negotiated ->
-                                return Ok(new MepGuestProcess(options, child, session, connection, negotiated, pump))
+                                return Ok(new MepGuestProcess(options, child, session, connection, negotiated, pump, stopIo, bounded))
                             | Error refusal -> return Error(MepGuestFailure.Unavailable(refusal.ToString()))
                     with
                     | :? OperationCanceledException -> return Error(timedOut ())
@@ -423,6 +463,10 @@ type MepGuestProcess
                     return Error failure
         }
 
+    static member internal StartUsingAsync
+        (options: MepGuestOptions, openSession: Func<Stream, Stream, HostSession>, cancellation: CancellationToken) =
+        MepGuestProcess.StartCoreAsync(options, openSession, false, cancellation)
+
     /// <summary>
     /// Starts the guest, initializes a session with the model-transport offer, and returns the process, or the
     /// failure: Unavailable when it does not start or initialize, ProtocolError when it ends the connection first.
@@ -433,9 +477,10 @@ type MepGuestProcess
     /// Starts the same owned process with the exact bounded model-access offer.
     static member internal StartModelAccessAsync
         (options: MepGuestOptions, offer: ModelAccessSupport, cancellation: CancellationToken) =
-        MepGuestProcess.StartUsingAsync(
+        MepGuestProcess.StartCoreAsync(
             options,
             (fun input output -> HostSession.CreateWithModelAccess(input, output, options.Host, offer, null)),
+            true,
             cancellation
         )
 
@@ -513,14 +558,15 @@ type MepGuestProcess
     /// <summary>The extension and the executable.</summary>
     override _.ToString() = $"Extension {name} ({options.Executable})"
 
-    member private _.FinishModelAccessAsync(force: bool, pendingClose: Task option) : Task =
+    member private _.FinishModelAccessAsync(force: bool, pendingClose: Task option, deadline: CancellationToken) : Task =
         task {
             if not ended then
                 ended <- true
+                use _io = stopIo
                 do! AsyncOwnership.runAsync (child :> IAsyncDisposable) (fun () -> task {
                     let! settlementError = task {
                         try
-                            do! child.SettleAsync(force)
+                            do! child.SettleAsync(force, legacyBound = GuestChild.LegacyCleanupBound)
                             return None
                         with error ->
                             return Some(ExceptionDispatchInfo.Capture error)
@@ -532,10 +578,11 @@ type MepGuestProcess
                         | Some operation -> do! observe operation
                         | None -> ()
                     }
+                    let drain = child.DrainModelAccessAsync(draining, stopIo, deadline)
                     match settlementError with
-                    | None -> do! child.DrainAsync(draining)
+                    | None -> do! drain
                     | Some error ->
-                        do! observe (child.DrainAsync(draining))
+                        do! observe drain
                         error.Throw()
                     exited <- true
                 })
@@ -543,7 +590,7 @@ type MepGuestProcess
 
     /// Stops the process and joins its streams after an unanswered or broken bounded exchange.
     member internal this.TerminateModelAccessAsync() : Task =
-        this.FinishModelAccessAsync(true, None)
+        this.FinishModelAccessAsync(true, None, CancellationToken.None)
 
     /// Uses the remaining negotiated grace for shutdown and exit, then settles the owned child before returning.
     member internal this.CloseModelAccessAsync(deadline: CancellationToken) : Task<Result<unit, MepGuestFailure>> =
@@ -574,7 +621,7 @@ type MepGuestProcess
                     | :? IOException as error ->
                         return Error(MepGuestFailure.ProtocolError $"Extension {name} could not close: {error.Message}")
                 }
-                do! this.FinishModelAccessAsync(Result.isError closed, pendingClose)
+                do! this.FinishModelAccessAsync(Result.isError closed, pendingClose, deadline)
                 return closed
         }
 
@@ -595,6 +642,7 @@ type MepGuestProcess
             ValueTask(task {
                 if not ended then
                     ended <- true
+                    use _io = stopIo
                     do! AsyncOwnership.runAsync (child :> IAsyncDisposable) (fun () -> task {
                         use deadline = new CancellationTokenSource(child.GracefulDeadline(options.Deadline))
                         let mutable terminate = false
@@ -610,8 +658,12 @@ type MepGuestProcess
                         with _ -> terminate <- true
                         // Settlement errors escape, after the IO owner has joined the actual job.
                         // Disposal still joins/owns every handle through AsyncOwnership.
-                        do! child.SettleAsync(terminate)
-                        do! child.DrainAfterShutdownAsync(pump, connection)
+                        if bounded then
+                            do! child.SettleAsync(terminate, legacyBound = GuestChild.LegacyCleanupBound)
+                            do! child.DrainModelAccessAsync(Task.WhenAll(pump, connection), stopIo, deadline.Token)
+                        else
+                            do! child.SettleAsync(terminate)
+                            do! child.DrainAfterShutdownAsync(pump, connection)
                         exited <- true
                     })
             })
