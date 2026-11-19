@@ -38,8 +38,9 @@ internal static class RecordedGenerationAdmission
     internal static long DocumentByteLimit(ModelReadLimits reader, ModelAccessLimits selected) =>
         Math.Min(reader.MaxBytes, (long)selected.MaxDecodedBytesPerExchange);
 
-    internal static long RequestIdReservation(BoundedGenerationProfile profile, ModelAccessLimits selected) =>
-        profile == BoundedGenerationProfile.OrdersScale ? selected.MaxHostCacheBytes / 2L : 0L;
+    // A zero-byte scale reservation still requires admission. Null means the default policy does not opt in.
+    internal static long? RequestIdReservation(BoundedGenerationProfile profile, long selectedHostCacheBytes) =>
+        profile == BoundedGenerationProfile.OrdersScale ? selectedHostCacheBytes / 2L : null;
 
     internal static SessionLimits WasmLimits(BoundedGenerationProfile profile, ModelAccessLimits offer)
     {

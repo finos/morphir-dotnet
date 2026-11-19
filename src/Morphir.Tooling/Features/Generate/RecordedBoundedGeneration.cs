@@ -95,13 +95,14 @@ internal static class RecordedBoundedGeneration
                     var location = producer.Location.Root.Task(producer.Location.Member, task);
                     if (GenerationPublisher.LinkedPath(location.Dest) is not null)
                         return Refuse("unsafe-publication-path", $"The task directory {location.Dest} must not be a link.");
-                    Directory.CreateDirectory(location.Dest);
                     // Reserve a bounded quarter of the negotiated cache for the active package's
                     // paths before any discovery. The stage can use only the remaining bytes.
                     var discoveryReservation = access.Limits.MaxHostCacheBytes / 4L;
-                    var requestIdReservation = RecordedGenerationAdmission.RequestIdReservation(settings.BoundedProfile, access.Limits);
-                    if (requestIdReservation > 0 && !guest.HostSession.TryReserveSingleGenerationRequestCache(requestIdReservation))
+                    var requestIdReservation = RecordedGenerationAdmission.RequestIdReservation(
+                        settings.BoundedProfile, access.Limits.MaxHostCacheBytes);
+                    if (requestIdReservation is { } reservation && !guest.HostSession.TryReserveSingleGenerationRequestCache(reservation))
                         return Refuse("extension.bounded_cache_limit", "The request-ID reservation cannot be installed for this generation session.");
+                    Directory.CreateDirectory(location.Dest);
                     var indexed = DocumentTreeStore.OpenPlainSnapshotWithDiscoveryCache(
                             new ReadOptions(readerLimits.MaxEntries, RecordedGenerationAdmission.DocumentByteLimit(readerLimits, access.Limits)),
                             discoveryReservation, () => revision, files)
@@ -114,7 +115,7 @@ internal static class RecordedBoundedGeneration
                         return Failed(refusedIndex.Error);
                     snapshot = ((Outcome<BoundedTreeSnapshot>.Success)indexed).Value;
                     stage = new BoundedArtifactStage(location.Dest, access.Limits,
-                        new GenerationSessionDiskBudget(access.Limits.MaxSessionDiskBytes), discoveryReservation, requestIdReservation);
+                        new GenerationSessionDiskBudget(access.Limits.MaxSessionDiskBytes), discoveryReservation, requestIdReservation.GetValueOrDefault());
                     var start = Start(snapshot, tuple, target, settings.Options, access.Limits);
                     using var sessionDeadline = new CancellationTokenSource(access.Limits.MaxSessionMilliseconds);
                     result = await BoundedGenerationSession.RunAsync(guest.HostSession, snapshot, start, stage,
