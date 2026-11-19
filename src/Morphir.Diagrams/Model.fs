@@ -421,15 +421,44 @@ type ParticipantKind =
     | Participant
     /// Actor symbol.
     | Actor
+    /// UML boundary symbol: a circle with a bar on its left.
+    | Boundary
+    /// UML control symbol: a circle with an arrowhead.
+    | Control
+    /// UML entity symbol: a circle on a line.
+    | Entity
+    /// A database cylinder.
+    | Database
+    /// A stack of boxes.
+    | Collections
+    /// A queue drawn as a horizontal cylinder.
+    | Queue
 
     override this.ToString() =
         match this with
         | ParticipantKind.Participant -> "participant"
         | ParticipantKind.Actor -> "actor"
+        | ParticipantKind.Boundary -> "boundary"
+        | ParticipantKind.Control -> "control"
+        | ParticipantKind.Entity -> "entity"
+        | ParticipantKind.Database -> "database"
+        | ParticipantKind.Collections -> "collections"
+        | ParticipantKind.Queue -> "queue"
 
 /// A sequence lifeline.
 [<Sealed>]
-type Participant internal (id: DiagramId, label: string, kind: ParticipantKind) =
+type Participant
+    internal (id: DiagramId, label: string, kind: ParticipantKind, created: int option, destroyed: int option) =
+    internal new(id, label, kind) = Participant(id, label, kind, None, None)
+
+    member internal _.With(created: int option, destroyed: int option) = Participant(id, label, kind, created, destroyed)
+
+    /// The zero-based index of the message that creates the participant, or null when it exists from the start.
+    member _.CreatedBy = Option.toNullable created
+
+    /// The zero-based index of the message that destroys the participant, or null when it lives to the end.
+    member _.DestroyedBy = Option.toNullable destroyed
+
     /// Identifier as authored. Comparisons are ordinal.
     member _.Id = id
 
@@ -453,8 +482,18 @@ type SequenceMessage
         senderHead: EdgeHead,
         receiverHead: EdgeHead,
         number: decimal option,
-        span: SourceSpan
+        span: SourceSpan,
+        central: bool * bool
     ) =
+    internal new(sender, receiver, text, dashed, senderHead, receiverHead, number, span) =
+        SequenceMessage(sender, receiver, text, dashed, senderHead, receiverHead, number, span, (false, false))
+
+    /// Whether the message starts at a central connection `()` on the sender's lifeline.
+    member _.StartsAtCentre = fst central
+
+    /// Whether the message ends at a central connection `()` on the receiver's lifeline.
+    member _.EndsAtCentre = snd central
+
     /// Identifier of the sender.
     member _.Sender = sender
 
@@ -572,10 +611,13 @@ type SequenceFrameKind =
     | Break
     /// A rectangular background region.
     | Rectangle
+    /// A ZenUML exception region with try, catch and finally sections.
+    | Try
 
     /// Mermaid keyword for the operator.
     member this.WireValue =
         match this with
+        | SequenceFrameKind.Try -> "try"
         | SequenceFrameKind.Loop -> "loop"
         | SequenceFrameKind.Alternative -> "alt"
         | SequenceFrameKind.Optional -> "opt"
@@ -655,10 +697,29 @@ and [<Sealed>] SequenceFrameSection
     override _.ToString() =
         defaultArg label $"{events.Length} events"
 
+/// A group of adjacent lifelines drawn inside one labelled box.
+[<Sealed>]
+type SequenceBox internal (label: string, color: string option, participants: ImmutableArray<DiagramId>) =
+    /// Display label, which may be empty.
+    member _.Label = label
+
+    /// The colour the source asked for, such as `Purple` or `rgb(33,66,99)`, or null. Themes decide the drawn colour.
+    member _.Color: string | null = Option.toObj color
+
+    /// The lifelines in the box, in order.
+    member _.Participants = participants
+
+    override _.ToString() = label
+
 /// A normalized sequence diagram.
 [<Sealed>]
 type SequenceDiagram
-    internal (participants: ImmutableArray<Participant>, events: ImmutableArray<SequenceEvent>) =
+    internal
+    (
+        participants: ImmutableArray<Participant>,
+        events: ImmutableArray<SequenceEvent>,
+        boxes: ImmutableArray<SequenceBox>
+    ) =
     let messages, notes =
         let messages = ImmutableArray.CreateBuilder<SequenceMessage>()
         let notes = ImmutableArray.CreateBuilder<SequenceNote>()
@@ -676,8 +737,13 @@ type SequenceDiagram
         visit events
         messages.ToImmutable(), notes.ToImmutable()
 
+    internal new(participants, events) = SequenceDiagram(participants, events, ImmutableArray<SequenceBox>.Empty)
+
     /// Lifelines in display order.
     member _.Participants = participants
+
+    /// Boxes that group lifelines, in source order.
+    member _.Boxes = boxes
 
     /// Top-level events in source order.
     member _.Events = events

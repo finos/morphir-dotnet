@@ -105,7 +105,42 @@ module internal SequenceReader =
             RegexOptions.CultureInvariant ||| RegexOptions.IgnoreCase
         )
 
+    let private metadataPair = Regex("\"(?<key>[A-Za-z]+)\"\\s*:\\s*\"(?<value>[^\"]*)\"", RegexOptions.CultureInvariant)
+
+    let private kindsByName =
+        [
+            ParticipantKind.Participant
+            ParticipantKind.Actor
+            ParticipantKind.Boundary
+            ParticipantKind.Control
+            ParticipantKind.Entity
+            ParticipantKind.Database
+            ParticipantKind.Collections
+            ParticipantKind.Queue
+        ]
+        |> List.map (fun kind -> kind.ToString(), kind)
+        |> Map.ofList
+
+    /// `Name@{ "type": "database", "alias": "Orders" } as Label`: the metadata sets the kind and a label that a
+    /// following `as` overrides.
     let private readDeclaration kind (text: string) =
+        let kind, text, metadataAlias =
+            match text.IndexOf("@{", StringComparison.Ordinal) with
+            | -1 -> kind, text, None
+            | at ->
+                let close = text.IndexOf('}', at)
+
+                if close < 0 then
+                    kind, text, None
+                else
+                    let pairs =
+                        metadataPair.Matches(text.Substring(at, close - at))
+                        |> Seq.map (fun found -> found.Groups["key"].Value, found.Groups["value"].Value)
+                        |> Map.ofSeq
+
+                    let kind = pairs |> Map.tryFind "type" |> Option.bind (fun name -> Map.tryFind name kindsByName) |> Option.defaultValue kind
+                    kind, text.Substring(0, at) + text.Substring(close + 1), Map.tryFind "alias" pairs
+
         let alias = aliasPattern.Match text
 
         let id, name =
@@ -113,7 +148,7 @@ module internal SequenceReader =
                 text.Substring(0, alias.Index).Trim(),
                 Reading.unquote (text.Substring(alias.Index + alias.Length))
             else
-                text.Trim(), text.Trim()
+                text.Trim(), metadataAlias |> Option.defaultValue (text.Trim())
 
         match DiagramId.Parse id with
         | Ok identity when not (String.IsNullOrWhiteSpace name || id.Contains "@{") ->
@@ -145,11 +180,12 @@ module internal SequenceReader =
 
             let message = text.Substring(colon + 1).Trim()
 
+            let fromCentre = sender.EndsWith("()", StringComparison.Ordinal)
+            let toCentre = Reading.startsWith "()" receiver
+            let sender = if fromCentre then sender.Substring(0, sender.Length - 2).TrimEnd() else sender
+            let receiver = if toCentre then receiver.Substring(2).TrimStart() else receiver
+
             match DiagramId.Parse sender, DiagramId.Parse receiver with
-            | Ok _, Ok _ when
-                Reading.startsWith "()" receiver || sender.EndsWith("()", StringComparison.Ordinal)
-                ->
-                Error "This sequence message uses an unsupported central connection."
             | Ok fromId, Ok toId ->
                 let dashed, senderHead, receiverHead = arrowByText[matched.Value]
 
@@ -162,12 +198,32 @@ module internal SequenceReader =
                         senderHead,
                         receiverHead,
                         number,
-                        span
+                        span,
+                        (fromCentre, toCentre)
                     ),
                     activation
                 )
             | _ -> Error "Expected a sender and a receiver around the message arrow."
         | _ -> Error "Expected a participant declaration or a sequence message."
+
+    let private colorNames =
+        set [ "transparent"; "aqua"; "black"; "blue"; "brown"; "cyan"; "fuchsia"; "gold"; "gray"; "grey"; "green"; "lime"; "magenta"; "maroon"; "navy"; "olive"; "orange"; "pink"; "purple"; "red"; "silver"; "teal"; "white"; "yellow"; "aliceblue"; "beige"; "coral"; "crimson"; "indigo"; "ivory"; "khaki"; "lavender"; "lightblue"; "lightgray"; "lightgreen"; "lightgrey"; "lightyellow"; "salmon"; "tan"; "tomato"; "turquoise"; "violet"; "wheat" ]
+
+    /// `box Purple Alice & John`, `box rgb(33,66,99) Label` or `box Label`: the optional colour, then the title.
+    let private boxColor (text: string) =
+        let text = text.Trim()
+
+        if text.StartsWith("rgb", StringComparison.OrdinalIgnoreCase) && text.Contains ')' then
+            let close = text.IndexOf ')'
+            Some(text.Substring(0, close + 1)), text.Substring(close + 1).Trim()
+        else
+            let first = text.Split([| ' '; '\t' |], 2, StringSplitOptions.RemoveEmptyEntries)
+
+            match first with
+            | [||] -> None, ""
+            | words when colorNames.Contains(words[0].ToLowerInvariant()) || words[0].StartsWith '#' ->
+                Some words[0], (if words.Length > 1 then words[1].Trim() else "")
+            | _ -> None, text
 
     let read (lines: seq<Reading.Line * int>) =
         let participants = ResizeArray<Participant>()
@@ -181,6 +237,12 @@ module internal SequenceReader =
         let mutable nextNumber = Some 1m
         let mutable numberStep = 1m
         let nestingLimit = 32
+        let pendingCreations = HashSet<DiagramId>()
+        let pendingDestructions = HashSet<DiagramId>()
+        let created = Dictionary<DiagramId, int>()
+        let destroyed = Dictionary<DiagramId, int>()
+        let boxes = ResizeArray<string * string option * ResizeArray<DiagramId>>()
+        let mutable boxOpen = false
 
         let addEvent event =
             if frames.Count = 0 then
@@ -207,6 +269,11 @@ module internal SequenceReader =
             | _ ->
                 indices.Add(participant.Id, participants.Count)
                 participants.Add participant
+
+                if boxOpen then
+                    let _, _, members = boxes[boxes.Count - 1]
+                    members.Add participant.Id
+
                 Ok()
 
         let addImplicit (id: DiagramId) =
@@ -322,11 +389,25 @@ module internal SequenceReader =
             else
                 readMessage text number span
                 |> Result.bind (fun (message, kind) ->
+                    match [ message.Sender; message.Receiver ] |> List.tryFind destroyed.ContainsKey with
+                    | Some gone -> Error $"Participant {gone} is used after the message that destroys it."
+                    | None ->
+                        for id in [ message.Sender; message.Receiver ] do
+                            if pendingCreations.Remove id then created[id] <- messageCount
+                            if pendingDestructions.Remove id then destroyed[id] <- messageCount
+
+                        Ok(message, kind))
+                |> Result.mapError (fun text ->
+                    if text.Contains "after the message that destroys it" then
+                        Reading.error "mermaid/destroyed-participant" text (Some span)
+                    else
+                        statementError span text)
+                |> Result.bind (fun (message, kind) ->
                     addImplicit message.Sender
                     |> Result.bind (fun () -> addImplicit message.Receiver)
                     |> Result.map (fun () -> message, kind)
+                    |> Result.mapError (statementError span)
                 )
-                |> Result.mapError (statementError span)
                 |> Result.bind (fun (message, kind) ->
                     addEvent (SequenceEvent.Message message)
                     messageCount <- messageCount + 1
@@ -452,6 +533,40 @@ module internal SequenceReader =
 
                             addActivation kind id span
                         | Error failure -> fail "mermaid/invalid-activation" span failure.Message
+                    | "create" ->
+                        let cursor = Reading.Cursor(line, cursor.Index)
+                        cursor.SkipSpace()
+                        let kindWord = cursor.ReadWhile(fun character -> not (Char.IsWhiteSpace character)).ToLowerInvariant()
+                        let kind = if kindWord = "actor" then ParticipantKind.Actor else ParticipantKind.Participant
+
+                        if kindWord <> "participant" && kindWord <> "actor" then
+                            fail "mermaid/unknown-statement" span "`create` takes `participant` or `actor` and a name."
+                        else
+                            readDeclaration kind (cursor.Remaining().Trim())
+                            |> Result.bind (fun participant ->
+                                pendingCreations.Add participant.Id |> ignore
+                                addParticipant participant true)
+                            |> Result.mapError (statementError span)
+                    | "destroy" ->
+                        match DiagramId.Parse rest with
+                        | Ok id -> addImplicit id |> Result.map (fun () -> pendingDestructions.Add id |> ignore) |> Result.mapError (statementError span)
+                        | Error failure -> fail "mermaid/unknown-statement" span failure.Message
+                    | "box" when boxOpen || frames.Count > 0 ->
+                        fail "mermaid/misplaced-box" span "A box holds participant declarations and cannot nest or sit in a frame."
+                    | "box" ->
+                        let color, title = boxColor rest
+                        boxes.Add(title, color, ResizeArray())
+                        boxOpen <- true
+                        Ok()
+                    | "end" when label.IsNone && boxOpen && frames.Count = 0 ->
+                        boxOpen <- false
+                        Ok()
+                    | "link"
+                    | "links"
+                    | "properties"
+                    | "details" ->
+                        Reading.warn "mermaid/unapplied-presentation" "Participant links and menus are kept in the source but not drawn." (Some span)
+                        Ok()
                     | "else"
                     | "and"
                     | "option" -> readSection keyword label span
@@ -483,9 +598,21 @@ module internal SequenceReader =
                     $"The `{frame.Kind}` frame has no `end`."
                     (Some frame.Opening)
             )
+        | None when boxOpen -> Error(Reading.error "mermaid/missing-end" "The box has no `end`." None)
         | None ->
+            let find (table: Dictionary<DiagramId, int>) id =
+                match table.TryGetValue id with
+                | true, index -> Some index
+                | false, _ -> None
+
+            let participants =
+                participants |> Seq.map (fun participant -> participant.With(find created participant.Id, find destroyed participant.Id))
+
+            let boxes =
+                boxes |> Seq.map (fun (title, color, members) -> SequenceBox(title, color, Reading.immutable members))
+
             Ok(
                 Diagram.Sequence(
-                    SequenceDiagram(Reading.immutable participants, Reading.immutable events)
+                    SequenceDiagram(Reading.immutable participants, Reading.immutable events, Reading.immutable boxes)
                 )
             )
