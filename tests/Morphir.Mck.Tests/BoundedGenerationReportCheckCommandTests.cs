@@ -137,6 +137,7 @@ public sealed class BoundedGenerationReportCheckCommandTests
         invocation.ExitCode.Should().Be(2);
         invocation.Result.GetProperty("error").GetProperty("code").GetString().Should().Be("mck.usage");
     }
+
     [Test]
     public async Task MissingFileReturnsOperationalError()
     {
@@ -168,4 +169,205 @@ public sealed class BoundedGenerationReportCheckCommandTests
         invocation.Result.GetProperty("error").GetProperty("code").GetString().Should().Be("invalid_shape");
     }
 
+    // A named mother for real scale receipt inputs; no pilot observations are qualification evidence.
+    private sealed class ScaleInputs : IDisposable
+    {
+        private readonly ReplayInputs _inputs = new();
+        public string Cases => _inputs.Controls;
+        public string Receipt => _inputs.Receipt;
+        public string[] Arguments => ["mck", "bounded-generation", "report-check", "--schema", _inputs.Schema,
+            "--scale-cases", Cases, "--receipt", Receipt];
+
+        public ScaleInputs(string id, bool missing = true, bool includeSource = true)
+        {
+            var bytes = FixtureCatalog.ReadBytes(FixtureCatalog.BoundedGenerationReceipts.ScaleCases);
+            File.WriteAllBytes(Cases, bytes);
+            var source = JsonNode.Parse(bytes)!.AsObject();
+            var selected = source["cases"]!.AsArray().Single(item => item!["id"]!.GetValue<string>() == id)!;
+            var receipt = JsonNode.Parse(File.ReadAllText(Receipt))!.AsObject();
+            receipt["kit"] = new JsonObject
+            {
+                ["contractSha256"] = source["contractSha256"]!.DeepClone(),
+                ["suiteSha256"] = FixtureCatalog.BoundedGenerationReceipts.ScaleCases.Sha256,
+                ["caseId"] = id,
+            };
+            receipt["fixture"] = selected["fixture"]!.DeepClone();
+            if (!includeSource)
+            {
+                receipt["fixture"]!.AsObject().Remove("modelSha256");
+                receipt["fixture"]!.AsObject().Remove("documentCount");
+            }
+            receipt["execution"] = source["execution"]!.DeepClone();
+            receipt["target"] = source["target"]!.DeepClone();
+            receipt["tuple"] = source["tuple"]!.DeepClone();
+            receipt["guest"]!["artifactSha256"] = source["guestSha256"]!.DeepClone();
+            receipt["comparison"] = selected["comparison"]!.DeepClone();
+            receipt["comparison"]!["observedSha256"] = selected["comparison"]!["expectedSha256"]!.DeepClone();
+            foreach (var measurement in receipt["measurements"]!.AsObject().ToArray())
+                if (missing)
+                    receipt["measurements"]![measurement.Key] = new JsonObject { ["state"] = "missing", ["reason"] = "Not collected." };
+            foreach (var limit in receipt["limits"]!.AsObject().ToArray())
+                if (limit.Value!["state"]!.GetValue<string>() == "enforced")
+                {
+                    limit.Value["state"] = "not-enforced";
+                    limit.Value.AsObject().Remove("source");
+                    limit.Value["reason"] = "Not enforced.";
+                }
+            receipt["resources"] = new JsonObject
+            {
+                ["state"] = "not-run",
+                ["reasons"] = missing
+                    ? new JsonArray("resource.limit_not_enforced", "resource.measurement_missing")
+                    : new JsonArray("resource.limit_not_enforced"),
+            };
+            File.WriteAllText(Receipt, receipt.ToJsonString());
+        }
+
+        public void Change(string pointer, string json)
+        {
+            var receipt = JsonNode.Parse(File.ReadAllText(Receipt))!.AsObject();
+            using var patch = JsonDocument.Parse(new JsonObject
+            {
+                ["op"] = "replace",
+                ["path"] = pointer,
+                ["value"] = JsonNode.Parse(json),
+            }.ToJsonString());
+            ApplyPatch(receipt, patch.RootElement);
+            File.WriteAllText(Receipt, receipt.ToJsonString());
+        }
+        public void Dispose() => _inputs.Dispose();
+    }
+
+    [Test]
+    [Arguments("orders-scale/a", true, true)]
+    [Arguments("orders-scale/b", true, true)]
+    [Arguments("orders-scale/a", false, false)]
+    [Arguments("orders-scale/b", false, false)]
+    public async Task ScaleCorrectnessDoesNotQualifyMissingOrUnforcedResources(string id, bool missing, bool source)
+    {
+        using var inputs = new ScaleInputs(id, missing, source);
+        var invocation = await Invoke(inputs.Arguments);
+        invocation.ExitCode.Should().Be(1);
+        invocation.Result.GetProperty("error").ValueKind.Should().Be(JsonValueKind.Null);
+        invocation.Result.GetProperty("correctness").GetProperty("state").GetString().Should().Be("passed");
+        invocation.Result.GetProperty("resources").GetProperty("state").GetString().Should().Be("not-run");
+    }
+
+    [Test]
+    [Arguments("/kit/caseId", "\"orders-scale/unknown\"")]
+    [Arguments("/kit/caseId", "\"orders-scale/b\"")]
+    [Arguments("/kit/contractSha256", "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")]
+    [Arguments("/kit/suiteSha256", "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")]
+    [Arguments("/fixture/scale", "\"small\"")]
+    [Arguments("/fixture/expandedInputBytes", "1086620932")]
+    [Arguments("/fixture/largestDocumentBytes", "16561")]
+    [Arguments("/fixture/modelSha256", "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")]
+    [Arguments("/fixture/documentCount", "68612")]
+    [Arguments("/fixture/documentCount", "\"68611\"")]
+    [Arguments("/execution", "\"native-generation\"")]
+    [Arguments("/target", "\"other\"")]
+    [Arguments("/guest/artifactSha256", "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")]
+    [Arguments("/tuple/protocolVersion", "\"0.2.0-draft.1\"")]
+    [Arguments("/tuple/accessVersion", "\"0.1.0-draft.2\"")]
+    [Arguments("/tuple/operation", "\"other\"")]
+    [Arguments("/tuple/irVersion", "\"3.1.0\"")]
+    [Arguments("/tuple/profile", "\"other\"")]
+    [Arguments("/tuple/codec", "\"morphir-yaml\"")]
+    [Arguments("/tuple/layout", "\"single-file\"")]
+    [Arguments("/tuple/contextualEncoding", "\"contextual\"")]
+    [Arguments("/comparison/kind", "\"diagnostic-facts\"")]
+    [Arguments("/comparison/expectedSha256", "\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"")]
+    public async Task ScaleSubstitutionsAreRefused(string pointer, string json)
+    {
+        using var inputs = new ScaleInputs("orders-scale/a");
+        inputs.Change(pointer, json);
+        var invocation = await Invoke(inputs.Arguments);
+        invocation.ExitCode.Should().Be(1);
+        invocation.Result.GetProperty("error").ValueKind.Should().Be(JsonValueKind.Object);
+        invocation.Result.GetProperty("correctness").ValueKind.Should().Be(JsonValueKind.Null);
+        invocation.Result.GetProperty("resources").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Test]
+    public async Task ScaleSourceAndReceiptCannotChooseTheirOwnExpectation()
+    {
+        using var inputs = new ScaleInputs("orders-scale/a");
+        File.AppendAllText(inputs.Cases, " ");
+        var invocation = await Invoke(inputs.Arguments);
+        invocation.ExitCode.Should().Be(1);
+        invocation.Result.GetProperty("error").GetProperty("code").GetString().Should().Be("case_expectation_source_mismatch");
+    }
+
+    [Test]
+    public async Task ControlsAndScaleCasesAreMutuallyExclusive()
+    {
+        using var inputs = new ReplayInputs();
+        var invocation = await Invoke([.. inputs.Arguments, "--scale-cases", inputs.Controls]);
+        invocation.ExitCode.Should().Be(2);
+        invocation.Result.GetProperty("error").GetProperty("code").GetString().Should().Be("mck.usage");
+    }
+
+    [Test]
+    public async Task ScaleSelfConsistentWrongOutputCannotReplacePinnedExpectation()
+    {
+        using var inputs = new ScaleInputs("orders-scale/a");
+        var wrong = JsonSerializer.Serialize(new string('a', 64));
+        inputs.Change("/comparison/expectedSha256", wrong);
+        inputs.Change("/comparison/observedSha256", wrong);
+        var invocation = await Invoke(inputs.Arguments);
+        invocation.ExitCode.Should().Be(1);
+        invocation.Result.GetProperty("error").GetProperty("code").GetString().Should().Be("expected_digest_mismatch");
+    }
+
+    [Test]
+    public async Task ScaleStillUsesPinnedSchemaAndOutcomeReplay()
+    {
+        using var inputs = new ScaleInputs("orders-scale/a");
+        inputs.Change("/resources/state", "\"passed\"");
+        inputs.Change("/resources/reasons", "[]");
+        var invocation = await Invoke(inputs.Arguments);
+        invocation.ExitCode.Should().Be(1);
+        invocation.Result.GetProperty("error").GetProperty("code").GetString().Should().Be("outcome_mismatch");
+    }
+
+    [Test]
+    public async Task MalformedScaleReceiptIsRefused()
+    {
+        using var inputs = new ScaleInputs("orders-scale/a");
+        File.WriteAllText(inputs.Receipt, "{bad json");
+        var invocation = await Invoke(inputs.Arguments);
+        invocation.ExitCode.Should().Be(1);
+        invocation.Result.GetProperty("error").GetProperty("code").GetString().Should().Be("invalid_shape");
+    }
+
+    [Test]
+    public async Task NeitherCaseSourceIsAUsageErrorWithOtherwiseValidArguments()
+    {
+        using var inputs = new ReplayInputs();
+        var invocation = await Invoke(["mck", "bounded-generation", "report-check",
+            "--schema", inputs.Schema, "--receipt", inputs.Receipt]);
+        invocation.ExitCode.Should().Be(2);
+        invocation.Result.GetProperty("error").GetProperty("code").GetString().Should().Be("mck.usage");
+    }
+
+    [Test]
+    public async Task ScaleMissingFileIsAnOperationalError()
+    {
+        using var inputs = new ScaleInputs("orders-scale/a");
+        File.Delete(inputs.Cases);
+        var invocation = await Invoke(inputs.Arguments);
+        invocation.ExitCode.Should().Be(2);
+        invocation.Result.GetProperty("error").GetProperty("code").GetString().Should().Be("mck.io");
+    }
+
+    [Test]
+    public async Task ScaleAlteredSchemaIsRefused()
+    {
+        using var inputs = new ScaleInputs("orders-scale/a");
+        var schema = inputs.Arguments[Array.IndexOf(inputs.Arguments, "--schema") + 1];
+        File.AppendAllText(schema, " ");
+        var invocation = await Invoke(inputs.Arguments);
+        invocation.ExitCode.Should().Be(1);
+        invocation.Result.GetProperty("error").GetProperty("code").GetString().Should().Be("invalid_shape");
+    }
 }

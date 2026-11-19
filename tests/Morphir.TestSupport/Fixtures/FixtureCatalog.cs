@@ -653,7 +653,12 @@ public static class FixtureCatalog
             "the synthetic qualifying WASM receipt", Directory + "fixtures/receipt-qualified-wasm.json",
             "48097614346a2a302cdd43959fdc03d949e05279e027c0a6d9692b1bf918d735", Provenance);
 
-        public static IReadOnlyList<FixtureEntry> Files { get; } = [Controls, Schema, Sample];
+        /// <summary>The independent real scale A/B cases from parent PR #1198.</summary>
+        public static FixtureEntry ScaleCases { get; } = new(
+            "the real orders scale A/B expectations", Directory + "orders-scale.cases.json",
+            "cde3dc58b49c229bac45af57126c2aa8b2f62c6e06766c84dd7f99bb8b0c4910", Provenance);
+
+        public static IReadOnlyList<FixtureEntry> Files { get; } = [Controls, Schema, Sample, ScaleCases];
     }
 
     /// <summary>The frozen orders plain and contextual document trees for v3.1 and v4, in JSON and YAML.</summary>
