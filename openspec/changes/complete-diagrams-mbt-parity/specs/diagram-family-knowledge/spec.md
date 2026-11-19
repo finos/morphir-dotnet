@@ -7,11 +7,15 @@ Gives every new diagram family the same knowledge features as flowcharts and seq
 ## ADDED Requirements
 
 ### Requirement: Element references for every family
-Each element of every family SHALL have a stable element reference with the existing kinds: a node (`node=Idle` for a state, `node=api` for a service, `node=Approve_1` for a BPMN task, `node=list` for an EBNF rule, `node=%2Fserver%2Fport` for a data-tree row), a group for a container (`group=Active` for a composite state, a lane or a pool), an edge for a connector (`edge=Idle/Active/0` for a transition or a flow), and the sequence kinds for ZenUML. The README documents the identifiers each family uses. The SVG SHALL mark each element with its reference.
+Each element of every family SHALL have a stable element reference with the existing kinds: a node for a state, service, task, rule or row, a group for a composite, lane or pool, an edge for a transition or flow, and the sequence kinds for ZenUML. The README SHALL document the identifiers each family uses, and the SVG SHALL mark each element with its reference.
 
 #### Scenario: State reference
 - **WHEN** a state diagram is rendered
 - **THEN** the group for state `Idle` carries `data-ref="node=Idle"`
+
+#### Scenario: Identifiers from the source
+- **WHEN** a BPMN task has the ID `Approve_1` and a data tree has the row `/server/port`
+- **THEN** their references are `node=Approve_1` and `node=%2Fserver%2Fport`
 
 ### Requirement: Selections and annotations
 Diagram selections SHALL accept references of every family, and comments, links and statements on those elements SHALL map to RDF and embed in the SVG metadata as they do for flowcharts.
