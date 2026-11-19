@@ -96,4 +96,21 @@ public class PlantUmlActivityTests
 
         failures.ShouldBeEmpty();
     }
+
+    [Test]
+    public void TheLegacyDialectReadsBranchesAndBars()
+    {
+        var model = Read("(*) --> \"Read\"\nif \"Ready?\" then\n  -->[yes] \"Write\"\nelse\n  -->[no] ===B1===\nendif\n--> (*)");
+
+        Flow(model).ShouldContain("Ready?>Write[yes]");
+        model.Steps.ShouldContain(step => step.Role.Equals(SwimlaneRole.Fork));
+    }
+
+    [Test]
+    public void MixingTheDialectsIsReported()
+    {
+        PlantUml.TryParse("@startuml\n(*) --> \"A\"\n:modern;\n@enduml\n", out _, out var diagnostics).ShouldBeFalse();
+
+        diagnostics.ShouldHaveSingleItem().Code.ShouldBe("plantuml/mixed-activity-dialect");
+    }
 }
