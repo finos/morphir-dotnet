@@ -498,40 +498,49 @@ let tests =
 
 [<Tests>]
 let processTreeOwnership =
-    testLabel "PlatformSpecific" <| testList "MepProcessTreeOwnership" [
-        testCase "disposal settles an inherited-pipe descendant after its direct guest root exits" (fun () ->
-            if not (OperatingSystem.IsWindows()) then skiptest "Windows creation-time job control."
-            let marker = Path.Combine(guestWork.Value.Work,"descendant.pid")
-            if File.Exists marker then File.Delete marker
-            let startup = Stopwatch.StartNew()
-            let frontend =
-                // This controls tree settlement, not a one-second cold initialization SLA.
-                try connect {fakeOptions "root-exits-with-child" with Deadline=TimeSpan.FromSeconds 5.}
-                finally eprintfn "Ownership fixture initialization took %O; child stderr: %s" startup.Elapsed (stderr.ToString())
-            let mutable child: Process option = None
+    let settle scenario =
+        if not (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() || OperatingSystem.IsLinux()) then
+            skiptest "This ownership case requires Windows, macOS or Linux."
+
+        let bound = TimeSpan.FromSeconds 5.
+        let marker = Path.Combine(guestWork.Value.Work, "descendant.pid")
+        File.Delete marker
+        let frontend = connect { fakeOptions scenario with Deadline = bound }
+        let mutable closing: System.Threading.Tasks.Task option = None
+        let beginClose () =
+            match closing with
+            | Some pending -> pending
+            | None ->
+                let pending = (frontend :> IAsyncDisposable).DisposeAsync().AsTask()
+                closing <- Some pending
+                pending
+
+        try
+            let _ = (frontend :> IFrontend).CompileAsync(request (Versioning.Classic 4) frontend, CancellationToken.None).GetAwaiter().GetResult()
+            let identity = File.ReadAllText(marker).Split '|'
+            let started = int64 identity[1]
+            use descendant = Process.GetProcessById(int identity[0])
+            Expect.equal (descendant.StartTime.ToUniversalTime().Ticks) started "the marked process belongs to this test"
             try
-                let _ = (frontend :> IFrontend).CompileAsync(request (Versioning.Classic 4) frontend,CancellationToken.None).GetAwaiter().GetResult()
-                let identity = File.ReadAllText(marker).Split '|'
-                let descendant = Process.GetProcessById(int identity[0])
-                if descendant.StartTime.ToUniversalTime().Ticks <> int64 identity[1] then failtest "descendant identity changed"
-                child <- Some descendant
-                let disposed = (frontend :> IAsyncDisposable).DisposeAsync().AsTask()
-                let settled = disposed.Wait(TimeSpan.FromSeconds 5.)
-                if not settled then
-                    descendant.Kill(true)
-                    descendant.WaitForExit()
-                    disposed.GetAwaiter().GetResult()
-                Expect.isTrue settled "package lifetime must be releasable only after the actual tree and pumps settle"
+                Expect.isTrue (SpinWait.SpinUntil((fun () -> frontend.HasExited), bound)) "the guest root must exit before disposal"
+                let disposed = beginClose ()
+                Expect.isTrue (disposed.Wait bound) "disposal must settle the guest tree and pipes within its bound"
                 Expect.isTrue descendant.HasExited "descendant is gone at successful disposal"
             finally
-                match child with
-                | Some descendant ->
-                    if not descendant.HasExited then descendant.Kill(true);descendant.WaitForExit()
-                    descendant.Dispose()
-                | None -> ()
-                dispose frontend)
-    ]
+                if not descendant.HasExited && descendant.StartTime.ToUniversalTime().Ticks = started then
+                    descendant.Kill(true)
+                    descendant.WaitForExitAsync().WaitAsync(bound).GetAwaiter().GetResult()
+        finally
+            (beginClose ()).WaitAsync(bound).GetAwaiter().GetResult()
 
+    testList "MepProcessTreeOwnership" [
+        testCase "disposal settles an inherited-pipe descendant after its direct guest root exits"
+            (fun () -> settle "root-exits-with-child")
+        testCase "disposal settles a descendant even when inherited output already reached EOF"
+            (fun () -> settle "root-exits-with-closed-pipes")
+    ]
+    |> testSequenced
+    |> testLabel "PlatformSpecific"
 
 
 [<Tests>]

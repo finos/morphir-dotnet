@@ -557,6 +557,49 @@ let boundedGenerationNegotiationTests =
                 Expect.isError (host.AdvanceGenerationAsync(fromJson doc, ct).Result) "Host rejects a terminal replay"
                 Expect.equal delivered.Count 2 "The replay does not transmit"
 
+            testCase "bounded byte calls refuse oversized messages on both sides of the adapter" <| fun _ ->
+                let offer =
+                    decode MepJson.Default.InitializeParams ((JsonNode.Parse boundedInitialize |> nonNull)["params"] |> nonNull)
+                let supported = offer.ModelAccess |> Option.defaultWith (fun () -> failtest "Missing fixture support")
+                let limits = { supported.Limits with MaxFrameBytes = 4096 }
+                let support = { supported with Limits = limits }
+                let start = decode MepJson.Default.ModelAccessStart ((JsonNode.Parse boundedStart |> nonNull)["params"] |> nonNull)
+                let padding = String('x', 6000)
+                let ct = CancellationToken.None
+
+                for oversizedRequest in [ true; false ] do
+                    let oversizedReply =
+                        """{"state":"complete","sessionId":"orders-generation","artifacts":[],"diagnostics":[{"severity":"warning","message":"%s"}]}"""
+                        |> fun template -> template.Replace("%s", padding)
+                    let guest =
+                        boundedGuestWithMethods
+                            (JsonNode.Parse boundedGuestResult |> nonNull)
+                            (readOnlyDict [ Method.GenerateModelStart.WireValue, Handlers.constant oversizedReply ])
+                    let mutable requests = 0
+                    let channel =
+                        { new ISingleMessageChannel with
+                            member _.RequestAsync(method, message, cancellation) =
+                                if method = Method.GenerateModelStart.WireValue then requests <- requests + 1
+                                guest.Dispatcher.DispatchAsync(message, cancellation)
+                            member _.NotifyAsync(_, message, cancellation) =
+                                guest.Dispatcher.DispatchAsync(message, cancellation) }
+                    let host = HostSession.CreateWithModelAccess(channel, offer.Host, support, null)
+                    Expect.isOk (host.InitializeAsync(ct).GetAwaiter().GetResult()) "Agreement precedes the byte limit"
+                    if oversizedRequest then
+                        let expanded = JsonRpc.Constant("{\"padding\":\"" + padding + "\"}")
+                        let operation = { start with Limits = limits; Options = expanded }
+                        try
+                            host.StartGenerationAsync(operation, ct).GetAwaiter().GetResult() |> ignore
+                            failtest "Expected the encoded request to be refused"
+                        with :? System.IO.IOException as error ->
+                            Expect.stringContains error.Message "maxFrameBytes" "Report the negotiated limit"
+                        Expect.equal requests 0 "An oversized request never reaches the adapter"
+                    else
+                        match host.StartGenerationAsync({ start with Limits = limits }, ct).GetAwaiter().GetResult() with
+                        | Error error -> Expect.stringContains error.Message "maxFrameBytes" "Report the refused reply"
+                        | Ok _ -> failtest "An oversized reply cannot complete the operation"
+                        Expect.equal requests 1 "The request was admitted before the adapter returned the oversized reply"
+
             testCase "the pinned shared bounded transcript passes through the real guest gate" <| fun _ ->
                 let replies =
                     modelAccessTranscript

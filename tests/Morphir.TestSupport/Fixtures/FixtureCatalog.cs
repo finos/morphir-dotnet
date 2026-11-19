@@ -635,6 +635,9 @@ public static class FixtureCatalog
         private static FixtureEntry Document(string path, string sha256) =>
             new($"the frozen bounded orders document {path}", Directory + path, sha256, Provenance);
 
+        public static FixtureEntry ExpandedV4 { get; } =
+            Document("v4/single-file.json", "33649fb3718da07237c603ba7f9095621c59acee6c99def79c7a3220e4a2c47b");
+
         public static IReadOnlyList<FixtureEntry> Files { get; } =
         [
             Document("v3.1/contextual-json/deps/morphir/_sdk/@/basics/add.value.json", "c2cb8924aa3820614f4fde953265512be6fe87aabb9687548f55710109c5bb3b"),
@@ -732,7 +735,7 @@ public static class FixtureCatalog
     }
 
     /// <summary>Every file that the catalog owns and serves.</summary>
-    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, Mep.BoundedGenerationSession, .. BoundedGenerationReceipts.Files, .. Models.All, .. BoundedOrders.Files, .. Trees.AcmeDemo, .. Trees.Written, .. UpstreamIr.Documents, Rfc8785.Text, RdfNQuads.Corpus, OkfDocuments.CommonMark, .. Context.Files, .. Context.Policy.Files, .. Context.Naming.Files];
+    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, Mep.BoundedGenerationSession, .. BoundedGenerationReceipts.Files, .. Models.All, .. BoundedOrders.Files, BoundedOrders.ExpandedV4, .. Trees.AcmeDemo, .. Trees.Written, .. UpstreamIr.Documents, Rfc8785.Text, RdfNQuads.Corpus, OkfDocuments.CommonMark, .. Context.Files, .. Context.Policy.Files, .. Context.Naming.Files];
 
     /// <summary>
     /// The directories and files below <c>tests/Fixtures</c> that a test project owned before the catalog, with that

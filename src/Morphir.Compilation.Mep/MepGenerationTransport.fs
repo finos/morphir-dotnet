@@ -84,7 +84,7 @@ type MepGenerationTransport =
 
 /// A negotiated generation view over one caller-owned tree snapshot.
 [<Sealed>]
-type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelAccessStart) =
+type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelAccessStart, work: BoundedTreeWorkBudget) =
     static let refuse code message : Result<'value, StoreError list> =
         Result.Error [
             {
@@ -151,7 +151,8 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
     static member Bind
         (
             snapshot: BoundedTreeSnapshot,
-            start: ModelAccessStart
+            start: ModelAccessStart,
+            work: BoundedTreeWorkBudget
         ) : Result<MepGenerationSnapshot, StoreError list> =
         let codec =
             match snapshot.Syntax with
@@ -189,8 +190,18 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
             refuse
                 "tree.revision_mismatch"
                 "The announced revision does not match the admitted tree."
+        elif start.Limits.MaxDepth <= 0 || start.Limits.MaxNodes <= 0 then
+            refuse "tree.invalid_limit" "The negotiated maxDepth and maxNodes must be positive."
         else
-            Ok(MepGenerationSnapshot(snapshot, start))
+            let restricted = snapshot.WithDocumentLimits(start.Limits.MaxDepth, start.Limits.MaxNodes).WithWorkBudget(work)
+            Ok(MepGenerationSnapshot(restricted, start, work))
+
+    /// Bind a delivery-only view using its negotiated work allowance.
+    static member Bind(snapshot: BoundedTreeSnapshot, start: ModelAccessStart) : Result<MepGenerationSnapshot, StoreError list> =
+        if start.Limits.MaxSessionWorkUnits <= 0L then
+            refuse "tree.invalid_limit" "The negotiated maxSessionWorkUnits must be positive."
+        else
+            MepGenerationSnapshot.Bind(snapshot, start, BoundedTreeWorkBudget(start.Limits.MaxSessionWorkUnits))
 
     /// Prepare the ordered deliveries for the supplied continuation.
     member _.PrepareAdvance
@@ -213,15 +224,18 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
             let mutable encoded = int64 limits.MaxEncodedBytesPerExchange
             let mutable decoded = int64 limits.MaxDecodedBytesPerExchange
             let mutable documents = limits.MaxDocumentsPerBatch
+            let mutable nodes = limits.MaxNodes
             let mutable failure = None
             let mutable index = 0
             let snapshotId = start.Snapshot.SnapshotId
+            let exhausted () = refuse "extension.bounded_work_limit" "Processing exceeds the negotiated maxSessionWorkUnits."
 
             while index < requests.Count
                   && failure.IsNone do
                 let next =
-                    match requests[index] with
-                    | ModelAccessRequest.Inventory(id, selection, size, cursor) ->
+                    match work.TryCharge 1L, requests[index] with
+                    | false, _ -> exhausted ()
+                    | true, ModelAccessRequest.Inventory(id, selection, size, cursor) ->
                         // A delivery may have fewer entries than requested. Respect the reader's page ceiling.
                         DocumentTreeStore.pageInventory selection (min size 256) cursor snapshot
                         |> Result.map (fun page ->
@@ -237,7 +251,7 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
                                 page.Continuation
                             )
                         )
-                    | ModelAccessRequest.Document(id, documentId) ->
+                    | true, ModelAccessRequest.Document(id, documentId) ->
                         if
                             documents
                             <= 0
@@ -253,30 +267,26 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
                                      / 4L
                                      * 3L)
 
-                            DocumentTreeStore.readDocumentWithin documentId available snapshot
-                            |> Result.map (fun bytes ->
-                                let content = Convert.ToBase64String bytes.Span
+                            DocumentTreeStore.readDocumentWithinCounted documentId available nodes snapshot
+                            |> Result.bind (fun (bytes, decodedNodes) ->
+                                if not (work.TryCharge(2L * BoundedTreeWorkBudget.Blocks(int64 bytes.Length))) then
+                                    exhausted ()
+                                else
+                                    let content = Convert.ToBase64String bytes.Span
+                                    nodes <- nodes - decodedNodes
 
-                                documents <-
-                                    documents
-                                    - 1
+                                    documents <- documents - 1
+                                    encoded <- encoded - int64 content.Length
+                                    decoded <- decoded - int64 bytes.Length
 
-                                encoded <-
-                                    encoded
-                                    - int64 content.Length
-
-                                decoded <-
-                                    decoded
-                                    - int64 bytes.Length
-
-                                ModelAccessDelivery.Document(
-                                    id,
-                                    snapshotId,
-                                    documentId,
-                                    bytes.Length,
-                                    Sha256Digest.Compute bytes.Span,
-                                    content
-                                )
+                                    Ok(ModelAccessDelivery.Document(
+                                        id,
+                                        snapshotId,
+                                        documentId,
+                                        bytes.Length,
+                                        Sha256Digest.Compute bytes.Span,
+                                        content
+                                    ))
                             )
 
                 match next with

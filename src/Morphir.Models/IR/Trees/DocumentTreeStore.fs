@@ -226,6 +226,11 @@ module DocumentTreeStore =
     let readDocumentWithin documentId maxBytes snapshot =
         BoundedTreeReader.readDocumentWithin documentId maxBytes snapshot
 
+    /// Read within the delivery budgets and report the greater of source and expanded node counts.
+    [<CompiledName("ReadDocumentWithinCounted")>]
+    let readDocumentWithinCounted documentId maxBytes maxNodes snapshot =
+        BoundedTreeReader.readDocumentWithinCounted documentId maxBytes maxNodes snapshot
+
     /// Read one admitted document as plain JSON under an independent output byte limit.
     [<CompiledName("ReadExpandedDocument")>]
     let readExpandedDocument documentId maxOutputBytes snapshot =

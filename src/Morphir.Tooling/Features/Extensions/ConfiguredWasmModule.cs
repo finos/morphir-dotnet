@@ -1,5 +1,6 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
+using System.Diagnostics.CodeAnalysis;
 using Morphir.Extensions.Wasm;
 using Morphir.Mep;
 using Morphir.Tooling.Features.Compile;
@@ -47,7 +48,7 @@ internal static class ConfiguredWasmModule
     }
 
     internal static bool TryOpen(IWasmModuleLoader? loader, WasmModuleSource source,
-        out ISingleMessageChannel? channel, out string code, out string message)
+        [NotNullWhen(true)] out ISingleMessageChannel? channel, out string code, out string message, SessionLimits? limits = null)
     {
         channel = null;
         code = "extension.unavailable";
@@ -61,7 +62,7 @@ internal static class ConfiguredWasmModule
             return false;
         }
         var module = ((WasmModuleLoad.Loaded)loaded).Module;
-        var opening = WasmChannel.Open(module.Module, SessionLimits.Default);
+        var opening = WasmChannel.Open(module.Module, limits ?? SessionLimits.Default);
         if (opening is WasmChannelOpening.Failed refused)
         {
             code = refused.Failure.Code ?? code;
@@ -73,8 +74,11 @@ internal static class ConfiguredWasmModule
     }
 
     // Only output routing and ownership are added here. HostSession retains all protocol/model checks.
-    private sealed class OutputChannel(WasmChannel channel) : ISingleMessageChannel, IDisposable
+    private sealed class OutputChannel(WasmChannel channel) : ISingleMessageChannel, IModelAccessLimitAdmission, IDisposable, IAsyncDisposable
     {
+        string? IModelAccessLimitAdmission.ApplyModelAccessLimits(ModelAccessLimits limits) =>
+            channel.ApplyModelAccessLimits(limits);
+
         public async Task<byte[]?> RequestAsync(string method, ReadOnlyMemory<byte> body, CancellationToken ct)
         {
             try { return await channel.RequestAsync(method, body, ct); }
@@ -94,6 +98,12 @@ internal static class ConfiguredWasmModule
         public void Dispose()
         {
             try { channel.Dispose(); }
+            finally { Drain(); }
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            try { await channel.DisposeAsync(); }
             finally { Drain(); }
         }
     }

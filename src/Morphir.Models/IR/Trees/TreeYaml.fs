@@ -137,9 +137,10 @@ module internal TreeYaml =
         contextual
         (maxDepth: int)
         (maxEvents: int)
+        (maxNodes: int)
         (file: string)
         (bytes: byte array)
-        : Result<JsonElement, StoreError list> =
+        : Result<JsonElement * int, StoreError list> =
         let mutable activePath = []
 
         let refused code message =
@@ -194,6 +195,7 @@ module internal TreeYaml =
             let parser = Parser(strictScanner)
             let mutable cursor = parser.Current
             let mutable count = 0
+            let mutable nodes = 0
             let mutable duplicate: (string list * ParsingEvent) option = None
 
             let advance path =
@@ -236,6 +238,10 @@ module internal TreeYaml =
             let rec node path depth =
                 if depth > maxDepth then
                     fail path cursor "depth_limit_exceeded" "The YAML nesting limit was exceeded."
+
+                if nodes >= maxNodes then
+                    fail path cursor "tree.document_node_limit" "The decoded document exceeds the available maxNodes for this exchange."
+                nodes <- nodes + 1
 
                 checkNode path
 
@@ -356,7 +362,7 @@ module internal TreeYaml =
                         "duplicate_member"
 
                 fail path keyEvent code "Duplicate mapping key."
-            | None -> Ok(root.Clone())
+            | None -> Ok(root.Clone(), nodes)
         with
         | TreeYamlFailure(code, message) -> refused code message
         | :? YamlException as error ->
@@ -366,10 +372,10 @@ module internal TreeYaml =
         | :? DecoderFallbackException -> refused "invalid_yaml" "/: Expected UTF-8 input."
 
     let readLimited maxDepth maxEvents file bytes =
-        readDocument false maxDepth maxEvents file bytes
+        readDocument false maxDepth maxEvents Int32.MaxValue file bytes |> Result.map fst
 
-    let readContextual maxDepth file bytes =
-        readDocument true maxDepth 1_000_000 file bytes
+    let readCounted contextual maxDepth maxNodes file bytes =
+        readDocument contextual maxDepth 1_000_000 maxNodes file bytes
 
     let read maxDepth file bytes =
         readLimited maxDepth 1_000_000 file bytes

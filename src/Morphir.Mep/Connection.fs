@@ -90,7 +90,8 @@ type Connection
         dispatcher: Dispatcher,
         isDone: Func<bool>,
         idStart: RequestIdStartPolicy,
-        capture: ConformanceCapture option
+        capture: ConformanceCapture option,
+        frameBudget: FrameBodyBudget
     ) =
     let writeLock = new SemaphoreSlim(1, 1)
     let pending = ConcurrentDictionary<RequestId, TaskCompletionSource<ConformanceCallResult<JsonElement>>>()
@@ -99,21 +100,22 @@ type Connection
     let diagnostics = ConcurrentQueue<ConnectionDiagnostic>()
     let mutable nextId = idStart.InitialCounter
     let pendingGate = obj ()
-    let mutable closed = false
+    let mutable closedReason: string option = None
 
-    let closePending () =
+    let closePending reason =
         lock pendingGate (fun () ->
-            closed <- true
+            if closedReason.IsNone then closedReason <- Some reason
             for KeyValue(id, waiter) in pending do
                 if pending.TryRemove(id) |> fst then
                     pendingOperations.TryRemove id |> ignore
                     waiter.TrySetResult
-                        { Result = Error(RpcErrors.withMessage ErrorCode.InternalError "The connection closed.")
+                        { Result = Error(RpcErrors.withMessage ErrorCode.InternalError reason)
                           Exchange = None
                           Submitted = false }
                     |> ignore)
 
-    let lifetimeRegistration = capture |> Option.map (fun owned -> owned.Token.Register(Action closePending))
+    let lifetimeRegistration =
+        capture |> Option.map (fun owned -> owned.Token.Register(fun () -> closePending "The connection closed."))
 
     let writeCaptured (owned: ConformanceCapture) (admission: ConformanceOperationId option) (message: JsonRpcMessage) =
         task {
@@ -125,8 +127,7 @@ type Connection
                     do! writeLock.WaitAsync owned.Token
                     entered <- true
                     let bytes = JsonRpc.Write message
-                    if bytes.Length > ContentLengthFraming.MaxBodyBytes then
-                        invalidArg (nameof message) (FramingFailure.BodyTooLarge.ToString())
+                    frameBudget.CheckWrite bytes.Length
                     let id =
                         match message with
                         | JsonRpcMessage.Request(id, _, _) | JsonRpcMessage.Response(id, _) -> Some id
@@ -157,6 +158,7 @@ type Connection
                 let bytes = JsonRpc.Write message
                 do! writeLock.WaitAsync()
                 try
+                    frameBudget.CheckWrite bytes.Length
                     do! ContentLengthFraming.WriteAsync(output, ReadOnlyMemory bytes, CancellationToken.None)
                 finally
                     writeLock.Release() |> ignore
@@ -241,22 +243,35 @@ type Connection
     let request (admission: ConformanceOperationId option) (method: string) (parameters: JsonElement option) (cancellation: CancellationToken) =
         match capture with
         | None ->
-            let id = RequestId.Number(uint64 (Interlocked.Increment &nextId))
-            let waiter = TaskCompletionSource<ConformanceCallResult<JsonElement>>(TaskCreationOptions.RunContinuationsAsynchronously)
-            pending[id] <- waiter
             task {
-                do! write (JsonRpcMessage.Request(id, method, parameters))
-                use _ =
-                    cancellation.Register(fun () ->
-                        let cancel = JsonSerializer.SerializeToElement({ Id = id }, MepJson.Default.CancelParams)
-                        write (JsonRpcMessage.Notification(Method.CancelRequest.WireValue, Some cancel)) |> ignore)
-                return! waiter.Task
+                let registered =
+                    lock pendingGate (fun () ->
+                        match closedReason with
+                        | Some reason -> Error reason
+                        | None ->
+                            let id = RequestId.Number(uint64 (Interlocked.Increment &nextId))
+                            let waiter = TaskCompletionSource<ConformanceCallResult<JsonElement>>(TaskCreationOptions.RunContinuationsAsynchronously)
+                            pending[id] <- waiter
+                            Ok(id, waiter))
+                match registered with
+                | Error reason ->
+                    return { Result = Error(RpcErrors.withMessage ErrorCode.InternalError reason); Exchange = None; Submitted = false }
+                | Ok(id, waiter) ->
+                    try
+                        do! write (JsonRpcMessage.Request(id, method, parameters))
+                        use _ =
+                            cancellation.Register(fun () ->
+                                let cancel = JsonSerializer.SerializeToElement({ Id = id }, MepJson.Default.CancelParams)
+                                write (JsonRpcMessage.Notification(Method.CancelRequest.WireValue, Some cancel)) |> ignore)
+                        return! waiter.Task
+                    finally
+                        pending.TryRemove id |> ignore
             }
         | Some owned ->
             task {
                 let registered =
                     lock pendingGate (fun () ->
-                        if closed || not owned.CanSubmit then None
+                        if closedReason.IsSome || not owned.CanSubmit then None
                         else
                             let id = RequestId.Number(uint64 (Interlocked.Increment &nextId))
                             admission |> Option.iter (fun key -> owned.RequestAllocated(key, id))
@@ -295,7 +310,7 @@ type Connection
 
     /// A connection that also stops when isDone returns true. Ordinary requests start at ID0.
     new(input: Stream, output: Stream, dispatcher: Dispatcher, isDone: Func<bool>) =
-        Connection(input, output, dispatcher, isDone, RequestIdStartPolicy.Product, None)
+        Connection(input, output, dispatcher, isDone, RequestIdStartPolicy.Product, None, FrameBodyBudget())
 
     /// A connection that runs until the stream ends or the framing fails.
     new(input: Stream, output: Stream, dispatcher: Dispatcher) =
@@ -304,7 +319,12 @@ type Connection
     /// Uses the same framed connection with a per-connection conformance counter starting at ID1.
     static member internal CreateConformance
         (input: Stream, output: Stream, dispatcher: Dispatcher, isDone: Func<bool>, limits: ConformanceEvidenceLimits, lifetime: CancellationToken) =
-        Connection(input, output, dispatcher, isDone, RequestIdStartPolicy.Conformance, Some(ConformanceCapture.Create(limits, lifetime)))
+        Connection(input, output, dispatcher, isDone, RequestIdStartPolicy.Conformance, Some(ConformanceCapture.Create(limits, lifetime)), FrameBodyBudget())
+
+    static member internal WithFrameBudget(input, output, dispatcher, isDone, budget: FrameBodyBudget) =
+        Connection(input, output, dispatcher, isDone, RequestIdStartPolicy.Product, None, budget)
+
+    member internal _.RestrictFrameBytes(limit) = frameBudget.Restrict limit
 
     member internal _.ConformanceSnapshot = capture |> Option.map (fun owned -> owned.Snapshot())
     member internal _.ConformanceToken = capture |> Option.map _.Token |> Option.defaultValue CancellationToken.None
@@ -350,7 +370,7 @@ type Connection
 
             try
                 while finished.IsNone do
-                    let! frame = ContentLengthFraming.ReadAsync(input, readCancellation)
+                    let! frame = ContentLengthFraming.ReadAsync(input, frameBudget, readCancellation)
 
                     match frame with
                     | FrameRead.EndOfStream -> finished <- Some ConnectionEnd.EndOfStream
@@ -408,13 +428,13 @@ type Connection
                     owned.Incomplete(ConformanceCaptureFailure.FramingFailed cause)
                     owned.End(ConformanceTransportEnd.FramingFailed cause)
                 | None -> ()
-                closePending ()
                 lifetimeRegistration |> Option.iter _.Dispose()
-            | None ->
-                for KeyValue(id, waiter) in pending do
-                    if pending.TryRemove(id) |> fst then
-                        waiter.TrySetResult { Result = Error(RpcErrors.withMessage ErrorCode.InternalError "The connection closed."); Exchange = None; Submitted = false }
-                        |> ignore
+            | None -> ()
+
+            match finished with
+            | Some(ConnectionEnd.FramingFailed(FramingFailure.NegotiatedBodyTooLarge _ as cause)) ->
+                closePending (cause.ToString())
+            | _ -> closePending "The connection closed."
 
             match failure, finished with
             | Some error, _ ->

@@ -14,6 +14,8 @@
 
     <ItemGroup>
         <PackageReference Include="FSharp.Core" />
+        <InternalsVisibleTo Include="Morphir.Tooling" />
+        <InternalsVisibleTo Include="Morphir.Tooling.Tests" />
     </ItemGroup>
 
     <ItemGroup>
