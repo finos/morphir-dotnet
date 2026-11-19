@@ -40,6 +40,30 @@ module RdfXmlReaderMother =
               """  <rdf:Description rdf:about="https://example.org/s" rdf:li="x"/>"""
               """</rdf:RDF>""" ]
 
+    /// The external-entity document, declared and encoded as UTF-16 with a byte order mark.
+    let externalEntityUtf16 () =
+        let text = externalEntity.Replace("<?xml version=\"1.0\"?>", "<?xml version=\"1.0\" encoding=\"utf-16\"?>")
+        Array.append (UnicodeEncoding(false, true).GetPreamble()) (Encoding.Unicode.GetBytes text)
+
+    /// Document type text in a comment, after the root starts, followed by an unclosed element.
+    let doctypeInComment =
+        "<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><!-- <!DOCTYPE x> -->\n<rdf:Description></rdf:RDF>"
+
+    /// A description whose rdf:ID or rdf:nodeID attribute is empty.
+    let emptyIdentifier (attribute: string) =
+        $"""<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description {attribute}=""/></rdf:RDF>"""
+
+    /// A description whose subject is a relative reference.
+    let relativeAbout =
+        """<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="relative"/></rdf:RDF>"""
+
+    /// Node and property elements nested to the given depth.
+    let nested depth =
+        let builder = StringBuilder("""<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:p="https://example.org/">""")
+        for _ in 1..depth do builder.Append("<rdf:Description><p:p>") |> ignore
+        for _ in 1..depth do builder.Append("</p:p></rdf:Description>") |> ignore
+        builder.Append("</rdf:RDF>").ToString()
+
     /// An SVG whose root binds the prefixes that the embedded rdf:RDF element uses.
     let svg =
         """<svg xmlns="http://www.w3.org/2000/svg" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dcterms="http://purl.org/dc/terms/"><metadata><rdf:RDF><rdf:Description rdf:about="https://example.org/diagrams/checkout"><dcterms:title xml:lang="en">Checkout</dcterms:title></rdf:Description></rdf:RDF></metadata></svg>"""
@@ -98,15 +122,12 @@ let tests =
             | Ok _ -> failtest "a document type must be refused"
 
         testCase "a document type in UTF-16 input is refused as a document type" <| fun () ->
-            let text = RdfXmlReaderMother.externalEntity.Replace("<?xml version=\"1.0\"?>", "<?xml version=\"1.0\" encoding=\"utf-16\"?>")
-            let bytes = Array.append (UnicodeEncoding(false, true).GetPreamble()) (Encoding.Unicode.GetBytes text)
-            match RdfXml.Read(ReadOnlyMemory bytes) with
+            match RdfXml.Read(ReadOnlyMemory(RdfXmlReaderMother.externalEntityUtf16 ())) with
             | Error error -> Expect.equal error.Kind RdfXmlReadErrorKind.DocumentTypeDeclaration "the document type is named"
             | Ok _ -> failtest "a document type must be refused"
 
         testCase "document type text inside content is not a document type" <| fun () ->
-            let text = "<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><!-- <!DOCTYPE x> -->\n<rdf:Description></rdf:RDF>"
-            match RdfXml.Read(bytes text) with
+            match RdfXml.Read(bytes RdfXmlReaderMother.doctypeInComment) with
             | Error error -> Expect.equal error.Kind RdfXmlReadErrorKind.MalformedXml "the XML is malformed after the root starts"
             | Ok _ -> failtest "an unclosed element must be refused"
 
@@ -141,26 +162,18 @@ let tests =
             | Error error -> failtest (error.ToString())
 
         testCase "deep nesting is refused instead of exhausting the stack" <| fun () ->
-            let depth = 10_000
-            let builder = StringBuilder("""<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:p="https://example.org/">""")
-            for _ in 1..depth do builder.Append("<rdf:Description><p:p>") |> ignore
-            for _ in 1..depth do builder.Append("</p:p></rdf:Description>") |> ignore
-            builder.Append "</rdf:RDF>" |> ignore
-
-            match RdfXml.Read(bytes (builder.ToString())) with
+            match RdfXml.Read(bytes (RdfXmlReaderMother.nested 10_000)) with
             | Error error -> Expect.equal error.Kind RdfXmlReadErrorKind.InvalidSyntax "the nesting is refused"
             | Ok _ -> failtest "the nesting is too deep"
 
         testCase "empty rdf:ID and rdf:nodeID values are syntax errors" <| fun () ->
             for attribute in [ "rdf:ID"; "rdf:nodeID" ] do
-                let text = $"""<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description {attribute}=""/></rdf:RDF>"""
-                match RdfXml.Read(bytes text, Iri.Create "https://example.org/doc") with
+                match RdfXml.Read(bytes (RdfXmlReaderMother.emptyIdentifier attribute), Iri.Create "https://example.org/doc") with
                 | Error error -> Expect.equal error.Kind RdfXmlReadErrorKind.InvalidSyntax $"an empty {attribute} is refused"
                 | Ok _ -> failtest $"an empty {attribute} must be refused"
 
         testCase "a relative IRI without a base is an error" <| fun () ->
-            let text = """<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="relative"/></rdf:RDF>"""
-            match RdfXml.Read(bytes text) with
+            match RdfXml.Read(bytes RdfXmlReaderMother.relativeAbout) with
             | Error error -> Expect.equal error.Kind RdfXmlReadErrorKind.InvalidIri "the reference cannot be resolved"
             | Ok _ -> failtest "a relative reference needs a base"
     ]

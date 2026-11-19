@@ -103,7 +103,7 @@ public class SvgNamespaceTests
     [Test]
     public void ATextPayloadWithMarkupCharactersReadsBackExactly()
     {
-        const string payload = "<urn:s> <urn:p> \"a & b ]]> c\" .\n";
+        const string payload = SvgMetadataMother.NQuadsWithMarkup;
         var document = SvgDocument.Create([], []).WithMetadata([SvgNode.CreateText(payload)]);
 
         var svg = XElement.Parse(document.Render(), LoadOptions.PreserveWhitespace);

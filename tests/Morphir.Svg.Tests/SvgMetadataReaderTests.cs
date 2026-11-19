@@ -26,7 +26,7 @@ public class SvgMetadataReaderTests
     [Test]
     public void ATextPayloadIsReturnedExactly()
     {
-        const string payload = "<urn:s> <urn:p> \"a & b ]]> c\" .\r\n<urn:s> <urn:q> \"\t\" .\n";
+        const string payload = SvgMetadataMother.NQuadsWithMarkup;
         var document = SvgDocument.Create([], []).WithMetadata([SvgNode.CreateText(payload)]);
 
         SvgMetadataReader.TryRead(Encoding.UTF8.GetBytes(document.Render()), out var result, out _).ShouldBeTrue();
@@ -71,9 +71,7 @@ public class SvgMetadataReaderTests
     [Test]
     public void DocumentTypeTextInsideContentIsNotADocumentType()
     {
-        const string markup = "<svg xmlns=\"http://www.w3.org/2000/svg\"><metadata><![CDATA[<!DOCTYPE x>]]></metadata>\n<rect></svg>";
-
-        SvgMetadataReader.TryRead(Encoding.UTF8.GetBytes(markup), out _, out var error).ShouldBeFalse();
+        SvgMetadataReader.TryRead(Encoding.UTF8.GetBytes(SvgMetadataMother.DoctypeInCdata), out _, out var error).ShouldBeFalse();
         error.Kind.ShouldBe(SvgReadErrorKind.MalformedXml);
     }
 
@@ -113,13 +111,22 @@ public class SvgMetadataReaderTests
     [Test]
     public void ARootOtherThanSvgIsAnError()
     {
-        SvgMetadataReader.TryRead("<html/>"u8.ToArray(), out _, out var error).ShouldBeFalse();
+        SvgMetadataReader.TryRead(Encoding.UTF8.GetBytes(SvgMetadataMother.HtmlRoot), out _, out var error).ShouldBeFalse();
         error.Kind.ShouldBe(SvgReadErrorKind.NotSvg);
     }
 }
 
 internal static class SvgMetadataMother
 {
+    /// <summary>N-Quads text with markup characters, a carriage return and a tab.</summary>
+    public const string NQuadsWithMarkup = "<urn:s> <urn:p> \"a & b ]]> c\" .\r\n<urn:s> <urn:q> \"\t\" .\n";
+
+    /// <summary>Document type text in CDATA after the root starts, then an unclosed element.</summary>
+    public const string DoctypeInCdata = "<svg xmlns=\"http://www.w3.org/2000/svg\"><metadata><![CDATA[<!DOCTYPE x>]]></metadata>\n<rect></svg>";
+
+    /// <summary>A well-formed document whose root is not svg.</summary>
+    public const string HtmlRoot = "<html/>";
+
     /// <summary>A document type with a file and a network entity, on line 2.</summary>
     public const string ExternalEntity = """
         <?xml version="1.0"?>

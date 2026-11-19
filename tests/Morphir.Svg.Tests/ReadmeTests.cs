@@ -26,6 +26,7 @@ public partial class ReadmeTests
     public void TheReadmeHasASampleForEachSection() => CSharpBlocks().Count().ShouldBe(3);
 
     [Test]
+    [Category("PlatformSpecific")]
     [MethodDataSource(nameof(CSharpBlocks))]
     public void TheSampleCompilesWithoutWarnings(string source)
     {

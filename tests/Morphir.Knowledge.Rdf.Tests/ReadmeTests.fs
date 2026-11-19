@@ -61,8 +61,10 @@ let tests =
             Expect.containsAll (samples |> List.map fst) [ "Read and write"; "N-Triples"; "RDF/XML"; "RDF/XML input"; "Canonical output" ] "every codec section has a C# sample"
 
         for section, source in samples do
-            testCase $"the C# sample of '{section}' compiles" <| fun () ->
-                Expect.isEmpty (compile source) "the sample compiles without warnings"
+            testCase $"the C# sample of '{section}' compiles" (fun () ->
+                Expect.isEmpty (compile source) "the sample compiles without warnings")
+            // Roslyn loads every runtime assembly from its path on disk.
+            |> testLabel "PlatformSpecific"
 
         testCase "the F# sample of 'RDF/XML' runs" <| fun () ->
             let dataset =

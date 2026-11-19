@@ -14,6 +14,12 @@ module CanonicalizationMother =
     let cycle = "_:a <urn:p> _:b .\n_:b <urn:p> _:a .\n_:a <urn:q> \"start\" <urn:g> .\n"
     let cycleReordered = "_:y <urn:q> \"start\" <urn:g> .\n_:x <urn:p> _:y .\n_:y <urn:p> _:x .\n"
 
+    /// A two-node cycle with a literal that has a tab, in N-Triples.
+    let cycleWithTab = "_:x <urn:p> _:y .\n_:y <urn:p> _:x .\n_:x <urn:label> \"tab\\there\" .\n"
+
+    /// One statement whose literal has a tab, in N-Quads.
+    let literalWithTab = "<urn:s> <urn:p> \"a\\tb\" .\n"
+
     /// A ring of blank nodes with no distinguishing statement, which needs n-degree hashing.
     let ring size =
         [ for index in 0 .. size - 1 -> $"_:n{index} <urn:next> _:n{(index + 1) % size} .\n" ] |> String.concat ""
@@ -88,10 +94,9 @@ let tests =
             Expect.sequenceEqual (write CanonicalizationMother.cycleReordered) first "another order and labeling agree"
 
         testCase "canonical N-Triples is byte-identical for two reads of one input" <| fun () ->
-            let text = "_:x <urn:p> _:y .\n_:y <urn:p> _:x .\n_:x <urn:label> \"tab\\there\" .\n"
             let write () =
                 let dataset =
-                    match NTriples.Read(ReadOnlyMemory(Encoding.UTF8.GetBytes text)) with
+                    match NTriples.Read(ReadOnlyMemory(Encoding.UTF8.GetBytes CanonicalizationMother.cycleWithTab)) with
                     | Ok dataset -> dataset
                     | Error error -> failtest (error.ToString())
 
@@ -104,7 +109,7 @@ let tests =
             Expect.stringContains (Encoding.UTF8.GetString first) "\"tab\\there\"" "canonical escaping writes a tab as \\t"
 
         testCase "the default N-Quads output is unchanged by canonicalization support" <| fun () ->
-            let dataset = readNQuads (Encoding.UTF8.GetBytes "<urn:s> <urn:p> \"a\\tb\" .\n")
+            let dataset = readNQuads (Encoding.UTF8.GetBytes CanonicalizationMother.literalWithTab)
             match NQuads.Write dataset with
             | Ok output -> Expect.equal (Encoding.UTF8.GetString output.Bytes) "<urn:s> <urn:p> \"a\\u0009b\" .\n" "the default writer keeps its escaping"
             | Error error -> failtest (error.ToString())
