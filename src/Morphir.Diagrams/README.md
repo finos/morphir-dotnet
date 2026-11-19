@@ -583,6 +583,31 @@ referrer; any other scheme, such as `javascript:` or `file:`, is shown as text.
 Markers, outlines and the panel are not part of the downloaded SVG, and printing
 hides them. A player without a dataset has no markers.
 
+## State diagrams
+
+Mermaid `stateDiagram` and `stateDiagram-v2`, and PlantUML state blocks, read into one
+`StateDiagram`: states and pseudostates (initial, final, choice, fork, join, shallow and
+deep history, entry and exit points), the root region and each composite's regions, ordered
+transitions whose `Event`, `Guard` and `Action` are text that is never evaluated, and notes.
+`[*]` gives an initial or final state scoped to its region, such as `root::initial` or
+`Work::region-1::final`. `Validate` reports duplicate identifiers, missing endpoints, owners and
+note targets, ownership cycles and transitions into an initial or out of a final state.
+`WithCollapsed` draws a composite as one state; transitions that cross its outline end on it.
+
+| Element | Reference | Drawn as | Colour family |
+| --- | --- | --- | --- |
+| State | `node=Idle` | Rounded box with its description lines | backend |
+| Composite | `group=Work`; each of several regions is a nested `group=Work::region-1` | Dashed box | frame |
+| Initial and final | `node=root::initial`, `node=root::final` | Filled dot, ringed dot | external |
+| Choice, fork, join | `node=Check` | Diamond, bar | cloud, external |
+| History | `node=H1` | Circle with `H` or `H*` | messagebus |
+| Transition | `edge=Idle/Busy/0` | Arrow with its label | arrow |
+| Note | `node=Idle::note-0` | Folded note joined by a dotted line | external |
+
+All 53 fixtures of the pinned Mermaid reference are accepted or refused as Mermaid 12.2.0
+does, with the same states, regions and transitions. As Mermaid does, entry and exit points
+and floating notes in Mermaid source are kept in the source but not drawn.
+
 ## Exploring routes and scenarios
 
 Players of diagrams with connections have an *Explore routes* disclosure under the
@@ -614,6 +639,7 @@ elements in order.
 | --- | --- |
 | Flowcharts | The Mermaid 12.2.0 grammar: every fixture of the pinned reference is accepted or refused as Mermaid does, with the same nodes and edges. The shape catalogue is drawn with the nearest built-in shape. Links to subgraphs end on the subgraph's box |
 | Sequences | All 38 Mermaid 12.2.0 examples: participant kinds (boundary, control, entity, database, collections, queue), aliases, boxes, create and destroy, central connections, every arrow and half-arrow, notes, activations, frames, and `autonumber` with a start and step |
+| States | All 53 fixtures of the pinned Mermaid state reference; see [State diagrams](#state-diagrams) |
 | ZenUML | All 25 pinned ZenUML core 3.47.9 examples, read into the sequence model: annotators, asynchronous messages, calls with bodies, creation, assignments, returns and replies, loops, `if`/`else`, `opt`, `par` and `try`/`catch`/`finally` |
 
 The sequence model exposes ordered `Events` at the root and in each frame
