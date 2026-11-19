@@ -7,11 +7,15 @@ Defines the Mermaid 12.2.0 syntax that `Morphir.Diagrams` reads beyond its first
 ## ADDED Requirements
 
 ### Requirement: Complete flowchart grammar
-The flowchart reader SHALL accept the Mermaid 12.2.0 flowchart grammar, including the pinned shape catalogue, shape data (`@{ shape: ... }`), invisible links, edge chains, grouped endpoints, subgraph `direction`, repeated and anonymous subgraphs, `classDef`, `class`, `style`, `linkStyle`, `click`, `accTitle`, `accDescr` and `title`.
+The flowchart reader SHALL accept the Mermaid 12.2.0 flowchart grammar, including the pinned shape catalogue (each shape drawn as the nearest built-in shape), shape data (`@{ shape: ... }`) on one or several lines, Markdown and entity-coded labels, invisible links, edge identifiers, open labelled links, grouped endpoints, links to subgraphs, repeated subgraphs, subgraph `direction`, `classDef`, `class`, `:::`, `style`, `linkStyle`, `click`, `accTitle`, `accDescr` and `title`. It SHALL accept or refuse every fixture of the pinned reference as Mermaid 12.2.0 does, with the same node identifiers and edge count.
 
 #### Scenario: Classes and a click callback
 - **WHEN** a flowchart declares `classDef hot fill:#f00`, `class A hot` and `click A callback`
-- **THEN** reading succeeds, the syntax keeps all three statements, and the callback is reported as unsupported and never run
+- **THEN** reading succeeds with one unapplied-presentation warning per statement, and the callback is never run
+
+#### Scenario: Pinned reference
+- **WHEN** the 148 fixtures of the pinned flowchart reference are read
+- **THEN** each is accepted or refused as Mermaid 12.2.0 does, with its node identifiers and edge count
 
 ### Requirement: Complete sequence grammar
 The sequence reader SHALL accept every Mermaid 12.2.0 sequence statement and arrow form, including participant kinds `boundary`, `control`, `entity`, `database`, `collections` and `queue`, `create` and `destroy`, `box` groups, `critical`/`option`, `break`, `rect` colours, half-arrows, `link`/`links`, central connections, and `autonumber <start> <step>`.
@@ -53,7 +57,7 @@ The reader SHALL accept `zenuml` source: participants, aliases, annotators, sync
 - **THEN** the sequence model has one try frame with three sections whose roles are try, catch and finally
 
 ### Requirement: Presentation data stays inert
-Styles, classes, callbacks, links, configuration and directives SHALL be kept in the syntax and printed back. Unapplied presentation SHALL produce an informational diagnostic. Source configuration SHALL NOT override the caller's render options.
+Styles, classes, callbacks, links, configuration and directives SHALL stay in the document's kept source, and each unapplied statement SHALL produce a warning on the document and on the render result. Canonical printers write the model and do not print presentation. Source configuration SHALL NOT override the caller's render options.
 
 #### Scenario: Init directive asks for a theme
 - **WHEN** the source has `%%{init: {"theme": "forest"}}%%` and the caller renders with Cobalt

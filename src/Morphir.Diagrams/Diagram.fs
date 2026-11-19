@@ -73,9 +73,14 @@ type Diagram =
 
 /// A parsed diagram together with the exact text supplied to the reader.
 [<Sealed>]
-type DiagramDocument internal (source: string, diagram: Diagram) =
+type DiagramDocument internal (source: string, diagram: Diagram, warnings: ImmutableArray<Diagnostic>) =
+    internal new(source, diagram) = DiagramDocument(source, diagram, ImmutableArray<Diagnostic>.Empty)
+
     /// Original source, including trivia and line endings.
     member _.Source = source
+
+    /// Warnings about accepted source, such as styles, classes, callbacks and directives that rendering does not apply.
+    member _.Diagnostics = warnings
 
     /// Model ready for inspection and rendering.
     member _.Diagram = diagram

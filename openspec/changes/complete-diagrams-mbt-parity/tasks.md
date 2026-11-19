@@ -19,7 +19,7 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 
 ## 3. Complete Mermaid flowchart and sequence syntax
 
-- [ ] 3.1 Read the rest of the flowchart grammar (shape catalogue, shape data, invisible links, classes, styles, link styles, click, accessibility, title, subgraph direction) with inert presentation diagnostics; verify against the pinned flowchart corpus.
+- [x] 3.1 Read the rest of the flowchart grammar (shape catalogue, shape data, invisible links, classes, styles, link styles, click, accessibility, title, subgraph direction) with inert presentation diagnostics; verify against the pinned flowchart corpus.
 - [ ] 3.2 Read the rest of the sequence grammar (participant kinds, create and destroy, boxes, critical, break, rect colours, half-arrows, links, central connections, autonumber start and step) with `mermaid/destroyed-participant` and `mermaid/inactive-deactivation`; verify against the pinned sequence corpus.
 - [ ] 3.3 Render the new sequence features (creation rows, destruction crosses, boxes, half-arrows, participant kind colour families); verify SVG tests and a Chromium check in every theme.
 - [ ] 3.4 Add canonical printers for flowcharts and sequences; verify print, read, print gives identical text for the corpus.

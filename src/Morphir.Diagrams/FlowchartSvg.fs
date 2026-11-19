@@ -100,7 +100,7 @@ module internal FlowchartSvg =
         let levels = Array.zeroCreate<int> count
 
         for source, target in edges do
-            if source <> target then
+            if source <> target && source >= 0 then
                 outgoing[source].Add target
 
                 incoming[target] <- incoming[target] + 1
@@ -156,7 +156,7 @@ module internal FlowchartSvg =
         let predecessors = Array.init levels.Length (fun _ -> ResizeArray<int>())
 
         for source, target in edges do
-            if source <> target then
+            if source <> target && source >= 0 then
                 predecessors[target].Add source
 
         let children = Dictionary<DiagramId, ResizeArray<FlowGroup>>()
@@ -471,9 +471,26 @@ module internal FlowchartSvg =
 
         model.Nodes |> Seq.iteri (fun index node -> indices.Add(node.Id, index))
 
+        // A link to a subgraph ranks with the first node inside it and is drawn to the subgraph's box.
+        let groupsById = model.Groups |> Seq.map (fun group -> group.Id, group) |> dict
+
+        let rec representative (id: DiagramId) =
+            match indices.TryGetValue id with
+            | true, index -> Some index
+            | false, _ ->
+                match groupsById.TryGetValue id with
+                | true, group ->
+                    group.NodeIds
+                    |> Seq.tryPick (fun node -> match indices.TryGetValue node with | true, index -> Some index | _ -> None)
+                    |> Option.orElse (model.Groups |> Seq.filter (fun child -> child.ParentId = group.Id) |> Seq.tryPick (fun child -> representative child.Id))
+                | false, _ -> None
+
         let edges =
             model.Edges
-            |> Seq.map (fun edge -> indices[edge.Source], indices[edge.Target])
+            |> Seq.map (fun edge ->
+                match representative edge.Source, representative edge.Target with
+                | Some source, Some target -> source, target
+                | _ -> -1, -1)
             |> Seq.toArray
 
         let levels = ranks model.Nodes.Length edges
@@ -594,6 +611,9 @@ module internal FlowchartSvg =
                 let pairTotals =
                     edges |> Array.countBy pairOf |> dict
 
+                let isGroup (id: DiagramId) = groupsById.ContainsKey id
+                let boxes = groups |> Seq.map (fun (group, box) -> group.Id, box) |> dict
+
                 let occupied =
                     HashSet<int * int>(Seq.init levels.Length (fun index -> levels[index], slotOf[index]))
 
@@ -641,8 +661,9 @@ module internal FlowchartSvg =
 
                 for index in 0 .. edges.Length - 1 do
                     let source, target = edges[index]
+                    let edge = model.Edges[index]
 
-                    if model.Edges[index].Line <> FlowLine.Invisible then
+                    if edge.Line <> FlowLine.Invisible && source >= 0 && not (isGroup edge.Source || isGroup edge.Target) then
                         match straight source target with
                         | Some(startSide, endSide) ->
                             attach source startSide index target
@@ -683,11 +704,15 @@ module internal FlowchartSvg =
                             let source, target = edges[index]
                             let edge = model.Edges[index]
 
-                            if edge.Line <> FlowLine.Invisible then
-                                let sx, sy = positions[source]
-                                let tx, ty = positions[target]
-                                let sw, sh = sizes[source]
-                                let tw, th = sizes[target]
+                            if edge.Line <> FlowLine.Invisible && source >= 0 then
+                                let place (id: DiagramId) index =
+                                    match boxes.TryGetValue id with
+                                    | true, box -> ((box.Left + box.Right) / 2, (box.Top + box.Bottom) / 2), ((box.Right - box.Left) / 2, (box.Bottom - box.Top) / 2)
+                                    | false, _ -> positions[index], sizes[index]
+
+                                let (sx, sy), (sw, sh) = place edge.Source source
+                                let (tx, ty), (tw, th) = place edge.Target target
+                                let grouped = isGroup edge.Source || isGroup edge.Target
                                 let key = min source target, max source target
                                 let _, count = edgeCounts.TryGetValue key
                                 edgeCounts[key] <- count + 1
@@ -698,7 +723,7 @@ module internal FlowchartSvg =
                                 let os, ot = offset index source, offset index target
 
                                 let points, label =
-                                    if source <> target && turnsOnce source target then
+                                    if source <> target && not grouped && turnsOnce source target then
                                         let signX = if tx > sx then 1 else -1
                                         let signY = if ty > sy then 1 else -1
 
@@ -712,7 +737,7 @@ module internal FlowchartSvg =
 
                                             [| sx + signX * sw, sy + os; tx + ot, sy + os; tx + ot, sy + os; tx + ot, b |],
                                             (tx + ot, (sy + os + b) / 2 + 5)
-                                    elif source = target then
+                                    elif edge.Source = edge.Target then
                                         let routeX = sx + sw + 22 + shift
 
                                         let top = sy - sh - 22

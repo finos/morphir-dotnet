@@ -46,6 +46,11 @@ module private MermaidReader =
                     if Option.isNone directive then
                         directive <- Some(line.Span(cursor.Index, cursor.Index + 3))
 
+                        Reading.warn
+                            "mermaid/unapplied-directive"
+                            "Directives such as %%{init}%% are kept in the source but do not change the render options."
+                            directive
+
                         cursor.Advance 3
 
                     let finish = line.Text.IndexOf("}%%", cursor.Index, StringComparison.Ordinal)

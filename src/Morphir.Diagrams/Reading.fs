@@ -35,6 +35,18 @@ module internal Reading =
 
     let immutable (items: seq<'T>) = ImmutableArray.CreateRange<'T> items
 
+    let private warnings = new System.Threading.ThreadLocal<ResizeArray<Diagnostic>>(fun () -> ResizeArray())
+
+    /// Records a warning about accepted source, such as presentation that the renderer does not apply.
+    let warn code message span =
+        warnings.Value.Add(Diagnostic(code, DiagnosticSeverity.Warning, message, span))
+
+    /// Returns and clears the warnings that the current thread recorded.
+    let takeWarnings () =
+        let found = warnings.Value.ToArray()
+        warnings.Value.Clear()
+        found
+
     let error code message span =
         Diagnostic(code, DiagnosticSeverity.Error, message, span)
 

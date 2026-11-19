@@ -14,6 +14,7 @@
     <PackageReference Include="Shouldly" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <ProjectReference Include="../../src/Morphir.Diagrams/Morphir.Diagrams.fsproj" />
+    <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="../../src/Morphir.Diagrams/README.md" LogicalName="Morphir.Diagrams.README.md" />

@@ -22,9 +22,12 @@ module internal SourceReading =
         | source ->
             try
                 XmlConvert.VerifyXmlChars source |> ignore
+                Reading.takeWarnings () |> ignore
+                let result = read source
+                let warnings = Reading.takeWarnings () |> Array.truncate Reading.diagnosticLimit |> ImmutableArray.CreateRange
 
-                read source
-                |> Result.map (fun diagram -> DiagramDocument(source, diagram))
+                result
+                |> Result.map (fun diagram -> DiagramDocument(source, diagram, warnings))
                 |> Result.mapError (fun diagnostics -> diagnostics |> List.truncate Reading.diagnosticLimit |> ImmutableArray.CreateRange)
             with :? XmlException ->
                 fail $"{language}/invalid-character" "Source contains a character that cannot be represented in SVG."
@@ -33,7 +36,14 @@ module internal SourceReading =
         ArgumentNullException.ThrowIfNull options
 
         match parsed with
-        | Ok document -> SvgRenderer.Render(document.Diagram, options)
+        | Ok document ->
+            let rendered = SvgRenderer.Render(document.Diagram, options)
+
+            RenderedDiagram(
+                rendered.MediaType,
+                Option.ofObj rendered.Output,
+                document.Diagnostics.AddRange rendered.Diagnostics
+            )
         | Error errors -> RenderedDiagram("image/svg+xml", None, errors)
 
     let renderAnimated (parsed: Result<DiagramDocument, ImmutableArray<Diagnostic>>) (options: SvgRenderOptions) =
