@@ -40,9 +40,10 @@ internal static class RecordedBoundedGeneration
             using var files = new RecordedTreeFiles(producer.IrPath);
             // This identity belongs to the held lease. It is never reused for another snapshot.
             var revision = Guid.NewGuid().ToString("N");
-            var limits = OfferLimits(settings.Limits, request.WasmModule is not null);
+            var readerLimits = RecordedGenerationAdmission.ReaderLimits(settings.BoundedProfile, settings.Limits);
+            var limits = RecordedGenerationAdmission.Offer(settings.BoundedProfile, readerLimits, request.WasmModule is not null);
             var opened = DocumentTreeStore.OpenPlainSnapshot(
-                    new ReadOptions(settings.Limits.MaxEntries, limits.MaxDecodedBytesPerExchange), () => revision, files)
+                    new ReadOptions(readerLimits.MaxEntries, RecordedGenerationAdmission.DocumentByteLimit(readerLimits, limits)), () => revision, files)
                 .Match<BoundedTreeSnapshot, IReadOnlyList<StoreError>, Outcome<BoundedTreeSnapshot>>(
                     value => new Outcome<BoundedTreeSnapshot>.Success(value),
                     problems => new Outcome<BoundedTreeSnapshot>.Failure(new(GenerationFailureKind.Operational,
@@ -57,6 +58,9 @@ internal static class RecordedBoundedGeneration
             if (producer.Ir.Format != (json ? IrStorageFormat.Json : IrStorageFormat.Yaml))
                 return Refuse("compile.record_format_mismatch",
                     $"The manifest at {producer.IrPath} does not match its recorded {IrStorageNames.Name(producer.Ir.Format)} format.");
+
+            if (settings.BoundedProfile == BoundedGenerationProfile.OrdersScale && (!json || snapshot.IrVersion != "4.0.0"))
+                return Refuse("generate.invalid_bounded_profile", "orders-scale requires a plain JSON v4 recorded tree.");
 
             var tuple = new ModelAccessTuple(ModelAccess.protocolVersion, ModelAccess.accessVersion, ModelOperation.GenerateModel,
                 SemanticVersion.Create(snapshot.IrVersion), "morphir-ir",
@@ -95,8 +99,11 @@ internal static class RecordedBoundedGeneration
                     // Reserve a bounded quarter of the negotiated cache for the active package's
                     // paths before any discovery. The stage can use only the remaining bytes.
                     var discoveryReservation = access.Limits.MaxHostCacheBytes / 4L;
+                    var requestIdReservation = RecordedGenerationAdmission.RequestIdReservation(settings.BoundedProfile, access.Limits);
+                    if (requestIdReservation > 0 && !guest.HostSession.TryReserveSingleGenerationRequestCache(requestIdReservation))
+                        return Refuse("extension.bounded_cache_limit", "The request-ID reservation cannot be installed for this generation session.");
                     var indexed = DocumentTreeStore.OpenPlainSnapshotWithDiscoveryCache(
-                            new ReadOptions(settings.Limits.MaxEntries, access.Limits.MaxDecodedBytesPerExchange),
+                            new ReadOptions(readerLimits.MaxEntries, RecordedGenerationAdmission.DocumentByteLimit(readerLimits, access.Limits)),
                             discoveryReservation, () => revision, files)
                         .Match<BoundedTreeSnapshot, IReadOnlyList<StoreError>, Outcome<BoundedTreeSnapshot>>(
                             value => new Outcome<BoundedTreeSnapshot>.Success(value),
@@ -107,7 +114,7 @@ internal static class RecordedBoundedGeneration
                         return Failed(refusedIndex.Error);
                     snapshot = ((Outcome<BoundedTreeSnapshot>.Success)indexed).Value;
                     stage = new BoundedArtifactStage(location.Dest, access.Limits,
-                        new GenerationSessionDiskBudget(access.Limits.MaxSessionDiskBytes), discoveryReservation);
+                        new GenerationSessionDiskBudget(access.Limits.MaxSessionDiskBytes), discoveryReservation, requestIdReservation);
                     var start = Start(snapshot, tuple, target, settings.Options, access.Limits);
                     using var sessionDeadline = new CancellationTokenSource(access.Limits.MaxSessionMilliseconds);
                     result = await BoundedGenerationSession.RunAsync(guest.HostSession, snapshot, start, stage,
@@ -152,7 +159,11 @@ internal static class RecordedBoundedGeneration
                 return new Outcome<GenerationSuccess>.Success(new(target.Value, label.Id, producer.IrPath,
                     settings.Publication.OutputDirectory, producer.Ir.Version.Text, ModelLabels.Family(family), snapshot.KindName,
                     "DocumentTree", receipt, staged.Diagnostics)
-                { BackendTransport = guest.Transport, BackendVersion = label.Version });
+                {
+                    BackendTransport = guest.Transport, BackendVersion = label.Version,
+                    BoundedAccess = settings.BoundedProfile == BoundedGenerationProfile.OrdersScale
+                        ? AccessObservation(readerLimits, negotiated.Capabilities.ModelAccessOrNull()!.Limits) : null,
+                });
             }
             finally
             {
@@ -176,6 +187,24 @@ internal static class RecordedBoundedGeneration
                 : failure);
     }
 
+    private static JsonElement AccessObservation(ModelReadLimits reader, ModelAccessLimits selected)
+    {
+        var wasm = RecordedGenerationAdmission.WasmLimits(BoundedGenerationProfile.OrdersScale, selected);
+        var bytes = new ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(bytes))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("profile", BoundedGenerationProfile.OrdersScale.Name);
+            writer.WriteNumber("maxDocumentBytes", RecordedGenerationAdmission.DocumentByteLimit(reader, selected));
+            writer.WriteNumber("maxRequestFrameBytes", wasm.RequestFrameBytes);
+            writer.WriteNumber("maxResponseFrameBytes", wasm.ResponseFrameBytes);
+            writer.WritePropertyName("limits");
+            JsonSerializer.Serialize(writer, selected, MepJson.Default.ModelAccessLimits);
+            writer.WriteEndObject();
+        }
+        using var document = JsonDocument.Parse(bytes.WrittenMemory);
+        return document.RootElement.Clone();
+    }
     private static ModelAccessStart Start(BoundedTreeSnapshot snapshot, ModelAccessTuple tuple, TargetId target,
         BackendOptions options, ModelAccessLimits limits)
     {
@@ -211,23 +240,6 @@ internal static class RecordedBoundedGeneration
             value.WriteTo(writer);
         }
         writer.WriteEndObject();
-    }
-
-    private static ModelAccessLimits OfferLimits(ModelReadLimits limits, bool wasm)
-    {
-        var frameBodyBytes = ContentLengthFraming.MaxBodyBytes;
-        if (wasm)
-        {
-            var adapter = SessionLimits.Default;
-            var frameBytes = Math.Min(adapter.RequestFrameBytes, adapter.ResponseFrameBytes);
-            // The adapter counts the Content-Length header. MEP's body ceiling excludes it.
-            var headerBytes = System.Text.Encoding.ASCII.GetByteCount($"Content-Length: {frameBytes}\r\n\r\n");
-            frameBodyBytes = (int)Math.Min(frameBodyBytes, frameBytes - headerBytes);
-        }
-        return new(frameBodyBytes, 4 * 1024 * 1024, (int)Math.Min(limits.MaxBytes, 3 * 1024 * 1024),
-            64, limits.MaxDepth, limits.MaxNodes, 64, 64, 64 * 1024 * 1024, 16 * 1024 * 1024, 1024 * 1024,
-            4L * 1024 * 1024 * 1024, 4L * 1024 * 1024 * 1024, 8L * 1024 * 1024 * 1024,
-            1_000_000, 10_000, 30_000, 120_000);
     }
 
     private sealed class RecordedTreeFiles : IFileProvider, IDisposable

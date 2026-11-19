@@ -262,10 +262,36 @@ type internal BoundedGenerationCall =
         | Advance request -> request.SessionId
         | Cancel request -> request.SessionId
 
+/// Logical retained-byte accounting for exact, ordinal request identities.
+/// 256 fixed bytes cover the cache and collection headers. Each ID reserves
+/// 128 bytes for its string object, hash slots and concurrent growth arrays;
+/// UTF-16 characters are charged separately before insertion.
+[<Sealed>]
+type internal BoundedRequestIdCache(limit: int64 option) =
+    let ids = HashSet<string>(StringComparer.Ordinal)
+    let mutable retained = 256L
+    let mutable limitRefused = false
+    do
+        if limit |> Option.exists (fun value -> value < 256L) then
+            invalidArg (nameof limit) "A request-ID reservation must cover its 256-byte fixed charge."
+    member _.RetainedBytes = retained
+    member _.LimitRefused = limitRefused
+    member _.TryAdd(id: string) =
+        if ids.Contains id then false
+        else
+            let bytes = 128L + 2L * int64 id.Length
+            if limit |> Option.exists (fun maximum -> bytes > maximum - retained) then
+                limitRefused <- true
+                false
+            else
+                ids.Add id |> ignore
+                retained <- retained + bytes
+                true
+
 type private OpenGeneration = {
     SnapshotId: string
     Limits: ModelAccessLimits
-    RequestIds: HashSet<string>
+    RequestIds: BoundedRequestIdCache
 }
 
 type private PendingRound = {
@@ -285,6 +311,7 @@ type internal BoundedGeneration() =
     let gate = obj ()
     let operations = Dictionary<string, GenerationState>(StringComparer.Ordinal)
     let mutable closed = false
+    let mutable requestCacheReservation: int64 option = None
     let invalidParams = RpcErrors.create ErrorCode.InvalidParams
     let nonempty value = not (String.IsNullOrEmpty value)
 
@@ -359,12 +386,12 @@ type internal BoundedGeneration() =
 
                     let reservation =
                         match call, previous with
-                        | Start request, (false, _) ->
+                        | Start request, (false, _) when requestCacheReservation.IsNone || operations.Count = 0 ->
                             Ok(
                                 {
                                     SnapshotId = request.Snapshot.SnapshotId
                                     Limits = request.Limits
-                                    RequestIds = HashSet<string>(StringComparer.Ordinal)
+                                    RequestIds = BoundedRequestIdCache(requestCacheReservation)
                                 },
                                 None
                             )
@@ -408,12 +435,21 @@ type internal BoundedGeneration() =
                 && nonempty selection
                 && pageSize > 0
                 && Option.forall nonempty cursor
-                && generation.RequestIds.Add id
+                && generation.RequestIds.TryAdd id
             | ModelAccessRequest.Document(id, documentId) ->
                 nonempty id
                 && nonempty documentId
-                && generation.RequestIds.Add id
+                && generation.RequestIds.TryAdd id
         )
+
+    /// Opt in before the first operation. Reserving bounds IDs and restricts this
+    /// ledger to a single generation, so multiple operations cannot multiply it.
+    member _.TryReserveSingleOperationRequestCache(bytes: int64) =
+        lock gate (fun () ->
+            if closed || bytes < 256L || operations.Count <> 0 || requestCacheReservation.IsSome then false
+            else
+                requestCacheReservation <- Some bytes
+                true)
 
     member _.Close() =
         lock
@@ -512,7 +548,9 @@ type internal BoundedGeneration() =
                                     (Error(
                                         RpcErrors.withMessage
                                             ErrorCode.InternalError
-                                            "Invalid bounded generation result."
+                                            (if generation.RequestIds.LimitRefused then
+                                                 "Bounded generation request IDs exceed the reserved maxHostCacheBytes."
+                                             else "Invalid bounded generation result.")
                                     ))
                 with error ->
                     finish sessionId Finished (Ok())

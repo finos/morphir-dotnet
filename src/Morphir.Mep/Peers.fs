@@ -1008,6 +1008,18 @@ type HostSession
     member _.RequestAsync(method: Method, parameters: Nullable<JsonElement>, cancellation: CancellationToken) =
         send method (Option.ofNullable parameters) cancellation
 
+    /// Reserve retained request-ID bytes for this connection's single generation.
+    /// Call after initialization and before start, with bytes reserved alongside
+    /// discovery and staging under the negotiated host cache. Refuses reuse.
+    member _.TryReserveSingleGenerationRequestCache(bytes: int64) =
+        match state with
+        | SessionState.Initialized session ->
+            match session.Capabilities.ModelAccess with
+            | Some access when bytes > 0L && bytes <= int64 access.Limits.MaxHostCacheBytes ->
+                generation.TryReserveSingleOperationRequestCache bytes
+            | _ -> false
+        | _ -> false
+
     /// Starts a bounded generation operation on the initialized connection.
     member _.StartGenerationAsync(request: ModelAccessStart, cancellation: CancellationToken) =
         let parameters = JsonSerializer.SerializeToElement(request, MepJson.Default.ModelAccessStart)

@@ -118,6 +118,52 @@ public sealed class BoundedGenerationSteps(IBoundedGenerationDriver bounded, ISc
         workspace.ReadBytes(workspace.File("generated/order.txt")).Should().Equal(System.Text.Encoding.UTF8.GetBytes(order.ToString(CultureInfo.InvariantCulture) + "\n"));
     }
 
+    [Then("the Orders scale profile generates original production payloads")]
+    public async Task OrdersScaleProfileGeneratesProductionPayloads()
+    {
+        var module = bounded.OrdersScaleModule;
+        if (string.IsNullOrEmpty(module))
+        {
+            runtime.TestIgnore("Set MORPHIR_ORDERS_SCALE_WASM to the pinned 3652032a streaming guest.");
+            return;
+        }
+        bounded.ConfigureOrdersScaleGuest(module);
+        bounded.RecordScaleProductionTree();
+        var result = await bounded.GenerateOrdersScaleAsync("generated");
+        result.ShouldExitWith(0);
+        var report = GenerationReport.Of(result).Document;
+        report.GetProperty("backendTransport").GetString().Should().Be("wasm");
+        report.GetProperty("artifacts").EnumerateArray().Select(value => value.GetString()).Should().Equal("orders/m000000.txt");
+        var bytes = workspace.ReadBytes(workspace.File("generated/orders/m000000.txt"));
+        bytes.Length.Should().Be(OrdersScaleProductionMother.ArtifactBytes);
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant().Should().Be(OrdersScaleProductionMother.ArtifactSha256);
+        var access = report.GetProperty("boundedAccess");
+        access.GetProperty("maxDocumentBytes").GetInt64().Should().Be(32_768);
+        var limits = access.GetProperty("limits");
+        limits.GetProperty("maxDecodedBytesPerExchange").GetInt32().Should().Be(65_536);
+        limits.GetProperty("maxFrameBytes").GetInt32().Should().Be(65_536);
+        limits.GetProperty("maxArtifactChunkBytes").GetInt32().Should().Be(32_768);
+    }
+
+    [Then("the Orders scale profile refuses a document one byte over")]
+    public async Task OrdersScaleProfileRefusesDocumentOneOver()
+    {
+        var module = bounded.OrdersScaleModule;
+        if (string.IsNullOrEmpty(module))
+        {
+            runtime.TestIgnore("Set MORPHIR_ORDERS_SCALE_WASM to the pinned 3652032a streaming guest.");
+            return;
+        }
+        bounded.ConfigureOrdersScaleGuest(module);
+        bounded.RecordScaleDocumentOverTree();
+        var record = workspace.ReadText(workspace.File("build-artifacts/compile.json"));
+        var result = await bounded.GenerateOrdersScaleAsync("generated");
+        result.ShouldExitWith(2);
+        GenerationReport.Of(result).Document.GetProperty("diagnostics").EnumerateArray()
+            .Select(note => note.GetProperty("code").GetString()).Should().Contain("tree.file_too_large");
+        workspace.Exists(workspace.Directory("generated")).Should().BeFalse();
+        workspace.ReadText(workspace.File("build-artifacts/compile.json")).Should().Be(record);
+    }
     [Then("bounded generation protects sibling task records")]
     public async Task RefusesPublicationInsideASiblingMembersTaskStore()
     {

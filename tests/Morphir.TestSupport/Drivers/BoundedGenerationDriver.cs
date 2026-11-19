@@ -11,6 +11,11 @@ namespace Morphir.TestSupport.Drivers;
 public interface IBoundedGenerationDriver
 {
     void Prepare(string mode);
+    string? OrdersScaleModule { get; }
+    void ConfigureOrdersScaleGuest(string module);
+    WorkspaceDirectory RecordScaleProductionTree();
+    WorkspaceDirectory RecordScaleDocumentOverTree();
+    Task<CommandResult> GenerateOrdersScaleAsync(string output);
     WorkspaceDirectory RecordTree(int order, int? reserve = null);
     Task<CommandResult> GenerateAsync(string output, params string[] extra);
     Task<CommandResult> GenerateAsync(string output, bool configured);
@@ -26,6 +31,7 @@ public sealed class BoundedGenerationDriver(IScenarioWorkspace workspace, IGener
 {
     public const string SharedOrdersVariable = "MORPHIR_SHARED_ORDERS_WASM";
     private const string OutDir = "build-artifacts";
+    public string? OrdersScaleModule => Environment.GetEnvironmentVariable("MORPHIR_ORDERS_SCALE_WASM");
     public bool IsWindows => OperatingSystem.IsWindows();
     public string? SharedOrdersModule => Environment.GetEnvironmentVariable(SharedOrdersVariable);
 
@@ -93,6 +99,26 @@ public sealed class BoundedGenerationDriver(IScenarioWorkspace workspace, IGener
         },
     });
 
+    public void ConfigureOrdersScaleGuest(string module)
+    {
+        var bytes = File.ReadAllBytes(module);
+        var digest = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant();
+        if (digest != OrdersScaleProductionMother.GuestSha256) throw new InvalidOperationException("Orders scale guest differs from the pin.");
+        workspace.WriteText(workspace.File("morphir.toml"), BoundedOrdersRecordMother.WasmConfiguration
+            + "sha256 = \"" + OrdersScaleProductionMother.GuestSha256 + "\"\n");
+        workspace.WriteBytes(workspace.File("orders.wasm"), bytes);
+    }
+
+    public WorkspaceDirectory RecordScaleProductionTree() => RecordScale(OrdersScaleProductionMother.ProductionDocuments());
+    public WorkspaceDirectory RecordScaleDocumentOverTree() => RecordScale(OrdersScaleProductionMother.DocumentOneOver());
+    private WorkspaceDirectory RecordScale(IEnumerable<KeyValuePair<string, byte[]>> documents)
+    {
+        var root = workspace.MakeDirectory(OutDir, "compile.dest", "recorded", "orders-model");
+        foreach (var document in documents) workspace.WriteBytes(root.File(document.Key), document.Value);
+        workspace.WriteText(workspace.File(OutDir, "compile.json"), BoundedOrdersRecordMother.CompletedTree);
+        return root;
+    }
+    public Task<CommandResult> GenerateOrdersScaleAsync(string output) => Generate(output, true, ["--bounded-profile", "orders-scale"]);
     public void ConfigureMemoryLimitGuest()
     {
         ConfigureWasmProject();

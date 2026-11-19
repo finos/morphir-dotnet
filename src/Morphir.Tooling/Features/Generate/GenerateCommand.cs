@@ -23,10 +23,12 @@ public sealed class GenerateCommand : Command, IMorphirParseErrorHandler
     private readonly Option<string?> _extensionId = new("--extension-id") { Description = "Installed backend full extension identity; mutually exclusive with --extension" };
     private readonly Option<string?> _outDir = new("--out-dir") { Description = "Out root that holds the compile record; overrides MORPHIR_OUT_DIR and workspace.out_dir" };
 
+    private readonly Option<string?> _boundedProfile = new("--bounded-profile") { Description = "Opt-in recorded WASM limits: orders-scale. Omit for normal limits" };
+
     public GenerateCommand(IServiceProvider services) : base("generate", "Generate artifacts from a Morphir model")
     {
         Options.Add(_input); Options.Add(_target); Options.Add(_output); Options.Add(_format); Options.Add(_options); Options.Add(_json);
-        Options.Add(_extension); Options.Add(_extensionId); Options.Add(_project); Options.Add(_config); Options.Add(_outDir);
+        Options.Add(_extension); Options.Add(_extensionId); Options.Add(_project); Options.Add(_config); Options.Add(_outDir); Options.Add(_boundedProfile);
         SetAction(async (result, ct) =>
         {
             var invocation = Bind(result);
@@ -44,6 +46,7 @@ public sealed class GenerateCommand : Command, IMorphirParseErrorHandler
         Project = result.GetValue(_project),
         Config = result.GetValue(_config),
         OutDir = result.GetValue(_outDir),
+        BoundedProfile = result.GetValue(_boundedProfile),
         Extension = result.GetValue(_extension),
         ExtensionId = result.GetValue(_extensionId),
     };

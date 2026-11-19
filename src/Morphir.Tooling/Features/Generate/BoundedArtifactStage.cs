@@ -30,7 +30,7 @@ internal sealed class BoundedArtifactStage : IDisposable
     private readonly GenerationSessionDiskBudget _disk;
     private readonly Dictionary<string, Entry> _paths = new(StringComparer.OrdinalIgnoreCase);
     private readonly ImmutableArray<GenerationDiagnostic>.Builder _diagnostics = ImmutableArray.CreateBuilder<GenerationDiagnostic>();
-    private readonly long _discoveryReservation;
+    private readonly long _externalCacheReservation;
     private long _metadataBytes;
     private long _artifactBytes;
     private long _reservedDiskBytes;
@@ -39,14 +39,16 @@ internal sealed class BoundedArtifactStage : IDisposable
     private bool _deleted;
     private GenerationDiagnostic? _cleanupError;
 
-    public BoundedArtifactStage(string parent, ModelAccessLimits limits, GenerationSessionDiskBudget disk, long discoveryReservation = 0)
+    public BoundedArtifactStage(string parent, ModelAccessLimits limits, GenerationSessionDiskBudget disk, long discoveryReservation = 0, long requestIdReservation = 0)
     {
         _parent = Path.TrimEndingDirectorySeparator(Path.GetFullPath(parent));
         _limits = limits;
         _disk = disk;
         if (discoveryReservation < 0 || discoveryReservation > limits.MaxHostCacheBytes)
             throw new ArgumentOutOfRangeException(nameof(discoveryReservation));
-        _discoveryReservation = discoveryReservation;
+        if (requestIdReservation < 0 || requestIdReservation > limits.MaxHostCacheBytes - discoveryReservation)
+            throw new ArgumentOutOfRangeException(nameof(requestIdReservation));
+        _externalCacheReservation = discoveryReservation + requestIdReservation;
         if (disk.Limit > limits.MaxSessionDiskBytes)
             throw new ArgumentException("The disk budget exceeds the negotiated session disk limit.", nameof(disk));
         if (!System.IO.Directory.Exists(_parent) || GenerationPublisher.LinkedPath(_parent) is not null)
@@ -251,7 +253,7 @@ internal sealed class BoundedArtifactStage : IDisposable
 
     private bool ReserveMetadata(long bytes)
     {
-        if (bytes > _limits.MaxHostCacheBytes - _discoveryReservation - _metadataBytes) return false;
+        if (bytes > _limits.MaxHostCacheBytes - _externalCacheReservation - _metadataBytes) return false;
         _metadataBytes += bytes;
         return true;
     }
