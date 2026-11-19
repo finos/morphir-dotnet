@@ -64,7 +64,7 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 ## 10. Architecture diagrams
 
 - [x] 10.1 Add the architecture model and validation, including constraint findings; verify model tests.
-- [ ] 10.2 Read and print `architecture-beta`; verify the pinned architecture corpus.
+- [x] 10.2 Read and print `architecture-beta`; verify the pinned architecture corpus.
 - [ ] 10.3 Place and route architecture diagrams with ports, group boundaries and alignment; verify geometry tests.
 - [ ] 10.4 Add architecture references, colour families, carriage and player support; verify in Chromium.
 

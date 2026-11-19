@@ -517,6 +517,40 @@ module internal MermaidPrinter =
 
     let state model = stateText false model
 
+    /// Canonical Mermaid text for an architecture diagram.
+    let architecture (model: ArchitectureDiagram) =
+        let lines = ResizeArray<string>([ "architecture-beta" ])
+        let label (text: string) = "[\"" + text.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"]"
+        let icon (key: string | null) = match key with | null -> "" | key -> $"({key})"
+        let parent (id: DiagramId | null) = match id with | null -> "" | id -> $" in {id.Value}"
+
+        match model.Title with
+        | null -> ()
+        | title -> lines.Add $"  title {title}"
+
+        for group in model.Groups do
+            lines.Add $"  group {group.Id.Value}{icon group.Icon}{label group.Label}{parent group.Parent}"
+
+        for service in model.Services do
+            let text = match service.IconText with | null -> "" | text -> "\"" + text + "\""
+            lines.Add $"  service {service.Id.Value}{icon service.Icon}{text}{label service.Label}{parent service.Parent}"
+
+        for junction in model.Junctions do
+            lines.Add $"  junction {junction.Id.Value}{parent junction.Parent}"
+
+        for edge in model.Edges do
+            let boundary present = if present then "{group}" else ""
+            let middle = match edge.Label with | null -> "--" | text -> $"-{label text}-"
+            let left = if edge.SourceHead then "<" else ""
+            let right = if edge.TargetHead then ">" else ""
+            lines.Add $"  {edge.Source.Value}{boundary edge.SourceGroup}:{edge.SourceSide} {left}{middle}{right} {edge.TargetSide}:{edge.Target.Value}{boundary edge.TargetGroup}"
+
+        for alignment in model.Alignments do
+            let members = alignment.Members |> Seq.map (fun id -> id.Value) |> String.concat " "
+            lines.Add $"""  align {(if alignment.IsRow then "row" else "column")} {members}"""
+
+        Ok(String.Join("\n", lines) + "\n")
+
     /// Canonical PlantUML activity text in the legacy dialect, which writes any flow graph: `(*)` for starts and
     /// stops, `===bar===` for forks and joins, and `"label" as id` for every other step. Decision and merge roles and
     /// lanes have no legacy form and read back as plain activities outside lanes.
@@ -594,6 +628,7 @@ module internal MermaidPrinter =
             | Diagram.Flowchart model -> flowchart model
             | Diagram.Sequence model -> sequence model
             | Diagram.State model -> state model
+            | Diagram.Architecture model -> architecture model
             | Diagram.Swimlane model ->
                 flowchart model.Projection
                 |> Result.map (fun text -> "swimlane-beta" + text.Substring("flowchart".Length))
