@@ -929,12 +929,13 @@ type SvgRenderOptions
         document: DocumentId option,
         metadata: (RdfDataset * MetadataEmbedding * NamedGraphHandling) option,
         connectors: ConnectorStyle,
-        bridges: bool
+        bridges: bool,
+        trace: RailroadTrace option
     ) =
-    static let defaults = SvgRenderOptions(DiagramThemes.Archify, ThemeMode.Auto, None, None, ConnectorStyle.Elbow, false)
+    static let defaults = SvgRenderOptions(DiagramThemes.Archify, ThemeMode.Auto, None, None, ConnectorStyle.Elbow, false, None)
 
     internal new(theme, mode, document, metadata) =
-        SvgRenderOptions(theme, mode, document, metadata, ConnectorStyle.Elbow, false)
+        SvgRenderOptions(theme, mode, document, metadata, ConnectorStyle.Elbow, false, None)
 
     /// How connectors bend. Elbow by default.
     member _.ConnectorStyle = connectors
@@ -945,11 +946,21 @@ type SvgRenderOptions
     /// A copy with another connector style.
     member _.WithConnectorStyle(style: ConnectorStyle) =
         ArgumentNullException.ThrowIfNull style
-        SvgRenderOptions(theme, mode, document, metadata, style, bridges)
+        SvgRenderOptions(theme, mode, document, metadata, style, bridges, trace)
 
     /// A copy that draws bridges where connectors cross, or plain crossings.
     member _.WithBridges(enabled: bool) =
-        SvgRenderOptions(theme, mode, document, metadata, connectors, enabled)
+        SvgRenderOptions(theme, mode, document, metadata, connectors, enabled, trace)
+
+    /// Evidence drawn over a railroad diagram, or null. Rendering rejects a trace made for another diagram.
+    member _.RailroadTrace: RailroadTrace | null = Option.toObj trace
+
+    member internal _.RailroadTraceOption = trace
+
+    /// A copy that highlights a railroad trace: matched paths, not-matched boxes, the taken prefix and the failure.
+    member _.WithRailroadTrace(trace: RailroadTrace) =
+        ArgumentNullException.ThrowIfNull trace
+        SvgRenderOptions(theme, mode, document, metadata, connectors, bridges, Some trace)
 
     /// The colour theme. Archify by default.
     member _.Theme = theme
@@ -968,17 +979,17 @@ type SvgRenderOptions
     /// A copy with another theme.
     member _.WithTheme(theme: DiagramTheme) =
         ArgumentNullException.ThrowIfNull theme
-        SvgRenderOptions(theme, mode, document, metadata, connectors, bridges)
+        SvgRenderOptions(theme, mode, document, metadata, connectors, bridges, trace)
 
     /// A copy with another mode.
     member _.WithMode(mode: ThemeMode) =
         ArgumentNullException.ThrowIfNull mode
-        SvgRenderOptions(theme, mode, document, metadata, connectors, bridges)
+        SvgRenderOptions(theme, mode, document, metadata, connectors, bridges, trace)
 
     /// A copy with the diagram's knowledge document. Embedded metadata needs it.
     member _.WithDocument(document: DocumentId) =
         ArgumentNullException.ThrowIfNull document
-        SvgRenderOptions(theme, mode, Some document, metadata, connectors, bridges)
+        SvgRenderOptions(theme, mode, Some document, metadata, connectors, bridges, trace)
 
     /// A copy that embeds the dataset in the SVG's metadata element, in canonical form. Named graphs
     /// that the embedding cannot hold are an error unless the caller drops them explicitly.
@@ -986,7 +997,7 @@ type SvgRenderOptions
         ArgumentNullException.ThrowIfNull dataset
         ArgumentNullException.ThrowIfNull embedding
         ArgumentNullException.ThrowIfNull namedGraphs
-        SvgRenderOptions(theme, mode, document, Some(dataset, embedding, namedGraphs), connectors, bridges)
+        SvgRenderOptions(theme, mode, document, Some(dataset, embedding, namedGraphs), connectors, bridges, trace)
 
     override _.ToString() =
         let carried = if metadata.IsSome then ", with metadata" else ""

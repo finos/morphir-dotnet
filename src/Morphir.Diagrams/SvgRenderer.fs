@@ -14,9 +14,10 @@ type SvgRenderer private () =
         ArgumentNullException.ThrowIfNull diagram
         ArgumentNullException.ThrowIfNull options
 
-        match Carriage.prepare diagram options with
-        | Error errors -> Error(ImmutableArray.CreateRange errors)
-        | Ok(metadata, warnings) ->
+        match RailroadSvg.validate diagram options, Carriage.prepare diagram options with
+        | (_ :: _) as errors, _ -> Error(ImmutableArray.CreateRange errors)
+        | [], Error errors -> Error(ImmutableArray.CreateRange errors)
+        | [], Ok(metadata, warnings) ->
             let scene =
                 match diagram, diagram.Graph with
                 | Diagram.Sequence model, _ -> SequenceSvg.render options metadata model
