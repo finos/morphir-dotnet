@@ -14,6 +14,8 @@ internal enum CaptureFailureKind
     UnsupportedEntry,
     /// <summary>The input could not be read.</summary>
     Read,
+    /// <summary>The directory bytes or inventory changed between capture and verification.</summary>
+    Changed,
     /// <summary>The input path is not valid.</summary>
     InvalidPath,
     /// <summary>The capture was cancelled.</summary>
@@ -91,16 +93,7 @@ internal sealed class BoundedCapture
     /// <summary>Reads one regular file into owned bytes, within the remaining byte budget.</summary>
     internal async Task<RetainedEntry> ReadFileAsync(string path, string relative)
     {
-        CurrentPath = path;
-        _ct.ThrowIfCancellationRequested();
-        // Opening a Unix FIFO can block before FileStream can test CanSeek.
-        if (!_isRegularFile(path))
-            throw new CaptureException(CaptureFailureKind.UnsupportedEntry, "Only regular input files are supported.");
-        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
-            64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
-        CheckAttributes(File.GetAttributes(stream.SafeFileHandle));
-        if (!stream.CanSeek)
-            throw new CaptureException(CaptureFailureKind.UnsupportedEntry, "Only regular seekable files are supported.");
+        using var stream = OpenRegularFile(path);
         var length = stream.Length;
         if (length > _remainingBytes || length > Array.MaxLength) throw Limit("The input exceeds the aggregate byte budget.");
         var bytes = new byte[(int)length];
@@ -117,6 +110,50 @@ internal sealed class BoundedCapture
     internal async Task<ImmutableArray<RetainedEntry>> ReadTreeAsync(string root, int maxDepth)
     {
         var entries = new List<RetainedEntry>();
+        foreach (var path in EnumerateTreeFiles(root, maxDepth))
+            entries.Add(await ReadFileAsync(path, RelativePath(root, path)));
+
+        await VerifyTreeAsync(root, maxDepth, entries);
+        entries.Sort((left, right) => StringComparer.Ordinal.Compare(left.RelativePath, right.RelativePath));
+        return [.. entries];
+    }
+
+    private async Task VerifyTreeAsync(string root, int maxDepth, List<RetainedEntry> entries)
+    {
+        var uncheckedEntries = entries.ToDictionary(entry => entry.RelativePath, StringComparer.Ordinal);
+        var buffer = new byte[64 * 1024];
+
+        // Start a fresh traversal under the original structural budgets.
+        _entries = 0;
+        _checkedAncestors.Clear();
+        Open(root, out _);
+        foreach (var path in EnumerateTreeFiles(root, maxDepth))
+        {
+            CurrentPath = path;
+            if (!uncheckedEntries.Remove(RelativePath(root, path), out var entry)) throw Changed();
+            using var stream = OpenRegularFile(path);
+            if (stream.Length != entry.Length) throw Changed();
+
+            var expected = entry.Memory;
+            while (!expected.IsEmpty)
+            {
+                var read = await stream.ReadAsync(buffer.AsMemory(0, Math.Min(expected.Length, buffer.Length)), _ct);
+                if (read == 0 || !expected.Span[..read].SequenceEqual(buffer.AsSpan(0, read))) throw Changed();
+                expected = expected[read..];
+            }
+            if (await stream.ReadAsync(buffer.AsMemory(0, 1), _ct) != 0) throw Changed();
+        }
+
+        _ct.ThrowIfCancellationRequested();
+        if (uncheckedEntries.Count != 0)
+        {
+            CurrentPath = Path.Combine(root, uncheckedEntries.Keys.First());
+            throw Changed();
+        }
+    }
+
+    private IEnumerable<string> EnumerateTreeFiles(string root, int maxDepth)
+    {
         var pending = new Stack<(string Path, int Depth)>();
         pending.Push((root, 0));
         while (pending.TryPop(out var directory))
@@ -136,13 +173,38 @@ internal sealed class BoundedCapture
                 if (attributes.HasFlag(FileAttributes.Directory))
                     pending.Push((path, directory.Depth + 1));
                 else
-                    entries.Add(await ReadFileAsync(path, Path.GetRelativePath(root, path).Replace('\\', '/')));
+                    yield return path;
             }
         }
-        _ct.ThrowIfCancellationRequested();
-        entries.Sort((left, right) => StringComparer.Ordinal.Compare(left.RelativePath, right.RelativePath));
-        return [.. entries];
     }
+
+    private FileStream OpenRegularFile(string path)
+    {
+        CurrentPath = path;
+        _ct.ThrowIfCancellationRequested();
+        // Opening a Unix FIFO can block before FileStream can test CanSeek.
+        if (!_isRegularFile(path))
+            throw new CaptureException(CaptureFailureKind.UnsupportedEntry, "Only regular input files are supported.");
+        var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+            64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        try
+        {
+            CheckAttributes(File.GetAttributes(stream.SafeFileHandle));
+            if (!stream.CanSeek)
+                throw new CaptureException(CaptureFailureKind.UnsupportedEntry, "Only regular seekable files are supported.");
+            return stream;
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
+    }
+
+    private static string RelativePath(string root, string path) => Path.GetRelativePath(root, path).Replace('\\', '/');
+
+    private static CaptureException Changed() =>
+        new(CaptureFailureKind.Changed, "The input directory changed during capture.");
 
     /// <summary>
     /// The failure that <paramref name="error"/> stands for, at the path in use. False for an exception that
