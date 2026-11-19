@@ -163,19 +163,21 @@ module private MermaidReader =
 /// Reads Mermaid source and produces immutable diagram models.
 [<AbstractClass; Sealed>]
 type Mermaid private () =
-    /// Parses a Mermaid flowchart or sequence diagram. Returns a Result for F# callers.
+    /// Parses a Mermaid flowchart, sequence, state, swimlane, architecture or ZenUML diagram. Returns a Result for
+    /// F# callers.
     static member Parse
         (source: string | null)
         : Result<DiagramDocument, ImmutableArray<Diagnostic>> =
         SourceReading.parse "mermaid" MermaidReader.read source
 
-    /// Writes a flowchart or sequence diagram as canonical Mermaid text. Reading the text gives the same model, and
-    /// printing that again gives the same text. Returns a Result for F# callers.
+    /// Writes a diagram as canonical Mermaid text. Reading the text gives the same model, and printing that again
+    /// gives the same text. Flowcharts and sequences print; another family returns diagnostics unless it has a
+    /// Mermaid printer. Returns a Result for F# callers.
     static member Print(diagram: Diagram) : Result<string, ImmutableArray<Diagnostic>> =
         ArgumentNullException.ThrowIfNull diagram
         MermaidPrinter.print diagram |> Result.mapError ImmutableArray.CreateRange
 
-    /// Writes a flowchart or sequence diagram as canonical Mermaid text for C# callers. Diagnostics is empty on success.
+    /// Writes a diagram as canonical Mermaid text for C# callers, as Print does. Diagnostics is empty on success.
     static member TryPrint
         (
             diagram: Diagram,

@@ -57,7 +57,7 @@ public class MermaidFlowchartGrammarTests
             .ShouldBeTrue();
 
         document!.Diagnostics.Select(diagnostic => diagnostic.Code).ShouldBe(Enumerable.Repeat("mermaid/unapplied-presentation", 3));
-        document.Diagnostics.ShouldAllBe(diagnostic => diagnostic.Severity == DiagnosticSeverity.Warning);
+        document.Diagnostics.ShouldAllBe(diagnostic => diagnostic.Severity.Equals(DiagnosticSeverity.Warning));
     }
 
     [Test]

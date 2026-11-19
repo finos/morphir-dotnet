@@ -474,6 +474,8 @@ svg.is-exploring [data-ref]:not(.explore-hit) { opacity: .22; }
 type AnimatedRenderer private () =
     /// Plays the bound connectors in authored order. The scene's static SVG is available for download.
     static member Render(scene: DiagramScene) =
+        ArgumentNullException.ThrowIfNull scene
+
         let steps =
             scene.Connectors
             |> Seq.mapi (fun index connector ->
@@ -502,6 +504,7 @@ type AnimatedRenderer private () =
 
     /// Plays a finite schedule. All of its connector bindings must come from the supplied scene.
     static member Render(scene: DiagramScene, steps: IReadOnlyList<PlaybackStep>) =
+        ArgumentNullException.ThrowIfNull scene
         ArgumentNullException.ThrowIfNull steps
 
         let fail code message =
@@ -533,6 +536,8 @@ type AnimatedRenderer private () =
     /// Plays a finite schedule of connector occurrences and element visits. Every connector must come from the
     /// supplied scene and every visit must name one of its elements.
     static member Render(scene: DiagramScene, steps: IReadOnlyList<PlaybackStep>, visits: IReadOnlyList<NodeVisit>) =
+        ArgumentNullException.ThrowIfNull scene
+        ArgumentNullException.ThrowIfNull steps
         ArgumentNullException.ThrowIfNull visits
         let visits = visits |> Seq.toArray
 

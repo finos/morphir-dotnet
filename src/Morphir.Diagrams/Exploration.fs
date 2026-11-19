@@ -89,6 +89,32 @@ module internal Structures =
 
         exhausted, order, previous
 
+/// Which way a reachability walk follows connections.
+[<RequireQualifiedAccess>]
+type ExplorationDirection =
+    /// Along the arrowheads, to what an element leads to.
+    | Downstream
+    /// Against the arrowheads, to what leads to an element.
+    | Upstream
+
+    override this.ToString() =
+        match this with
+        | ExplorationDirection.Downstream -> "downstream"
+        | ExplorationDirection.Upstream -> "upstream"
+
+/// Which connections a walk follows.
+[<RequireQualifiedAccess>]
+type LinkFollowing =
+    /// Only connections with arrowheads, in the directions the heads give.
+    | Arrowheads
+    /// Connections with arrowheads as they point, and connections without heads both ways.
+    | AllLinks
+
+    override this.ToString() =
+        match this with
+        | LinkFollowing.Arrowheads -> "arrowheads"
+        | LinkFollowing.AllLinks -> "all links"
+
 /// The result of a structural exploration: no guard, condition or timer is evaluated.
 [<RequireQualifiedAccess>]
 type ExplorationResult =
@@ -98,8 +124,8 @@ type ExplorationResult =
     | Reachable of ImmutableArray<DiagramId>
     /// No route joins the two elements in the followed directions.
     | Unreachable
-    /// An element is not part of the diagram.
-    | Invalid of reason: string
+    /// The named element is not part of the diagram.
+    | MissingElement of DiagramId
     /// The walk visited more elements than the limit allows.
     | LimitExhausted
 
@@ -109,14 +135,14 @@ type ExplorationResult =
             route: Func<ImmutableArray<DiagramId>, 'T>,
             reachable: Func<ImmutableArray<DiagramId>, 'T>,
             unreachable: Func<'T>,
-            invalid: Func<string, 'T>,
+            missingElement: Func<DiagramId, 'T>,
             limitExhausted: Func<'T>
         ) =
         match this with
         | ExplorationResult.Route elements -> route.Invoke elements
         | ExplorationResult.Reachable elements -> reachable.Invoke elements
         | ExplorationResult.Unreachable -> unreachable.Invoke()
-        | ExplorationResult.Invalid reason -> invalid.Invoke reason
+        | ExplorationResult.MissingElement id -> missingElement.Invoke id
         | ExplorationResult.LimitExhausted -> limitExhausted.Invoke()
 
     override this.ToString() =
@@ -126,7 +152,7 @@ type ExplorationResult =
         | ExplorationResult.Route elements -> $"Structural route {join elements}"
         | ExplorationResult.Reachable elements -> $"Structurally reachable {join elements}"
         | ExplorationResult.Unreachable -> "Unreachable"
-        | ExplorationResult.Invalid reason -> reason
+        | ExplorationResult.MissingElement id -> $"{id} is not an element of the diagram."
         | ExplorationResult.LimitExhausted -> $"More than {Structures.visitLimit} elements"
 
 /// Structural routes and reachability between the elements of a diagram, as the offline player shows them.
@@ -135,18 +161,20 @@ type DiagramExploration private () =
     static let locate (structure: Structure) (id: DiagramId) =
         structure.Nodes |> Array.tryFindIndex (fun (node, _) -> node = id)
 
-    /// One shortest route from source to target that follows arrowheads, and links without heads when undirected.
-    static member Route(diagram: Diagram, source: DiagramId, target: DiagramId, undirected: bool) =
+    /// One shortest route from source to target that follows arrowheads, and links without heads when the links
+    /// followed are all links.
+    static member Route(diagram: Diagram, source: DiagramId, target: DiagramId, links: LinkFollowing) =
         ArgumentNullException.ThrowIfNull diagram
         ArgumentNullException.ThrowIfNull source
         ArgumentNullException.ThrowIfNull target
+        ArgumentNullException.ThrowIfNull links
         let structure = Structures.ofDiagram diagram
 
         match locate structure source, locate structure target with
-        | None, _ -> ExplorationResult.Invalid $"{source} is not an element of the diagram."
-        | _, None -> ExplorationResult.Invalid $"{target} is not an element of the diagram."
+        | None, _ -> ExplorationResult.MissingElement source
+        | _, None -> ExplorationResult.MissingElement target
         | Some origin, Some goal ->
-            let exhausted, _, previous = Structures.walk structure origin false undirected
+            let exhausted, _, previous = Structures.walk structure origin false (links = LinkFollowing.AllLinks)
 
             if previous[goal] = -2 then
                 if exhausted then ExplorationResult.LimitExhausted else ExplorationResult.Unreachable
@@ -162,14 +190,16 @@ type DiagramExploration private () =
                 ExplorationResult.Route(ImmutableArray.CreateRange path)
 
     /// Every element reachable from the origin downstream (following arrowheads) or upstream (against them).
-    static member Reachable(diagram: Diagram, origin: DiagramId, downstream: bool, undirected: bool) =
+    static member Reachable(diagram: Diagram, origin: DiagramId, direction: ExplorationDirection, links: LinkFollowing) =
         ArgumentNullException.ThrowIfNull diagram
         ArgumentNullException.ThrowIfNull origin
+        ArgumentNullException.ThrowIfNull direction
+        ArgumentNullException.ThrowIfNull links
         let structure = Structures.ofDiagram diagram
 
         match locate structure origin with
-        | None -> ExplorationResult.Invalid $"{origin} is not an element of the diagram."
+        | None -> ExplorationResult.MissingElement origin
         | Some start ->
-            match Structures.walk structure start (not downstream) undirected with
+            match Structures.walk structure start (direction = ExplorationDirection.Upstream) (links = LinkFollowing.AllLinks) with
             | true, _, _ -> ExplorationResult.LimitExhausted
             | false, order, _ -> ExplorationResult.Reachable(order |> Seq.map (fun index -> fst structure.Nodes[index]) |> ImmutableArray.CreateRange)
