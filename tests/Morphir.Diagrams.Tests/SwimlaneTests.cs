@@ -87,6 +87,18 @@ public class SwimlaneTests
     }
 
     [Test]
+    public void LanesAreParallelBandsOfEqualLengthThatHoldTheirSteps()
+    {
+        var svg = XElement.Parse(DiagramSource.RenderSvg(Order).Output!);
+        var boxes = new[] { "Customer", "Sales", "Warehouse" }.Select(lane => FlowchartGeometry.Group(svg, lane)).ToList();
+
+        boxes.Select(box => (box.Top, box.Bottom)).Distinct().ShouldHaveSingleItem();
+        boxes.Zip(boxes.Skip(1)).ShouldAllBe(pair => pair.First.Right < pair.Second.Left);
+        FlowchartGeometry.Node(svg, "pick").Left.ShouldBeGreaterThan(boxes[2].Left);
+        FlowchartGeometry.Node(svg, "order").Right.ShouldBeLessThan(boxes[0].Right);
+    }
+
+    [Test]
     public void PrintingWhatWasPrintedGivesTheSameTextForEveryFixture()
     {
         var failures = new List<string>();

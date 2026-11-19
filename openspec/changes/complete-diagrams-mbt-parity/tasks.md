@@ -40,7 +40,7 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 
 - [x] 6.1 Add the swimlane model with lanes, typed control roles and notes; verify model tests.
 - [x] 6.2 Read and print Mermaid `swimlane-beta`, including repeated subgraph merging; verify the pinned swimlane corpus and the same-body-two-headers test.
-- [ ] 6.3 Lay out and paint lane bands on the shared engine; verify SVG tests and a Chromium check.
+- [x] 6.3 Lay out and paint lane bands on the shared engine; verify SVG tests and a Chromium check.
 - [ ] 6.4 Add swimlane references, colour families, carriage and player support; verify in Chromium.
 
 ## 7. PlantUML activity diagrams

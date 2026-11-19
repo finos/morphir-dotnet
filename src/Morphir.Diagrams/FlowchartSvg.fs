@@ -530,7 +530,36 @@ module internal FlowchartSvg =
 
         let rankCount = 1 + (if levels.Length = 0 then 0 else Array.max levels)
 
-        let slotOf = rows model indices levels rankEdges
+        // Lanes: each top-level group takes its own band of slots, in declaration order after the steps outside
+        // every lane; within a band, the nodes of one rank stand side by side.
+        let laneSlots () =
+            let laneOf = Array.create model.Nodes.Length -1
+            let topLanes = model.Groups |> Seq.filter (fun group -> isNull group.ParentId) |> Seq.toArray
+
+            topLanes
+            |> Array.iteri (fun lane group ->
+                for index in members group.Id do
+                    laneOf[index] <- lane)
+
+            let bands = Array.append [| -1 |] (Array.init topLanes.Length id)
+            let result = Array.zeroCreate model.Nodes.Length
+            let mutable offset = 0
+
+            for band in bands do
+                let used = Dictionary<int, int>()
+
+                for index in 0 .. model.Nodes.Length - 1 do
+                    if laneOf[index] = band then
+                        let _, taken = used.TryGetValue levels[index]
+                        used[levels[index]] <- taken + 1
+                        result[index] <- offset + taken
+
+                let width = if used.Count = 0 then (if band < 0 then 0 else 1) else Seq.max used.Values
+                offset <- offset + width
+
+            result
+
+        let slotOf = if model.Lanes then laneSlots () else rows model indices levels rankEdges
 
         let maxWidth = sizes |> Array.fold (fun width (x, _) -> max width x) 40
 
@@ -582,7 +611,22 @@ module internal FlowchartSvg =
 
         let baseHeight = 2 * margin + (rows - 1) * yStep + 2 * maxHeight
 
-        let groups = groupBounds model indices positions sizes baseHeight
+        let groups =
+            let found = groupBounds model indices positions sizes baseHeight
+
+            if not model.Lanes || found.Length = 0 then
+                found
+            else
+                // Lanes run the full length of the flow, so their boxes share one extent along it.
+                let lanes = found |> Array.filter (fun (group, _) -> isNull group.ParentId)
+                let first = lanes |> Array.map (fun (_, box) -> if horizontal then box.Left else box.Top) |> Array.min
+                let last = lanes |> Array.map (fun (_, box) -> if horizontal then box.Right else box.Bottom) |> Array.max
+
+                found
+                |> Array.map (fun (group, box) ->
+                    if not (isNull group.ParentId) then group, box
+                    elif horizontal then group, { box with Left = first; Right = last }
+                    else group, { box with Top = first; Bottom = last })
 
         let width =
             groups |> Array.fold (fun width (_, box) -> max width (box.Right + 24)) baseWidth
