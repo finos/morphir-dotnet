@@ -168,7 +168,10 @@ public sealed class WasmChannelException : Exception
 {
     /// <summary>A failure during the call of <paramref name="method"/>.</summary>
     public WasmChannelException(string method, WasmChannelFailure failure)
-        : base(failure.Message)
+        : this(method, failure, null) { }
+
+    internal WasmChannelException(string method, WasmChannelFailure failure, string? limitName)
+        : base(limitName is null ? failure.Message : $"{limitName}: {failure.Message}")
     {
         Method = method;
         Failure = failure;

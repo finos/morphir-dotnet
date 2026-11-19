@@ -4,6 +4,8 @@ The 36 documents are the plain JSON and YAML v3.1 and v4 trees in the frozen `ac
 
 The shared fixture catalog owns these files. Bounded reader tests open the embedded content by logical tree location.
 
+The expanded IR v4 baseline, `v4/single-file.json`, is the exact [parent file](https://github.com/finos/morphir/blob/3f3157318af5fafe474a4e1b83e7e34812517f2f/spec/mck/bounded-generation/fixtures/acme-orders/v4/single-file.json) from the same corpus. Its SHA-256 is `33649fb3718da07237c603ba7f9095621c59acee6c99def79c7a3220e4a2c47b`.
+
 | File | SHA-256 |
 | --- | --- |
 | `v3.1/plain-json/deps/morphir/_sdk/@/basics/add.value.json` | `34286f5a937e100e8d16e65d900abba4c2604336a8958357b57693fb5188092d` |

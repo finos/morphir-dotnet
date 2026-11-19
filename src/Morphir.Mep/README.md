@@ -155,9 +155,13 @@ For a nonempty continuation, supply one delivery per request in order.
 `CancelGenerationAsync` requests release of an open operation and checks the
 acknowledged ID. An invalid round does not consume the outstanding round.
 Completion, failure and an acknowledged cancel retire the operation ID for the
-connection. The SDK checks the exchange identity and order. Snapshot access,
-document decoding and digest verification, execution deadlines, artifact staging
-and publication belong to the host and extension operating the session.
+connection. Both peers check exchange identity and order. Before passing a
+document delivery to the transport or handler, they verify canonical base64,
+decoded length, and SHA-256. They enforce the batch document count and the
+aggregate encoded and decoded byte ceilings before decoding. An invalid
+delivery leaves the pending round available for correction. Snapshot access,
+IR decoding, execution deadlines, artifact staging, and publication belong to
+the host and extension operating the session.
 See the [bounded-generation contract](https://github.com/finos/morphir/blob/177371fa7a6199b7f177a8c1d886f583ee57e813/spec/mep/model-access.md)
 for the complete exchange and resource limits.
 

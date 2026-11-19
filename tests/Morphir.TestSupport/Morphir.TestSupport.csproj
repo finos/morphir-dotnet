@@ -19,6 +19,10 @@
   <ItemGroup>
     <EmbeddedResource Include="../Fixtures/MorphirTrees/kit/*.feature" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/kit/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/Mep/session-model-access.md" LogicalName="Morphir.TestSupport.Fixtures/Mep/session-model-access.md" />
+    <EmbeddedResource Include="../Fixtures/MepWasm/wasm-host.cases.json" LogicalName="Morphir.TestSupport.Fixtures/MepWasm/wasm-host.cases.json" />
+    <!-- Kit startup reads provenance metadata alongside the fixture files. -->
+    <EmbeddedResource Include="../Fixtures/MepWasm/PROVENANCE.md" LogicalName="Morphir.TestSupport.Provenance/MepWasm/PROVENANCE.md" />
+    <EmbeddedResource Include="../Fixtures/MepWasm/fixtures/wasm/env-open-socket.wasm" LogicalName="Morphir.TestSupport.Fixtures/MepWasm/fixtures/wasm/env-open-socket.wasm" />
     <EmbeddedResource Include="../Fixtures/MorphirBoundedGenerationReceipts/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirBoundedGenerationReceipts/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirBoundedGenerationReceipts/fixtures/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirBoundedGenerationReceipts/fixtures/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirIR/*.json;../Fixtures/MorphirIR/*.txt" LogicalName="Morphir.TestSupport.Fixtures/MorphirIR/%(Filename)%(Extension)" />
@@ -36,6 +40,8 @@
     <!-- One directory per policy case; the resource name uses / whatever the platform's separator. -->
     <EmbeddedResource Include="../Fixtures/MorphirContext/policy/cases/**/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/policy/cases/$([System.String]::Copy('%(RecursiveDir)').Replace('\', '/'))%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirBoundedOrders/**/*.json;../Fixtures/MorphirBoundedOrders/**/*.yaml" LogicalName="Morphir.TestSupport.Fixtures/MorphirBoundedOrders/$([System.String]::Copy('%(RecursiveDir)').Replace('\', '/'))%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/BoundedWasmLimits/*.wasm;../Fixtures/BoundedWasmLimits/*.wat" LogicalName="Morphir.TestSupport.Fixtures/BoundedWasmLimits/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/BoundedOrdersScale/orders-scale.wasm" LogicalName="Morphir.TestSupport.Fixtures/BoundedOrdersScale/orders-scale.wasm" />
     <!-- Each file of a hand-written tree, named by its location in the tree. -->
     <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/module.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/module.json" />
     <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/money.type.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/money.type.json" />

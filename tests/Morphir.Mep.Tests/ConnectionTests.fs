@@ -58,6 +58,12 @@ type private BrokenStream() =
     override _.SetLength _ = raise (NotSupportedException())
     override _.Write(_, _, _) = raise (NotSupportedException())
 
+type private ClosedOwnedOutput() =
+    inherit MemoryStream()
+
+    interface ITransportWriteAvailability with
+        member _.EnsureWriteAvailable() = raise (IOException "The owned peer has exited.")
+
 /// A handler that waits until its token cancels and records that it saw the cancellation, where Task.Delay ends
 /// with it. It does not use token.Register inside `use` (issue 585): the cancel can run Task.Delay's callback first;
 /// the handler then resumes on another thread and disposes that registration before the cancelling thread reaches
@@ -113,6 +119,23 @@ let tests =
                       (receive toHost.Reader)
                       ("""{"jsonrpc":"2.0","id":""" + id + ""","error":{"code":-32800,"message":"Request cancelled"}}""")
                       "Cancelled reply with the same id token"
+
+          testCase "an already closed connection preserves the owned transport's refusal without writing"
+          <| fun _ ->
+              use input = new MemoryStream()
+              use output = new ClosedOwnedOutput()
+
+              let connection = Connection(input, output, Dispatcher(readOnlyDict []))
+              let ended = connection.RunAsync(CancellationToken.None).GetAwaiter().GetResult()
+              Expect.equal ended ConnectionEnd.EndOfStream "The reader closed before the request"
+              Expect.throwsT<IOException>
+                  (fun () ->
+                      connection.RequestAsync(Method.Ping.WireValue, None, CancellationToken.None)
+                          .GetAwaiter()
+                          .GetResult()
+                      |> ignore)
+                  "The owner can identify the stopped transport"
+              Expect.equal output.Length 0L "No request bytes are written"
 
           testCase "a cancel for an unknown id is ignored"
           <| fun _ ->

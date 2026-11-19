@@ -22,6 +22,8 @@ module internal TreeFileSource =
     open TreeLayout
 
     let private error code file message = StoreErrors.error code file message
+    let private charge (work: BoundedTreeWorkBudget option) units =
+        work |> Option.forall (fun meter -> meter.TryCharge units)
 
     /// Looking up a file does not open its content. A revision must change when
     /// the source changes and must never identify more than one set of files.
@@ -31,12 +33,12 @@ module internal TreeFileSource =
         FindFile: string -> Morphir.Files.VFile option
         /// The first logical module path in a package after the optional cursor, in ordinal order.
         /// This callback only examines storage metadata.
-        NextModule: int -> string -> string option -> Result<string option, StoreError>
+        NextModule: BoundedTreeWorkBudget option -> int -> string -> string option -> Result<string option, StoreError>
     }
 
 
     /// Use the provider's directory metadata and open only the file requested by the reader.
-    let fromFileProvider maxEntries revision (provider: IFileProvider) : SnapshotSource =
+    let private fromFileProviderCore maxEntries cacheBytes revision (provider: IFileProvider) : SnapshotSource =
         let fileAt path =
             let info = provider.GetFileInfo path
 
@@ -48,7 +50,7 @@ module internal TreeFileSource =
             else
                 None
 
-        let nextModule pathBudget (prefix: string) after =
+        let scanModule retain work pathBudget (prefix: string) after =
             let root = prefix.TrimEnd('/')
             let directories = Stack<string * IEnumerator<IFileInfo>>()
             let mutable remaining = maxEntries
@@ -56,10 +58,13 @@ module internal TreeFileSource =
             let mutable refusal = None
 
             let push directory =
-                directories.Push(
-                    directory,
-                    provider.GetDirectoryContents(directory).GetEnumerator()
-                )
+                if charge work 1L then
+                    directories.Push(
+                        directory,
+                        provider.GetDirectoryContents(directory).GetEnumerator()
+                    )
+                else
+                    refusal <- Some(StoreErrors.workLimit (Some directory))
 
             try
                 push root
@@ -68,7 +73,9 @@ module internal TreeFileSource =
                       && Option.isNone refusal do
                     let directory, entries = directories.Peek()
 
-                    if not (entries.MoveNext()) then
+                    if not (charge work 1L) then
+                        refusal <- Some(StoreErrors.workLimit (Some directory))
+                    elif not (entries.MoveNext()) then
                         directories.Pop()
                         |> ignore
 
@@ -122,7 +129,9 @@ module internal TreeFileSource =
                                 directory
                                 + "/module"
 
-                            if
+                            if not (retain logical) then
+                                refusal <- Some(error "tree.discovery_cache_limit" (Some prefix) "Module paths exceed the reserved discovery cache.")
+                            elif
                                 (after
                                  |> Option.forall (fun prior ->
                                      String.CompareOrdinal(logical, prior) > 0
@@ -141,6 +150,64 @@ module internal TreeFileSource =
                 while directories.Count > 0 do
                     let _, entries = directories.Pop()
                     entries.Dispose()
+
+        // One active package. Charge for UTF-16 paths, sorted-set nodes and
+        // the final array concurrently. Never publish a partial walk.
+        let mutable cached: (string * int * string array) option = None
+        let originalRevision = if cacheBytes = 0L then "" else revision ()
+        let cacheGate = obj ()
+        let nextModule work pathBudget (prefix: string) after =
+            if cacheBytes = 0L then scanModule (fun _ -> true) work pathBudget prefix after
+            else lock cacheGate (fun () ->
+                let changed () =
+                    cached <- None
+                    Error(error "tree.revision_changed" None "The tree source changed during discovery.")
+                if revision () <> originalRevision then changed ()
+                else
+                    let lookup (paths: string array) =
+                        let cost = 1L + int64 (Math.Ceiling(Math.Log(float (paths.Length + 1), 2.0)))
+                        if not (charge work cost) then Error(StoreErrors.workLimit (Some prefix))
+                        else
+                            let index =
+                                match after with
+                                | None -> 0
+                                | Some previous ->
+                                    let found = Array.BinarySearch(paths, previous, StringComparer.Ordinal)
+                                    if found < 0 then ~~~found else found + 1
+                            if index < paths.Length then Ok(Some paths[index]) else Ok None
+                    match cached with
+                    | Some(package, budget, paths) when package = prefix && budget = pathBudget -> lookup paths
+                    | _ ->
+                        cached <- None
+                        let paths = SortedSet<string>(StringComparer.Ordinal)
+                        let mutable retained = 128L
+                        let mutable workRefused = false
+                        let retain (path: string) =
+                            let cost = 1L + int64 (Math.Ceiling(Math.Log(float (paths.Count + 2), 2.0)))
+                            if not (charge work cost) then
+                                workRefused <- true
+                                false
+                            elif paths.Contains path then true
+                            else
+                                let bytes = 160L + 4L * int64 path.Length
+                                if retained > cacheBytes || bytes > cacheBytes - retained then false
+                                else
+                                    retained <- retained + bytes
+                                    paths.Add path |> ignore
+                                    true
+                        let result =
+                            if cacheBytes < retained then
+                                Error(error "tree.discovery_cache_limit" (Some prefix) "The discovery reservation is below its fixed overhead.")
+                            else scanModule retain work pathBudget prefix None
+                        if revision () <> originalRevision then changed ()
+                        elif workRefused then Error(StoreErrors.workLimit (Some prefix))
+                        else
+                            match result with
+                            | Error problem -> Error problem
+                            | Ok _ ->
+                                let ordered = Seq.toArray paths
+                                cached <- Some(prefix, pathBudget, ordered)
+                                lookup ordered)
 
         {
             Revision = revision
@@ -165,12 +232,21 @@ module internal TreeFileSource =
         }
 
 
+    /// Preserve the public constant-retention scan without a discovery reservation.
+    let fromFileProvider maxEntries revision provider =
+        fromFileProviderCore maxEntries 0L revision provider
+
+    /// Retain one package's paths within an explicit reservation. Zero selects the scan fallback.
+    let fromFileProviderWithDiscoveryCache maxEntries cacheBytes revision provider =
+        if cacheBytes < 0L then invalidArg (nameof cacheBytes) "A discovery reservation cannot be negative."
+        fromFileProviderCore maxEntries cacheBytes revision provider
+
     type Profile =
         | Json
         | Yaml
 
     /// Inspect the physical spellings without opening any of them.
-    let snapshotLocation (source: SnapshotSource) expected logical =
+    let private locateSnapshot (source: SnapshotSource) expected logical =
         try
             let found =
                 [ Json, ".json"; Yaml, ".yaml"; Yaml, ".yml" ]
@@ -203,6 +279,10 @@ module internal TreeFileSource =
                 )
         with ex ->
             Error(error "tree.unreadable_file" (Some logical) ex.Message)
+
+    let snapshotLocation work source expected logical =
+        if charge work 3L then locateSnapshot source expected logical
+        else Error(StoreErrors.workLimit (Some logical))
 
     let profileOf (location: string) =
         if location.EndsWith(".json", StringComparison.Ordinal) then
@@ -281,11 +361,22 @@ module internal TreeFileSource =
                 with ex ->
                     Error(error "tree.unreadable_file" (Some location) ex.Message)
 
-    let snapshotBytes limit (source: SnapshotSource) location =
+    let snapshotBytes limit (source: SnapshotSource) location (work: BoundedTreeWorkBudget option) =
+        let exhausted () = Error(StoreErrors.workLimit (Some location))
         try
-            match source.FindFile location with
-            | Some file -> contentBytes limit location file
-            | None -> Error(error "tree.missing_member" (Some location) "The tree file is missing.")
+            if not (charge work 1L) then exhausted ()
+            else
+                let cap = work |> Option.map (fun meter -> meter.CapBytes limit) |> Option.defaultValue limit
+                if cap <= 0L then exhausted ()
+                else
+                    match source.FindFile location with
+                    | None -> Error(error "tree.missing_member" (Some location) "The tree file is missing.")
+                    | Some file ->
+                        match contentBytes cap location file with
+                        | Ok bytes when charge work (BoundedTreeWorkBudget.Blocks(int64 bytes.Length)) -> Ok bytes
+                        | Ok _ -> exhausted ()
+                        | Error problem when cap < limit && problem.Code = "tree.file_too_large" -> exhausted ()
+                        | Error problem -> Error problem
         with ex ->
             Error(error "tree.unreadable_file" (Some location) ex.Message)
 

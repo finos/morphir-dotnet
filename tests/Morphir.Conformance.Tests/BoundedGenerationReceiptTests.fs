@@ -278,3 +278,85 @@ let tests =
                             replayed.Resources.Reasons
                 )
     ]
+
+// Adapter coverage is separate from core Receipt.check controls and future development CLI parser coverage.
+[<Tests>]
+let commandTests =
+    let schema = FixtureCatalog.ReadBytes FixtureCatalog.BoundedGenerationReceipts.Schema
+    let controlsBytes = FixtureCatalog.ReadBytes FixtureCatalog.BoundedGenerationReceipts.Controls
+    use document = JsonDocument.Parse(ReadOnlyMemory controlsBytes)
+    let controls = document.RootElement.Clone()
+    let sample = FixtureCatalog.ReadText FixtureCatalog.BoundedGenerationReceipts.Sample
+
+    let withInputs (receipt: byte array) (controls: byte array) action =
+        use sandbox = Morphir.TestSupport.TestSandbox.Create "bounded-receipt-adapter-"
+        let schemaPath = sandbox.PathOf "schema.json"
+        let controlsPath = sandbox.PathOf "controls.json"
+        let receiptPath = sandbox.PathOf "receipt.json"
+        System.IO.File.WriteAllBytes(schemaPath, schema)
+        System.IO.File.WriteAllBytes(controlsPath, controls)
+        System.IO.File.WriteAllBytes(receiptPath, receipt)
+        action schemaPath controlsPath receiptPath
+
+    let resultDocument (result: ReceiptCommandResult) =
+        use document = JsonDocument.Parse result.Output
+        let root = document.RootElement.Clone()
+        Expect.equal (root.GetProperty("exitCode").GetInt32()) result.ExitCode "reported exit code"
+        Expect.equal (text "command" root) "mck bounded-generation report-check" "command identity"
+        root
+
+    let expectError code exitCode (result: ReceiptCommandResult) =
+        let root = resultDocument result
+        Expect.equal result.ExitCode exitCode "error exit code"
+        Expect.equal (text "code" (root.GetProperty "error")) code "error code"
+        for name in [ "correctness"; "resources" ] do
+            Expect.equal (root.GetProperty(name).ValueKind) JsonValueKind.Null "refusal has no replayed decision"
+
+    testLabel "PlatformSpecific"
+    <| testList "Bounded-generation receipt command adapter" [
+        for control in controls.GetProperty("cases").EnumerateArray() do
+            let control = control.Clone()
+            testCase (text "id" control) (fun () ->
+                withInputs (patchReceipt sample control) controlsBytes (fun schemaPath controlsPath receiptPath ->
+                    let result = ReceiptCommands.CheckReport(schemaPath, controlsPath, receiptPath)
+                    let expected = control.GetProperty "expected"
+                    match refusalOf expected with
+                    | Some code -> expectError code 1 result
+                    | None ->
+                        let root = resultDocument result
+                        Expect.equal (root.GetProperty("error").ValueKind) JsonValueKind.Null "no checker error"
+                        for name in [ "correctness"; "resources" ] do
+                            let actual = root.GetProperty name
+                            let expected = expected.GetProperty name
+                            Expect.equal (text "state" actual) (text "state" expected) (name + " state")
+                            let reasons (value: JsonElement) =
+                                value.GetProperty("reasons").EnumerateArray()
+                                |> Seq.map (fun reason -> reason.GetString() |> nonNull)
+                                |> Seq.toList
+                            Expect.equal (reasons actual) (reasons expected) (name + " ordered reasons")
+                        let passed (name: string) = text "state" (expected.GetProperty name) = "passed"
+                        Expect.equal result.ExitCode (if passed "correctness" && passed "resources" then 0 else 1) "qualification exit"))
+
+        testCase "missing file returns an operational error" (fun () ->
+            withInputs (Encoding.UTF8.GetBytes sample) controlsBytes (fun schemaPath controlsPath receiptPath ->
+                System.IO.File.Delete schemaPath
+                ReceiptCommands.CheckReport(schemaPath, controlsPath, receiptPath) |> expectError "mck.io" 2))
+
+        testCase "controls and receipt digest substitution cannot replace the expectation" (fun () ->
+            let alteredControls = Encoding.UTF8.GetBytes(Encoding.UTF8.GetString(controlsBytes).Replace(String.replicate 64 "8", String.replicate 64 "9"))
+            let alteredReceipt = Encoding.UTF8.GetBytes(sample.Replace(String.replicate 64 "8", String.replicate 64 "9"))
+            withInputs alteredReceipt alteredControls (fun schemaPath controlsPath receiptPath ->
+                ReceiptCommands.CheckReport(schemaPath, controlsPath, receiptPath) |> expectError "case_expectation_source_mismatch" 1))
+
+        testCase "altered schema remains refused by Receipt.check" (fun () ->
+            withInputs (Encoding.UTF8.GetBytes sample) controlsBytes (fun schemaPath controlsPath receiptPath ->
+                System.IO.File.AppendAllText(schemaPath, " ")
+                ReceiptCommands.CheckReport(schemaPath, controlsPath, receiptPath) |> expectError "invalid_shape" 1))
+
+        testCase "malformed receipt returns a structured refusal" (fun () ->
+            withInputs (Encoding.UTF8.GetBytes "{") controlsBytes (fun schemaPath controlsPath receiptPath ->
+                ReceiptCommands.CheckReport(schemaPath, controlsPath, receiptPath) |> expectError "invalid_shape" 1))
+
+        testCase "usage renderer returns one structured document" (fun () ->
+            ReceiptCommands.UsageError "Missing required file paths." |> expectError "mck.usage" 2)
+    ]

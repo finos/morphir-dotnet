@@ -94,6 +94,8 @@ public sealed record GenerateOverrides(string? Input = null, string? Target = nu
     public string? Extension { get; init; }
     /// <summary>Explicit installed full identity, distinct from a path or command.</summary>
     public string? ExtensionId { get; init; }
+    /// <summary>Explicit host-only bounded profile; absent preserves normal admission.</summary>
+    public string? BoundedProfile { get; init; }
 }
 public sealed record ModelInput(string Path, InputFormat Format = InputFormat.Auto);
 
@@ -128,6 +130,8 @@ public sealed record GenerationSettings(ModelInput Input, RequestedTarget Target
     /// loaded model through it. The input of a prior compile holds the task's shared lock this way (REC-1).
     /// </summary>
     public ModelInputLease? InputLease { get; init; }
+    /// <summary>The explicit host admission profile, applied only on the recorded WASM route.</summary>
+    public BoundedGenerationProfile BoundedProfile { get; init; } = BoundedGenerationProfile.Default;
 }
 
 /// <summary>

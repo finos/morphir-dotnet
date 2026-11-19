@@ -17,6 +17,9 @@
     <ProjectReference Include="$(MSBuildThisFileDirectory)../../Morphir.Mck.Stub/Morphir.Mck.Stub.csproj"
                       ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
                       OutputItemType="MorphirMckStubExtensionArtifact" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)../../Morphir.Conformance.FakeWorker/Morphir.Conformance.FakeWorker.csproj"
+                      ReferenceOutputAssembly="false" Private="false" ExcludeAssets="all"
+                      OutputItemType="MorphirBoundedOrdersExtensionArtifact" />
   </ItemGroup>
 
   <Target Name="AddMorphirExtensionArtifactMetadata"
@@ -24,7 +27,13 @@
           BeforeTargets="GetAssemblyAttributes;CoreGenerateAssemblyInfo">
     <Error Condition="'@(MorphirFSharpBackendExtensionArtifact->Count())' != '1' Or '@(MorphirMckStubExtensionArtifact->Count())' != '1'"
            Text="Morphir.ExtensionArtifacts.targets needs one target path for each built extension. F# backend: '@(MorphirFSharpBackendExtensionArtifact)'. Stub morphir-mck: '@(MorphirMckStubExtensionArtifact)'." />
+    <Error Condition="'@(MorphirBoundedOrdersExtensionArtifact->Count())' != '1'"
+           Text="Expected one bounded Orders guest artifact." />
     <ItemGroup>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>Morphir.TestSupport.Extension.BoundedOrders</_Parameter1>
+        <_Parameter2>@(MorphirBoundedOrdersExtensionArtifact->'%(FullPath)')</_Parameter2>
+      </AssemblyAttribute>
       <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
         <_Parameter1>Morphir.TestSupport.Extension.FSharpBackend</_Parameter1>
         <_Parameter2>@(MorphirFSharpBackendExtensionArtifact->'%(FullPath)')</_Parameter2>

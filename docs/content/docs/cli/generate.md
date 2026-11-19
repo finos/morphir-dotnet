@@ -5,7 +5,7 @@ description: Generate target artifacts from a Morphir model
 
 # Generate
 
-Generate target files from a decoded Morphir library. Targets `fsharp` and
+Generate target files from a Morphir model. Targets `fsharp` and
 `csharp` support classic and v4 models. The C# backend reads the current IR
 only, so the command upgrades a classic model before the passes and the
 backend run. Target and output are explicit. The
@@ -25,7 +25,7 @@ morphir generate [--input <file-or-directory>] --target <fsharp|csharp> --output
 | Option | Meaning |
 | --- | --- |
 | `--input` | JSON/Ion model file or Ion tree directory. Without it, the IR of the most recent compile |
-| `--target` | Required exact registered target ID, `fsharp` or `csharp` |
+| `--target` | Required exact target ID. The built-in targets are `fsharp` and `csharp`. An extension declares its own targets. |
 | `--output` | Required output directory with owned generated files |
 | `--input-format` | `auto` by default; `json` or `ion` constrains the reader |
 | `--option` | Repeatable backend option, described below |
@@ -98,8 +98,10 @@ Integers use Int32, floats finite doubles, decimals exact .NET decimal values
 with retained scale up to 28, and characters one BMP scalar. Unsupported or
 lossy representations fail before publication.
 
-YAML model files, JSON/YAML trees and MEP envelopes are unsupported. MEP
-admission is a separate change.
+The whole-model loader accepts neither YAML nor JSON/YAML trees. A recorded
+plain JSON or YAML tree can be served to a compatible backend by
+[bounded generation](#bounded-generation-from-a-compile-record). The CLI
+does not accept a MEP envelope as an input file.
 Generation produces source files and their ownership manifest. It does not
 create an F# project or compile and execute the output.
 
@@ -113,7 +115,7 @@ deferred.
 
 ## Backend extensions
 
-A backend extension is a guest process that speaks the Morphir Extension Protocol (MEP) `0.2.0-draft.1`
+A backend extension is a guest process. For inline generation it speaks the Morphir Extension Protocol (MEP) `0.2.0-draft.1`
 over stdio and serves `morphir.backend.generateModel`. Select one with `--extension`, or with
 `[codegen.<target>].extension` in the project configuration. The option overrides the key. `compile --target`
 does not read the key: it runs the built-in backend and prints a note on stderr when the key is set. Without either,
@@ -201,9 +203,9 @@ not declare the version that the record names, it fails with
 the compiled IR fails with `generate.input_format_conflict`.
 
 `generate` holds the shared lock `compile.lock` from when it reads the record
-until it has loaded the IR. While a compile of the same project runs, `generate`
+until it has loaded a whole model or finished bounded generation. While a compile of the same project runs, `generate`
 writes one waiting line to stderr, waits, and then reads the IR of that compile.
-A compile that starts while `generate` loads the IR waits for `generate`.
+A compile that starts while `generate` holds the lock waits for it to be released.
 
 With this `morphir.toml` in the project directory, and the sources `src/Rates.fs`
 and `src/Totals.fs` of the MCK corpus case `frontend-fsharp-0116`:
@@ -227,6 +229,67 @@ $ dotnet-morphir generate --target fsharp --output gen
 Rates.fs
 Totals.fs
 ```
+
+### Bounded generation from a compile record
+
+Given a completed compile record with a document-tree descriptor, omit `--input`.
+Morphir opens the tree at the path in the record and holds the compile read lease
+until the guest has stopped. The guest pages the module inventory and
+requests definitions by logical identifier. It receives the selected documents
+through MEP without being given the tree's physical path.
+
+```sh
+morphir generate --out-dir build-artifacts --target text --extension ./orders-generator --output generated
+```
+
+Here `orders-generator` is a native guest that advertises the `text` target.
+The host offers MEP `0.2.0-draft.2` and access `0.1.0-draft.1` with operation
+`morphir.backend.generateModel`, profile `morphir-ir`, layout `document-tree`,
+and encoding `plain`. The offer uses the record's exact IR version (`3.1.0`
+or `4.0.0`) and the manifest's codec (`morphir-json` or `morphir-yaml`).
+The guest must agree to that tuple. It never receives an inline copy of the
+recorded tree. For process guests, the host checks the negotiated
+`maxFrameBytes` body ceiling from the header before reading the response. For
+configured WASM guests, the adapter applies the selected limit to the full
+frame, including its Content-Length header, and checks the reply size before
+copying it. It also applies `maxGuestStateBytes` to each linear memory and to
+the Extism variable store. If state already exceeds the selection, the host
+refuses initialization.
+It checks each reply's combined encoded and decoded artifact bytes before
+decoding the chunks. The negotiated session deadline includes guest shutdown
+and exit. If it expires, the host stops the guest and discards staged output.
+
+The `maxSessionWorkUnits` budget is shared by the bounded reader and output
+stage for the entire run. The host charges each advance and request, directory
+access and enumeration step, and file lookup. It also charges each started
+4 KiB block of document input or contextual expansion, and charges separately
+for delivery encoding and hashing. Artifact work includes per-chunk and path
+checks, encoded and decoded blocks, and the final file hash. Each retained
+diagnostic costs one unit. Repeated reads and scans draw from the same budget.
+Exhaustion returns `extension.bounded_work_limit` and discards the stage.
+
+Configure an Extism WASM backend implementing the same tuple under the
+target's extension in `morphir.toml`.
+
+```toml
+[extensions.text]
+path = "orders-generator.wasm"
+abi = "extism-kernel-v1"
+```
+
+The target selects the configured module without an `--extension` flag.
+
+```sh
+morphir generate --out-dir build-artifacts --target text --output generated
+```
+
+For the orders fixture, the guest follows two inventory pages to the final
+value, reads the earlier value it references, and emits `order.txt`. Morphir
+stages the output chunks below `build-artifacts/generate/text.dest` for a
+root project, then publishes the completed files to `generated`. Choose a
+publication directory outside the workspace task output root to protect task
+records. The CLI acceptance case compares this v4 JSON tree run with the same guest's inline
+run over the expanded v4 model.
 
 ## Examples
 
@@ -327,3 +390,55 @@ An unknown target lists registered target IDs. Invalid F# options require the
 Boolean `optimize` or `format`, for example `optimize=false` or `format=false`. Codec diagnostics identify malformed models
 and tree members. Limit diagnostics describe the exceeded byte, node, depth,
 entry or path budget. See [CLI troubleshooting](../troubleshooting/).
+
+
+## Manual Orders scale admission
+
+`--bounded-profile orders-scale` explicitly selects provisional limits on the
+existing recorded-tree path with a configured WASM backend. Omit `--input` so
+the producer record supplies its descriptor and read lease. The profile accepts
+plain JSON v4 trees; explicit inputs, built-in generation and process backends
+cannot use it. Omitting the flag preserves the normal admission policy.
+
+```powershell
+morphir generate --target text --output generated --bounded-profile orders-scale
+```
+
+The configured module must be the streaming Orders scale guest described at
+[finos/morphir commit 3652032a](https://github.com/finos/morphir/blob/3652032a5/spec/mck/bounded-generation/scale-guest.md).
+The profile does not generate an input tree or change independently fixed outputs.
+
+It offers 32 KiB documents and chunks, 64 KiB full WASM frames, one document and
+one outstanding request per exchange, 160,000 discovery entries, 2 MiB per
+artifact, 3 GiB total artifacts, 8 GiB session disk and 200,000 rounds. The
+100,000,000 work units and two-hour session deadline are provisional allowances,
+not measured guarantees. The guest can negotiate smaller limits, including a
+shorter call deadline, and any exceeded selected limit still refuses the run.
+
+Of the selected 64 MiB host-cache offer, one quarter is reserved for active-package
+discovery and one half for retained request IDs. Staging can use only the remainder.
+The fractions are recomputed if negotiation selects a smaller cache. Request IDs
+retain exact ordinal uniqueness for the single generation on this connection.
+Their logical charge is 256 fixed bytes plus 128 bytes and two bytes per UTF-16
+code unit per distinct ID; an over-budget insertion is refused before retention.
+These reservations do not establish a process resident-memory ceiling.
+
+The source recipe has 1,024 or 2,048 generated modules. Its input sizes exceed
+1 GiB or 2 GiB, and the larger expected artifact total is 2,181,171,200 bytes.
+This opt-in profile is an admission prerequisite. Both actual scale runs,
+independent output comparisons, work/time calibration, guest/kernel memory
+observations and external host/descendant memory receipts remain required.
+The existing publication transaction can temporarily copy staged artifacts again.
+The 8 GiB allowance leaves room for both copies of the recipe's outputs, but
+publication disk reservations and cancellation during its synchronous commit
+still require qualification alongside the artifact-stage meter.
+
+The decoded exchange allowance is 64 KiB, independent of the 32 KiB per-document
+reader cap. A production 16,560-byte JSON delivery and its 16,385-byte emitted
+chunk total 32,945 decoded bytes in one exchange. The pinned guest admits that
+combination under the 64 KiB decoded and encoded exchange ceilings; full request
+and response frames remain capped at 64 KiB and individual chunks at 32 KiB.
+For the explicit profile, JSON reports include effective ceilings in
+`boundedAccess`. These are selected limits, not measured frame peaks or memory.
+The production-sized black-box cases use one original 64-payload module and
+the embedded streaming guest pinned to finos/morphir at `3652032a`.

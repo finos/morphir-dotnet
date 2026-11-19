@@ -32,6 +32,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\src\Morphir.Files\Morphir.Files.fsproj" />
         <ProjectReference Include="..\..\src\Morphir.Models\Morphir.Models.fsproj" />
         <ProjectReference Include="..\..\src\Morphir.Testing\Morphir.Testing.fsproj" />
         <ProjectReference Include="..\Morphir.Models.TestSupport\Morphir.Models.TestSupport.fsproj" />

@@ -52,15 +52,17 @@ namespace Morphir.Extensions.Wasm;
 /// message at a time.
 /// </para>
 /// </remarks>
-public sealed class WasmChannel : ISingleMessageChannel, IDisposable
+public sealed class WasmChannel : ISingleMessageChannel, IDisposable, IAsyncDisposable
 {
     readonly object gate = new();
     readonly SessionStore store;
+    readonly TaskCompletionSource storeClosed = new(TaskCreationOptions.RunContinuationsAsynchronously);
     int handleCalls;
     bool calling;
     bool disposeAfterCall;
     bool storeDisposed;
     bool deliversNotifications;
+    bool modelAccessLimitsApplied;
     ChannelState state = ChannelState.Open;
 
     enum ChannelState
@@ -75,7 +77,6 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable
     {
         this.store = store;
         Module = store.Module;
-        Limits = store.Limits;
     }
 
     /// <summary>
@@ -94,7 +95,20 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable
     public ExtismModule Module { get; }
 
     /// <summary>The bounds and frame limits of this channel.</summary>
-    public SessionLimits Limits { get; }
+    public SessionLimits Limits => store.Limits;
+
+    internal string? ApplyModelAccessLimits(ModelAccessLimits limits)
+    {
+        lock (gate)
+        {
+            if (state != ChannelState.Open || calling)
+                return "The WASM adapter cannot apply model-access limits outside an idle session.";
+
+            var refusal = store.ApplyModelAccessLimits(limits.MaxFrameBytes, limits.MaxGuestStateBytes);
+            modelAccessLimitsApplied = refusal is null;
+            return refusal;
+        }
+    }
 
     /// <summary>The guest's output: what it wrote to WASI stdout and stderr and logged, and the <c>http_request</c>
     /// calls the host refused, bounded (<see cref="SessionStore.GuestOutput"/>). It is never part of a reply. The
@@ -214,7 +228,7 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable
     Exception? Refusal(string method) => state switch
     {
         ChannelState.Open => null,
-        ChannelState.Failed => new WasmChannelException(method, Failure!),
+        ChannelState.Failed => CreateException(method, Failure!),
         ChannelState.Exited => new ObjectDisposedException(nameof(WasmChannel), $"The guest's instance ended at {Method.Exit.WireValue}; {method} was not passed to it."),
         _ => new ObjectDisposedException(nameof(WasmChannel), $"The channel is disposed; {method} was not passed to the guest."),
     };
@@ -244,14 +258,26 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable
             calling = true;
         }
 
-        var done = new TaskCompletionSource<byte[]?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var thread = new Thread(() => RunCall(method, message, isRequest, cancellation, done))
+        try
         {
-            IsBackground = true,
-            Name = "morphir-wasm-call",
-        };
-        thread.Start();
-        return done.Task;
+            var done = new TaskCompletionSource<byte[]?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var thread = new Thread(() => RunCall(method, message, isRequest, cancellation, done))
+            {
+                IsBackground = true,
+                Name = "morphir-wasm-call",
+            };
+            thread.Start();
+            return done.Task;
+        }
+        catch
+        {
+            lock (gate)
+            {
+                calling = false;
+                End(ChannelState.Disposed);
+            }
+            throw;
+        }
     }
 
     /// <summary>One call, on its own thread: the <c>handle</c> call, then what its result means. Completes
@@ -261,12 +287,12 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable
         try
         {
             Interlocked.Increment(ref handleCalls);
-            var outcome = store.CallHandle(message.Span, cancellation);
+            var outcome = store.CallHandle(message.Span, cancellation, Limits.ResponseFrameBytes, out var outputBytes);
             var exit = method == Method.Exit.WireValue;
             lock (gate)
             {
                 calling = false;
-                var (reply, error) = Interpret(method, outcome, isRequest, cancellation);
+                var (reply, error) = Interpret(method, outcome, outputBytes, isRequest, cancellation);
                 if (error is null && exit)
                 {
                     End(ChannelState.Exited);
@@ -282,10 +308,24 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable
         }
         catch (Exception unexpected)
         {
-            lock (gate)
+            try
             {
-                calling = false;
-                End(ChannelState.Disposed);
+                lock (gate)
+                {
+                    calling = false;
+                    if (unexpected is SessionStore.ResponseFrameTooLarge oversized)
+                    {
+                        unexpected = Fail(method, oversized.Failure);
+                    }
+                    else
+                    {
+                        End(ChannelState.Disposed);
+                    }
+                }
+            }
+            catch (Exception cleanup)
+            {
+                unexpected = new AggregateException(unexpected, cleanup);
             }
 
             done.TrySetException(unexpected);
@@ -309,7 +349,7 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable
     }
 
     /// <summary>What a call's outcome means, as the contract's <c>handle</c> results say. Holds the gate.</summary>
-    (byte[]? Reply, Exception? Error) Interpret(string method, HandleOutcome outcome, bool isRequest, CancellationToken cancellation)
+    (byte[]? Reply, Exception? Error) Interpret(string method, HandleOutcome outcome, int outputBytes, bool isRequest, CancellationToken cancellation)
     {
         switch (outcome)
         {
@@ -321,13 +361,13 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable
             case HandleOutcome.NotRun notRun:
                 return (null, Fail(method, new WasmChannelFailure.Guest(notRun.EndedBy)));
             case HandleOutcome.Completed completed:
-                return Completed(method, completed, isRequest);
+                return Completed(method, completed, outputBytes, isRequest);
             default:
                 throw new InvalidOperationException($"The store gave an outcome this channel does not know: {outcome}.");
         }
     }
 
-    (byte[]? Reply, Exception? Error) Completed(string method, HandleOutcome.Completed completed, bool isRequest)
+    (byte[]? Reply, Exception? Error) Completed(string method, HandleOutcome.Completed completed, int outputBytes, bool isRequest)
     {
         var result = completed.Result;
         if (result.ErrorHandle != 0)
@@ -338,7 +378,7 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable
 
         if (result.ReturnCode != 0)
         {
-            return (null, Fail(method, new WasmChannelFailure.NonZeroResult(result.ReturnCode, result.Output.Length, completed.Memory)));
+            return (null, Fail(method, new WasmChannelFailure.NonZeroResult(result.ReturnCode, outputBytes, completed.Memory)));
         }
 
         if (result.Output.Length == 0)
@@ -350,12 +390,6 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable
             }
 
             return (null, null);
-        }
-
-        var frameBytes = FrameBytes(result.Output.Length);
-        if (frameBytes > Limits.ResponseFrameBytes)
-        {
-            return (null, Fail(method, new WasmChannelFailure.ResponseOverLimit(frameBytes, Limits.ResponseFrameBytes, completed.Memory)));
         }
 
         if (!isRequest)
@@ -378,8 +412,16 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable
     {
         Failure ??= failure;
         End(ChannelState.Failed);
-        return new WasmChannelException(method, Failure);
+        return CreateException(method, Failure);
     }
+
+    WasmChannelException CreateException(string method, WasmChannelFailure failure) =>
+        new(method, failure, modelAccessLimitsApplied ? failure switch
+        {
+            WasmChannelFailure.RequestOverLimit or WasmChannelFailure.ResponseOverLimit => "maxFrameBytes",
+            WasmChannelFailure.Guest { Failure.Kind: GuestFailureKind.MemoryLimit } => "maxGuestStateBytes",
+            _ => null,
+        } : null);
 
     /// <summary>Ends the instance once: the store is disposed, unless a call is inside it, in which case the call's
     /// thread disposes it when the call returns. Holds the gate.</summary>
@@ -399,13 +441,25 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable
         if (!storeDisposed)
         {
             storeDisposed = true;
-            store.Dispose();
+            try
+            {
+                store.Dispose();
+                storeClosed.TrySetResult();
+            }
+            catch (Exception error)
+            {
+                storeClosed.TrySetException(error);
+                throw;
+            }
         }
     }
 
     /// <summary>The size of a message's frame on a stream: its <c>Content-Length</c> header and its body.</summary>
-    static long FrameBytes(int bodyBytes) =>
-        Encoding.ASCII.GetByteCount($"Content-Length: {bodyBytes}\r\n\r\n") + (long)bodyBytes;
+    internal static long FrameBytes(long bodyBytes)
+    {
+        var header = Encoding.ASCII.GetByteCount($"Content-Length: {bodyBytes}\r\n\r\n");
+        return bodyBytes <= long.MaxValue - header ? bodyBytes + header : long.MaxValue;
+    }
 
     /// <summary>Ends the instance and disposes the store. A call that is running stops at its own deadline or
     /// cancellation; the store is disposed when it returns.</summary>
@@ -415,5 +469,12 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable
         {
             End(ChannelState.Disposed);
         }
+    }
+
+    /// <summary>Refuses further calls and waits for the running call to stop and release its store.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        Dispose();
+        await storeClosed.Task.ConfigureAwait(false);
     }
 }

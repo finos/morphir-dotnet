@@ -184,6 +184,7 @@ public static class TestPlan
         TestSuite.TUnit("Morphir.TestSupport.Tests").WithSourceProjects(),
         TestSuite.Expecto("Morphir.Frontend.FSharp.Tests"),
         TestSuite.Expecto("Morphir.Conformance.Tests"),
+        TestSuite.TUnit("Morphir.Mck.Tests"),
         TestSuite.TUnit("Morphir.SDK.Conformance.Tests"),
         TestSuite.TUnit("Morphir.SDK.CSharp.Tests"),
         TestSuite.Expecto("Morphir.IR.Pipeline.Plugins.Tests"),

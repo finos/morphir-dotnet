@@ -114,6 +114,7 @@ module private Results =
 type Guest(definition: GuestDefinition) =
     let mutable state = SessionState.Created
     let generation = BoundedGeneration()
+    let frameBudget = FrameBodyBudget()
 
     let bounded = ModelAccess.protocolVersion
     let boundedSupport =
@@ -196,7 +197,13 @@ type Guest(definition: GuestDefinition) =
           Method.Describe,
           Handlers.request MepJson.Default.DescribeParams MepJson.Default.CapabilityClaimSet (fun _ _ ->
               Task.FromResult(Ok claims))
-          Method.Initialized, Handlers.notification (fun _ -> Task.CompletedTask)
+          Method.Initialized,
+          Handlers.notification (fun _ ->
+              match state with
+              | SessionState.Initialized session ->
+                  session.Capabilities.ModelAccess |> Option.iter (fun access -> frameBudget.Restrict access.Limits.MaxFrameBytes)
+              | _ -> ()
+              Task.CompletedTask)
           Method.Ping, Handlers.constant Lifecycle.pingResult
           Method.Info,
           Handlers.requestWithoutParams MepJson.Default.ExtensionInfo (fun _ -> Task.FromResult(Ok definition.Claims.Extension))
@@ -251,7 +258,7 @@ type Guest(definition: GuestDefinition) =
 
     /// Serves the session on a framed stream pair until exit, the end of the stream or a framing failure.
     member this.RunAsync(input: Stream, output: Stream, cancellation: CancellationToken) : Task<ConnectionEnd> =
-        Connection(input, output, dispatcher, Func<bool>(fun () -> this.IsDone)).RunAsync cancellation
+        Connection.WithFrameBudget(input, output, dispatcher, Func<bool>(fun () -> this.IsDone), frameBudget).RunAsync cancellation
 
 /// Why the host could not initialize a session.
 [<RequireQualifiedAccess>]
@@ -723,7 +730,14 @@ type HostSession
                             | _ ->
                                 Error $"The extension {result.Extension} selected model access outside an offered draft.2 session.")
 
-                    match selection with
+                    let admission =
+                        selection
+                        |> Result.bind (fun (transport, access) ->
+                            match access |> Option.bind (fun agreed -> channel.ApplyModelAccessLimits agreed.Limits) with
+                            | Some refusal -> Error refusal
+                            | None -> Ok(transport, access))
+
+                    match admission with
                     | Error reason -> return Error(InitializeFailure.SelectionRefused reason)
                     | Ok(transport, access) ->
                         let session =
@@ -742,6 +756,7 @@ type HostSession
                             let! notification = notifyIn operation Method.Initialized.WireValue parameters cancellation
                             match notification.Result with
                             | Ok() ->
+                                access |> Option.iter (fun agreed -> channel.RestrictFrameBytes agreed.Limits.MaxFrameBytes)
                                 match operation with
                                 | Some _ ->
                                     match health () with
@@ -993,6 +1008,18 @@ type HostSession
     member _.RequestAsync(method: Method, parameters: Nullable<JsonElement>, cancellation: CancellationToken) =
         send method (Option.ofNullable parameters) cancellation
 
+    /// Reserve retained request-ID bytes for this connection's single generation.
+    /// Call after initialization and before start, with bytes reserved alongside
+    /// discovery and staging under the negotiated host cache. Refuses reuse.
+    member _.TryReserveSingleGenerationRequestCache(bytes: int64) =
+        match state with
+        | SessionState.Initialized session ->
+            match session.Capabilities.ModelAccess with
+            | Some access when bytes > 0L && bytes <= int64 access.Limits.MaxHostCacheBytes ->
+                generation.TryReserveSingleOperationRequestCache bytes
+            | _ -> false
+        | _ -> false
+
     /// Starts a bounded generation operation on the initialized connection.
     member _.StartGenerationAsync(request: ModelAccessStart, cancellation: CancellationToken) =
         let parameters = JsonSerializer.SerializeToElement(request, MepJson.Default.ModelAccessStart)
@@ -1019,14 +1046,22 @@ type HostSession
             let! observed = shutdownObserved cancellation
             return observed.Result }
 
+    /// Sends the product exit notification with an optional deadline and preserves the adapter result.
+    member internal _.SendExitAsync(cancellation: CancellationToken) : Task<Result<unit, RpcError>> =
+        task {
+            generation.Close()
+            let! result = channel.NotifyAsync(Method.Exit.WireValue, None, cancellation)
+            state <- SessionState.Exited
+            return result
+        }
+
     /// Sends morphir.exit and ends the session. A session that failed passes nothing to the guest.
-    member _.ExitAsync() : Task =
+    member this.ExitAsync() : Task =
         match conformanceOptions with
         | None ->
             task {
-                generation.Close()
-                let! _ = channel.NotifyAsync(Method.Exit.WireValue, None, CancellationToken.None)
-                state <- SessionState.Exited
+                let! _ = this.SendExitAsync CancellationToken.None
+                ()
             }
         | Some _ -> task {
             let! _ = exitObserved ()

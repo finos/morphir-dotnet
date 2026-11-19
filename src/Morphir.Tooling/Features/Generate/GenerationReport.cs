@@ -18,6 +18,9 @@ public sealed record GenerationReport(bool Success, int ExitCode, string? Target
     /// <summary>The version of the selected backend extension, as it gave it. Written only for an extension.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? BackendVersion { get; init; }
+    /// <summary>Effective document, full-frame and negotiated exchange ceilings for an opt-in bounded profile.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? BoundedAccess { get; init; }
     /// <summary>Actual installed process observation in the existing generation-provider shape.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonElement? Provider { get; init; }
@@ -46,6 +49,7 @@ public sealed record GenerationReport(bool Success, int ExitCode, string? Target
         {
             BackendTransport = success.Value.BackendTransport,
             BackendVersion = success.Value.BackendVersion,
+            BoundedAccess = success.Value.BoundedAccess,
             Provider = success.Value.Provider,
             Formatting = success.Value.Formatting,
             Passes = success.Value.Passes,

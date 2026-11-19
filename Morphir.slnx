@@ -19,6 +19,7 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Morphir.Conformance/Morphir.Conformance.fsproj" />
+    <Project Path="src/Morphir.Mck/Morphir.Mck.csproj" />
     <Project Path="src/Morphir.SDK.CSharp/Morphir.SDK.CSharp.csproj" />
     <Project Path="src/Morphir.CodeGeneration.FSharp/Morphir.CodeGeneration.FSharp.fsproj" />
     <Project Path="src/Morphir.CodeGeneration.FSharp.Extension/Morphir.CodeGeneration.FSharp.Extension.fsproj" />
@@ -81,6 +82,7 @@
     <Project Path="tests/Morphir.Diagrams.FSharp.Tests/Morphir.Diagrams.FSharp.Tests.fsproj" />
     <Project Path="tests/Morphir.Svg.Tests/Morphir.Svg.Tests.csproj" />
     <Project Path="tests/Morphir.Diagrams.Smoke/Morphir.Diagrams.Smoke.csproj" />
+    <Project Path="tests/Morphir.Mck.Tests/Morphir.Mck.Tests.csproj" />
     <Project Path="tests/Morphir.Frontend.FSharp.Tests/Morphir.Frontend.FSharp.Tests.fsproj" />
     <Project Path="tests/Morphir.Frontend.FSharp.Extension.Tests/Morphir.Frontend.FSharp.Extension.Tests.fsproj" />
     <Project Path="tests/Morphir.Compilation.Mep.Tests/Morphir.Compilation.Mep.Tests.fsproj" />

@@ -118,6 +118,16 @@ let private boundedGuestWithMethods (reply: JsonNode) methods =
     )
 
 let private boundedGuestFrom reply = boundedGuestWithMethods reply (readOnlyDict [])
+let private invalidDocumentDeliveries (delivery: JsonNode) =
+    let variant (key: string) (value: JsonNode) =
+        let changed = delivery.DeepClone()
+        changed[key] <- value
+        changed
+    let length = (delivery["decodedByteLength"] |> nonNull).GetValue<int>()
+    let content = (delivery["content"] |> nonNull).GetValue<string>()
+    [ "incorrect digest", variant "sha256" (JsonValue.Create(String.replicate 64 "0"))
+      "incorrect length", variant "decodedByteLength" (JsonValue.Create(length + 1))
+      "malformed base64", variant "content" (JsonValue.Create("!" + content.Substring(1))) ]
 
 let private boundedGuest () = boundedGuestFrom (JsonNode.Parse boundedGuestResult |> nonNull)
 
@@ -385,6 +395,50 @@ let boundedGenerationNegotiationTests =
                 Expect.equal (code (boundedReply guest boundedStart)) (Some -32602) "A completed ID cannot be reused"
                 Expect.equal advances 3 "Only three deliveries reached the generator"
 
+            testCase "matched document deliveries obey all aggregate batch ceilings" <| fun _ ->
+                let selectedDocument id =
+                    let request =
+                        modelAccessTranscript
+                        |> List.find (fun entry ->
+                            entry.Direction = HostToExtension
+                            && JsonNode.DeepEquals(entry.Node["id"], JsonValue.Create(id: int)))
+                    let parameters = request.Node["params"] |> nonNull
+                    (parameters["deliveries"] |> nonNull)[0] |> nonNull
+
+                let deliveries = JsonArray((selectedDocument 7).DeepClone(), (selectedDocument 8).DeepClone())
+                let template = JsonNode.Parse """{"jsonrpc":"2.0","id":3,"method":"morphir.backend.generateModel.advance","params":{"sessionId":"orders-generation","round":1}}""" |> nonNull
+                let parameters = template["params"] |> nonNull
+                parameters["deliveries"] <- deliveries
+                let advance = template.ToJsonString()
+
+                for label, documents, encodedBytes, decodedBytes, expected in
+                    [ "exact bounds", 2, 672, 503, None
+                      "document count", 1, 672, 503, Some -32602
+                      "aggregate encoded length", 2, 671, 503, Some -32602
+                      "aggregate decoded length", 2, 672, 502, Some -32602 ] do
+                    let mutable calls = 0
+                    let start =
+                        Handlers.constant """{"state":"continue","sessionId":"orders-generation","round":1,"requests":[{"kind":"document","requestId":"final-value","documentId":"pkg/acme/orders/domain/total-in-_usd.value"},{"kind":"document","requestId":"order-value","documentId":"pkg/acme/orders/domain/order.value"}],"artifacts":[],"diagnostics":[]}"""
+                    let deliver =
+                        Handlers.raw (fun _ _ ->
+                            calls <- calls + 1
+                            Task.FromResult(Ok(JsonRpc.Constant """{"state":"complete","sessionId":"orders-generation","artifacts":[],"diagnostics":[]}""")))
+                    let guest =
+                        boundedGuestWithMethods
+                            (JsonNode.Parse boundedGuestResult |> nonNull)
+                            (readOnlyDict [ Method.GenerateModelStart.WireValue, start; Method.GenerateModelAdvance.WireValue, deliver ])
+
+                    let startRequest = JsonNode.Parse boundedStart |> nonNull
+                    let parameters = startRequest["params"] |> nonNull
+                    let limits = parameters["limits"] |> nonNull
+                    limits["maxDocumentsPerBatch"] <- JsonValue.Create documents
+                    limits["maxEncodedBytesPerExchange"] <- JsonValue.Create encodedBytes
+                    limits["maxDecodedBytesPerExchange"] <- JsonValue.Create decodedBytes
+                    boundedReply guest boundedInitialize |> ignore
+                    Expect.equal (code (boundedReply guest (startRequest.ToJsonString()))) None "Start admits the declared ceilings"
+                    Expect.equal (code (boundedReply guest advance)) expected label
+                    Expect.equal calls (if Option.isNone expected then 1 else 0) "Only a whole admitted batch reaches the generator"
+
             testCase "a successful cancel releases the operation and malformed continuation cannot advance" <| fun _ ->
                 let valid = Handlers.constant """{"state":"continue","sessionId":"orders-generation","round":1,"requests":[],"artifacts":[],"diagnostics":[]}"""
                 let cancel = Handlers.constant """{"sessionId":"orders-generation"}"""
@@ -485,6 +539,14 @@ let boundedGenerationNegotiationTests =
                 | unexpected -> failtestf "Expected the second, document round, got %A" unexpected
 
                 let doc = """{"sessionId":"orders-generation","round":2,"deliveries":[{"requestId":"order-value","kind":"document","snapshotId":"orders-snapshot","documentId":"pkg/acme/orders/domain/order.value","decodedByteLength":246,"sha256":"23b1c85f2ee470a468e335098619d394fd23d7a70ee592d39a28612dc5e98fa0","content":"ewogICJmb3JtYXRWZXJzaW9uIjogNCwKICAibmFtZSI6ICJvcmRlciIsCiAgImRlZiI6IHsKICAgICJQdWJsaWMiOiB7CiAgICAgICJFeHByZXNzaW9uQm9keSI6IHsKICAgICAgICAiaW5wdXRUeXBlcyI6IHt9LAogICAgICAgICJvdXRwdXRUeXBlIjogIm1vcnBoaXIvU0RLOmJhc2ljcyNpbnQiLAogICAgICAgICJib2R5IjogeyAiTGl0ZXJhbCI6IHsgIkludGVnZXJMaXRlcmFsIjogNzMgfSB9CiAgICAgIH0KICAgIH0KICB9Cn0K"}]}"""
+                let docParams = JsonNode.Parse doc |> nonNull
+                let delivery = (docParams["deliveries"] |> nonNull)[0] |> nonNull
+                for label, invalid in invalidDocumentDeliveries delivery do
+                    let changed = docParams.DeepClone()
+                    (changed["deliveries"] |> nonNull)[0] <- invalid
+                    let result = host.AdvanceGenerationAsync(fromJson (changed.ToJsonString()), ct).Result
+                    Expect.isError result $"The host refuses {label}"
+                    Expect.equal delivered.Count 1 "An invalid selected document never reaches the guest"
                 match host.AdvanceGenerationAsync(fromJson doc, ct).Result with
                 | Ok(ModelAccessStep.Complete("orders-generation", chunks, _)) ->
                     Expect.isTrue (JsonNode.DeepEquals(delivered[1], JsonNode.Parse doc)) "Document wire payload"
@@ -494,6 +556,49 @@ let boundedGenerationNegotiationTests =
                 | unexpected -> failtestf "Expected completion with the artifact, got %A" unexpected
                 Expect.isError (host.AdvanceGenerationAsync(fromJson doc, ct).Result) "Host rejects a terminal replay"
                 Expect.equal delivered.Count 2 "The replay does not transmit"
+
+            testCase "bounded byte calls refuse oversized messages on both sides of the adapter" <| fun _ ->
+                let offer =
+                    decode MepJson.Default.InitializeParams ((JsonNode.Parse boundedInitialize |> nonNull)["params"] |> nonNull)
+                let supported = offer.ModelAccess |> Option.defaultWith (fun () -> failtest "Missing fixture support")
+                let limits = { supported.Limits with MaxFrameBytes = 4096 }
+                let support = { supported with Limits = limits }
+                let start = decode MepJson.Default.ModelAccessStart ((JsonNode.Parse boundedStart |> nonNull)["params"] |> nonNull)
+                let padding = String('x', 6000)
+                let ct = CancellationToken.None
+
+                for oversizedRequest in [ true; false ] do
+                    let oversizedReply =
+                        """{"state":"complete","sessionId":"orders-generation","artifacts":[],"diagnostics":[{"severity":"warning","message":"%s"}]}"""
+                        |> fun template -> template.Replace("%s", padding)
+                    let guest =
+                        boundedGuestWithMethods
+                            (JsonNode.Parse boundedGuestResult |> nonNull)
+                            (readOnlyDict [ Method.GenerateModelStart.WireValue, Handlers.constant oversizedReply ])
+                    let mutable requests = 0
+                    let channel =
+                        { new ISingleMessageChannel with
+                            member _.RequestAsync(method, message, cancellation) =
+                                if method = Method.GenerateModelStart.WireValue then requests <- requests + 1
+                                guest.Dispatcher.DispatchAsync(message, cancellation)
+                            member _.NotifyAsync(_, message, cancellation) =
+                                guest.Dispatcher.DispatchAsync(message, cancellation) }
+                    let host = HostSession.CreateWithModelAccess(channel, offer.Host, support, null)
+                    Expect.isOk (host.InitializeAsync(ct).GetAwaiter().GetResult()) "Agreement precedes the byte limit"
+                    if oversizedRequest then
+                        let expanded = JsonRpc.Constant("{\"padding\":\"" + padding + "\"}")
+                        let operation = { start with Limits = limits; Options = expanded }
+                        try
+                            host.StartGenerationAsync(operation, ct).GetAwaiter().GetResult() |> ignore
+                            failtest "Expected the encoded request to be refused"
+                        with :? System.IO.IOException as error ->
+                            Expect.stringContains error.Message "maxFrameBytes" "Report the negotiated limit"
+                        Expect.equal requests 0 "An oversized request never reaches the adapter"
+                    else
+                        match host.StartGenerationAsync({ start with Limits = limits }, ct).GetAwaiter().GetResult() with
+                        | Error error -> Expect.stringContains error.Message "maxFrameBytes" "Report the refused reply"
+                        | Ok _ -> failtest "An oversized reply cannot complete the operation"
+                        Expect.equal requests 1 "The request was admitted before the adapter returned the oversized reply"
 
             testCase "the pinned shared bounded transcript passes through the real guest gate" <| fun _ ->
                 let replies =
@@ -535,6 +640,24 @@ let boundedGenerationNegotiationTests =
                                     (code (boundedReply guest invalid))
                                     (Some -32602)
                                     "A named entry cannot advertise a member selection"
+                            if id = 7 then
+                                let paramsNode = entry.Node["params"] |> nonNull
+                                let delivery = (paramsNode["deliveries"] |> nonNull)[0] |> nonNull
+                                let invalidDeliveries = invalidDocumentDeliveries delivery
+                                let content = (delivery["content"] |> nonNull).GetValue<string>()
+                                Expect.isTrue (content.EndsWith("o=", StringComparison.Ordinal)) "The fixture contains canonical final padding bits"
+                                let noncanonical = delivery.DeepClone()
+                                noncanonical["content"] <- JsonValue.Create(content.Substring(0, content.Length - 2) + "p=")
+                                for label, invalid in invalidDeliveries @ ["noncanonical padding bits", noncanonical] do
+                                    let invalidRequest = entry.Node.DeepClone()
+                                    let invalidParams = invalidRequest["params"] |> nonNull
+                                    (invalidParams["deliveries"] |> nonNull)[0] <- invalid
+                                    let pending = advances.Count
+                                    Expect.equal
+                                        (code (boundedReply guest (invalidRequest.ToJsonString())))
+                                        (Some -32602)
+                                        $"The guest refuses {label}"
+                                    Expect.equal advances.Count pending "The invalid document never reaches the handler"
                             let actual = boundedReply guest entry.Text
                             Expect.isTrue (JsonNode.DeepEquals(actual["id"], requestId)) "The response retains the request ID"
                             match code expected with

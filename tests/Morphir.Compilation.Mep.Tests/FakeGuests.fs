@@ -151,12 +151,15 @@ let private reservedId () =
     )
 
 /// Runs a scripted guest on stdin and stdout until the session ends.
-let private rootExitsWithChild () =
+let private rootExitsWithChild inheritPipes =
     let handler = Handlers.raw(fun _ _ ->
         let start = Diagnostics.ProcessStartInfo(nonNull Environment.ProcessPath)
         start.UseShellExecute <- false
         start.CreateNoWindow <- true
-        start.ArgumentList.Add(IO.Path.Combine(AppContext.BaseDirectory,"Morphir.Compilation.Mep.Tests.dll"))
+        start.RedirectStandardOutput <- not inheritPipes
+        start.RedirectStandardError <- not inheritPipes
+        if IO.Path.GetFileNameWithoutExtension(start.FileName).Equals("dotnet", StringComparison.OrdinalIgnoreCase) then
+            start.ArgumentList.Add(IO.Path.Combine(AppContext.BaseDirectory, "Morphir.Compilation.Mep.Tests.dll"))
         start.ArgumentList.Add "--fake-sleeper"
         use child = Diagnostics.Process.Start(start) |> nonNull
         let marker = IO.Path.Combine(Environment.CurrentDirectory,"descendant.pid")
@@ -181,7 +184,8 @@ let run (scenario: string) =
         | "blocks-read-loop" -> blocksReadLoop ()
         | "huge-position" -> hugePosition ()
         | "reserved-id" -> reservedId ()
-        | "root-exits-with-child" -> rootExitsWithChild ()
+        | "root-exits-with-child" -> rootExitsWithChild true
+        | "root-exits-with-closed-pipes" -> rootExitsWithChild false
         | other -> failwith $"Unknown fake guest scenario {other}"
 
     guest.RunAsync(input, output, CancellationToken.None).GetAwaiter().GetResult() |> ignore

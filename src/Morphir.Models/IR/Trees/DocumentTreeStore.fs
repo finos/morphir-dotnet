@@ -182,6 +182,47 @@ module DocumentTreeStore =
     let openSnapshot options revision provider =
         openSnapshotWithEncoding options BoundedTreeEncoding.Plain revision provider
 
+    /// Open a revision-bound plain tree from a host callback.
+    [<CompiledName("OpenPlainSnapshot")>]
+    let openPlainSnapshot
+        (
+            options: ReadOptions,
+            revision: System.Func<string>,
+            provider: Microsoft.Extensions.FileProviders.IFileProvider
+        ) : Result<BoundedTreeSnapshot, System.Collections.Generic.IReadOnlyList<StoreError>> =
+        openSnapshot options (fun () -> revision.Invoke()) provider
+        |> Result.mapError (fun errors -> List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>)
+
+    /// Open a plain snapshot with a retained-path reservation for one active package.
+    /// The caller must subtract this reservation from its other host-cache allowances.
+    /// Zero preserves the scan fallback; a positive exhausted reservation refuses discovery.
+    [<CompiledName("OpenSnapshotWithDiscoveryCache")>]
+    let openSnapshotWithDiscoveryCache
+        (options: ReadOptions)
+        (cacheBytes: int64)
+        (revision: System.Func<string>)
+        (provider: Microsoft.Extensions.FileProviders.IFileProvider) =
+        if options.MaxFiles < 1 then
+            Error [ error "tree.invalid_limit" None "A module lookup limit must be positive." ]
+        elif cacheBytes < 0L then
+            Error [ error "tree.invalid_limit" None "A discovery reservation cannot be negative." ]
+        else
+            TreeFileSource.fromFileProviderWithDiscoveryCache options.MaxFiles cacheBytes (fun () -> revision.Invoke()) provider
+            |> BoundedTreeReader.openTreeWithEncoding BoundedTreeEncoding.Plain options.MaxFileBytes
+
+    /// Open a cached plain snapshot from a host callback with C#-safe admission errors.
+    /// The host must reserve cacheBytes alongside its other retained host-cache data.
+    [<CompiledName("OpenPlainSnapshotWithDiscoveryCache")>]
+    let openPlainSnapshotWithDiscoveryCache
+        (
+            options: ReadOptions,
+            cacheBytes: int64,
+            revision: System.Func<string>,
+            provider: Microsoft.Extensions.FileProviders.IFileProvider
+        ) : Result<BoundedTreeSnapshot, System.Collections.Generic.IReadOnlyList<StoreError>> =
+        openSnapshotWithDiscoveryCache options cacheBytes revision provider
+        |> Result.mapError (fun errors -> List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>)
+
     /// Read the next page of modules in the selected package.
     [<CompiledName("PageModules")>]
     let pageModules limit cursor package snapshot =
@@ -202,6 +243,44 @@ module DocumentTreeStore =
     [<CompiledName("ReadMemberWithArtifact")>]
     let readMemberWithArtifact address snapshot =
         BoundedTreeReader.readMemberWithArtifact address snapshot
+
+    /// Page the root modules or the members of a logical module in the same snapshot.
+    [<CompiledName("PageInventory")>]
+    let pageInventory
+        (selection: string)
+        (limit: int)
+        (continuation: string option)
+        (snapshot: BoundedTreeSnapshot)
+        : Result<BoundedTreeInventoryPage, StoreError list> =
+        BoundedTreeReader.pageInventory selection limit continuation snapshot
+
+    /// Read the original bytes of a logical document in the admitted snapshot.
+    [<CompiledName("ReadDocument")>]
+    let readDocument
+        (documentId: string)
+        (snapshot: BoundedTreeSnapshot)
+        : Result<System.ReadOnlyMemory<byte>, StoreError list> =
+        BoundedTreeReader.readDocument documentId snapshot
+
+    /// Read a logical document within an additional limit on its original bytes.
+    [<CompiledName("ReadDocumentWithin")>]
+    let readDocumentWithin documentId maxBytes snapshot =
+        BoundedTreeReader.readDocumentWithin documentId maxBytes snapshot
+
+    /// Read within the delivery budgets and report the greater of source and expanded node counts.
+    [<CompiledName("ReadDocumentWithinCounted")>]
+    let readDocumentWithinCounted documentId maxBytes maxNodes snapshot =
+        BoundedTreeReader.readDocumentWithinCounted documentId maxBytes maxNodes snapshot
+
+    /// Read one admitted document as plain JSON under an independent output byte limit.
+    [<CompiledName("ReadExpandedDocument")>]
+    let readExpandedDocument documentId maxOutputBytes snapshot =
+        BoundedTreeReader.readExpandedDocument documentId maxOutputBytes snapshot
+
+    /// Stage one expanded JSON file at a time. Publish the stage only after the walk succeeds.
+    [<CompiledName("WriteExpandedTree")>]
+    let writeExpandedTree limits stageFile snapshot =
+        BoundedTreeReader.writeExpandedTree limits stageFile snapshot
 
     /// Resolve one typed alias without expanding the member around it.
     /// Path tokens within the selected payload are object keys or canonical array indices.
