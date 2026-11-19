@@ -748,12 +748,12 @@ that selects nothing gives a `plantuml/unresolved-highlight` warning.
 
 | Element | Reference | Drawn as | Colour family |
 | --- | --- | --- | --- |
-| Object | `node=$/server` | Table of key and value rows | frontend |
-| Array | `node=$/items` | Table of value rows | database |
-| Member or item | `node=$/server/port` | Row; a row that holds a container links to its table | text |
-| Hierarchy link | `edge=$/$/server/0` | Line from the row to the table | arrow |
+| Object | `node=$%2Fserver` | Table of key and value rows | frontend |
+| Array | `node=$%2Fitems` | Table of value rows | database |
+| Member or item | `node=$%2Fserver%2Fport` | Row; a row that holds a container links to its table | text |
+| Hierarchy link | `edge=$/$%2Fserver/0` | Line from the row to the table | arrow |
 
-References escape `/` as `%2F` when written as text. Long keys and values wrap; nothing is cut
+A reference escapes each `/` of an identifier as `%2F`. Long keys and values wrap; nothing is cut
 off. A highlighted row changes only its fill and outline, in the theme's cloud family; no row
 moves. The player visits the values in member order and plays no connector paths.
 
