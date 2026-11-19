@@ -2112,12 +2112,7 @@ let discoveryCacheTests =
             Expect.equal (counts ()) scanned "Rejected revision never reuses partial paths"
         }
         test "Cached metadata preserves physical profile ambiguity" {
-            let source, _, files = frozenOrdersFiles "v4" "plain-json"
-            let ambiguous = "pkg/acme/orders/audit/module.yaml"
-            let provider =
-                files |> Seq.map (fun path -> path, source.FindFile path |> Option.get)
-                |> Map.ofSeq |> Map.add ambiguous (source.FindFile "pkg/acme/orders/audit/module.json" |> Option.get)
-                |> VFileTree.fromFileMap |> VFileProviders.asFileProvider
+            let provider = Orders.ambiguousModuleProfile "v4" |> VFileProviders.asFileProvider
             let snapshot = DocumentTreeStore.openSnapshotWithDiscoveryCache ReadOptions.defaults 65536L (System.Func<string>(fun () -> "one")) provider |> read
             DocumentTreeStore.pageModules 1 None snapshot.Package snapshot
             |> expectReadError "tree.ambiguous_profile" "pkg/acme/orders/audit/module"

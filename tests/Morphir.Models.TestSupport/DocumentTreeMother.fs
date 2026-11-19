@@ -51,6 +51,10 @@ module BoundedOrders =
             (metadataLocations
              @ [ "pkg/acme/orders/audit/module.json"; "deps/morphir/_sdk/@/basics/module.json" ])
 
+    let ambiguousModuleProfile version =
+        moduleMetadata version
+        |> Driver.copied "pkg/acme/orders/audit/module.json" "pkg/acme/orders/audit/module.yaml"
+
     let selectedValues version =
         plainJson
             version
