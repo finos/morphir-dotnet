@@ -122,3 +122,6 @@ tests/Fixtures/DiagramsMbt/*.json text eol=lf
 tests/Fixtures/OkfDocuments/commonmark-0.31.2.json -text
 # Morphir file context data from finos/morphir, checked by SHA-256 (tests/Fixtures/MorphirContext/PROVENANCE.md).
 tests/Fixtures/MorphirContext/** -text
+
+# Fonts are binary
+*.ttf binary

@@ -200,11 +200,20 @@
         schedule();
         reflectState();
     });
+    // A player with raster exports has a format picker; the images were made at the diagram's natural size, so a
+    // download ignores zoom and pan and leaves playback as it is.
+    const formats = root.querySelector("[data-raster]");
+    const rasters = formats ? JSON.parse(formats.textContent) : {};
     control("download").addEventListener("click", () => {
-        const url = URL.createObjectURL(new Blob([data.svg], { type: "image/svg+xml;charset=utf-8" }));
+        const picked = control("download-format")?.value ?? "svg";
+        const raster = rasters[picked];
+        const blob = raster
+            ? new Blob([Uint8Array.from(atob(raster.data), c => c.charCodeAt(0))], { type: raster.type })
+            : new Blob([data.svg], { type: "image/svg+xml;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = "diagram.svg";
+        link.download = `diagram.${raster ? raster.extension : "svg"}`;
         root.append(link);
         link.click();
         link.remove();
