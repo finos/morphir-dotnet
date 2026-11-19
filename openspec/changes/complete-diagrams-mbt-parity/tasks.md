@@ -47,7 +47,7 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 
 - [x] 7.1 Read and print the modern activity dialect; verify the pinned modern corpus.
 - [x] 7.2 Read and print the legacy dialect and dialect detection; verify the pinned legacy corpus and mixed-dialect diagnostics.
-- [ ] 7.3 Convert both dialects to structured topology with distinct finals, loop returns and exits; verify topology tests, including `break` and terminated branches.
+- [x] 7.3 Convert both dialects to structured topology with distinct finals, loop returns and exits; verify topology tests, including `break` and terminated branches.
 
 ## 8. Icon catalogue
 

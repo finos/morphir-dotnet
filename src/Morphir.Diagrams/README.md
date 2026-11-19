@@ -630,6 +630,17 @@ lane come first. A repeated subgraph adds to the first one, which keeps its titl
 All 34 fixtures of the pinned Mermaid swimlane reference give the reference steps, lanes and
 connectors, and `Mermaid.Print` writes canonical `swimlane-beta` text.
 
+PlantUML activity diagrams read in both dialects. The modern dialect (`start`, `:action;`,
+`if`/`elseif`/`else`, `switch`/`case`, `while`, `repeat` with `backward`, `fork` and `split`,
+`break`, `stop`, `end`, `kill`, `detach`, `|lanes|`, `partition` and `group`, notes and arrow
+labels) becomes structured flow: decisions, merges where branches meet, loop returns and
+exits, and bars. The legacy dialect (`(*)`, quoted activities with aliases, `===bars===`,
+`if`/`else`/`endif`) is read as written. Mixing the dialects is refused, and labels that load
+images are refused without reading anything. All 96 fixtures of the pinned PlantUML activity
+reference are read with PlantUML's actions, apart from the four that diagrams.mbt refuses on
+purpose. `PlantUml.Print` writes the legacy graph form, in which decisions, merges and lanes
+read back as plain activities.
+
 ## Exploring routes and scenarios
 
 Players of diagrams with connections have an *Explore routes* disclosure under the

@@ -98,6 +98,44 @@ public class PlantUmlActivityTests
     }
 
     [Test]
+    public void BranchesOfAnIfMeetAgainAndAStoppedBranchLeavesNoTail()
+    {
+        var model = Read("start\nif (Ready?) then (yes)\n  :Read;\nelse (no)\n  :Fail;\n  stop\nendif\n:Done;\nstop");
+
+        Flow(model).ShouldBe(["start>Ready?", "Ready?>Read[yes]", "Ready?>Fail[no]", "Fail>stop", "Read>merge", "merge>Done", "Done>stop"]);
+        model.Steps.Count(step => step.Role.Equals(SwimlaneRole.Stop)).ShouldBe(2);
+    }
+
+    [Test]
+    public void ALoopReturnsToItsTestAndABreakLeavesIt()
+    {
+        var model = Read("while (more?) is (yes)\n  :work;\n  if (done?) then (yes)\n    break\n  endif\nendwhile (no)\n:after;");
+
+        Flow(model).ShouldContain("merge>more?");
+        Flow(model).ShouldContain("more?>after[no]");
+        Flow(model).ShouldContain("done?>after[yes]");
+    }
+
+    [Test]
+    public void ARepeatReturnsThroughItsBackwardAction()
+    {
+        var model = Read("repeat :fetch;\n  :parse;\nbackward :retry;\nrepeat while (bad?) is (yes) not (no)\n:use;");
+
+        Flow(model).ShouldBe(["fetch>parse", "parse>bad?", "bad?>retry[yes]", "retry>fetch", "bad?>use[no]"]);
+    }
+
+    [Test]
+    public void AForkSplitsAndJoinsAndLanesHoldTheirSteps()
+    {
+        var model = Read("|Sales|\nstart\nfork\n  :quote;\nfork again\n  |Stock|\n  :reserve;\nend fork\nstop");
+
+        model.Steps.Count(step => step.Role.Equals(SwimlaneRole.Fork)).ShouldBe(1);
+        model.Steps.Count(step => step.Role.Equals(SwimlaneRole.Join)).ShouldBe(1);
+        model.Steps.Single(step => step.Label == "reserve").Lane!.Value.ShouldBe("Stock");
+        model.Lanes.Select(lane => lane.Label).ShouldBe(["Sales", "Stock"]);
+    }
+
+    [Test]
     public void TheLegacyDialectReadsBranchesAndBars()
     {
         var model = Read("(*) --> \"Read\"\nif \"Ready?\" then\n  -->[yes] \"Write\"\nelse\n  -->[no] ===B1===\nendif\n--> (*)");
