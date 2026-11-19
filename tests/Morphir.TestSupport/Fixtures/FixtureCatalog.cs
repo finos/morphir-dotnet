@@ -731,8 +731,28 @@ public static class FixtureCatalog
             "d431b29d97b6f73e69d547109cf5081578fac931e72afe95639ebe766c1b2a20", "OkfDocuments/PROVENANCE.md");
     }
 
+    /// <summary>Pinned inputs for the WASM host command tests.</summary>
+    public static class WasmHost
+    {
+        private const string Provenance = "MepWasm/PROVENANCE.md";
+
+        /// <summary>The upstream WASM host cases and expectations.</summary>
+        public static FixtureEntry Corpus { get; } = new(
+            "the WASM host case corpus", "MepWasm/wasm-host.cases.json",
+            "b97f18174214aac8a0a4d972db38564fcbea0b780ebcf6e1120d13bb145e9e19", Provenance);
+
+        /// <summary>The module with a host import in an unknown namespace.</summary>
+        public static FixtureEntry UnknownNamespaceModule { get; } = new(
+            "the unknown-namespace WASM module", "MepWasm/fixtures/wasm/env-open-socket.wasm",
+            "bebbfeda31c2703c2022bf4ba27206fc0fcf22a540dda195476569c973e7addd", Provenance);
+
+        /// <summary>The provenance record read by the kit at startup.</summary>
+        public static byte[] ReadProvenance() =>
+            ReadResource("Morphir.TestSupport.Provenance/" + Provenance);
+    }
+
     /// <summary>Every file that the catalog owns and serves.</summary>
-    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, Mep.BoundedGenerationSession, .. BoundedGenerationReceipts.Files, .. Models.All, .. BoundedOrders.Files, .. Trees.AcmeDemo, .. Trees.Written, .. UpstreamIr.Documents, Rfc8785.Text, RdfNQuads.Corpus, OkfDocuments.CommonMark, .. Context.Files, .. Context.Policy.Files, .. Context.Naming.Files];
+    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, Mep.BoundedGenerationSession, .. BoundedGenerationReceipts.Files, .. Models.All, .. BoundedOrders.Files, .. Trees.AcmeDemo, .. Trees.Written, .. UpstreamIr.Documents, Rfc8785.Text, RdfNQuads.Corpus, OkfDocuments.CommonMark, WasmHost.Corpus, WasmHost.UnknownNamespaceModule, .. Context.Files, .. Context.Policy.Files, .. Context.Naming.Files];
 
     /// <summary>
     /// The directories and files below <c>tests/Fixtures</c> that a test project owned before the catalog, with that
@@ -769,10 +789,12 @@ public static class FixtureCatalog
             .ToArray();
 
     /// <summary>The bytes of an entry, as pinned.</summary>
-    public static byte[] ReadBytes(FixtureEntry entry)
+    public static byte[] ReadBytes(FixtureEntry entry) => ReadResource(ResourcePrefix + entry.RelativePath);
+
+    private static byte[] ReadResource(string resourceName)
     {
-        using var stream = typeof(FixtureCatalog).Assembly.GetManifestResourceStream(ResourcePrefix + entry.RelativePath)
-            ?? throw new InvalidOperationException($"The catalog does not embed {entry.RelativePath}; add it to tests/Morphir.TestSupport/Morphir.TestSupport.csproj.");
+        using var stream = typeof(FixtureCatalog).Assembly.GetManifestResourceStream(resourceName)
+            ?? throw new InvalidOperationException($"No embedded resource named {resourceName} was found in the fixture catalog.");
         using var copy = new MemoryStream();
         stream.CopyTo(copy);
         return copy.ToArray();
