@@ -78,7 +78,7 @@ public static class GenerateHandler
                     };
                     return await RecordedBoundedGeneration.RunAsync(recorded.Output, request, settings,
                         backendExtensions as MepBackendExtensionConnector ?? new MepBackendExtensionConnector(),
-                        publisher, registered, ct);
+                        recorded.Options, registered, ct);
                 }
             }
             if (settings.BoundedProfile == BoundedGenerationProfile.OrdersScale)

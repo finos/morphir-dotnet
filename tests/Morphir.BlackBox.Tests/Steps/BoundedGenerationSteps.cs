@@ -152,6 +152,44 @@ public sealed class BoundedGenerationSteps(IBoundedGenerationDriver bounded, ISc
         workspace.Exists(workspace.Directory("generated")).Should().BeFalse();
         workspace.ReadText(workspace.File("build-artifacts/compile.json")).Should().Be(record);
     }
+    [Then("bounded generation records only completed products and preserves the prior install on late failure")]
+    public async Task TombstonesTheResultAndPreservesInstalledFilesAfterALateReadFailure()
+    {
+        const string task = OutDir + "/generate/text";
+        var recordFile = workspace.File(task + ".json");
+        var installedFile = workspace.File("generated/order.txt");
+        bounded.Prepare("orders");
+        var input = bounded.RecordTree(73);
+
+        (await bounded.GenerateAsync("generated")).ShouldExitWith(0);
+        using var before = System.Text.Json.JsonDocument.Parse(workspace.ReadText(recordFile));
+        var completed = before.RootElement;
+        completed.GetProperty("task").GetString().Should().Be("generate/text");
+        completed.GetProperty("value").EnumerateArray().Select(path => path.GetString()).Should().Equal("order.txt");
+        completed.GetProperty("installed").EnumerateObject().Single().Value.EnumerateArray()
+            .Select(path => path.GetString()).Should().Equal("order.txt");
+        workspace.ReadText(workspace.File(task + ".dest/order.txt")).Should().Be("73\n");
+        workspace.ReadText(installedFile).Should().Be("73\n");
+
+        bounded.Prepare("stage-before-read");
+        workspace.WriteText(input.File("pkg/acme/orders/domain/order.value.json"), "{");
+        var methodsFile = workspace.File("bounded-orders.methods");
+        workspace.Delete(methodsFile);
+
+        (await bounded.GenerateAsync("generated")).ShouldExitWith(2);
+        workspace.ReadText(methodsFile).Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Count(method => method == "morphir.backend.generateModel.advance").Should().Be(4);
+        using var after = System.Text.Json.JsonDocument.Parse(workspace.ReadText(recordFile));
+        var tombstone = after.RootElement;
+        tombstone.GetProperty("tombstone").GetBoolean().Should().BeTrue();
+        tombstone.GetProperty("value").GetArrayLength().Should().Be(0);
+        tombstone.GetProperty("completedAt").GetString().Should().Be(completed.GetProperty("completedAt").GetString());
+        System.Text.Json.JsonElement.DeepEquals(completed.GetProperty("installed"), tombstone.GetProperty("installed")).Should().BeTrue();
+        workspace.ReadText(installedFile).Should().Be("73\n");
+        workspace.Exists(workspace.File("generated/prelude.txt")).Should().BeFalse();
+        workspace.Exists(workspace.File(task + ".dest/prelude.txt")).Should().BeFalse();
+    }
+
     [Then("bounded generation protects sibling task records")]
     public async Task RefusesPublicationInsideASiblingMembersTaskStore()
     {

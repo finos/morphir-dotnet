@@ -163,6 +163,7 @@ two steps have the same pattern.
 | Bounded generation | `Then the recorded tree reaches the configured WASM loader` |
 | Bounded generation | `Then configured WASM enforces state {int} and frame {int} with diagnostic {string}` |
 | Bounded generation | `Then configured WASM generates order {int}` |
+| Bounded generation | `Then bounded generation records only completed products and preserves the prior install on late failure` |
 | Bounded generation | `Then the Orders scale profile generates original production payloads` |
 | Bounded generation | `Then the Orders scale profile refuses a document one byte over` |
 | Bounded generation | `Then bounded generation protects sibling task records` |
