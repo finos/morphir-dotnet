@@ -698,35 +698,35 @@ type DiagramThemes private () =
             "Ocean",
             accents
                 0.18m
-                0x2b303b
-                0xc0c5ce
+                0x1b2b34
+                0xd8dee9
                 0xa7adba
-                0x232730
+                0x14222a
                 0xa7adba
                 [
-                    0x96b5b4, 0x96b5b4
-                    0xa3be8c, 0xa3be8c
-                    0xb48ead, 0xb48ead
-                    0xebcb8b, 0xebcb8b
-                    0xbf616a, 0xbf616a
-                    0xd08770, 0xd08770
-                    0x65737e, 0x65737e
+                    0x5fb3b3, 0x5fb3b3
+                    0x99c794, 0x99c794
+                    0xc594c5, 0xc594c5
+                    0xfac863, 0xfac863
+                    0xec5f67, 0xec5f67
+                    0xf99157, 0xf99157
+                    0x6699cc, 0x6699cc
                 ],
             accents
                 0.16m
-                0xeff1f5
-                0x2b303b
+                0xeef4f8
+                0x1b2b34
                 0x606e78
                 0xffffff
                 0x606e78
                 [
-                    0x96b5b4, 0x4c6b6a
-                    0xa3be8c, 0x546e3e
-                    0xb48ead, 0x815679
-                    0xebcb8b, 0x846017
-                    0xbf616a, 0x9e4049
-                    0xd08770, 0x9c4d33
-                    0x65737e, 0x55616a
+                    0x5fb3b3, 0x346e6e
+                    0x99c794, 0x41723c
+                    0xc594c5, 0x8d4c8d
+                    0xfac863, 0x8c5f05
+                    0xec5f67, 0xbf1720
+                    0xf99157, 0xac4106
+                    0x6699cc, 0x336699
                 ]
         )
 
@@ -785,7 +785,7 @@ type DiagramThemes private () =
     /// Earthy, warm accents on brown-grey or parchment, with a hand-tuned light variant.
     static member Gruvbox = gruvbox
 
-    /// Soft pastel accents on slate or pale grey-blue, with a hand-tuned light variant.
+    /// Teal, blue and coral accents on deep blue-teal or pale blue, with a hand-tuned light variant.
     static member Ocean = ocean
 
     /// Muted IDE accents on charcoal or light grey, with a hand-tuned light variant.
