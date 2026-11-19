@@ -441,4 +441,4 @@ and response frames remain capped at 64 KiB and individual chunks at 32 KiB.
 For the explicit profile, JSON reports include effective ceilings in
 `boundedAccess`. These are selected limits, not measured frame peaks or memory.
 The production-sized black-box cases use one original 64-payload module and
-`MORPHIR_ORDERS_SCALE_WASM`, pinned to the streaming guest at 3652032a.
+the embedded streaming guest pinned to finos/morphir at `3652032a`.

@@ -11,8 +11,7 @@ namespace Morphir.TestSupport.Drivers;
 public interface IBoundedGenerationDriver
 {
     void Prepare(string mode);
-    string? OrdersScaleModule { get; }
-    void ConfigureOrdersScaleGuest(string module);
+    void ConfigureOrdersScaleGuest();
     WorkspaceDirectory RecordScaleProductionTree();
     WorkspaceDirectory RecordScaleDocumentOverTree();
     Task<CommandResult> GenerateOrdersScaleAsync(string output);
@@ -31,7 +30,6 @@ public sealed class BoundedGenerationDriver(IScenarioWorkspace workspace, IGener
 {
     public const string SharedOrdersVariable = "MORPHIR_SHARED_ORDERS_WASM";
     private const string OutDir = "build-artifacts";
-    public string? OrdersScaleModule => Environment.GetEnvironmentVariable("MORPHIR_ORDERS_SCALE_WASM");
     public bool IsWindows => OperatingSystem.IsWindows();
     public string? SharedOrdersModule => Environment.GetEnvironmentVariable(SharedOrdersVariable);
 
@@ -99,14 +97,12 @@ public sealed class BoundedGenerationDriver(IScenarioWorkspace workspace, IGener
         },
     });
 
-    public void ConfigureOrdersScaleGuest(string module)
+    public void ConfigureOrdersScaleGuest()
     {
-        var bytes = File.ReadAllBytes(module);
-        var digest = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant();
-        if (digest != OrdersScaleProductionMother.GuestSha256) throw new InvalidOperationException("Orders scale guest differs from the pin.");
+        var guest = FixtureCatalog.OrdersScale.Guest;
         workspace.WriteText(workspace.File("morphir.toml"), BoundedOrdersRecordMother.WasmConfiguration
-            + "sha256 = \"" + OrdersScaleProductionMother.GuestSha256 + "\"\n");
-        workspace.WriteBytes(workspace.File("orders.wasm"), bytes);
+            + "sha256 = \"" + guest.Sha256 + "\"\n");
+        workspace.WriteBytes(workspace.File("orders.wasm"), FixtureCatalog.ReadBytes(guest));
     }
 
     public WorkspaceDirectory RecordScaleProductionTree() => RecordScale(OrdersScaleProductionMother.ProductionDocuments());

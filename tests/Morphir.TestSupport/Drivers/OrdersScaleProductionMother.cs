@@ -7,7 +7,6 @@ namespace Morphir.TestSupport.Drivers;
 /// <summary>One original-size module of the frozen Orders scale formula at umbrella 3652032a.</summary>
 public static class OrdersScaleProductionMother
 {
-    public const string GuestSha256 = "9c67d3e6130726d62abf662e1d7a656ab6e92c2059b634bea2e1d444fac7a8ef";
     public const string ArtifactSha256 = "29db9e2199ef6c85f21c25b2a6375d7a5cce82b238ec1e0fbdc450e0a6217fa5";
     public const int ArtifactBytes = 1_065_025;
     private const string Prefix = "pkg/acme/orders/m000000/";

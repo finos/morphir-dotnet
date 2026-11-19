@@ -121,13 +121,7 @@ public sealed class BoundedGenerationSteps(IBoundedGenerationDriver bounded, ISc
     [Then("the Orders scale profile generates original production payloads")]
     public async Task OrdersScaleProfileGeneratesProductionPayloads()
     {
-        var module = bounded.OrdersScaleModule;
-        if (string.IsNullOrEmpty(module))
-        {
-            runtime.TestIgnore("Set MORPHIR_ORDERS_SCALE_WASM to the pinned 3652032a streaming guest.");
-            return;
-        }
-        bounded.ConfigureOrdersScaleGuest(module);
+        bounded.ConfigureOrdersScaleGuest();
         bounded.RecordScaleProductionTree();
         var result = await bounded.GenerateOrdersScaleAsync("generated");
         result.ShouldExitWith(0);
@@ -148,13 +142,7 @@ public sealed class BoundedGenerationSteps(IBoundedGenerationDriver bounded, ISc
     [Then("the Orders scale profile refuses a document one byte over")]
     public async Task OrdersScaleProfileRefusesDocumentOneOver()
     {
-        var module = bounded.OrdersScaleModule;
-        if (string.IsNullOrEmpty(module))
-        {
-            runtime.TestIgnore("Set MORPHIR_ORDERS_SCALE_WASM to the pinned 3652032a streaming guest.");
-            return;
-        }
-        bounded.ConfigureOrdersScaleGuest(module);
+        bounded.ConfigureOrdersScaleGuest();
         bounded.RecordScaleDocumentOverTree();
         var record = workspace.ReadText(workspace.File("build-artifacts/compile.json"));
         var result = await bounded.GenerateOrdersScaleAsync("generated");

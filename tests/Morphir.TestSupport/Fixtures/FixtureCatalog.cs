@@ -605,6 +605,16 @@ public static class FixtureCatalog
             "2b564178596e1c7420fc8c689b31e7dbd68dabaed3d57ac0e9497ce21886cb34", "Mep/PROVENANCE.md");
     }
 
+    /// <summary>The parent kit's shared Orders scale module.</summary>
+    public static class OrdersScale
+    {
+        /// <summary>The pinned streaming Extism guest used by the production-payload controls.</summary>
+        public static FixtureEntry Guest { get; } = new(
+            "the Orders scale streaming WASM guest", "BoundedOrdersScale/orders-scale.wasm",
+            "9c67d3e6130726d62abf662e1d7a656ab6e92c2059b634bea2e1d444fac7a8ef",
+            "BoundedOrdersScale/PROVENANCE.md");
+    }
+
     /// <summary>Test guests that select a fixed memory and frame allowance.</summary>
     public static class BoundedWasmLimits
     {
@@ -787,7 +797,7 @@ public static class FixtureCatalog
     /// <summary>Every file that the catalog owns and serves.</summary>
     public static IReadOnlyCollection<FixtureEntry> All { get; } =
     [
-        .. Kit.Files, Mep.BoundedGenerationSession, .. BoundedWasmLimits.Files, .. BoundedGenerationReceipts.Files,
+        .. Kit.Files, Mep.BoundedGenerationSession, .. BoundedWasmLimits.Files, OrdersScale.Guest, .. BoundedGenerationReceipts.Files,
         .. Models.All, .. BoundedOrders.Files, BoundedOrders.ExpandedV4, .. Trees.AcmeDemo, .. Trees.Written,
         .. UpstreamIr.Documents, Rfc8785.Text, RdfNQuads.Corpus, OkfDocuments.CommonMark,
         WasmHost.Corpus, WasmHost.UnknownNamespaceModule, .. Context.Files, .. Context.Policy.Files,

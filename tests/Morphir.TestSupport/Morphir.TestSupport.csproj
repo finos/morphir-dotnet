@@ -39,6 +39,7 @@
     <EmbeddedResource Include="../Fixtures/MorphirContext/policy/cases/**/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/policy/cases/$([System.String]::Copy('%(RecursiveDir)').Replace('\', '/'))%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirBoundedOrders/**/*.json;../Fixtures/MorphirBoundedOrders/**/*.yaml" LogicalName="Morphir.TestSupport.Fixtures/MorphirBoundedOrders/$([System.String]::Copy('%(RecursiveDir)').Replace('\', '/'))%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/BoundedWasmLimits/*.wasm;../Fixtures/BoundedWasmLimits/*.wat" LogicalName="Morphir.TestSupport.Fixtures/BoundedWasmLimits/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/BoundedOrdersScale/orders-scale.wasm" LogicalName="Morphir.TestSupport.Fixtures/BoundedOrdersScale/orders-scale.wasm" />
     <!-- Each file of a hand-written tree, named by its location in the tree. -->
     <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/module.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/module.json" />
     <EmbeddedResource Include="../Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/money.type.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/acme-demo/deps/morphir/sdk/@/basics/money.type.json" />
