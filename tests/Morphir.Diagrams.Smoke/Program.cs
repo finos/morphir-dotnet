@@ -6,6 +6,7 @@ using System.Text;
 using Morphir.Bpmn;
 using Morphir.Diagrams;
 using Morphir.Diagrams.Query;
+using Morphir.Diagrams.Raster;
 using Morphir.Knowledge;
 using Morphir.Knowledge.Rdf;
 
@@ -72,6 +73,16 @@ if (!BpmnDocument.TryRead("""<bpmn:definitions xmlns:bpmn="http://www.omg.org/sp
     return 1;
 var found = query.Run(BpmnQueryTree.Create(bpmnDocument), null).Next(10);
 Console.WriteLine(found.Matches.Length == 1 && found.Matches[0].Captures[0].Node.Id == "Review" ? "query: ok" : "query: FAIL");
+
+// A PNG of the BPMN view: its digest is the same under JIT and Native AOT.
+var png = DiagramRaster.Render(bpmnSvg, RasterOptions.Png);
+if (!png.Succeeded)
+{
+    Console.Error.WriteLine(png.Diagnostics[0]);
+    return 1;
+}
+Console.WriteLine($"raster png {png.Width}x{png.Height} {Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(png.Bytes.AsSpan()))}");
+Console.WriteLine("raster: ok");
 
 var expected = Canonical(dataset);
 var actual = Canonical(extracted);

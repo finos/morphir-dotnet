@@ -112,11 +112,11 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 
 ## 17. Raster export
 
-- [ ] 17.1 Create `Morphir.Diagrams.Raster` with the TrueType reader and embedded Noto fonts under OFL; verify glyph and missing-glyph tests.
-- [ ] 17.2 Add the fixed-point rasteriser for the library's SVG and PNG encoding; verify golden PNG bytes on all CI operating systems.
-- [ ] 17.3 Add JPEG and animated GIF encoding with validated options and limits; verify golden bytes and the pixel-limit test.
-- [ ] 17.4 Add player PNG, JPEG and GIF downloads; verify in Chromium that downloads ignore zoom and leave playback unchanged.
-- [ ] 17.5 Add the package to the solution, test plan and AOT smoke tests; verify the build and AOT smoke pass.
+- [x] 17.1 Create `Morphir.Diagrams.Raster` with the TrueType reader and embedded Noto fonts under OFL; verify glyph and missing-glyph tests.
+- [x] 17.2 Add the fixed-point rasteriser for the library's SVG and PNG encoding; verify golden PNG bytes on all CI operating systems.
+- [x] 17.3 Add JPEG and animated GIF encoding with validated options and limits; verify golden bytes and the pixel-limit test.
+- [x] 17.4 Add player PNG, JPEG and GIF downloads; verify in Chromium that downloads ignore zoom and leave playback unchanged.
+- [x] 17.5 Add the package to the solution, test plan and AOT smoke tests; verify the build and AOT smoke pass.
 
 ## 18. Integration
 

@@ -16,5 +16,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Morphir.Diagrams/Morphir.Diagrams.fsproj" />
     <ProjectReference Include="../../src/Morphir.Diagrams.Query/Morphir.Diagrams.Query.fsproj" />
+    <ProjectReference Include="../../src/Morphir.Diagrams.Raster/Morphir.Diagrams.Raster.fsproj" />
   </ItemGroup>
 </Project>

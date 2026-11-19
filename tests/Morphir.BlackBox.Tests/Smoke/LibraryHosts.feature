@@ -45,3 +45,4 @@ Feature: Each host of a shipped library runs as a managed program
     And the output contains "metadata round trip: ok"
     And the output contains "bpmn render: ok"
     And the output contains "query: ok"
+    And the output contains "raster: ok"
