@@ -14,7 +14,7 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 
 - [x] 2.1 Add elbow, rounded and curved connector styles as a render option, applied to the routed points of every graph family; verify path tests for each style and that the default output is unchanged.
 - [x] 2.2 Add bridges, off by default, where a connector crosses an earlier one that shares no endpoint, owned by the later connector in paint order; verify bridge tests.
-- [ ] 2.3 Make the player follow the final path, including bridges; verify a played bridged connector follows the arch in Chromium.
+- [x] 2.3 Make the player follow the final path, including bridges; verify a played bridged connector follows the arch in Chromium.
 - [ ] 2.4 Document connector options in the README; verify `ReadmeTests` compile the examples.
 
 ## 3. Complete Mermaid flowchart and sequence syntax
