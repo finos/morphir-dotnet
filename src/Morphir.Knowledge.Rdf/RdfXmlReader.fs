@@ -612,25 +612,46 @@ module internal RdfXmlInput =
               Message = message
               Location = if line > 0 then ValueSome { Line = line; Column = column } else ValueNone }
 
-    /// The line of the first document type declaration, if any, before the XML failed.
-    let private doctypeLine (source: ReadOnlyMemory<byte>) =
-        let text = Encoding.UTF8.GetString source.Span
+    /// The input's characters, in the encoding its byte order mark names, else UTF-8.
+    let private decode (span: ReadOnlySpan<byte>) =
+        if span.Length >= 2 && span[0] = 0xFFuy && span[1] = 0xFEuy then Encoding.Unicode.GetString(span.Slice 2)
+        elif span.Length >= 2 && span[0] = 0xFEuy && span[1] = 0xFFuy then Encoding.BigEndianUnicode.GetString(span.Slice 2)
+        else Encoding.UTF8.GetString span
+
+    /// The line and column of the document type declaration in the decoded input, if visible.
+    let private doctypeLocation (source: ReadOnlyMemory<byte>) =
+        let text = decode source.Span
         let index = text.IndexOf("<!DOCTYPE", StringComparison.Ordinal)
 
-        if index < 0 then None
+        if index < 0 then 0, 0
         else
             let line = 1 + (text.AsSpan(0, index).Count '\n')
-            let column = index - (text.LastIndexOf('\n', max 0 (index - 1)) + 1) + 1
-            Some(line, column)
+            let column = index - (if index = 0 then 0 else text.LastIndexOf('\n', index - 1) + 1) + 1
+            line, column
+
+    /// Reads the prolog alone. A prohibited document type fails there without a position; every
+    /// other prolog error has one, and a document type cannot follow the root element.
+    let private prologDeclaresDocumentType (source: ReadOnlyMemory<byte>) =
+        try
+            use stream = new MemoryStream(source.ToArray(), false)
+            use reader = XmlReader.Create(stream, settings ())
+            let mutable inProlog = true
+
+            while inProlog && reader.Read() do
+                if reader.NodeType = XmlNodeType.Element then inProlog <- false
+
+            false
+        with :? XmlException as error ->
+            error.LineNumber = 0
 
     let load (source: ReadOnlyMemory<byte>) =
+        if prologDeclaresDocumentType source then
+            let line, column = doctypeLocation source
+            raise (failure RdfXmlReadErrorKind.DocumentTypeDeclaration "The input declares a document type, which RDF/XML input may not use." line column)
+
         try
             use stream = new MemoryStream(source.ToArray(), false)
             use reader = XmlReader.Create(stream, settings ())
             XDocument.Load(reader, LoadOptions.SetLineInfo ||| LoadOptions.PreserveWhitespace)
         with :? XmlException as error ->
-            match doctypeLine source with
-            // A prohibited document type is reported without a position, so locate it here.
-            | Some(line, column) when error.LineNumber = 0 || line <= error.LineNumber ->
-                raise (failure RdfXmlReadErrorKind.DocumentTypeDeclaration "The input declares a document type, which RDF/XML input may not use." line column)
-            | _ -> raise (failure RdfXmlReadErrorKind.MalformedXml error.Message error.LineNumber error.LinePosition)
+            raise (failure RdfXmlReadErrorKind.MalformedXml error.Message error.LineNumber error.LinePosition)

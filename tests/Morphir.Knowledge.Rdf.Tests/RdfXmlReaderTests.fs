@@ -97,6 +97,19 @@ let tests =
                 | ValueNone -> failtest "the error has a location"
             | Ok _ -> failtest "a document type must be refused"
 
+        testCase "a document type in UTF-16 input is refused as a document type" <| fun () ->
+            let text = RdfXmlReaderMother.externalEntity.Replace("<?xml version=\"1.0\"?>", "<?xml version=\"1.0\" encoding=\"utf-16\"?>")
+            let bytes = Array.append (UnicodeEncoding(false, true).GetPreamble()) (Encoding.Unicode.GetBytes text)
+            match RdfXml.Read(ReadOnlyMemory bytes) with
+            | Error error -> Expect.equal error.Kind RdfXmlReadErrorKind.DocumentTypeDeclaration "the document type is named"
+            | Ok _ -> failtest "a document type must be refused"
+
+        testCase "document type text inside content is not a document type" <| fun () ->
+            let text = "<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><!-- <!DOCTYPE x> -->\n<rdf:Description></rdf:RDF>"
+            match RdfXml.Read(bytes text) with
+            | Error error -> Expect.equal error.Kind RdfXmlReadErrorKind.MalformedXml "the XML is malformed after the root starts"
+            | Ok _ -> failtest "an unclosed element must be refused"
+
         testCase "malformed XML is an error with a line and a column" <| fun () ->
             match RdfXml.Read(bytes RdfXmlReaderMother.unclosed) with
             | Error error ->
