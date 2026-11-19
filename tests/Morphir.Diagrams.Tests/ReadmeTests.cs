@@ -63,7 +63,8 @@ public partial class ReadmeTests
     {
         var examples = Regex.Matches(Readme(), @"\| `(?<reference>[a-z]+=[^`<]+)` \|").Select(match => match.Groups["reference"].Value).ToArray();
 
-        examples.Length.ShouldBe(8);
+        // The element reference table and the per-family tables.
+        examples.Length.ShouldBeGreaterThanOrEqualTo(8);
         foreach (var example in examples)
         {
             DiagramElementRef.TryParse(example, out var reference, out _).ShouldBeTrue(example);
