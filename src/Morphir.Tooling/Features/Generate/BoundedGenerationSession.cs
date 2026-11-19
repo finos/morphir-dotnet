@@ -44,7 +44,15 @@ internal static class BoundedGenerationSession
                     ? host.StartGenerationAsync(start, exchange.Token)
                     : host.AdvanceGenerationAsync(advance, exchange.Token), exchange.Token);
 
-                if (reply.IsOk) awaitingAdvance = reply.ResultValue.IsContinue;
+                (int Round, IReadOnlyList<ModelAccessRequest> Requests)? continuation = null;
+                if (reply.IsOk)
+                {
+                    continuation = reply.ResultValue.Match<(int, IReadOnlyList<ModelAccessRequest>)?>(
+                        onContinue: static (_, round, requests, _, _) => (round, requests),
+                        onComplete: static (_, _, _) => null,
+                        onFailed: static (_, _) => null);
+                    awaitingAdvance = continuation.HasValue;
+                }
                 if (exchange.IsCancellationRequested) return await AbortAsync(Interrupted());
                 if (reply.IsError)
                     return await AbortAsync(Operational("extension.bounded_exchange", reply.ErrorValue.Message));
@@ -64,10 +72,10 @@ internal static class BoundedGenerationSession
                 }
                 if (staged is Outcome<StagedGenerationOutput?>.Success { Value: { } output })
                     return new Outcome<StagedGenerationOutput>.Success(output);
-                if (step is not ModelAccessStep.Continue continuation)
+                if (continuation is not { } next)
                     return await AbortAsync(Operational("extension.bounded_exchange", "The guest did not complete generation."));
 
-                var delivery = bound.ResultValue.PrepareAdvance(continuation.Round, continuation.Requests);
+                var delivery = bound.ResultValue.PrepareAdvance(next.Round, next.Requests);
                 deadline.Token.ThrowIfCancellationRequested();
                 if (delivery.IsError) return await AbortAsync(StoreFailure(delivery.ErrorValue));
                 advance = delivery.ResultValue;
