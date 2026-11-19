@@ -26,7 +26,7 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 
 ## 4. State diagrams
 
-- [ ] 4.1 Add the state model with regions, typed pseudostates, transition identity and structural validation; verify model and validation tests.
+- [x] 4.1 Add the state model with regions, typed pseudostates, transition identity and structural validation; verify model and validation tests.
 - [ ] 4.2 Read and print Mermaid `stateDiagram` and `stateDiagram-v2`; verify the pinned Mermaid state corpus, including scoped initial states.
 - [ ] 4.3 Lay out and paint state diagrams on the shared engine, with collapsed composites; verify SVG and geometry tests.
 - [ ] 4.4 Add state element references, colour families, carriage and player support; verify an annotated state diagram in the player in Chromium across all themes.
