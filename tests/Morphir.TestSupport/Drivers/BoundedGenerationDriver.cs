@@ -11,6 +11,10 @@ namespace Morphir.TestSupport.Drivers;
 public interface IBoundedGenerationDriver
 {
     void Prepare(string mode);
+    void ConfigureOrdersScaleGuest();
+    WorkspaceDirectory RecordScaleProductionTree();
+    WorkspaceDirectory RecordScaleDocumentOverTree();
+    Task<CommandResult> GenerateOrdersScaleAsync(string output);
     WorkspaceDirectory RecordTree(int order, int? reserve = null);
     Task<CommandResult> GenerateAsync(string output, params string[] extra);
     Task<CommandResult> GenerateAsync(string output, bool configured);
@@ -93,6 +97,24 @@ public sealed class BoundedGenerationDriver(IScenarioWorkspace workspace, IGener
         },
     });
 
+    public void ConfigureOrdersScaleGuest()
+    {
+        var guest = FixtureCatalog.OrdersScale.Guest;
+        workspace.WriteText(workspace.File("morphir.toml"), BoundedOrdersRecordMother.WasmConfiguration
+            + "sha256 = \"" + guest.Sha256 + "\"\n");
+        workspace.WriteBytes(workspace.File("orders.wasm"), FixtureCatalog.ReadBytes(guest));
+    }
+
+    public WorkspaceDirectory RecordScaleProductionTree() => RecordScale(OrdersScaleProductionMother.ProductionDocuments());
+    public WorkspaceDirectory RecordScaleDocumentOverTree() => RecordScale(OrdersScaleProductionMother.DocumentOneOver());
+    private WorkspaceDirectory RecordScale(IEnumerable<KeyValuePair<string, byte[]>> documents)
+    {
+        var root = workspace.MakeDirectory(OutDir, "compile.dest", "recorded", "orders-model");
+        foreach (var document in documents) workspace.WriteBytes(root.File(document.Key), document.Value);
+        workspace.WriteText(workspace.File(OutDir, "compile.json"), BoundedOrdersRecordMother.CompletedTree);
+        return root;
+    }
+    public Task<CommandResult> GenerateOrdersScaleAsync(string output) => Generate(output, true, ["--bounded-profile", "orders-scale"]);
     public void ConfigureMemoryLimitGuest()
     {
         ConfigureWasmProject();

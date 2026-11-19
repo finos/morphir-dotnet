@@ -46,3 +46,11 @@ Feature: Generate from a recorded Orders tree with bounded model access
   @needs-built-extensions
   Scenario: Refuse a recorded FIFO before opening it
     Then bounded generation refuses a recorded FIFO
+
+  @needs-wasm-guests
+  Scenario: Process production payloads through the Orders scale profile
+    Then the Orders scale profile generates original production payloads
+
+  @needs-wasm-guests
+  Scenario: Refuse a document one byte over through the Orders scale profile
+    Then the Orders scale profile refuses a document one byte over

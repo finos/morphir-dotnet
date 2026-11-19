@@ -16,6 +16,9 @@ public sealed class CliGenerationSettingsResolver : IGenerationSettingsResolver
             if (string.IsNullOrWhiteSpace(value))
                 return ValueTask.FromResult(Fail("missing-" + name, $"Specify --{name}."));
 
+        if (!BoundedGenerationProfile.TryParse(overrides.BoundedProfile, out var boundedProfile))
+            return ValueTask.FromResult(Fail("generate.invalid_bounded_profile", "--bounded-profile accepts only orders-scale; omit it for normal limits."));
+
         var format = overrides.InputFormat switch
         {
             null or "auto" => InputFormat.Auto,
@@ -52,6 +55,7 @@ public sealed class CliGenerationSettingsResolver : IGenerationSettingsResolver
                         ? new Morphir.Tooling.Features.Compile.Setting<string>(selected, new Morphir.Tooling.Features.Compile.SettingOrigin.CommandLine("--extension"))
                         : null,
                     InstalledExtensionId = installedId,
+                    BoundedProfile = boundedProfile,
                 }));
         }
         catch (Exception error) when (error is ArgumentException or NotSupportedException or PathTooLongException)

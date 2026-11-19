@@ -29,6 +29,7 @@ public interface IExternalGenerationBackend : IGenerationBackend, IAsyncDisposab
 /// <param name="WorkingDirectory">The invocation directory, for relative extension paths.</param>
 public sealed record BackendExtensionRequest(Setting<string> Extension, TargetId Target, string WorkingDirectory)
 {
+    internal BoundedGenerationProfile BoundedProfile { get; init; } = BoundedGenerationProfile.Default;
     /// <summary>Explicit installed identity; null preserves the path/command connector.</summary>
     public ExtensionId? InstalledId { get; init; }
     /// <summary>The exact invocation environment.</summary>
@@ -65,12 +66,7 @@ public sealed class MepBackendExtensionConnector(IWasmModuleLoader? wasmLoader) 
         var deadline = TimeSpan.FromMilliseconds(offer.Limits.MaxCallMilliseconds);
         if (request.WasmModule is { } module)
         {
-            var defaults = SessionLimits.Default;
-            var limits = defaults with
-            {
-                MemoryCeilingBytes = Math.Min(defaults.MemoryCeilingBytes, offer.Limits.MaxGuestStateBytes),
-                CallDeadline = deadline,
-            };
+            var limits = RecordedGenerationAdmission.WasmLimits(request.BoundedProfile, offer.Limits);
             if (!ConfiguredWasmModule.TryOpen(wasmLoader, module, out var channel, out var code, out var message, limits))
                 return Refuse(code, message);
             var host = new PeerInfo(PeerKind.Cli, MepExtensionCommand.HostName, MepExtensionCommand.HostVersion);

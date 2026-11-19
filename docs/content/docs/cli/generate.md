@@ -390,3 +390,55 @@ An unknown target lists registered target IDs. Invalid F# options require the
 Boolean `optimize` or `format`, for example `optimize=false` or `format=false`. Codec diagnostics identify malformed models
 and tree members. Limit diagnostics describe the exceeded byte, node, depth,
 entry or path budget. See [CLI troubleshooting](../troubleshooting/).
+
+
+## Manual Orders scale admission
+
+`--bounded-profile orders-scale` explicitly selects provisional limits on the
+existing recorded-tree path with a configured WASM backend. Omit `--input` so
+the producer record supplies its descriptor and read lease. The profile accepts
+plain JSON v4 trees; explicit inputs, built-in generation and process backends
+cannot use it. Omitting the flag preserves the normal admission policy.
+
+```powershell
+morphir generate --target text --output generated --bounded-profile orders-scale
+```
+
+The configured module must be the streaming Orders scale guest described at
+[finos/morphir commit 3652032a](https://github.com/finos/morphir/blob/3652032a5/spec/mck/bounded-generation/scale-guest.md).
+The profile does not generate an input tree or change independently fixed outputs.
+
+It offers 32 KiB documents and chunks, 64 KiB full WASM frames, one document and
+one outstanding request per exchange, 160,000 discovery entries, 2 MiB per
+artifact, 3 GiB total artifacts, 8 GiB session disk and 200,000 rounds. The
+100,000,000 work units and two-hour session deadline are provisional allowances,
+not measured guarantees. The guest can negotiate smaller limits, including a
+shorter call deadline, and any exceeded selected limit still refuses the run.
+
+Of the selected 64 MiB host-cache offer, one quarter is reserved for active-package
+discovery and one half for retained request IDs. Staging can use only the remainder.
+The fractions are recomputed if negotiation selects a smaller cache. Request IDs
+retain exact ordinal uniqueness for the single generation on this connection.
+Their logical charge is 256 fixed bytes plus 128 bytes and two bytes per UTF-16
+code unit per distinct ID; an over-budget insertion is refused before retention.
+These reservations do not establish a process resident-memory ceiling.
+
+The source recipe has 1,024 or 2,048 generated modules. Its input sizes exceed
+1 GiB or 2 GiB, and the larger expected artifact total is 2,181,171,200 bytes.
+This opt-in profile is an admission prerequisite. Both actual scale runs,
+independent output comparisons, work/time calibration, guest/kernel memory
+observations and external host/descendant memory receipts remain required.
+The existing publication transaction can temporarily copy staged artifacts again.
+The 8 GiB allowance leaves room for both copies of the recipe's outputs, but
+publication disk reservations and cancellation during its synchronous commit
+still require qualification alongside the artifact-stage meter.
+
+The decoded exchange allowance is 64 KiB, independent of the 32 KiB per-document
+reader cap. A production 16,560-byte JSON delivery and its 16,385-byte emitted
+chunk total 32,945 decoded bytes in one exchange. The pinned guest admits that
+combination under the 64 KiB decoded and encoded exchange ceilings; full request
+and response frames remain capped at 64 KiB and individual chunks at 32 KiB.
+For the explicit profile, JSON reports include effective ceilings in
+`boundedAccess`. These are selected limits, not measured frame peaks or memory.
+The production-sized black-box cases use one original 64-payload module and
+the embedded streaming guest pinned to finos/morphir at `3652032a`.
