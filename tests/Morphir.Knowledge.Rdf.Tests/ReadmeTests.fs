@@ -58,11 +58,22 @@ let tests =
         let samples = blocks "csharp"
 
         testCase "the README has a C# sample for each codec" <| fun () ->
-            Expect.containsAll (samples |> List.map fst) [ "Read and write"; "N-Triples"; "Canonical output" ] "every codec section has a C# sample"
+            Expect.containsAll (samples |> List.map fst) [ "Read and write"; "N-Triples"; "RDF/XML"; "Canonical output" ] "every codec section has a C# sample"
 
         for section, source in samples do
             testCase $"the C# sample of '{section}' compiles" <| fun () ->
                 Expect.isEmpty (compile source) "the sample compiles without warnings"
+
+        testCase "the F# sample of 'RDF/XML' runs" <| fun () ->
+            let dataset =
+                match NTriples.Read(ReadOnlyMemory(Encoding.UTF8.GetBytes "<urn:item> <http://purl.org/dc/terms/title> \"Order\"@en .\n")) with
+                | Ok dataset -> dataset
+                | Error error -> failwith (error.ToString())
+
+            match RdfXml.Write dataset with
+            | Ok output ->
+                Expect.stringContains (Encoding.UTF8.GetString output.Bytes.Span) """<dcterms:title xml:lang="en">Order</dcterms:title>""" "the title is a dcterms property"
+            | Error error -> failwith (error.ToString())
 
         testCase "the F# sample of 'Canonical output' runs" <| fun () ->
             let dataset =

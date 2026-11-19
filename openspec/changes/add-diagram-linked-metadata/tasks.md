@@ -23,9 +23,9 @@ Decision ids (REF-1 … PKG-1) refer to [design.html](design.html). Before addin
 
 ## 4. RDF/XML writer (rdf-datasets, RDF-2)
 
-- [ ] 4.1 Write failing tests for the striped output form, preservation of datatypes and language tags, `rdf:nodeID` blank nodes, the predicate without a local name, named-graph rejection, and deterministic bytes
-- [ ] 4.2 Implement `RdfXml.Write` (document) and `RdfXml.WriteElement(XmlWriter, …)` (embedding), with fixed well-known and generated prefixes, and verify that the tests from 4.1 pass
-- [ ] 4.3 Document RDF/XML writing in the RDF README, and verify the sample in a test
+- [x] 4.1 Write failing tests for the striped output form, preservation of datatypes and language tags, `rdf:nodeID` blank nodes, the predicate without a local name, named-graph rejection, and deterministic bytes
+- [x] 4.2 Implement `RdfXml.Write` (document) and `RdfXml.WriteElement(XmlWriter, …)` (embedding), with fixed well-known and generated prefixes, and verify that the tests from 4.1 pass
+- [x] 4.3 Document RDF/XML writing in the RDF README, and verify the sample in a test
 
 ## 5. RDF/XML reader (rdf-datasets, RDF-2)
 

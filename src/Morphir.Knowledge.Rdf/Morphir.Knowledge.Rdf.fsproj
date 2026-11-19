@@ -23,5 +23,6 @@
         <Compile Include="Canonicalization.fs" />
         <Compile Include="NQuads.fs" />
         <Compile Include="NTriples.fs" />
+        <Compile Include="RdfXml.fs" />
     </ItemGroup>
 </Project>

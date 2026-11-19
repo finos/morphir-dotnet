@@ -26,6 +26,7 @@
         <Compile Include="NQuadsTests.fs" />
         <Compile Include="NTriplesTests.fs" />
         <Compile Include="CanonicalizationTests.fs" />
+        <Compile Include="RdfXmlWriterTests.fs" />
         <Compile Include="ReadmeTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>

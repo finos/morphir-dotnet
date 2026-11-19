@@ -28,12 +28,20 @@ type RdfWriteError =
     | NamedGraphs of ImmutableArray<GraphName>
     /// RDF/XML cannot split the predicate into a namespace and an XML local name.
     | PredicateWithoutLocalName of Iri
+    /// RDF/XML cannot hold the literal, because it has a character that XML 1.0 forbids.
+    | NotXmlCharacters of RdfLiteral
 
     /// For C# callers: every case needs a function.
-    member this.Match(namedGraphs: Func<ImmutableArray<GraphName>, 'Result>, predicateWithoutLocalName: Func<Iri, 'Result>) =
+    member this.Match
+        (
+            namedGraphs: Func<ImmutableArray<GraphName>, 'Result>,
+            predicateWithoutLocalName: Func<Iri, 'Result>,
+            notXmlCharacters: Func<RdfLiteral, 'Result>
+        ) =
         match this with
         | RdfWriteError.NamedGraphs graphs -> namedGraphs.Invoke graphs
         | RdfWriteError.PredicateWithoutLocalName predicate -> predicateWithoutLocalName.Invoke predicate
+        | RdfWriteError.NotXmlCharacters literal -> notXmlCharacters.Invoke literal
 
     override this.ToString() =
         match this with
@@ -42,18 +50,22 @@ type RdfWriteError =
             $"The format holds only the default graph; the dataset has {graphs.Length} named graph(s): {names}."
         | RdfWriteError.PredicateWithoutLocalName predicate ->
             $"RDF/XML cannot write the predicate <{predicate.Value}>: no suffix of it is an XML local name."
+        | RdfWriteError.NotXmlCharacters literal ->
+            $"RDF/XML cannot write the literal {literal}: it has a character that XML 1.0 forbids."
 
     override this.Equals(other: obj | null) =
         match this, other with
         | RdfWriteError.NamedGraphs left, (:? RdfWriteError as RdfWriteError.NamedGraphs right) -> left.SequenceEqual right
         | RdfWriteError.PredicateWithoutLocalName left, (:? RdfWriteError as RdfWriteError.PredicateWithoutLocalName right) ->
             left.Equals right
+        | RdfWriteError.NotXmlCharacters left, (:? RdfWriteError as RdfWriteError.NotXmlCharacters right) -> left.Equals right
         | _ -> false
 
     override this.GetHashCode() =
         match this with
         | RdfWriteError.NamedGraphs graphs -> graphs |> Seq.fold (fun hash graph -> HashCode.Combine(hash, graph)) 17
         | RdfWriteError.PredicateWithoutLocalName predicate -> predicate.GetHashCode()
+        | RdfWriteError.NotXmlCharacters literal -> literal.GetHashCode()
 
 /// Serialized UTF-8 bytes and the named graphs that an explicit policy omitted. Only writers create it.
 /// Equality compares the bytes and the graphs element by element.

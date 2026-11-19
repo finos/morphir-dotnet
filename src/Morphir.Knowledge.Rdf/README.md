@@ -123,11 +123,78 @@ if (!NTriples.TryWrite(dataset, NamedGraphHandling.Reject, out var output, out v
 {
     var graphs = writeError.Match(
         namedGraphs: names => names.Length,
-        predicateWithoutLocalName: _ => 0);
+        predicateWithoutLocalName: _ => 0,
+        notXmlCharacters: _ => 0);
     throw new InvalidOperationException($"{graphs} named graph(s): {writeError}");
 }
 
 Console.Write(Encoding.UTF8.GetString(output.Bytes.Span));
+```
+
+## RDF/XML
+
+`RdfXml.Write` writes the default graph as an
+[RDF 1.1 XML Syntax](https://www.w3.org/TR/rdf-syntax-grammar/) document in a
+fixed striped form: one `rdf:Description` per subject with `rdf:about` or
+`rdf:nodeID`, and one property element per statement with `rdf:resource`,
+`rdf:nodeID`, or literal content with `rdf:datatype` or `xml:lang`. It uses no
+abbreviations. Subjects, predicates and objects are sorted, so the output does
+not depend on the order in which statements were added. Write a
+`CanonicalDataset` for output that does not depend on blank-node identities
+either.
+
+The writer splits each predicate at its longest suffix that is an XML local
+name. It binds `rdf`, `rdfs`, `xsd`, `oa`, `dcterms` and `md` to the namespaces
+of `RdfNamespaces`, and other namespaces to `ns0`, `ns1` and so on in sorted
+order. A predicate with no such suffix, such as `https://example.org/p/1`, fails
+with `RdfWriteError.PredicateWithoutLocalName`. A literal with a character that
+XML 1.0 forbids fails with `RdfWriteError.NotXmlCharacters`. Named graphs follow
+`NamedGraphHandling`, as for N-Triples. Every check runs before the writer emits
+anything.
+
+`RdfXml.WriteElement` writes the `rdf:RDF` element into an `XmlWriter` that the
+caller owns, for embedding in another XML document such as an SVG `metadata`
+element.
+
+### F#
+
+```fsharp
+open System
+open System.Text
+open Morphir.Knowledge.Rdf
+
+let dataset =
+    match NTriples.Read(ReadOnlyMemory(Encoding.UTF8.GetBytes "<urn:item> <http://purl.org/dc/terms/title> \"Order\"@en .\n")) with
+    | Ok dataset -> dataset
+    | Error error -> failwith (error.ToString())
+
+match RdfXml.Write dataset with
+| Ok output -> printf "%s" (Encoding.UTF8.GetString output.Bytes.Span)
+| Error error -> failwith (error.ToString())
+```
+
+### C#
+
+```csharp
+using System;
+using System.IO;
+using System.Text;
+using System.Xml;
+using Morphir.Knowledge.Rdf;
+
+if (!NTriples.TryRead(Encoding.UTF8.GetBytes("<urn:item> <http://purl.org/dc/terms/title> \"Order\"@en .\n"), out var dataset, out var readError))
+    throw new InvalidOperationException(readError.ToString());
+
+using var text = new StringWriter();
+using (var writer = XmlWriter.Create(text, new XmlWriterSettings { OmitXmlDeclaration = true }))
+{
+    writer.WriteStartElement("metadata", "http://www.w3.org/2000/svg");
+    if (!RdfXml.TryWriteElement(writer, dataset, NamedGraphHandling.Reject, out var omitted, out var writeError))
+        throw new InvalidOperationException(writeError.ToString());
+    writer.WriteEndElement();
+}
+
+Console.Write(text.ToString());
 ```
 
 ## Canonical output
