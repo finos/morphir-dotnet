@@ -24,6 +24,14 @@ module internal Reading =
     let sourceLimit = 262_144
     let nodeLimit = 512
     let edgeLimit = 4096
+    /// Deepest nesting of composites, frames, groups or expressions that any reader accepts.
+    let depthLimit = 64
+    /// Most diagnostics that a reader reports before it stops.
+    let diagnosticLimit = 100
+
+    /// A limit diagnostic, which callers can tell apart from invalid input by its `-limit` code suffix.
+    let limit (language: string) (what: string) (message: string) span =
+        Diagnostic($"{language}/{what}-limit", DiagnosticSeverity.Error, message, span)
 
     let immutable (items: seq<'T>) = ImmutableArray.CreateRange<'T> items
 

@@ -5,18 +5,17 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 ## 1. Foundations
 
 - [x] 1.1 Pin upstream diagrams.mbt fixtures and expected outputs at 60a8dd1 under `tests/Fixtures/DiagramsMbt/` with `PROVENANCE.md` rows and a `FixtureCatalog.DiagramsMbt` owner; verify `FixtureOwnershipTests` passes.
-- [ ] 1.2 Add the shared lossless syntax tree, source span and diagnostic infrastructure with UTF-16 spans, one-based line and column, and CRLF as one break; verify with unit tests over CRLF, non-BMP text and invalid regions.
-- [ ] 1.3 Add the shared limits type (source, output, depth, counts, diagnostics, work) with a limit diagnostic distinct from invalid input; verify a 10,000-level nesting test returns the depth diagnostic without a stack overflow.
-- [ ] 1.4 Add family dispatch for Mermaid headers, PlantUML `@start` keywords and BPMN roots, with `unsupported-kind` for `classDiagram` and class `@startuml`; verify the dispatch tests, including keywords inside comments.
-- [ ] 1.5 Move the existing flowchart and sequence readers onto the lossless syntax tree without changing their models; verify every existing diagram test passes and reproduction equals the input for the pinned corpus.
+- [x] 1.2 Share the source checks of every entry point (null, source limit, characters SVG cannot hold, byte order mark, diagnostic cap) and keep the exact source on `DiagramDocument` as its lossless reproduction; verify `DiagramSourceTests`.
+- [x] 1.3 Add the shared limits (depth, diagnostics, source) with `-limit` diagnostic codes distinct from invalid input; verify a 10,000-level nesting test returns the depth diagnostic without a stack overflow.
+- [x] 1.4 Add `DiagramSource` with family detection for Mermaid headers, PlantUML `@start` lines and BPMN markup, and `unsupported-kind` for known families such as `classDiagram` and class `@startuml`; verify the dispatch tests, including keywords inside comments.
+- [x] 1.5 Give `Diagram` a case per family. Each family draws through a projection of nodes, groups and edges that element references, carriage, layout and the player share, with marker shapes for pseudostates, bars, notes, documents and events; verify every existing diagram test passes unchanged.
 
-## 2. Shared layout and connectors
+## 2. Connectors
 
-- [ ] 2.1 Build the layered layout engine (ranking with cycle breaking, subgraph bands, barycentre ordering, coordinates) and move flowcharts onto it; verify `FlowchartLayoutTests` pass and commit reviewed snapshot diffs for changed flowcharts.
-- [ ] 2.2 Add shape-aware attachments (diamond points, spread side slots, declared ports) and straight endpoint approaches with a validated minimum-approach option; verify attachment and approach tests, including a negative option diagnostic.
-- [ ] 2.3 Add elbow, rounded-elbow and smooth-curve styles and crossing bridges with underpass masks, owned by stable connector order; verify bridge tests, including no bridge on lifelines or shared endpoints.
-- [ ] 2.4 Expose final path geometry and make the player follow it; verify a played bridged connector follows the arch in Chromium.
-- [ ] 2.5 Document connector options in the README; verify `ReadmeTests` compile the examples.
+- [ ] 2.1 Add elbow, rounded and curved connector styles as a render option, applied to the routed points of every graph family; verify path tests for each style and that the default output is unchanged.
+- [ ] 2.2 Add bridges where a connector crosses an earlier one, owned by the later connector in paint order, with none at shared endpoints; verify bridge tests.
+- [ ] 2.3 Make the player follow the final path, including bridges; verify a played bridged connector follows the arch in Chromium.
+- [ ] 2.4 Document connector options in the README; verify `ReadmeTests` compile the examples.
 
 ## 3. Complete Mermaid flowchart and sequence syntax
 
@@ -34,7 +33,7 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 
 ## 5. PlantUML envelope and state diagrams
 
-- [ ] 5.1 Read the `@start`/`@end` envelope with closer, multiple-block and trailing-content diagnostics and include refusal without I/O; verify envelope tests.
+- [x] 5.1 Read the `@start`/`@end` envelope with closer, multiple-block and trailing-content diagnostics, family detection of `@startuml` bodies, and preprocessor refusal without I/O; verify envelope tests.
 - [ ] 5.2 Read and print PlantUML state syntax, including history, entry and exit points, pins and `||` regions, into the state model; verify the pinned PlantUML state corpus.
 
 ## 6. Swimlanes
@@ -85,8 +84,8 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 
 ## 13. BPMN documents
 
-- [ ] 13.1 Create `Morphir.Bpmn` with a secure namespace-aware XML reader (DTD prohibited, no resolver) and lossless syntax tree; verify the prohibited-declaration test and reproduction tests.
-- [ ] 13.2 Generate the typed BPMN 2.0.2 model from the OMG XSD with a committed script; verify a test regenerates it identically.
+- [ ] 13.1 Create `Morphir.Bpmn` with a secure namespace-aware XML reader (DTD prohibited, no resolver) and a lossless element tree that keeps every element, attribute and text node; verify the prohibited-declaration test and reproduction tests.
+- [ ] 13.2 Add the typed BPMN 2.0.2 view of processes, collaborations, flow elements, flows, lanes, artifacts and DI over the element tree, keeping unknown and extension content; verify against the pinned BPMN corpus.
 - [ ] 13.3 Add DI, extensions, validation and reference resolution; verify the pinned BPMN corpus.
 - [ ] 13.4 Add canonical and pretty writing; verify canonical round trips are byte-identical.
 - [ ] 13.5 Add traversal styles and bounded graph queries; verify the 10,000-deep and cycle tests.

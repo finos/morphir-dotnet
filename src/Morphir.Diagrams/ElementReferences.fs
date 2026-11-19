@@ -483,15 +483,15 @@ and [<RequireQualifiedAccess>] internal ElementRefs =
     static member internal enumerate(diagram: Diagram) =
         let steps count = Seq.init count StepRef
 
-        match diagram with
-        | Diagram.Flowchart model ->
+        match diagram, diagram.Graph with
+        | _, Some model ->
             seq {
                 yield! model.Nodes |> Seq.map (fun node -> NodeRef node.Id)
                 yield! model.Groups |> Seq.map (fun group -> GroupRef group.Id)
                 yield! ElementRefs.Edges model
                 yield! steps (model.Edges |> Seq.filter ElementRefs.IsStep |> Seq.length)
             }
-        | Diagram.Sequence model ->
+        | Diagram.Sequence model, None ->
             seq {
                 yield! model.Participants |> Seq.map (fun participant -> ParticipantRef participant.Id)
                 yield! model.Messages |> Seq.map (fun message -> (ElementRefs.Messages model)[message])
@@ -499,4 +499,5 @@ and [<RequireQualifiedAccess>] internal ElementRefs =
                 yield! ElementRefs.FrameOrder model |> Seq.mapi (fun index _ -> FrameRef index)
                 yield! steps model.Messages.Length
             }
+        | _, None -> Seq.empty
         |> ImmutableArray.CreateRange

@@ -27,11 +27,11 @@ match Mermaid.Parse source with
 using Morphir.Diagrams;
 
 var source = "sequenceDiagram\n  Customer->>API: Place order";
-if (Mermaid.TryParse(source, out var document, out var diagnostics))
+if (DiagramSource.TryParse(source, out var document, out var diagnostics))
 {
-    var itemCount = document.Diagram.Match(
-        flowchart: graph => graph.Nodes.Length,
-        sequence: sequence => sequence.Messages.Length);
+    var messages = document.Diagram.Match(
+        flowchart: _ => 0, sequence: sequence => sequence.Messages.Length, state: _ => 0, swimlane: _ => 0,
+        architecture: _ => 0, railroad: _ => 0, dataTree: _ => 0, bpmn: _ => 0);
     var svg = SvgRenderer.Render(document.Diagram).Output;
 }
 ```

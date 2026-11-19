@@ -8,6 +8,19 @@ namespace Morphir.Diagrams.Tests;
 /// <summary>The diagrams, documents and snapshots that the diagram tests use, each named by what it represents.</summary>
 internal static class DiagramMother
 {
+    /// <summary>The model of a parsed diagram of the family <typeparamref name="T"/>; throws for another family.</summary>
+    public static T Of<T>(DiagramDocument? document) where T : class =>
+        (document ?? throw new InvalidOperationException("Expected a document.")).Diagram.Match<object>(
+            flowchart => flowchart, sequence => sequence, state => state, swimlane => swimlane,
+            architecture => architecture, railroad => railroad, dataTree => dataTree, bpmn => bpmn) as T
+        ?? throw new InvalidOperationException($"Expected a {typeof(T).Name}, not {document.Diagram}.");
+
+    /// <summary>The flowchart of a parsed document.</summary>
+    public static Flowchart FlowchartOf(DiagramDocument? document) => Of<Flowchart>(document);
+
+    /// <summary>The sequence diagram of a parsed document.</summary>
+    public static SequenceDiagram SequenceOf(DiagramDocument? document) => Of<SequenceDiagram>(document);
+
     /// <summary>Two parallel Cart → Billing edges inside a payments subgraph, and Billing → Ledger.</summary>
     public const string Checkout = """
         flowchart LR

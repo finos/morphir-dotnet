@@ -262,21 +262,46 @@ module internal FlowchartSvg =
         result
 
     /// The colour family of a shape, as diagrams.mbt assigns it.
-    let private family shape =
+    let private familyOfShape shape =
         match shape with
         | FlowShape.Diamond
         | FlowShape.Hexagon -> ColorFamily.Cloud
-        | FlowShape.Cylinder -> ColorFamily.Database
+        | FlowShape.Cylinder
+        | FlowShape.Document -> ColorFamily.Database
         | FlowShape.Circle
-        | FlowShape.DoubleCircle -> ColorFamily.MessageBus
+        | FlowShape.DoubleCircle
+        | FlowShape.ThickCircle -> ColorFamily.MessageBus
+        | FlowShape.FilledCircle
+        | FlowShape.FramedCircle
+        | FlowShape.Bar
+        | FlowShape.Note
+        | FlowShape.SmallCircle
+        | FlowShape.CrossedCircle
+        | FlowShape.Text -> ColorFamily.External
         | _ -> ColorFamily.Backend
+
+    /// The family a diagram family chose for the node, or the family of its shape.
+    let private family (node: FlowNode) =
+        node.Tone
+        |> Option.bind (fun tone -> ColorFamily.All |> Seq.tryFind (fun family -> family.WireValue = tone))
+        |> Option.defaultWith (fun () -> familyOfShape node.Shape)
+
+    /// Shapes too small to hold their label, which is drawn beside them instead, if at all.
+    let isMarker shape =
+        match shape with
+        | FlowShape.FilledCircle
+        | FlowShape.FramedCircle
+        | FlowShape.Bar
+        | FlowShape.SmallCircle
+        | FlowShape.CrossedCircle -> true
+        | _ -> false
 
     /// Paints the shape of a node and returns its colour family.
     let private shape writer (node: FlowNode) x y halfWidth halfHeight =
         let left, right = x - halfWidth, x + halfWidth
 
         let top, bottom = y - halfHeight, y + halfHeight
-        let family = family node.Shape
+        let family = family node
         let fill, stroke = Theme.fill family, Theme.stroke family
 
         let paint (role: string) fill =
@@ -362,25 +387,87 @@ module internal FlowchartSvg =
             polygon [ left + 12, top; right - 12, top; right, bottom; left, bottom ]
         | FlowShape.ReverseTrapezoid ->
             polygon [ left, top; right, top; right - 12, bottom; left + 12, bottom ]
+        | FlowShape.FilledCircle -> circle "outline" halfWidth stroke
+        | FlowShape.FramedCircle ->
+            circle "outline" halfWidth "none"
+            circle "decoration" (halfWidth - 4) stroke
+        | FlowShape.Bar ->
+            SvgWriting.empty
+                writer
+                "rect"
+                [
+                    "x", SvgWriting.number left
+                    "y", SvgWriting.number top
+                    "width", SvgWriting.number (2 * halfWidth)
+                    "height", SvgWriting.number (2 * halfHeight)
+                    "rx", "2"
+                    yield! paint "outline" stroke
+                ]
+        | FlowShape.SmallCircle -> circle "outline" halfWidth fill
+        | FlowShape.CrossedCircle ->
+            circle "outline" halfWidth fill
+            let d = halfWidth * 7 / 10
+
+            SvgWriting.path
+                writer
+                $"M{SvgWriting.point (x - d) (y - d)} L{SvgWriting.point (x + d) (y + d)} M{SvgWriting.point (x + d) (y - d)} L{SvgWriting.point (x - d) (y + d)}"
+                (paint "decoration" "none")
+        | FlowShape.ThickCircle ->
+            SvgWriting.empty
+                writer
+                "circle"
+                [
+                    "cx", SvgWriting.number x
+                    "cy", SvgWriting.number y
+                    "r", SvgWriting.number halfWidth
+                    "class", "outline"
+                    "fill", fill
+                    "stroke", stroke
+                    "stroke-width", "4"
+                ]
+        | FlowShape.Note ->
+            polygon [ left, top; right - 10, top; right, top + 10; right, bottom; left, bottom ]
+
+            SvgWriting.path
+                writer
+                $"M{SvgWriting.point (right - 10) top} V{SvgWriting.number (top + 10)} H{SvgWriting.number right}"
+                (paint "decoration" "none")
+        | FlowShape.Document ->
+            SvgWriting.path
+                writer
+                $"M{SvgWriting.point left top} H{SvgWriting.number right} V{SvgWriting.number (bottom - 6)} Q{SvgWriting.point (x + halfWidth / 2) (bottom - 16)} {SvgWriting.point x (bottom - 6)} T{SvgWriting.point left (bottom - 6)} Z"
+                (paint "outline" fill)
+        | FlowShape.Text -> ()
 
         family
 
-    let private dimensions (node: FlowNode) =
+    let private dimensions (direction: FlowDirection) (node: FlowNode) =
         let textWidth = node.Label.Length * 8 |> min 320
 
         match node.Shape with
         | FlowShape.Circle
-        | FlowShape.DoubleCircle ->
+        | FlowShape.DoubleCircle
+        | FlowShape.ThickCircle ->
             let radius = max 26 (textWidth / 2 + 12)
 
             radius, radius
         | FlowShape.Diamond -> max 45 (textWidth + 10), 32
+        | FlowShape.FilledCircle
+        | FlowShape.CrossedCircle -> 10, 10
+        | FlowShape.FramedCircle -> 12, 12
+        | FlowShape.SmallCircle -> 8, 8
+        | FlowShape.Bar ->
+            match direction with
+            | FlowDirection.LeftToRight
+            | FlowDirection.RightToLeft -> 4, 36
+            | FlowDirection.TopToBottom
+            | FlowDirection.BottomToTop -> 36, 4
         | _ -> max 40 (textWidth / 2 + 18), 23
 
     let render (options: SvgRenderOptions) (metadata: Morphir.Svg.SvgNode list option) (model: Flowchart) =
         let indices = Dictionary<DiagramId, int>()
 
-        let sizes = model.Nodes |> Seq.map dimensions |> Seq.toArray
+        let sizes = model.Nodes |> Seq.map (dimensions model.Direction) |> Seq.toArray
 
         model.Nodes |> Seq.iteri (fun index node -> indices.Add(node.Id, index))
 
@@ -637,7 +724,11 @@ module internal FlowchartSvg =
                         [ "data-ref", (DiagramElementRef.Node node.Id).ToString(); "data-node", node.Id.Value; "data-shape", node.Shape.WireValue ]
                         (fun () ->
                             let family = shape writer node x y w h
-                            SvgWriting.label writer x (y + 5) 13 400 (Theme.ink family) node.Label
+
+                            if not (isMarker node.Shape) then
+                                SvgWriting.label writer x (y + 5) 13 400 (Theme.ink family) node.Label
+                            elif node.Label <> "" then
+                                SvgWriting.label writer x (y - h - 6) 12 400 Theme.muted node.Label
                         )
                 )
             )

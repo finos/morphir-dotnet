@@ -292,8 +292,9 @@ module internal FlowchartReader =
                 match DiagramId.Parse id with
                 | Error _ -> fail "Expected a subgraph name."
                 | Ok _ when String.IsNullOrWhiteSpace label -> fail "Expected a subgraph label."
-                | Ok _ when groups.Count >= Reading.nodeLimit || openGroups.Count >= 32 ->
-                    fail "Flowchart subgraph limit exceeded."
+                | Ok _ when openGroups.Count >= Reading.depthLimit ->
+                    Some(Reading.limit "mermaid" "depth" $"Subgraphs nest deeper than {Reading.depthLimit} levels." (Some span))
+                | Ok _ when groups.Count >= Reading.nodeLimit -> fail "Flowchart subgraph limit exceeded."
                 | Ok id when indices.ContainsKey id || not (groupIds.Add id) ->
                     fail $"Duplicate flowchart identifier '{id}'."
                 | Ok id ->

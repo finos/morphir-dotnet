@@ -25,18 +25,18 @@ The library SHALL report a stable `unsupported-kind` diagnostic, and return no d
 - **THEN** reading fails with an unsupported-kind diagnostic and no diagram
 
 ### Requirement: Source-located diagnostics
-Every reader SHALL report diagnostics with a stable code, severity, message and a half-open span in UTF-16 code units with one-based line and column, where CRLF counts as one line break. A reader SHALL recover at the next statement boundary and SHALL never drop a statement silently.
+Every reader SHALL report diagnostics with a stable code, severity, message and a half-open span in UTF-16 code units with one-based line and column, where CRLF counts as one line break. The readers of the new families SHALL continue at the next statement after an error, report every error up to the diagnostic limit, and never drop a statement silently.
 
 #### Scenario: Two errors in one source
 - **WHEN** a state diagram has two malformed transitions on lines 3 and 7
-- **THEN** reading reports both, each with its line and column, and keeps the valid statements between them
+- **THEN** reading reports both, each with its line and column, and returns no diagram
 
 ### Requirement: Lossless source reproduction
-Every text reader SHALL keep a syntax tree that reproduces the input exactly, including comments, directives, front matter, whitespace, CRLF, non-BMP characters and invalid regions.
+Every parsed document SHALL keep the exact source it was read from, including comments, directives, front matter, whitespace, CRLF, non-BMP characters and a byte order mark.
 
-#### Scenario: Reproduce an invalid source
-- **WHEN** a PlantUML state block with an unterminated note is read
-- **THEN** reproducing its syntax tree gives the original text byte for byte
+#### Scenario: Reproduce a source with CRLF and an emoji
+- **WHEN** a PlantUML state block with CRLF line breaks and an emoji label is read
+- **THEN** the document's source equals the original text code unit for code unit
 
 ### Requirement: Canonical printing
 Every Mermaid and PlantUML family SHALL have a canonical printer that writes the typed syntax in the native language. Reading printed text SHALL give an equivalent syntax tree, and printing it again SHALL give identical text. An invalid syntax tree SHALL produce diagnostics and no text.
@@ -49,7 +49,7 @@ Every Mermaid and PlantUML family SHALL have a canonical printer that writes the
 Every reader, converter and printer SHALL enforce documented limits on source size, output size, nesting depth, element counts, diagnostics and work, checked before allocation where an expansion is involved. Exceeding a limit SHALL produce a limit diagnostic distinct from invalid input and SHALL NOT produce a partial result or a stack overflow.
 
 #### Scenario: Deep nesting
-- **WHEN** a state diagram nests composites 10,000 levels deep
+- **WHEN** a flowchart or state diagram nests subgraphs or composites 10,000 levels deep
 - **THEN** reading returns a depth-limit diagnostic and no diagram, without a stack overflow
 
 ### Requirement: Inert source content

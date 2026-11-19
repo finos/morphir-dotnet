@@ -190,6 +190,24 @@ type FlowShape =
     | Trapezoid
     /// Trapezoid with a wide top.
     | ReverseTrapezoid
+    /// Small filled circle, such as an initial state.
+    | FilledCircle
+    /// Filled circle inside a ring, such as a final state.
+    | FramedCircle
+    /// Thick bar, such as a fork or join.
+    | Bar
+    /// Box with a folded corner, such as a note.
+    | Note
+    /// Page with a wavy base, such as a document or data object.
+    | Document
+    /// Small hollow circle, such as an entry point or a junction.
+    | SmallCircle
+    /// Circle with a cross, such as an exit point.
+    | CrossedCircle
+    /// Circle with a thick outline, such as an end event.
+    | ThickCircle
+    /// Text with no outline.
+    | Text
 
     /// Stable name of the shape.
     member this.WireValue =
@@ -208,6 +226,15 @@ type FlowShape =
         | FlowShape.ReverseParallelogram -> "reverse-parallelogram"
         | FlowShape.Trapezoid -> "trapezoid"
         | FlowShape.ReverseTrapezoid -> "reverse-trapezoid"
+        | FlowShape.FilledCircle -> "filled-circle"
+        | FlowShape.FramedCircle -> "framed-circle"
+        | FlowShape.Bar -> "bar"
+        | FlowShape.Note -> "note"
+        | FlowShape.Document -> "document"
+        | FlowShape.SmallCircle -> "small-circle"
+        | FlowShape.CrossedCircle -> "crossed-circle"
+        | FlowShape.ThickCircle -> "thick-circle"
+        | FlowShape.Text -> "text"
 
     override this.ToString() = this.WireValue
 
@@ -275,7 +302,15 @@ type EdgeHead =
 
 /// A declared or implicit flowchart node.
 [<Sealed>]
-type FlowNode internal (id: DiagramId, label: string, shape: FlowShape, span: SourceSpan) =
+type FlowNode internal (id: DiagramId, label: string, shape: FlowShape, span: SourceSpan, tone: string option, icon: string option) =
+    internal new(id, label, shape, span) = FlowNode(id, label, shape, span, None, None)
+
+    /// The colour family that a diagram family chose for this node, overriding the family of its shape.
+    member internal _.Tone = tone
+
+    /// The icon key drawn in the node, if any.
+    member internal _.Icon = icon
+
     /// Identifier as authored. Comparisons are ordinal.
     member _.Id = id
 
@@ -656,52 +691,3 @@ type SequenceDiagram
     override _.ToString() =
         $"Sequence with {participants.Length} participants and {messages.Length} messages"
 
-/// A diagram understood by the shared renderer.
-[<RequireQualifiedAccess>]
-type Diagram =
-    /// A flowchart with nodes and links.
-    | Flowchart of Flowchart
-    /// A sequence diagram with lifelines and messages.
-    | Sequence of SequenceDiagram
-
-    /// Exhaustive dispatch over the supported diagram families for C# callers.
-    member this.Match<'T>
-        (flowchart: Func<Flowchart, 'T>, sequence: Func<SequenceDiagram, 'T>)
-        : 'T =
-        match this with
-        | Diagram.Flowchart model -> flowchart.Invoke model
-        | Diagram.Sequence model -> sequence.Invoke model
-
-    override this.ToString() =
-        match this with
-        | Diagram.Flowchart model -> model.ToString()
-        | Diagram.Sequence model -> model.ToString()
-
-/// A parsed diagram together with the exact text supplied to the reader.
-[<Sealed>]
-type DiagramDocument internal (source: string, diagram: Diagram) =
-    /// Original source, including trivia and line endings.
-    member _.Source = source
-
-    /// Model ready for inspection and rendering.
-    member _.Diagram = diagram
-
-    override _.ToString() = diagram.ToString()
-
-/// A rendering outcome and its diagnostics.
-[<Sealed>]
-type RenderedDiagram
-    internal (mediaType: string, output: string option, diagnostics: ImmutableArray<Diagnostic>) =
-    /// Media type of the requested output.
-    member _.MediaType = mediaType
-
-    /// Rendered text, or null when rendering could not produce an output.
-    member _.Output: string | null = Option.toObj output
-
-    /// Diagnostics in encounter order.
-    member _.Diagnostics = diagnostics
-
-    override _.ToString() =
-        match output with
-        | Some text -> $"{mediaType}, {text.Length} UTF-16 code units"
-        | None -> $"{mediaType}, {diagnostics.Length} diagnostics"

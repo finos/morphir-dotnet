@@ -81,24 +81,24 @@ svg { max-width: 100%; height: auto; }
 <table>
 <thead><tr><th>Package</th><th>Holds</th><th>Depends on</th></tr></thead>
 <tbody>
-<tr><td><code>Morphir.Bpmn</code></td><td>BPMN 2.0.2 documents: secure XML reading, typed model, validation, writing, traversal and graph queries</td><td>none of the diagram packages, as upstream keeps <code>moonrockz/bpmn</code> independent</td></tr>
+<tr><td><code>Morphir.Bpmn</code></td><td>BPMN 2.0.2 documents: secure XML reading, a lossless element tree with a typed view, validation, writing, traversal and graph queries</td><td>none of the diagram packages, as upstream keeps <code>moonrockz/bpmn</code> independent</td></tr>
 <tr><td><code>Morphir.Diagrams.Query</code></td><td>The tree query language and its BPMN adapter</td><td><code>Morphir.Bpmn</code></td></tr>
 <tr><td><code>Morphir.Diagrams.Raster</code></td><td>The rasteriser, TrueType reader, PNG, JPEG and GIF encoders and the Noto fonts</td><td><code>Morphir.Diagrams</code></td></tr>
 </tbody>
 </table>
 <p><code>Morphir.Diagrams</code> references <code>Morphir.Bpmn</code> to render BPMN views. Alternatives: one package for everything (rejected: every caller would carry about 700 KB of fonts and the BPMN schema), or one package per family (rejected: themes, references and the player would need a shared core package, which is <code>Morphir.Diagrams</code> already).</p>
 
-<h3 id="syn-1">SYN-1. Lossless readers</h3>
-<p>Each language gets a hand-written lexer and a recursive-descent parser that builds a lossless concrete syntax tree (every code unit, including trivia and invalid regions, belongs to exactly one token), then a typed syntax tree, then the family model. Parsers keep an explicit stack for nesting, so a 10,000-level input hits the depth limit, not the call stack. The existing flowchart and sequence readers move to the same shape; their public results do not change.</p>
-<pre><code class="language-console">stateDiagram-v2          → CST: header token, newline trivia, statements…
-  [*] --> Draft          → AST: Transition(Initial(scope=root), State "Draft")
+<h3 id="syn-1">SYN-1. Statement readers over the kept source</h3>
+<p>Each language gets a hand-written statement reader over the shared <code>Reading</code> lines and cursor, as the flowchart and sequence readers already are. Readers keep explicit stacks for nesting, so a 10,000-level input hits the depth limit, not the call stack, and the new readers continue at the next statement after an error. Lossless reproduction is the exact source text that every <code>DiagramDocument</code> already keeps; there is no separate concrete syntax tree. Canonical printers write the family model.</p>
+<pre><code class="language-console">stateDiagram-v2          → statements: header, then one statement per line
+  [*] --> Draft          → Transition(Initial(scope=root), State "Draft")
   Draft --> Review : submit
                          → Model: states [Draft; Review], transitions [t0; t1] in source order</code></pre>
-<p>Alternatives: a parser-combinator library (rejected: no AOT-clean, lossless option in the dependency set) or generated parsers from the upstream grammars (rejected: upstream grammars are MoonBit code, not a portable grammar format).</p>
+<p>Alternatives: a lossless concrete syntax tree for every language (rejected: the kept source already reproduces the input, and a tree per language would roughly double the reader code without a caller that edits trees), a parser-combinator library (rejected: no AOT-clean option in the dependency set).</p>
 
-<h3 id="lay-1">LAY-1. One layered layout engine</h3>
-<p>Flowcharts, state diagrams, swimlanes and automatic BPMN layout share a layered engine: rank by longest path with cycle breaking in source order, keep subgraph and composite bands (as the current flowchart layout does), order each rank by barycentre sweeps with source order as the tie-break, and assign coordinates per rank. Architecture uses its own grid placement driven by ports and row and column constraints. Railroad and data-tree layouts are their own measured box layouts. Sequences keep their existing layout.</p>
-<p>Moving flowcharts onto the shared engine changes some existing SVG. Each such change shows up as a diff of committed snapshots and is reviewed in the group that makes it. Alternative: keep the current flowchart layout and add a second engine (rejected: two layouts of the same graph shape would drift apart).</p>
+<h3 id="lay-1">LAY-1. Families drawn through a shared graph projection</h3>
+<p>Every family except sequences has an internal projection onto the flowchart graph: nodes with a shape and an optional colour family and icon, groups for composites, lanes and pools, and edges with line styles and heads. State diagrams, swimlanes, activity diagrams, architecture diagrams and BPMN views without diagram interchange are laid out and painted by the flowchart engine through that projection, so existing flowchart SVG does not change. The projection gains marker shapes (filled and framed circles, bars, notes, documents, small, crossed and thick circles, text). Railroad and data-tree diagrams have their own box layouts and use the projection only for their element references. Sequences and ZenUML keep the sequence layout.</p>
+<p>Alternative: a new layered engine that flowcharts move onto (rejected: it would change existing output for no caller-visible gain, and two layouts of the same graph shape would drift apart).</p>
 
 <h3 id="con-1">CON-1. Connectors after layout</h3>
 <p>Routing produces orthogonal points with shape-aware attachments (diamond points, spread side slots, declared ports). A separate pass styles the points (elbow, rounded, curve), reserves straight endpoint approaches, then finds crossings between unrelated connectors and inserts bridges, owned by the later connector in stable order. The result is a final path per connector, which the SVG, the player and the rasteriser all use. The route points stay available. This extends the one-turn routing already in <code>FlowchartSvg</code>.</p>
@@ -106,8 +106,8 @@ svg { max-width: 100%; height: auto; }
 <h3 id="thm-1">THM-1. Colour families per element kind</h3>
 <p>No new theme tokens. Every element kind maps to one of the seven existing families, so all built-in and custom themes cover every family. For example: ordinary states, tasks, services and rules use <code>backend</code>; choices, gateways and decisions use <code>cloud</code>; stores, data objects and databases use <code>database</code>; events, queues and message flows use <code>messagebus</code>; error and terminate events use <code>security</code>; actors and clients use <code>frontend</code>; notes, annotations and pseudostates use <code>external</code>. Lanes, pools, composites and frames use <code>--frame</code>. The README documents the full table.</p>
 
-<h3 id="ref-1">REF-1. Element references per family</h3>
-<p>The existing <code>kind=value</code> scheme gains kinds per family: <code>state</code>, <code>region</code>, <code>transition</code>, <code>service</code>, <code>junction</code>, <code>connection</code>, <code>lane</code>, <code>task</code>, <code>event</code>, <code>gateway</code>, <code>flow</code>, <code>rule</code>, <code>occurrence</code>, <code>row</code> and others, each with the same escaping and stability rules. BPMN references use the element ID; data-tree rows use a JSON-pointer path. Selections, annotations, carriage and the player need no change beyond accepting the new kinds.</p>
+<h3 id="ref-1">REF-1. Element references through the projection</h3>
+<p>Element references keep their existing kinds. A family's elements are the nodes, groups and edges of its projection (<code>node=Idle</code>, <code>group=Active</code>, <code>edge=Idle/Active/0</code>), and ZenUML uses the sequence kinds. BPMN elements use their XML ID, EBNF rules their name and data-tree rows their JSON-pointer path. Selections, annotations, carriage and the player work unchanged because they enumerate references from the projection. Alternative: new reference kinds per family (rejected: it would widen the public reference union and its <code>Match</code> for names that add no information).</p>
 
 <h3 id="icn-1">ICN-1. Icon catalogue</h3>
 <p>A development script reads upstream's <code>catalog.json</code> and assets at 60a8dd1, checks every source digest, normalises each SVG into a compact path form (no runtime SVG parser), and writes one embedded resource plus a generated F# key table. Provider assets are copied unchanged in shape and colour. Technology logos are kept only when their SVG Repo licence allows redistribution; the script reads an allow-list recorded in the catalogue's provenance file, and every other key, along with <code>externalsystem</code>, uses an original drawing in the repository. <code>THIRD-PARTY-NOTICES.md</code> and a trademark notice ship in the package. Rendering emits only used symbols as <code>&lt;symbol&gt;</code> definitions prefixed with the diagram ID.</p>
@@ -129,11 +129,11 @@ svg { max-width: 100%; height: auto; }
 <thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
 <tbody>
 <tr><td>One very large pull request is hard to review.</td><td>One commit or more per task group, each with its own tests and snapshot diffs, and a per-group summary in the description.</td></tr>
-<tr><td>The shared layout changes existing flowchart SVG.</td><td>Snapshot diffs reviewed in the group that changes them (<a href="#lay-1">LAY-1</a>); element references and selections do not depend on geometry.</td></tr>
+<tr><td>The projection limits how far other families can differ from flowcharts.</td><td>Railroad and data-tree diagrams have their own layouts; a family that needs more than the projection gives gets its own painter without changing references (<a href="#lay-1">LAY-1</a>).</td></tr>
 <tr><td>Raster output differs between platforms.</td><td>Fixed-point rasterisation, a fixed zlib level and golden byte tests on all three CI operating systems (<a href="#ras-1">RAS-1</a>).</td></tr>
 <tr><td>Native AOT size grows with the icon catalogue and fonts.</td><td>Fonts live in <code>Morphir.Diagrams.Raster</code>; the catalogue is one compressed resource read on first use; the AOT smoke tests record size.</td></tr>
 <tr><td>Provider icon terms or SVG Repo licences change, or FINOS objects.</td><td>Every symbol's source and terms are in the catalogue; any key can switch to an original drawing without changing the public API (<a href="#icn-1">ICN-1</a>).</td></tr>
-<tr><td>BPMN 2.0.2 coverage is broad.</td><td>The typed model is generated from the OMG XSD by a committed script, and a test regenerates it to check it is current.</td></tr>
+<tr><td>BPMN 2.0.2 coverage is broad.</td><td>A lossless element tree keeps every element and attribute, so writing round-trips content the typed view does not model; the typed view covers the elements that rendering and validation use.</td></tr>
 <tr><td>Upstream behaviour is only specified at 60a8dd1.</td><td>Pinned fixtures and expected outputs from that commit are the reference; deviations are listed in the README's migration coverage.</td></tr>
 </tbody>
 </table>

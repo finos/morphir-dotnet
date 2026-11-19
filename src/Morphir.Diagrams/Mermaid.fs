@@ -7,7 +7,6 @@ open System
 open System.Collections.Immutable
 open System.Diagnostics.CodeAnalysis
 open System.Runtime.InteropServices
-open System.Xml
 
 [<RequireQualifiedAccess>]
 module private MermaidReader =
@@ -28,6 +27,10 @@ module private MermaidReader =
 
         for line in Reading.lines source do
             let cursor = Reading.Cursor(line, 0)
+
+            if line.Number = 1 && cursor.Peek = '\uFEFF' then
+                cursor.Advance 1
+
             cursor.SkipSpace()
 
             if
@@ -75,7 +78,7 @@ module private MermaidReader =
 
     let private readDiagram (statements: (Reading.Line * int) array) =
         if statements.Length = 0 then
-            Error(Reading.error "mermaid/missing-header" "Expected a Mermaid diagram header." None)
+            Error [ Reading.error "mermaid/missing-header" "Expected a Mermaid diagram header." None ]
         else
             let line, start = statements[0]
             let cursor = Reading.Cursor(line, start)
@@ -85,7 +88,7 @@ module private MermaidReader =
             cursor.SkipSpace()
 
             let fail code message =
-                Error(Reading.error code message (Some(line.Span(start, line.Text.Length))))
+                Error [ Reading.error code message (Some(line.Span(start, line.Text.Length))) ]
 
             let body () =
                 seq {
@@ -105,23 +108,52 @@ module private MermaidReader =
                 match direction rawDirection with
                 | Some flowDirection when cursor.AtEnd || cursor.Take ";" || cursor.StartsWith "%%" ->
                     cursor.SkipSpace()
-                    FlowchartReader.read flowDirection (body ())
+                    FlowchartReader.read flowDirection (body ()) |> Result.mapError List.singleton
                 | _ ->
                     fail
                         "mermaid/flowchart-header"
                         "Expected a flowchart direction (TB, TD, BT, LR or RL)."
             | "sequenceDiagram" when cursor.AtEnd || cursor.Take ";" || cursor.StartsWith "%%" ->
                 cursor.SkipSpace()
-                SequenceReader.read (body ())
+                SequenceReader.read (body ()) |> Result.mapError List.singleton
             | "sequenceDiagram" ->
                 fail "mermaid/unexpected-header" "Expected the sequence diagram header on its own."
+            | "stateDiagram"
+            | "stateDiagram-v2" -> StateReader.read (body ())
+            | "swimlane-beta" -> SwimlaneReader.read (body ())
+            | "architecture-beta" -> ArchitectureReader.read (body ())
+            | "zenuml" -> ZenUmlReader.read (body ())
+            | "classDiagram"
+            | "classDiagram-v2"
+            | "erDiagram"
+            | "gantt"
+            | "pie"
+            | "journey"
+            | "gitGraph"
+            | "mindmap"
+            | "timeline"
+            | "quadrantChart"
+            | "requirementDiagram"
+            | "C4Context"
+            | "C4Container"
+            | "C4Component"
+            | "C4Dynamic"
+            | "C4Deployment"
+            | "sankey-beta"
+            | "xychart-beta"
+            | "block-beta"
+            | "packet-beta"
+            | "kanban"
+            | "radar-beta"
+            | "treemap-beta" ->
+                fail "mermaid/unsupported-kind" $"Mermaid {header} diagrams are not supported."
             | _ ->
                 fail
                     "mermaid/unsupported-diagram"
-                    "This reader supports Mermaid flowcharts and sequence diagrams."
+                    "This reader supports Mermaid flowchart, sequence, state, swimlane, architecture and ZenUML diagrams."
 
     let read source =
-        statements source |> Result.bind readDiagram
+        statements source |> Result.mapError List.singleton |> Result.bind readDiagram
 
 /// Reads Mermaid source and produces immutable diagram models.
 [<AbstractClass; Sealed>]
@@ -130,24 +162,7 @@ type Mermaid private () =
     static member Parse
         (source: string | null)
         : Result<DiagramDocument, ImmutableArray<Diagnostic>> =
-        let fail code message =
-            Error(ImmutableArray.Create(Reading.error code message None))
-
-        match source with
-        | null -> fail "mermaid/missing-header" "Expected a Mermaid diagram header."
-        | source when source.Length > Reading.sourceLimit ->
-            fail "mermaid/source-limit" $"Source exceeds {Reading.sourceLimit} UTF-16 code units."
-        | source ->
-            try
-                XmlConvert.VerifyXmlChars source |> ignore
-
-                MermaidReader.read source
-                |> Result.map (fun diagram -> DiagramDocument(source, diagram))
-                |> Result.mapError (fun diagnostic -> ImmutableArray.Create diagnostic)
-            with :? XmlException ->
-                fail
-                    "mermaid/invalid-character"
-                    "Source contains a character that cannot be represented in SVG."
+        SourceReading.parse "mermaid" MermaidReader.read source
 
     /// Parses a Mermaid diagram for C# callers. Diagnostics is empty on success.
     static member TryParse
@@ -172,11 +187,7 @@ type Mermaid private () =
 
     /// Parses Mermaid source and renders it to SVG with a theme and mode, returning diagnostics on failure.
     static member RenderSvg(source: string | null, options: SvgRenderOptions) =
-        ArgumentNullException.ThrowIfNull options
-
-        match Mermaid.Parse source with
-        | Ok document -> SvgRenderer.Render(document.Diagram, options)
-        | Error errors -> RenderedDiagram("image/svg+xml", None, errors)
+        SourceReading.renderSvg (Mermaid.Parse source) options
 
     /// Parses Mermaid source and renders an offline HTML playback artifact in the Archify theme.
     static member RenderAnimated(source: string | null) =
@@ -185,11 +196,4 @@ type Mermaid private () =
     /// Parses Mermaid source and renders an offline HTML playback artifact with a theme and mode.
     /// The page chrome takes its colours from the same palette.
     static member RenderAnimated(source: string | null, options: SvgRenderOptions) =
-        ArgumentNullException.ThrowIfNull options
-
-        match Mermaid.Parse source with
-        | Ok document ->
-            match SvgRenderer.TryBuild(document.Diagram, options) with
-            | Ok scene -> AnimatedRenderer.Render scene
-            | Error errors -> RenderedDiagram("text/html", None, errors)
-        | Error errors -> RenderedDiagram("text/html", None, errors)
+        SourceReading.renderAnimated (Mermaid.Parse source) options

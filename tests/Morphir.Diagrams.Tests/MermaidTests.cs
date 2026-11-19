@@ -20,9 +20,7 @@ public class MermaidTests
             throw new InvalidOperationException(string.Join("\n", diagnostics));
 
         document.Source.ShouldBe(source);
-        var flowchart = document.Diagram.Match(
-            flowchart: graph => graph,
-            sequence: _ => throw new InvalidOperationException("Expected a flowchart."));
+        var flowchart = DiagramMother.FlowchartOf(document);
         flowchart.Direction.ShouldBe(FlowDirection.LeftToRight);
         flowchart.Nodes.Select(node => node.Id).ShouldBe(
             [DiagramId.Create("Read"), DiagramId.Create("Valid"), DiagramId.Create("Save")]);
@@ -49,9 +47,7 @@ public class MermaidTests
 
         Mermaid.TryParse(source, out var document, out var diagnostics).ShouldBeTrue();
         diagnostics.ShouldBeEmpty();
-        var sequence = document.ShouldNotBeNull().Diagram.Match(
-            flowchart: _ => throw new InvalidOperationException("Expected a sequence."),
-            sequence: model => model);
+        var sequence = DiagramMother.SequenceOf(document.ShouldNotBeNull());
 
         sequence.Participants.Select(participant => participant.Label).ShouldBe(["Customer", "Orders API"]);
         sequence.Participants[0].Kind.ShouldBe(ParticipantKind.Actor);
@@ -104,9 +100,7 @@ public class MermaidTests
         if (!Mermaid.TryParse(source, out var document, out var diagnostics))
             throw new InvalidOperationException(string.Join("\n", diagnostics));
 
-        var flowchart = document.Diagram.Match(
-            flowchart: model => model,
-            sequence: _ => throw new InvalidOperationException("Expected a flowchart."));
+        var flowchart = DiagramMother.FlowchartOf(document);
         var group = flowchart.Groups.ShouldHaveSingleItem();
         group.Label.ShouldBe("Validation");
         group.NodeIds.ShouldBe([DiagramId.Create("Read"), DiagramId.Create("Valid")]);
@@ -149,9 +143,7 @@ public class MermaidTests
         if (!Mermaid.TryParse(source, out var document, out var diagnostics))
             throw new InvalidOperationException(string.Join("\n", diagnostics));
 
-        var sequence = document.Diagram.Match(
-            flowchart: _ => throw new InvalidOperationException("Expected a sequence."),
-            sequence: model => model);
+        var sequence = DiagramMother.SequenceOf(document);
         var alternative = FrameOf(sequence.Events.ShouldHaveSingleItem());
         alternative.Kind.ShouldBe(SequenceFrameKind.Alternative);
         alternative.Sections.Select(section => section.Label).ShouldBe(["Authorized", "Unrecognized"]);
@@ -212,9 +204,7 @@ public class MermaidTests
         if (!Mermaid.TryParse(source, out var document, out var diagnostics))
             throw new InvalidOperationException(string.Join("\n", diagnostics));
 
-        var chart = document.Diagram.Match(
-            flowchart: model => model,
-            sequence: _ => throw new InvalidOperationException("Expected a flowchart."));
+        var chart = DiagramMother.FlowchartOf(document);
         var link = chart.Edges.ShouldHaveSingleItem();
         link.Line.ShouldBe(FlowLine.Dotted);
         link.Label.ShouldBe("retry");
@@ -242,9 +232,7 @@ public class MermaidTests
         if (!Mermaid.TryParse(source, out var document, out var diagnostics))
             throw new InvalidOperationException(string.Join("\n", diagnostics));
 
-        var sequence = document.Diagram.Match(
-            flowchart: _ => throw new InvalidOperationException("Expected a sequence."),
-            sequence: model => model);
+        var sequence = DiagramMother.SequenceOf(document);
         sequence.Messages.Select(message => message.Number).ShouldBe([10m, null, 12m, 5m, 5.5m]);
 
         var svg = XElement.Parse(SvgRenderer.Render(document.Diagram).Output.ShouldNotBeNull());

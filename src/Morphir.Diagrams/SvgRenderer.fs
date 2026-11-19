@@ -18,9 +18,12 @@ type SvgRenderer private () =
         | Error errors -> Error(ImmutableArray.CreateRange errors)
         | Ok(metadata, warnings) ->
             let scene =
-                match diagram with
-                | Diagram.Flowchart model -> FlowchartSvg.render options metadata model
-                | Diagram.Sequence model -> SequenceSvg.render options metadata model
+                match diagram, diagram.Graph with
+                | Diagram.Sequence model, _ -> SequenceSvg.render options metadata model
+                | Diagram.Railroad model, _ -> RailroadSvg.render options metadata model
+                | Diagram.DataTree model, _ -> DataTreeSvg.render options metadata model
+                | _, Some graph -> FlowchartSvg.render options metadata graph
+                | _, None -> invalidOp "Every family other than sequences has a graph."
 
             Ok((scene.WithDiagnostics warnings).WithAnnotations(Carriage.project diagram options))
 
