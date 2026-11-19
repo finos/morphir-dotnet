@@ -51,6 +51,7 @@
         <Compile Include="DataTreeSvg.fs" />
         <Compile Include="SvgRenderer.fs" />
         <Compile Include="AnimatedRenderer.fs" />
+        <Compile Include="MermaidPrinter.fs" />
         <Compile Include="SourceReading.fs" />
         <Compile Include="Mermaid.fs" />
         <Compile Include="PlantUml.fs" />

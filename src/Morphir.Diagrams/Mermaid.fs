@@ -169,6 +169,29 @@ type Mermaid private () =
         : Result<DiagramDocument, ImmutableArray<Diagnostic>> =
         SourceReading.parse "mermaid" MermaidReader.read source
 
+    /// Writes a flowchart or sequence diagram as canonical Mermaid text. Reading the text gives the same model, and
+    /// printing that again gives the same text. Returns a Result for F# callers.
+    static member Print(diagram: Diagram) : Result<string, ImmutableArray<Diagnostic>> =
+        ArgumentNullException.ThrowIfNull diagram
+        MermaidPrinter.print diagram |> Result.mapError ImmutableArray.CreateRange
+
+    /// Writes a flowchart or sequence diagram as canonical Mermaid text for C# callers. Diagnostics is empty on success.
+    static member TryPrint
+        (
+            diagram: Diagram,
+            [<Out; MaybeNullWhen(false)>] text: byref<string>,
+            [<Out>] diagnostics: byref<ImmutableArray<Diagnostic>>
+        ) =
+        match Mermaid.Print diagram with
+        | Ok printed ->
+            text <- printed
+            diagnostics <- ImmutableArray<Diagnostic>.Empty
+            true
+        | Error errors ->
+            text <- Unchecked.defaultof<_>
+            diagnostics <- errors
+            false
+
     /// Parses a Mermaid diagram for C# callers. Diagnostics is empty on success.
     static member TryParse
         (
