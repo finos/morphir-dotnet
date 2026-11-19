@@ -397,8 +397,14 @@ type Flowchart
         direction: FlowDirection,
         nodes: ImmutableArray<FlowNode>,
         edges: ImmutableArray<FlowEdge>,
-        groups: ImmutableArray<FlowGroup>
+        groups: ImmutableArray<FlowGroup>,
+        lanes: bool
     ) =
+    internal new(direction, nodes, edges, groups) = Flowchart(direction, nodes, edges, groups, false)
+
+    /// Whether the top-level groups are drawn as lanes: parallel bands of equal length across the flow.
+    member internal _.Lanes = lanes
+
     /// Direction used by the layout.
     member _.Direction = direction
 
