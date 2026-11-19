@@ -14,7 +14,7 @@ The BPMN reader SHALL prohibit DTD processing and use no XML resolver. A DTD or 
 - **THEN** reading fails with a prohibited-declaration diagnostic and allocates no expansion
 
 ### Requirement: Namespace-aware typed document
-The reader SHALL identify elements and attributes by namespace URI and local name, and SHALL represent the BPMN 2.0.2 semantic elements, including processes, collaborations, choreographies and conversations, keeping present and absent values, child order, documentation and expressions as text.
+The reader SHALL identify elements and attributes by namespace URI and local name, and SHALL represent the BPMN 2.0.2 semantic elements, including processes, collaborations, choreographies and conversations, keeping present and absent values, child order, documentation and expressions as text. The typed view gives each element its kind, identity, fields and references over the lossless element tree; it does not generate a class per schema type.
 
 #### Scenario: Prefix alias
 - **WHEN** a document binds the BPMN namespace to prefix `b` instead of `bpmn`
@@ -42,7 +42,7 @@ The writer SHALL produce documented canonical and pretty formats that keep order
 - **THEN** both outputs are identical
 
 ### Requirement: Traversal and graph queries
-The library SHALL provide read-only traversal of the document tree with continue, skip-children and stop controls, independent of call-stack depth, and bounded reachability and shortest-route queries over caller-selected edge kinds (containment, sequence flow, message flow, association, reference).
+The library SHALL provide read-only traversal of the document tree with continue, skip-children and stop controls, independent of call-stack depth, and bounded reachability and shortest-route queries over caller-selected edge kinds (containment, sequence flow, message flow, association, reference). A query that reaches a reference into an imported document SHALL report a missing element; imports are not resolved.
 
 #### Scenario: Deep tree
 - **WHEN** a document nests 10,000 elements

@@ -84,11 +84,11 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 
 ## 13. BPMN documents
 
-- [ ] 13.1 Create `Morphir.Bpmn` with a secure namespace-aware XML reader (DTD prohibited, no resolver) and a lossless element tree that keeps every element, attribute and text node; verify the prohibited-declaration test and reproduction tests.
-- [ ] 13.2 Add the typed BPMN 2.0.2 view of processes, collaborations, flow elements, flows, lanes, artifacts and DI over the element tree, keeping unknown and extension content; verify against the pinned BPMN corpus.
-- [ ] 13.3 Add DI, extensions, validation and reference resolution; verify the pinned BPMN corpus.
-- [ ] 13.4 Add canonical and pretty writing; verify canonical round trips are byte-identical.
-- [ ] 13.5 Add traversal styles and bounded graph queries; verify the 10,000-deep and cycle tests.
+- [x] 13.1 Create `Morphir.Bpmn` with a secure namespace-aware XML reader (DTD prohibited, no resolver) and a lossless element tree that keeps every element, attribute and text node; verify the prohibited-declaration test and reproduction tests.
+- [x] 13.2 Add the typed BPMN 2.0.2 view of processes, collaborations, flow elements, flows, lanes, artifacts and DI over the element tree, keeping unknown and extension content; verify against the pinned BPMN corpus.
+- [x] 13.3 Add DI, extensions, validation and reference resolution; verify the pinned BPMN corpus.
+- [x] 13.4 Add canonical and pretty writing; verify canonical round trips are byte-identical.
+- [x] 13.5 Add traversal styles and bounded graph queries; verify the 10,000-deep and cycle tests.
 - [ ] 13.6 Add `Morphir.Bpmn` to the solution, test plan, package validation and AOT smoke tests; verify the build and AOT smoke pass.
 
 ## 14. BPMN diagrams
