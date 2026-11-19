@@ -113,6 +113,13 @@ public partial class PlaybackExplorationTests
         data.GetProperty("repeat").GetBoolean().ShouldBeFalse();
     }
 
+    [Test]
+    public void TheExplorerIsOfferedOnlyWhenThereIsSomethingToExplore()
+    {
+        Mermaid.RenderAnimated("flowchart LR\n  A --> B\n").Output!.ShouldContain("<details class=\"explore\"");
+        Mermaid.RenderAnimated("flowchart LR\n  A\n").Output!.ShouldNotContain("<details class=\"explore\"");
+    }
+
     private static JsonElement MotionData(string html)
     {
         var json = MotionScript().Match(html).Groups[1].Value;
