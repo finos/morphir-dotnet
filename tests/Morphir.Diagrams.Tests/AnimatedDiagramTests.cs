@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Shouldly;
 
@@ -100,6 +101,42 @@ public class AnimatedDiagramTests
         html.ShouldContain("data-view-control=\"zoom-out\"");
         html.ShouldContain("data-view-control=\"fit\"");
         html.ShouldContain("data-view-control=\"fullscreen\"");
+    }
+
+    [Test]
+    public void PlayerControlsAreInlineIconButtonsWithAccessibleNames()
+    {
+        var html = Mermaid.RenderAnimated("sequenceDiagram\n  A->>B: Submit").Output.ShouldNotBeNull();
+        var chrome = html[..html.IndexOf("<script type=\"application/json\"", StringComparison.Ordinal)];
+
+        var buttons = Regex.Matches(chrome, "<button[^>]*>").Select(match => match.Value).ToArray();
+        buttons.Length.ShouldBe(8);
+        buttons.ShouldAllBe(button => button.Contains("aria-label=\""));
+
+        // Every button shows an inline SVG icon instead of a text glyph.
+        Regex.Matches(chrome, "<button[^>]*>\\s*<svg class=\"icon").Count.ShouldBe(buttons.Length);
+        chrome.ShouldContain("data-icon=\"pause\"");
+        chrome.ShouldContain("data-icon=\"exit-fullscreen\"");
+
+        // The page stays offline: no external fonts, scripts, styles or images.
+        chrome.ShouldNotContain("<link");
+        chrome.ShouldNotContain("@import");
+        chrome.ShouldNotContain(" src=");
+        Regex.Matches(html, @"https?://[^""'\\ )]+").Select(match => match.Value).Distinct()
+            .ShouldBe(["http://www.w3.org/2000/svg"]);
+    }
+
+    [Test]
+    public void PlayerChromeTakesItsAccentFromTheThemeSignalColour()
+    {
+        var cobalt = Mermaid.RenderAnimated("sequenceDiagram\n  A->>B: Submit",
+            SvgRenderOptions.Create(DiagramThemes.Cobalt, ThemeMode.Dark)).Output.ShouldNotBeNull();
+        cobalt.ShouldContain("--diagram-page-accent: #ffc600;");
+
+        // Archify's light amber is darkened to the readable ink of the cloud family.
+        var archify = Mermaid.RenderAnimated("sequenceDiagram\n  A->>B: Submit",
+            SvgRenderOptions.Create(DiagramThemes.Archify, ThemeMode.Light)).Output.ShouldNotBeNull();
+        archify.ShouldContain("--diagram-page-accent: #a75c05;");
     }
 
     private static DiagramScene ReadScene(string source)

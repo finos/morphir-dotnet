@@ -48,6 +48,13 @@ It provides play, pause, restart, step, seek, speed, and SVG download.
 Reduced-motion mode supports stepping and seeking, and hidden pages suspend
 the playback clock.
 
+The controls are a transport bar fixed to the bottom of the diagram frame.
+Each one is an icon button with an accessible name, and the page loads no
+font, script or image from outside the file. The play button and the moving
+signal use the theme's accent, the readable `cloud` ink. The timeline marks
+the start of each scheduled connection. On narrow screens the transport
+takes two rows, with the timeline on the second.
+
 `SvgRenderer.BuildScene(diagram)` exposes the immutable
 [SVG document](../Morphir.Svg/README.md) and the connector occurrences for
 inspection. `AnimatedRenderer.Render(scene)` uses those exact path
@@ -68,6 +75,9 @@ Style the viewport per player on the `[data-diagram-viewer]` root with the
 `--diagram-viewer-height`, `--diagram-viewer-canvas-bg`,
 `--diagram-viewer-toolbar-bg`, `--diagram-viewer-border`,
 `--diagram-viewer-control-radius`, and `--diagram-viewer-focus` properties.
+The page colours are `--diagram-page-bg`, `--diagram-page-text`,
+`--diagram-page-muted`, `--diagram-page-surface` and `--diagram-page-accent`,
+taken from the selected theme and mode.
 
 Route exploration, rounded and bridged connector routing, and raster
 exports are tracked in the migration PRD.

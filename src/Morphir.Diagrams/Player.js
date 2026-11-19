@@ -6,7 +6,8 @@
     const root = document.currentScript.closest("[data-diagram-viewer]");
     const control = name => root.querySelector(`[data-control="${name}"]`);
     const data = JSON.parse(root.querySelector("[data-motion-data]").textContent);
-    const svg = root.querySelector("svg");
+    const svg = root.querySelector("[data-viewport-content] svg");
+    const timeline = root.querySelector("[data-motion-timeline]");
     const play = control("play");
     const seek = control("seek");
     const speed = control("speed");
@@ -14,7 +15,8 @@
     const reduced = matchMedia("(prefers-reduced-motion: reduce)");
     const duration = data.durationMs;
     const ns = "http://www.w3.org/2000/svg";
-    const accent = "#2563eb";
+    // The signal takes the theme accent, the colour of the play control.
+    const accent = "var(--diagram-page-accent, #2563eb)";
     let playing = false;
     let inspected = false;
     let elapsed = 0;
@@ -25,6 +27,14 @@
     const overlayLayer = create("g", { "aria-hidden": "true" });
 
     seek.max = String(duration);
+    // One tick for each scheduled start, so the timeline shows where connections begin.
+    const ticks = duration === 0 ? [] : [...new Set(data.steps.map(step => step.startMs))].map(start => {
+        const tick = document.createElement("span");
+        tick.style.left = `${start / duration * 100}%`;
+        tick.dataset.start = String(start);
+        return tick;
+    });
+    root.querySelector("[data-motion-ticks]").append(...ticks);
     for (const button of [play, seek, speed, control("step"), control("restart")]) {
         button.disabled = duration === 0;
     }
@@ -40,7 +50,10 @@
 
     function draw() {
         seek.value = String(Math.floor(elapsed));
-        control("position").value = `${Math.floor(elapsed)} / ${duration} ms`;
+        const seconds = time => (time / 1000).toFixed(1);
+        control("position").value = `${seconds(elapsed)} / ${seconds(duration)} s`;
+        timeline.style.setProperty("--progress", String(duration === 0 ? 0 : elapsed / duration));
+        for (const tick of ticks) tick.classList.toggle("is-passed", Number(tick.dataset.start) <= elapsed && inspected);
         if (duration === 0 || !inspected) return;
 
         const time = data.repeat ? elapsed % duration : elapsed;
@@ -81,7 +94,7 @@
             d: binding.d, fill: "none", stroke: accent,
             "stroke-width": "3", "stroke-opacity": ".5", "stroke-dasharray": "12 8"
         });
-        const dot = create("circle", { r: "4", fill: accent });
+        const dot = create("circle", { r: "4.5", fill: accent, stroke: "var(--diagram-page-bg, #ffffff)", "stroke-width": "2" });
         group.append(path, dot);
         if (overlayLayer.parentNode === null) svg.append(overlayLayer);
         overlayLayer.insertBefore(group, nextGroup);
@@ -118,7 +131,7 @@
     }
 
     function reflectState() {
-        play.textContent = playing ? "Pause" : "Play";
+        play.setAttribute("aria-label", playing ? "Pause" : "Play");
         play.setAttribute("aria-pressed", String(playing));
         status.textContent = playing ? data.repeat ? "Playing authored order." : "Playing explicit scenario."
             : !data.repeat && duration > 0 && elapsed === duration ? "Finished."

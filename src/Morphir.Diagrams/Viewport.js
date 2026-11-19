@@ -37,8 +37,11 @@
     }
 
     function measure() {
+        // The toolbar floats over the top of the viewport, so the fitted diagram sits below it.
+        const reserve = toolbar.hidden ? 0 : toolbar.offsetTop + toolbar.offsetHeight;
+        content.style.top = `calc(50% + ${reserve / 2}px)`;
         const widthAvailable = Math.max(1, viewport.clientWidth - 16);
-        const heightAvailable = Math.max(1, viewport.clientHeight - 16);
+        const heightAvailable = Math.max(1, viewport.clientHeight - 16 - reserve);
         const ratio = Math.min(widthAvailable / box.width, heightAvailable / box.height);
         width = box.width * ratio;
         height = box.height * ratio;
@@ -53,7 +56,7 @@
     }
 
     function reflectFullscreen(open) {
-        fullscreen.textContent = open ? "Exit fullscreen" : "Fullscreen";
+        fullscreen.setAttribute("aria-label", open ? "Exit fullscreen" : "Fullscreen");
         fullscreen.setAttribute("aria-pressed", String(open));
     }
 
