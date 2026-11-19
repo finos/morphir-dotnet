@@ -14,7 +14,7 @@ let main args =
         use self = System.Diagnostics.Process.GetCurrentProcess()
         let marker = System.IO.Path.Combine(System.Environment.CurrentDirectory, "descendant.pid")
         let temporary = marker + ".tmp"
-        System.IO.File.WriteAllText(temporary, $"{self.Id}|{self.StartTime.ToUniversalTime().Ticks}")
+        System.IO.File.WriteAllText(temporary, $"{self.Id}|{ProcessIdentity.start self}")
         System.IO.File.Move(temporary, marker, true)
         System.Threading.Thread.Sleep 60000
         0

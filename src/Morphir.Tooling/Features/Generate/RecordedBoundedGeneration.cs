@@ -100,7 +100,18 @@ internal static class RecordedBoundedGeneration
                         guest.TerminateModelAccessAsync, ct, sessionDeadline.Token);
                     using var closeDeadline = CancellationTokenSource.CreateLinkedTokenSource(ct, sessionDeadline.Token);
                     closeDeadline.CancelAfter(access.Limits.MaxCallMilliseconds);
-                    var closed = await guest.CloseModelAccessAsync(closeDeadline.Token);
+                    FSharpResult<Unit, MepGuestFailure> closed;
+                    try
+                    {
+                        closed = await guest.CloseModelAccessAsync(closeDeadline.Token);
+                    }
+                    catch (Exception cleanup) when (sessionDeadline.IsCancellationRequested && !ct.IsCancellationRequested)
+                    {
+                        // Expiry remains the primary cause. Retain the independent cleanup failure as evidence.
+                        return Failed(new GenerationFailure(GenerationFailureKind.Operational,
+                        [new("extension.bounded_deadline", "The generation deadline expired during guest shutdown.", producer.IrPath),
+                         new("extension.bounded_io", cleanup.Message, producer.IrPath)]));
+                    }
                     ct.ThrowIfCancellationRequested();
                     if (result is Outcome<StagedGenerationOutput>.Success)
                     {

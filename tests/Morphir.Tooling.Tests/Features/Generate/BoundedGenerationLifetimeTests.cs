@@ -78,7 +78,7 @@ public sealed class BoundedGenerationLifetimeTests
     [Test]
     public async Task FailureSettlesAnExitedGuestRootsDescendantBeforeReleasingTheProducer()
     {
-        if (!OperatingSystem.IsWindows()) Skip.Test("Windows creation-time job ownership is required.");
+        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsLinux()) Skip.Test("Windows or Linux creation-time ownership is required.");
         using var project = Project("root-exits");
         var waits = new LineWriter();
         var store = Store(project, waits);
@@ -87,12 +87,14 @@ public sealed class BoundedGenerationLifetimeTests
         using var writerBudget = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         Task<Outcome<CompileTaskRun>>? writer = null;
         Process? descendant = null;
+        long descendantStart = 0;
         try
         {
             await WaitForGuestAsync(project, "descendant", generation);
             var identity = File.ReadAllText(project.PathOf("bounded-orders.descendant")).Split('|');
             var monitored = Process.GetProcessById(int.Parse(identity[0], CultureInfo.InvariantCulture));
-            if (monitored.StartTime.ToUniversalTime().Ticks != long.Parse(identity[1], CultureInfo.InvariantCulture))
+            descendantStart = long.Parse(identity[1], CultureInfo.InvariantCulture);
+            if (ProcessStartIdentity(monitored) != descendantStart)
             {
                 monitored.Dispose();
                 throw new InvalidOperationException("The descendant PID no longer belongs to the marked process.");
@@ -105,7 +107,7 @@ public sealed class BoundedGenerationLifetimeTests
 
             project.Write("bounded-orders.exit-root", "");
             (await writer.WaitAsync(Bound)).ShouldSucceed();
-            descendant.HasExited.Should().BeTrue("the writer must wait for native guest settlement");
+            ProcessExited(descendant).Should().BeTrue("the writer must wait for native guest settlement");
             var result = await generation.WaitAsync(Bound);
             result.ShouldExitWith(2);
             var diagnostics = result.ShouldWriteOneJsonDocument().GetProperty("diagnostics");
@@ -117,7 +119,7 @@ public sealed class BoundedGenerationLifetimeTests
         finally
         {
             project.Write("bounded-orders.exit-root", "");
-            if (descendant is { HasExited: false })
+            if (descendant is not null && !ProcessExited(descendant) && ProcessStartIdentity(descendant) == descendantStart)
             {
                 descendant.Kill(entireProcessTree: true);
                 await descendant.WaitForExitAsync().WaitAsync(Bound);
@@ -211,6 +213,24 @@ public sealed class BoundedGenerationLifetimeTests
                 }
             }
         }
+    }
+
+    private static string[] LinuxStat(Process process)
+    {
+        var text = File.ReadAllText($"/proc/{process.Id}/stat");
+        return text[(text.LastIndexOf(')') + 2)..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
+    }
+
+    private static long ProcessStartIdentity(Process process) => OperatingSystem.IsLinux()
+        ? long.Parse(LinuxStat(process)[19], CultureInfo.InvariantCulture)
+        : process.StartTime.ToUniversalTime().Ticks;
+
+    private static bool ProcessExited(Process process)
+    {
+        if (!OperatingSystem.IsLinux()) return process.HasExited;
+        try { return LinuxStat(process)[0] is "Z" or "X"; }
+        catch (FileNotFoundException) { return true; }
+        catch (DirectoryNotFoundException) { return true; }
     }
 
     private static Process? ReadMarkedProcess(string marker)

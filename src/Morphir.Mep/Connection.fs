@@ -170,6 +170,18 @@ type Connection
 
     let write message = writeWithOperation None message
 
+    let notifyCancellation id =
+        task {
+            let parameters = JsonSerializer.SerializeToElement({ Id = id }, MepJson.Default.CancelParams)
+            try
+                do! write (JsonRpcMessage.Notification(Method.CancelRequest.WireValue, Some parameters))
+            with
+            | :? IOException
+            | :? ObjectDisposedException ->
+                // Cancellation is advisory. Teardown may have already closed the output.
+                ()
+        }
+
     let report diagnostic = diagnostics.Enqueue diagnostic
 
     let cancelInflight (parameters: JsonElement option) =
@@ -266,10 +278,7 @@ type Connection
                 | Ok(id, waiter) ->
                     try
                         do! write (JsonRpcMessage.Request(id, method, parameters))
-                        use _ =
-                            cancellation.Register(fun () ->
-                                let cancel = JsonSerializer.SerializeToElement({ Id = id }, MepJson.Default.CancelParams)
-                                write (JsonRpcMessage.Notification(Method.CancelRequest.WireValue, Some cancel)) |> ignore)
+                        use _ = cancellation.Register(fun () -> notifyCancellation id |> ignore)
                         return! waiter.Task
                     finally
                         pending.TryRemove id |> ignore

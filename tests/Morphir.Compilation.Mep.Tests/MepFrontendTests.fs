@@ -18,7 +18,13 @@ open Morphir.Mep
 
 let private host =
     match Environment.GetEnvironmentVariable "DOTNET_HOST_PATH" with
-    | null -> "dotnet"
+    | null ->
+        let name = if OperatingSystem.IsWindows() then "dotnet.exe" else "dotnet"
+        let path = Environment.GetEnvironmentVariable "PATH" |> Option.ofObj |> Option.defaultValue ""
+        path.Split(Path.PathSeparator)
+        |> Array.map (fun directory -> Path.GetFullPath(Path.Combine(directory, name)))
+        |> Array.tryFind File.Exists
+        |> Option.defaultWith (fun () -> failtest "Set DOTNET_HOST_PATH to an absolute dotnet host.")
     | path -> path
 
 let private stderr = new StringWriter()
@@ -520,14 +526,14 @@ let processTreeOwnership =
             let identity = File.ReadAllText(marker).Split '|'
             let started = int64 identity[1]
             use descendant = Process.GetProcessById(int identity[0])
-            Expect.equal (descendant.StartTime.ToUniversalTime().Ticks) started "the marked process belongs to this test"
+            Expect.equal (ProcessIdentity.start descendant) started "the marked process belongs to this test"
             try
                 Expect.isTrue (SpinWait.SpinUntil((fun () -> frontend.HasExited), bound)) "the guest root must exit before disposal"
                 let disposed = beginClose ()
                 Expect.isTrue (disposed.Wait bound) "disposal must settle the guest tree and pipes within its bound"
-                Expect.isTrue descendant.HasExited "descendant is gone at successful disposal"
+                Expect.isTrue (ProcessIdentity.exited descendant) "descendant is gone at successful disposal"
             finally
-                if not descendant.HasExited && descendant.StartTime.ToUniversalTime().Ticks = started then
+                if not (ProcessIdentity.exited descendant) && ProcessIdentity.start descendant = started then
                     descendant.Kill(true)
                     descendant.WaitForExitAsync().WaitAsync(bound).GetAwaiter().GetResult()
         finally
@@ -543,10 +549,10 @@ let processTreeOwnership =
     |> testLabel "PlatformSpecific"
 
 [<Tests>]
-let legacyModelAccessClose =
-    let run () =
+let modelAccessClose =
+    let run legacy =
         if not (OperatingSystem.IsLinux()) then
-            skiptest "This test exercises the legacy Linux process owner."
+            skiptest "This test exercises Linux owned and explicit legacy process paths."
 
         let bound = TimeSpan.FromSeconds 5.
         let scenario = fakeOptions "root-exits-with-child"
@@ -554,11 +560,16 @@ let legacyModelAccessClose =
         let marker = Path.Combine(working, "descendant.pid")
         File.Delete marker
         let options = MepGuestOptions.Create(
-            scenario.Executable, scenario.Arguments, working, bound, scenario.Stderr,
-            "model-access-close-test", "1.0.0", sandboxEnvironment ()
+            (if legacy then Path.GetFileName scenario.Executable else scenario.Executable), scenario.Arguments, working, bound, scenario.Stderr,
+            "model-access-close-test", "1.0.0",
+            (let environment = Collections.Generic.Dictionary<string, string>(sandboxEnvironment ())
+             let hostDirectory = Path.GetDirectoryName(scenario.Executable) |> nonNull
+             let searchPath = environment["PATH"]
+             environment["PATH"] <- $"{hostDirectory}{Path.PathSeparator}{searchPath}"
+             environment)
         )
         let offer: ModelTransportSupport =
-            { Tuples = [| MepGenerationTransport.V4Tuple |]
+            { Tuples = Morphir.Frontend.FSharp.Extension.FSharpGuest.support.Tuples
               Limits = { MaxEncodedBytes = 8192; MaxDecodedBytes = 6144; MaxDepth = 64; MaxNodes = 256 }
               Guarantees = [||] }
         let guest =
@@ -574,7 +585,7 @@ let legacyModelAccessClose =
             let child = Process.GetProcessById(int identity[0])
             descendant <- Some child
             descendantStart <- int64 identity[1]
-            Expect.equal (child.StartTime.ToUniversalTime().Ticks) descendantStart "the marked process belongs to this test"
+            Expect.equal (ProcessIdentity.start child) descendantStart "the marked process belongs to this test"
             use deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds 200.)
             let refused =
                 try
@@ -583,19 +594,23 @@ let legacyModelAccessClose =
                 with :? IOException as error ->
                     Expect.stringContains error.Message "redirected streams" "reports unfinished legacy stream draining"
                     true
-            Expect.isTrue refused "inherited open pipes prevent a successful bounded close"
+            Expect.isTrue refused "closing an exited guest reports failure"
+            if not legacy then Expect.isTrue (ProcessIdentity.exited child) "owned close settles the descendant"
             Expect.isTrue (SpinWait.SpinUntil((fun () -> exchange.IsCompleted), bound)) "the pending exchange settles"
         finally
             match descendant with
             | Some child ->
                 use owned = child
-                if not child.HasExited && child.StartTime.ToUniversalTime().Ticks = descendantStart then
+                if not (ProcessIdentity.exited child) && ProcessIdentity.start child = descendantStart then
                     child.Kill(true)
                     child.WaitForExitAsync().WaitAsync(bound).GetAwaiter().GetResult()
             | None -> ()
             (guest :> IAsyncDisposable).DisposeAsync().AsTask().WaitAsync(bound).GetAwaiter().GetResult()
 
-    testCase "bounded close refuses within its deadline when an exited legacy guest leaves its pipes open" run
+    testList "MepModelAccessClose" [
+        testCase "owned Linux close settles descendants after deadline" (fun () -> run false)
+        testCase "explicit legacy close refuses inherited open pipes within its bound" (fun () -> run true)
+    ]
     |> testSequenced
     |> testLabel "PlatformSpecific"
 

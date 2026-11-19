@@ -21,6 +21,7 @@
     <InternalsVisibleTo Include="Morphir.Compilation.Mep" />
     <Compile Include="WindowsProcess.fs" />
     <Compile Include="DarwinProcess.fs" />
+    <Compile Include="LinuxProcess.fs" />
     <Compile Include="Boundary.fs" />
     <Compile Include="Acquisition.fs" />
     <Compile Include="HttpTransport.fs" />
