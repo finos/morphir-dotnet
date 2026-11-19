@@ -8,7 +8,7 @@
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
     <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
-    <RoslynVersion Condition="'$(RoslynVersion)' == ''">5.0.0</RoslynVersion>
+    <RoslynVersion Condition="'$(RoslynVersion)' == ''">5.12.0</RoslynVersion>
     <NoWarn>$(NoWarn);RS2008</NoWarn>
   </PropertyGroup>
   <ItemGroup>
