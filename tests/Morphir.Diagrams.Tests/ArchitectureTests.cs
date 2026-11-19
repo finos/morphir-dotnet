@@ -118,4 +118,42 @@ public class ArchitectureTests
         down[0].Y.ShouldBe(a.Bottom, 1);
         down[^1].Y.ShouldBe(c.Top, 1);
     }
+
+    [Test]
+    public void ServicesDrawTheirIconsFromScopedAccessibleSymbols()
+    {
+        var first = XElement.Parse(Mermaid.RenderSvg("architecture-beta\n  service api(lambda)[Orders]\n  service web(browser)[Web]\n  web:R --> L:api\n").Output!);
+        var second = XElement.Parse(Mermaid.RenderSvg("architecture-beta\n  service queue(sqs)[Events]\n").Output!);
+
+        var symbols = first.Descendants(Svg + "symbol").ToList();
+        symbols.Count.ShouldBe(2);
+        symbols.ShouldAllBe(symbol => symbol.Element(Svg + "title") != null);
+        first.Descendants(Svg + "use").Select(use => (string?)use.Attribute("aria-label")).ShouldBe(["lambda", "browser"], ignoreOrder: true);
+
+        IEnumerable<string> Ids(XElement svg) => svg.DescendantsAndSelf().Select(element => (string?)element.Attribute("id")).OfType<string>();
+        Ids(first).Intersect(Ids(second)).ShouldBeEmpty();
+    }
+
+    [Test]
+    public void AnUnknownIconDrawsAMarkedFallbackWithAWarning()
+    {
+        Mermaid.TryParse("architecture-beta\n  service a(nonesuch)[A]\n", out var document, out _).ShouldBeTrue();
+
+        document!.Diagnostics.ShouldHaveSingleItem().Code.ShouldBe("mermaid/unknown-icon");
+        Mermaid.RenderSvg("architecture-beta\n  service a(nonesuch)[A]\n").Output!.ShouldContain("stroke-dasharray=\"3 2\"");
+    }
+
+    [Test]
+    public void EveryCatalogueKeyResolvesAndTheCatalogueMatchesItsProvenance()
+    {
+        foreach (var key in new[] { "lambda", "azuresql", "bigquery", "actor", "kubernetes", "externalsystem", "cloud", "disk", "internet", "LAMBDA" })
+        {
+            DiagramIcons.Contains(key).ShouldBeTrue(key);
+        }
+
+        DiagramIcons.Keys.Length.ShouldBe(526);
+
+        using var stream = typeof(Mermaid).Assembly.GetManifestResourceStream("Morphir.Diagrams.Icons.json.gz")!;
+        Convert.ToHexStringLower(SHA256.HashData(stream)).ShouldBe("eb0097ee152cbb25e8c231c0e991d8d80e8c0aa5c4553f3a7cdf234f1584d895");
+    }
 }

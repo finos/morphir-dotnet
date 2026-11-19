@@ -641,6 +641,34 @@ reference are read with PlantUML's actions, apart from the four that diagrams.mb
 purpose. `PlantUml.Print` writes the legacy graph form, in which decisions, merges and lanes
 read back as plain activities.
 
+## Architecture diagrams and icons
+
+Mermaid `architecture-beta` reads into an `ArchitectureDiagram`: groups (nested with `in`),
+services with an icon or icon text, junctions, edges between ports (`a:R --> L:b`), edges that
+attach to a group's outline (`a{group}:R -- L:b`), alignments, and a title. The reader refuses
+what Mermaid refuses: an empty `[]` label, an ID that is a port letter, a group used as an
+endpoint, a group-boundary edge between members of one group, and an alignment of a group.
+Ports place the elements: an edge across the flow orders its ends, and one along it shares a
+rank; each edge leaves and enters by its ports. All 18 fixtures of the pinned Mermaid
+architecture reference are accepted or refused as Mermaid does, with the same services and
+edges, and `Mermaid.Print` round-trips them.
+
+| Element | Reference | Drawn as | Colour family |
+| --- | --- | --- | --- |
+| Service | `node=api` | Box with its icon above its label | backend |
+| Junction | `node=j` | Small circle | external |
+| Group | `group=cloud` | Dashed box | frame |
+| Edge | `edge=api/db/0` | Line with its heads and label | arrow |
+
+`DiagramIcons.Keys` lists the 526 icon keys, matched without regard to case; a prefix such as
+`logos:` is ignored. AWS, Azure, Google Cloud and the UML symbols are copied unchanged from
+diagrams.mbt and draw on a light plate so that their colours stay visible in dark themes.
+Technology keys, `externalsystem`, `cloud`, `disk`, `internet` and the fallback are drawn for
+this library and take the theme's ink. Only the icons a diagram uses enter its SVG, as symbols
+with identifiers scoped to the diagram and a title that names the key. An unknown key draws a
+dashed fallback and gives a `mermaid/unknown-icon` warning. `THIRD-PARTY-NOTICES.md` in the
+package names each provider, its terms and the trademark owners.
+
 ## Exploring routes and scenarios
 
 Players of diagrams with connections have an *Explore routes* disclosure under the
@@ -674,6 +702,7 @@ elements in order.
 | Sequences | All 38 Mermaid 12.2.0 examples: participant kinds (boundary, control, entity, database, collections, queue), aliases, boxes, create and destroy, central connections, every arrow and half-arrow, notes, activations, frames, and `autonumber` with a start and step |
 | States | All 53 fixtures of the pinned Mermaid state reference; see [State diagrams](#state-diagrams) |
 | Swimlanes | All 34 fixtures of the pinned Mermaid swimlane reference; see [Swimlane and activity diagrams](#swimlane-and-activity-diagrams) |
+| Architecture | All 18 fixtures of the pinned Mermaid architecture reference; see [Architecture diagrams and icons](#architecture-diagrams-and-icons) |
 | ZenUML | All 25 pinned ZenUML core 3.47.9 examples, read into the sequence model: annotators, asynchronous messages, calls with bodies, creation, assignments, returns and replies, loops, `if`/`else`, `opt`, `par` and `try`/`catch`/`finally` |
 
 The sequence model exposes ordered `Events` at the root and in each frame
