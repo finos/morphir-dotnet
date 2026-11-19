@@ -669,6 +669,62 @@ with identifiers scoped to the diagram and a title that names the key. An unknow
 dashed fallback and gives a `mermaid/unknown-icon` warning. `THIRD-PARTY-NOTICES.md` in the
 package names each provider, its terms and the trademark owners.
 
+## Railroad diagrams
+
+PlantUML `@startregex` and `@startebnf` blocks read into a `RailroadDiagram`: one track for a
+regular expression, or one per EBNF rule. Items keep literals, classes, escapes, anchors,
+choices, optional parts, repetitions with their bounds, named groups, lookarounds, rule
+references, special sequences and exceptions. A reference stays a box; it is never inlined, so
+recursive grammars draw. A large bound such as `{2,1000000}` stays a number. The reader refuses
+what the library does not draw: atomic groups, inline flags, `\P{…}`, lazy bounded
+repetitions and a second rule after a semicolon on one line. All 125 regex and EBNF fixtures of
+the pinned PlantUML reference are accepted or refused as PlantUML does, apart from those
+deliberate refusals, and `PlantUml.Print` round-trips each accepted one with the same structure.
+Both capturing and non-capturing groups print as capturing groups.
+
+Every drawn box has an occurrence identifier, `rule:path` (`track:path` for a regular
+expression), where the path lists child positions from the rule's body. Equal text never merges
+two boxes. `OccurrenceIds` lists them in drawing order and `OccurrenceOf(item)` finds one.
+
+| Element | Reference | Drawn as | Colour family |
+| --- | --- | --- | --- |
+| Rule start | `node=number` | The rule's name above its track | text |
+| Literal | `node=number:0.1` | Rounded box | frontend |
+| Rule reference | `node=number:0.0.0` | Square box | database |
+| Escape, anchor, special sequence | `node=track:0.0` | Pointed box | cloud |
+| Character class | `node=track:0.2` | Box with `[…]` | messagebus |
+| Lookaround, named group, exception | none | Dashed frame with a caption | external, frame, security |
+
+Edges join each box to the boxes that can come straight after it, and each rule's start to its
+first boxes, so exploration answers which boxes can follow which. They are not drawn, and the
+player visits each rule's start and its boxes in drawing order instead of playing connections.
+
+A matcher or parser outside the library can show its result as a `RailroadTrace`: the outcome,
+the visited boxes with their input spans, and the box where matching failed. The library never
+matches input itself.
+
+```csharp
+using Morphir.Diagrams;
+
+PlantUml.TryParse("@startebnf\nnumber = [ sign ], digit;\n@endebnf\n", out var document, out _);
+var model = document!.Diagram.Match<RailroadDiagram?>(
+    _ => null, _ => null, _ => null, _ => null, _ => null, railroad => railroad, _ => null, _ => null)!;
+
+var trace = RailroadTrace.Create(
+    model,
+    RailroadOutcome.NotMatched,
+    [RailroadVisit.Create("number:0.0.0", RailroadVisitResult.Matched, 0, 1)],
+    failure: "number:0.1");
+
+var svg = SvgRenderer.Render(document.Diagram, SvgRenderOptions.Default.WithRailroadTrace(trace));
+```
+
+Matched boxes of a matched trace, the taken prefix of any other outcome, boxes that did not
+match and the failure point are separate `data-trace` layers over boxes that do not move. A
+trace with nothing to draw gives the same bytes as no trace. A trace made for another diagram
+gives `railroad/stale-trace` and one that names a missing box gives `railroad/trace-occurrence`;
+neither is drawn.
+
 ## Exploring routes and scenarios
 
 Players of diagrams with connections have an *Explore routes* disclosure under the

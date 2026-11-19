@@ -70,11 +70,11 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 
 ## 11. Railroad diagrams
 
-- [ ] 11.1 Add the regex and EBNF railroad models with occurrence identity; verify model tests, including the unexpanded large bound.
-- [ ] 11.2 Read and print PlantUML regex and EBNF; verify the pinned corpora.
-- [ ] 11.3 Lay out and paint railroad diagrams; verify SVG tests.
-- [ ] 11.4 Add trace values, validation and highlight channels; verify highlight tests and that rendering without a trace is unchanged.
-- [ ] 11.5 Add railroad references, colour families, carriage and player support; verify in Chromium.
+- [x] 11.1 Add the regex and EBNF railroad models with occurrence identity; verify model tests, including the unexpanded large bound.
+- [x] 11.2 Read and print PlantUML regex and EBNF; verify the pinned corpora.
+- [x] 11.3 Lay out and paint railroad diagrams; verify SVG tests.
+- [x] 11.4 Add trace values, validation and highlight channels; verify highlight tests and that rendering without a trace is unchanged.
+- [x] 11.5 Add railroad references, colour families, carriage and player support; verify in Chromium.
 
 ## 12. Data trees
 
