@@ -23,6 +23,7 @@ type SvgRenderer private () =
                 | Diagram.Sequence model, _ -> SequenceSvg.render options metadata model
                 | Diagram.Railroad model, _ -> RailroadSvg.render options metadata model
                 | Diagram.DataTree model, _ -> DataTreeSvg.render options metadata model
+                | Diagram.Bpmn model, _ -> BpmnSvg.render options metadata model
                 | _, Some graph -> FlowchartSvg.render options metadata graph
                 | _, None -> invalidOp "Every family other than sequences has a graph."
 

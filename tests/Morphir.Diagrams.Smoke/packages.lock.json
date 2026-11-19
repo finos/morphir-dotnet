@@ -8,10 +8,17 @@
         "resolved": "11.0.0",
         "contentHash": "gK2aq4XvChj5kvozpPHrkfKkr7zc5Z4xoTrJb4GPZzDEPMlCk0TX632bwY3LsWcX2UVcVRQBBGzsBGC2lq6YhA=="
       },
+      "morphir.bpmn": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )"
+        }
+      },
       "morphir.diagrams": {
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
+          "Morphir.Bpmn": "[1.0.0, )",
           "Morphir.Knowledge": "[1.0.0, )",
           "Morphir.Knowledge.Rdf": "[1.0.0, )",
           "Morphir.Svg": "[1.0.0, )"
