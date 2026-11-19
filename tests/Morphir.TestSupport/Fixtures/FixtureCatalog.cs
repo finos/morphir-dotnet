@@ -747,7 +747,8 @@ public static class FixtureCatalog
             "bebbfeda31c2703c2022bf4ba27206fc0fcf22a540dda195476569c973e7addd", Provenance);
 
         /// <summary>The provenance record read by the kit at startup.</summary>
-        public static byte[] ReadProvenance() => ReadResource(Provenance);
+        public static byte[] ReadProvenance() =>
+            ReadResource("Morphir.TestSupport.Provenance/" + Provenance);
     }
 
     /// <summary>Every file that the catalog owns and serves.</summary>
@@ -788,12 +789,12 @@ public static class FixtureCatalog
             .ToArray();
 
     /// <summary>The bytes of an entry, as pinned.</summary>
-    public static byte[] ReadBytes(FixtureEntry entry) => ReadResource(entry.RelativePath);
+    public static byte[] ReadBytes(FixtureEntry entry) => ReadResource(ResourcePrefix + entry.RelativePath);
 
-    private static byte[] ReadResource(string relativePath)
+    private static byte[] ReadResource(string resourceName)
     {
-        using var stream = typeof(FixtureCatalog).Assembly.GetManifestResourceStream(ResourcePrefix + relativePath)
-            ?? throw new InvalidOperationException($"The catalog does not embed {relativePath}; add it to tests/Morphir.TestSupport/Morphir.TestSupport.csproj.");
+        using var stream = typeof(FixtureCatalog).Assembly.GetManifestResourceStream(resourceName)
+            ?? throw new InvalidOperationException($"No embedded resource named {resourceName} was found in the fixture catalog.");
         using var copy = new MemoryStream();
         stream.CopyTo(copy);
         return copy.ToArray();
