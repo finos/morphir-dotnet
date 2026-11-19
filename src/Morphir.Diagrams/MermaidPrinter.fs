@@ -554,6 +554,74 @@ module internal MermaidPrinter =
     /// Canonical PlantUML activity text in the legacy dialect, which writes any flow graph: `(*)` for starts and
     /// stops, `===bar===` for forks and joins, and `"label" as id` for every other step. Decision and merge roles and
     /// lanes have no legacy form and read back as plain activities outside lanes.
+    /// A PlantUML `@startregex` or `@startebnf` block. Capturing and non-capturing groups both print as capturing.
+    let railroad (model: RailroadDiagram) =
+        let quantifier (item: RailroadItem) =
+            match item.Kind, item.Minimum, item.MaximumOption with
+            | RailroadKind.Optional, _, _ -> "?"
+            | _, 0, None -> "*"
+            | _, 1, None -> "+"
+            | _, low, None -> $"{{{low},}}"
+            | _, low, Some high when low = high -> $"{{{low}}}"
+            | _, low, Some high -> $"{{{low},{high}}}"
+
+        let rec regex (item: RailroadItem) =
+            match item.Kind with
+            | RailroadKind.Terminal -> Text.RegularExpressions.Regex.Replace(item.Text, @"[\\.^$|?*+()\[\]{}/]", "\\$0")
+            | RailroadKind.Special -> item.Text
+            | RailroadKind.CharacterClass -> $"[{item.Text}]"
+            | RailroadKind.Sequence -> item.Children |> Seq.map (fun child -> if child.Kind = RailroadKind.Choice then $"(?:{regex child})" else regex child) |> String.concat ""
+            | RailroadKind.Choice -> item.Children |> Seq.map regex |> String.concat "|"
+            | RailroadKind.Optional
+            | RailroadKind.Repeat ->
+                let child = item.Children[0]
+
+                let atom =
+                    match child.Kind with
+                    | RailroadKind.Sequence
+                    | RailroadKind.Choice -> $"(?:{regex child})"
+                    | RailroadKind.Terminal when child.Text.Length > 1 -> $"(?:{regex child})"
+                    | _ -> regex child
+
+                atom + quantifier item
+            | RailroadKind.Group when item.Text <> "" -> $"(?<{item.Text}>{regex item.Children[0]})"
+            | RailroadKind.Group -> $"({regex item.Children[0]})"
+            | RailroadKind.Assertion -> $"({item.Text}{regex item.Children[0]})"
+            | _ -> ""
+
+        let rec ebnf (item: RailroadItem) =
+            let atom (child: RailroadItem) =
+                match child.Kind with
+                | RailroadKind.Sequence
+                | RailroadKind.Choice -> $"( {ebnf child} )"
+                | _ -> ebnf child
+
+            // A count repeats one factor, so an exception needs parentheses there and nowhere else.
+            let factor (child: RailroadItem) =
+                if child.Kind = RailroadKind.Exception then $"( {ebnf child} )" else atom child
+
+            match item.Kind with
+            | RailroadKind.Terminal -> if item.Text.Contains '"' then $"'{item.Text}'" else $"\"{item.Text}\""
+            | RailroadKind.NonTerminal -> item.Text
+            | RailroadKind.Special -> $"? {item.Text} ?"
+            | RailroadKind.Sequence -> item.Children |> Seq.map atom |> String.concat ", "
+            | RailroadKind.Choice -> item.Children |> Seq.map ebnf |> String.concat " | "
+            | RailroadKind.Optional -> $"[ {ebnf item.Children[0]} ]"
+            | RailroadKind.Repeat ->
+                match item.Minimum, item.MaximumOption with
+                | 0, None -> $"{{ {ebnf item.Children[0]} }}"
+                | 1, None -> $"{{ {ebnf item.Children[0]} }}-"
+                | count, _ -> $"{count} * {factor item.Children[0]}"
+            | RailroadKind.Group -> $"( {ebnf item.Children[0]} )"
+            | RailroadKind.Exception -> $"{atom item.Children[0]} - {atom item.Children[1]}"
+            | _ -> ""
+
+        if model.IsRegex then
+            Ok($"@startregex\n{regex model.Rules[0].Body}\n@endregex\n")
+        else
+            let rules = model.Rules |> Seq.map (fun rule -> $"{rule.Name} = {ebnf rule.Body};") |> String.concat "\n"
+            Ok($"@startebnf\n{rules}\n@endebnf\n")
+
     let activity (model: SwimlaneDiagram) =
         let lines = ResizeArray<string>()
         let errors = ResizeArray<string>()

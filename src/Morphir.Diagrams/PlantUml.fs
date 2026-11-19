@@ -49,8 +49,9 @@ module internal PlantUmlReader =
 
         if value.StartsWith(prefix, StringComparison.Ordinal) then
             let rest = value.Substring prefix.Length
+            // Markers are lower case, as PlantUML requires: `@STARTJSON` is not a marker.
             let name = rest |> Seq.takeWhile Char.IsAsciiLetter |> Seq.toArray |> String
-            Some(name.ToLowerInvariant())
+            Some name
         else
             None
 
@@ -142,7 +143,7 @@ module internal PlantUmlReader =
                                 for statement in body do
                                     let value = text statement
 
-                                    if value.StartsWith('!') && not (value.StartsWith("!pragma", StringComparison.Ordinal)) then
+                                    if value.StartsWith('!') && not (value.StartsWith("!pragma", StringComparison.Ordinal) || value.StartsWith("!option", StringComparison.Ordinal)) then
                                         Reading.error
                                             "plantuml/preprocessor-refused"
                                             "Preprocessor directives such as !include are not run: they could read files or the network."
@@ -186,6 +187,7 @@ type PlantUml private () =
             match diagram with
             | Diagram.State model -> MermaidPrinter.stateText true model
             | Diagram.Swimlane model -> MermaidPrinter.activity model
+            | Diagram.Railroad model -> MermaidPrinter.railroad model
             | other -> Error [ $"{other} has no PlantUML printer." ]
 
         result |> Result.mapError (List.map (fun message -> Reading.error "plantuml/unprintable" message None) >> ImmutableArray.CreateRange)
