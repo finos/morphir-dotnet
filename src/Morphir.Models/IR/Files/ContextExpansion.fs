@@ -1307,6 +1307,7 @@ module internal ContextExpansion =
                     shape
                     document
 
+                checkSize 0L
                 Ok()
             with
             | ContextExpansionRefused error -> Error [ error ]

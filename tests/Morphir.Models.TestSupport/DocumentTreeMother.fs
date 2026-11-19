@@ -173,6 +173,62 @@ $schema: SCHEMA
         let selected = (contextualText text).Replace("LONG", String.replicate 500 "n")
         withSplitOrder selected, System.Text.Encoding.UTF8.GetByteCount selected
 
+    let contextualInlineOrderWithExpandingAliases () =
+        let files, _ = contextualOrderWithExpandingAliases ()
+        let envelope = Driver.jsonAt orderLocation files
+        let splitDocument = nonNull envelope["document"]
+        let definition = (nonNull splitDocument["def"]).DeepClone()
+
+        let document =
+            Nodes.JsonNode.Parse("""{"formatVersion":4,"path":"domain","values":{}}""")
+
+        let moduleDocument = nonNull document
+        (nonNull moduleDocument["values"])["order"] <- definition
+        envelope["document"] <- moduleDocument
+        let text = envelope.ToJsonString()
+
+        Driver.ofTexts [ manifestLocation, v4Manifest; domainLocation, text ],
+        System.Text.Encoding.UTF8.GetByteCount text
+
+    let contextualModuleWithSharedInventoryAliases () =
+        let names =
+            [ "a"; "b"; "c" ]
+            |> List.map (fun suffix -> String.replicate 120 "n" + suffix)
+
+        let table =
+            names
+            |> List.mapi (sprintf "\"n%d\":\"%s\"")
+            |> String.concat ","
+
+        let references = """{"$name":"n0"},{"$name":"n1"},{"$name":"n2"}"""
+
+        let moduleText =
+            "{\"$schema\":\"SCHEMA\",\"context\":{\"names\":{"
+            + table
+            + "}},\"document\":{\"formatVersion\":4,\"path\":\"domain\",\"types\":["
+            + references
+            + "],\"values\":["
+            + references
+            + "]}}"
+            |> contextualText
+
+        let members =
+            names
+            |> List.collect (fun name ->
+                let directory = "pkg/acme/orders/domain/"
+                let typeDocument =
+                    """{"formatVersion":4,"name":"NAME","def":{"Public":{"TypeAliasDefinition":{"typeParams":[],"typeExp":"morphir/SDK:basics#int"}}}}"""
+
+                let valueDocument =
+                    """{"$schema":"SCHEMA","context":{"fqNames":{"i":"morphir/SDK:basics#int"}},"document":{"formatVersion":4,"name":"NAME","def":{"Public":{"ExpressionBody":{"inputTypes":{"rate":{"$name":"i"},"amount":{"$name":"i"}},"outputType":{"$name":"i"},"body":{"Literal":{"IntegerLiteral":73}}}}}}}"""
+                    |> contextualText
+
+                [ directory + name + ".type.json", typeDocument.Replace("NAME", name)
+                  directory + name + ".value.json", valueDocument.Replace("NAME", name) ])
+
+        Driver.ofTexts ([ manifestLocation, v4Manifest; domainLocation, moduleText ] @ members),
+        moduleText
+
     let orderTypeLocation = "pkg/acme/orders/domain/order.type.json"
 
     let contextualTypeFileWithValuePayload () =
@@ -404,8 +460,18 @@ let private sharedNames () =
     let valueAddress n = Own(ValueDef(pricing, n))
 
     [
-        nameOfLength (stemLengthFor (defaultBudget + 1) valueAddress)
-        nameOfLength (stemLengthFor (defaultBudget + 20) valueAddress)
+        nameOfLength (
+            stemLengthFor
+                (defaultBudget
+                 + 1)
+                valueAddress
+        )
+        nameOfLength (
+            stemLengthFor
+                (defaultBudget
+                 + 20)
+                valueAddress
+        )
     ]
 
 let private withSharedNames (names: Name list) : ModuleBuilder -> ModuleBuilder =
@@ -802,7 +868,9 @@ module Invalid =
     /// </summary>
     let typeFileWithAnUnknownTypeTag () : VFileTree =
         written v4LibraryWithDependency
-        |> Driver.withText financeInvoiceTypeFile (fun text -> text.Replace("\"Record\"", "\"Struct\""))
+        |> Driver.withText
+            financeInvoiceTypeFile
+            (fun text -> text.Replace("\"Record\"", "\"Struct\""))
 
     /// <summary>
     /// <see cref="v4LibraryWithDependency"/> with no file for the value <c>default-currency</c>, which its module file
@@ -922,8 +990,14 @@ module Invalid =
     /// </summary>
     let v3TypeFileWithANestedUnknownMember () : VFileTree =
         let files = written v3LibraryWithDependency
-        let definition = (nonNull (Driver.jsonAt v3InvoiceTypeFile files).["def"]).AsObject()
-        let field = (nonNull (nonNull (nonNull (nonNull definition["value"]).[2]).[2]).[0]).AsObject()
+
+        let definition =
+            (nonNull (Driver.jsonAt v3InvoiceTypeFile files).["def"]).AsObject()
+
+        let field =
+            (nonNull (nonNull (nonNull (nonNull definition["value"]).[2]).[2]).[0])
+                .AsObject()
+
         field["metadata"] <- Nodes.JsonValue.Create "do-not-drop"
 
         files
@@ -939,8 +1013,12 @@ module Invalid =
     /// </summary>
     let v3ValueFileWithANestedUnknownMember () : VFileTree =
         let files = written v3LibraryWithDependency
-        let definition = (nonNull (Driver.jsonAt v3DefaultCurrencyValueFile files).["def"]).AsObject()
-        (nonNull definition["value"]).AsObject().["metadata"] <- Nodes.JsonValue.Create "do-not-drop"
+
+        let definition =
+            (nonNull (Driver.jsonAt v3DefaultCurrencyValueFile files).["def"]).AsObject()
+
+        (nonNull definition["value"]).AsObject().["metadata"] <-
+            Nodes.JsonValue.Create "do-not-drop"
 
         files
         |> Driver.withMember v3DefaultCurrencyValueFile "def" (definition.ToJsonString())
@@ -951,7 +1029,10 @@ module Invalid =
     /// </summary>
     let v3SpecWithANestedUnknownMember () : VFileTree =
         let files = written v3Specs
-        let spec = (nonNull (Driver.jsonAt v3DefaultCurrencyValueFile files).["spec"]).AsObject()
+
+        let spec =
+            (nonNull (Driver.jsonAt v3DefaultCurrencyValueFile files).["spec"]).AsObject()
+
         spec["metadata"] <- Nodes.JsonValue.Create "do-not-drop"
 
         files
@@ -974,15 +1055,14 @@ module Invalid =
         | DocumentedValueSpecification
 
     /// <summary>Every wrapper of <see cref="V3Wrapper"/>.</summary>
-    let v3Wrappers =
-        [
-            V3Wrapper.TypeDefinition
-            V3Wrapper.DocumentedTypeDefinition
-            V3Wrapper.ValueDefinition
-            V3Wrapper.DocumentedValueDefinition
-            V3Wrapper.DocumentedTypeSpecification
-            V3Wrapper.DocumentedValueSpecification
-        ]
+    let v3Wrappers = [
+        V3Wrapper.TypeDefinition
+        V3Wrapper.DocumentedTypeDefinition
+        V3Wrapper.ValueDefinition
+        V3Wrapper.DocumentedValueDefinition
+        V3Wrapper.DocumentedTypeSpecification
+        V3Wrapper.DocumentedValueSpecification
+    ]
 
     /// <summary>
     /// <see cref="v3LibraryWithDependency"/>, or <see cref="v3Specs"/> for a specification, with a member
@@ -994,11 +1074,15 @@ module Invalid =
         let file, payload, documented, source =
             match wrapper with
             | V3Wrapper.TypeDefinition -> v3InvoiceTypeFile, "def", false, v3LibraryWithDependency
-            | V3Wrapper.DocumentedTypeDefinition -> v3InvoiceTypeFile, "def", true, v3LibraryWithDependency
-            | V3Wrapper.ValueDefinition -> v3DefaultCurrencyValueFile, "def", false, v3LibraryWithDependency
-            | V3Wrapper.DocumentedValueDefinition -> v3DefaultCurrencyValueFile, "def", true, v3LibraryWithDependency
+            | V3Wrapper.DocumentedTypeDefinition ->
+                v3InvoiceTypeFile, "def", true, v3LibraryWithDependency
+            | V3Wrapper.ValueDefinition ->
+                v3DefaultCurrencyValueFile, "def", false, v3LibraryWithDependency
+            | V3Wrapper.DocumentedValueDefinition ->
+                v3DefaultCurrencyValueFile, "def", true, v3LibraryWithDependency
             | V3Wrapper.DocumentedTypeSpecification -> v3InvoiceTypeFile, "spec", true, v3Specs
-            | V3Wrapper.DocumentedValueSpecification -> v3DefaultCurrencyValueFile, "spec", true, v3Specs
+            | V3Wrapper.DocumentedValueSpecification ->
+                v3DefaultCurrencyValueFile, "spec", true, v3Specs
 
         let files = written source
         let root = Driver.jsonAt file files

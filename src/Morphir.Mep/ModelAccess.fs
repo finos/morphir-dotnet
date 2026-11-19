@@ -321,6 +321,31 @@ type internal BoundedGeneration() =
                >= 0
         | _ -> false
 
+    let admitDeliveries (limits: ModelAccessLimits) (request: ModelAccessAdvance) =
+        let documents =
+            request.Deliveries
+            |> Seq.choose (
+                function
+                | ModelAccessDelivery.Document(_, _, _, length, digest, content) -> Some(length, digest, content)
+                | ModelAccessDelivery.Inventory _ -> None
+            )
+            |> Seq.toArray
+
+        // Refuse the entire batch before allocating any decoded document.
+        documents.Length <= limits.MaxDocumentsPerBatch
+        && (documents |> Array.sumBy (fun (_, _, content) -> int64 content.Length))
+           <= int64 limits.MaxEncodedBytesPerExchange
+        && (documents |> Array.sumBy (fun (length, _, _) -> int64 length))
+           <= int64 limits.MaxDecodedBytesPerExchange
+        && (documents
+            |> Array.forall (fun (length, _, content) ->
+                Base64.padding content >= 0
+                && Base64.decodedLength content = int64 length))
+        && (documents
+            |> Array.forall (fun (_, digest, content) ->
+                Base64.decodeCanonical content
+                |> Option.exists (fun bytes -> Sha256Digest.Compute(ReadOnlySpan bytes) = digest)))
+
     let reserve (call: BoundedGenerationCall) =
         lock
             gate
@@ -413,7 +438,13 @@ type internal BoundedGeneration() =
                 let mutable next = Finished
 
                 try
-                    match! send () with
+                    let reply =
+                        match call with
+                        | Advance request when not (admitDeliveries generation.Limits request) ->
+                            System.Threading.Tasks.Task.FromResult(Error invalidParams)
+                        | _ -> send ()
+
+                    match! reply with
                     | Error error ->
                         if error.Code = int ErrorCode.InvalidParams then
                             pending

@@ -203,6 +203,39 @@ module DocumentTreeStore =
     let readMemberWithArtifact address snapshot =
         BoundedTreeReader.readMemberWithArtifact address snapshot
 
+    /// Page the root modules or the members of a logical module in the same snapshot.
+    [<CompiledName("PageInventory")>]
+    let pageInventory
+        (selection: string)
+        (limit: int)
+        (continuation: string option)
+        (snapshot: BoundedTreeSnapshot)
+        : Result<BoundedTreeInventoryPage, StoreError list> =
+        BoundedTreeReader.pageInventory selection limit continuation snapshot
+
+    /// Read the original bytes of a logical document in the admitted snapshot.
+    [<CompiledName("ReadDocument")>]
+    let readDocument
+        (documentId: string)
+        (snapshot: BoundedTreeSnapshot)
+        : Result<System.ReadOnlyMemory<byte>, StoreError list> =
+        BoundedTreeReader.readDocument documentId snapshot
+
+    /// Read a logical document within an additional limit on its original bytes.
+    [<CompiledName("ReadDocumentWithin")>]
+    let readDocumentWithin documentId maxBytes snapshot =
+        BoundedTreeReader.readDocumentWithin documentId maxBytes snapshot
+
+    /// Read one admitted document as plain JSON under an independent output byte limit.
+    [<CompiledName("ReadExpandedDocument")>]
+    let readExpandedDocument documentId maxOutputBytes snapshot =
+        BoundedTreeReader.readExpandedDocument documentId maxOutputBytes snapshot
+
+    /// Stage one expanded JSON file at a time. Publish the stage only after the walk succeeds.
+    [<CompiledName("WriteExpandedTree")>]
+    let writeExpandedTree limits stageFile snapshot =
+        BoundedTreeReader.writeExpandedTree limits stageFile snapshot
+
     /// Resolve one typed alias without expanding the member around it.
     /// Path tokens within the selected payload are object keys or canonical array indices.
     /// The result uses the name spelling of the selected IR version.
