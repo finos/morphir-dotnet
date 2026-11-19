@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-diagram-linked-metadata</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; --accent: #0891b2; --accent2: #7c3aed; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; --accent: #22d3ee; --accent2: #a78bfa; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; color: var(--muted); }
+svg .box { fill: var(--panel); stroke: var(--line); }
+svg .hot { fill: none; stroke: var(--accent); stroke-width: 2; }
+svg .alt { fill: none; stroke: var(--accent2); stroke-width: 2; stroke-dasharray: 5 4; }
+svg text { fill: var(--fg); font: 13px system-ui, sans-serif; }
+svg .small { fill: var(--muted); font-size: 11px; }
+svg .arrow { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#a); }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-diagram-linked-metadata</h1>
+<p class="meta">OpenSpec change | 2026-11-18 | proposed</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#journey">Worked example</a></li>
+<li><a href="#decisions">Decisions</a>
+  <ul>
+  <li><a href="#ref-1">REF-1 Element references</a></li>
+  <li><a href="#ref-2">REF-2 Document identity and revision</a></li>
+  <li><a href="#sel-1">SEL-1 Diagram snapshots and selections</a></li>
+  <li><a href="#rdf-1">RDF-1 Vocabulary mapping</a></li>
+  <li><a href="#rdf-2">RDF-2 N-Triples, RDF/XML and canonical output</a></li>
+  <li><a href="#svg-1">SVG-1 Namespaced scenes and the metadata reader</a></li>
+  <li><a href="#car-1">CAR-1 Sidecar and embedded carriage</a></li>
+  <li><a href="#ui-1">UI-1 Player presentation</a></li>
+  <li><a href="#pkg-1">PKG-1 Package dependencies and interop</a></li>
+  </ul></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for motivation. The requirements are in <a href="specs/diagram-linked-metadata/spec.md">diagram-linked-metadata</a>, <a href="specs/svg-metadata/spec.md">svg-metadata</a> and <a href="specs/rdf-datasets/spec.md">rdf-datasets</a>.</p>
+<p>The current code has these properties:</p>
+<ul>
+<li><code>Morphir.Knowledge</code> provides <code>Iri</code>, <code>DocumentId</code>, <code>DocumentVersion</code>, <code>TextSnapshot</code>, <code>TextSelection</code>, and the generic <code>Annotation&lt;'Target,'Body&gt;</code> and <code>KnowledgeLink&lt;'Source,'Target&gt;</code> records.</li>
+<li><code>Morphir.Knowledge.Rdf</code> provides <code>RdfDataset</code> and N-Quads only. Its writer already reports lossy output (empty named graphs) as a typed error, with an explicit <code>EmptyGraphHandling.Omit</code> option. This design follows that pattern.</li>
+<li><code>Morphir.Diagrams</code> parses Mermaid flowcharts and sequence diagrams. Nodes, groups and participants have authored <code>DiagramId</code>s. Edges, messages, notes and frames have no identifier, only a source span. The SVG writer already emits <code>data-node</code>, <code>data-group</code>, <code>data-source</code> and <code>data-target</code>.</li>
+<li><code>Morphir.Svg</code> names are unqualified XML names (<code>SvgName</code>). The document writer uses <code>XmlWriter</code>, so text content is escaped already. There is no reader.</li>
+<li>The offline player inlines the SVG string in a JSON payload, so whatever the SVG contains travels with the player page.</li>
+<li>Every package involved is <code>IsAotCompatible</code>, and the diagrams and SVG packages have not been released yet.</li>
+</ul>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong></p>
+<ul>
+<li>One data model, the RDF dataset, whether the data is in a sidecar file or embedded in the SVG.</li>
+<li>Reuse the knowledge types rather than adding parallel comment and link records.</li>
+<li>Byte-stable output, so rendered SVGs can be checked in and diffed.</li>
+<li>Player JavaScript never parses RDF.</li>
+</ul>
+<p><strong>Non-goals:</strong></p>
+<ul>
+<li>Metadata written inline in Mermaid source.</li>
+<li>JSON-LD and Turtle.</li>
+<li>Finding sidecar files on disk.</li>
+<li>CLI commands.</li>
+<li>Editing comments in the player. It only displays them.</li>
+<li>Carrying references across revisions when an element is renamed.</li>
+</ul>
+
+<h2 id="journey">Worked example</h2>
+<p>The same example runs through every decision. A team keeps <code>checkout.mmd</code> with this content:</p>
+<pre><code class="language-text">flowchart LR
+  Cart --&gt; Billing
+  Cart --&gt; Billing
+  Billing --&gt; Ledger</code></pre>
+<p>A reviewer comments on the first <code>Cart → Billing</code> edge. An author links <code>Billing</code> to lines 10–24 of <code>src/Billing.fs</code> at a git commit. A tool records an <code>owner</code> fact about <code>Ledger</code> that no Morphir code knows about. All of it lives in <code>checkout.mmd.nq</code>. The renderer embeds the dataset into <code>checkout.svg</code>, and the player shows it.</p>
+
+<svg viewBox="0 0 760 210" role="img" aria-labelledby="flow-title">
+<title id="flow-title">Data flow: Mermaid source and sidecar dataset feed the renderer, which writes an SVG with embedded metadata; the player and other tools read it back</title>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10z" fill="currentColor"/></marker></defs>
+<rect class="box" x="10" y="20" width="150" height="54" rx="6"/><text x="24" y="44">checkout.mmd</text><text class="small" x="24" y="62">Mermaid source</text>
+<rect class="box" x="10" y="120" width="150" height="54" rx="6"/><text x="24" y="144">checkout.mmd.nq</text><text class="small" x="24" y="162">sidecar RdfDataset</text>
+<rect class="box" x="230" y="64" width="170" height="70" rx="6"/><rect class="hot" x="230" y="64" width="170" height="70" rx="6"/><text x="244" y="90">SvgRenderer</text><text class="small" x="244" y="108">refs · selections · RDF-1</text><text class="small" x="244" y="124">canonical RDF/XML</text>
+<rect class="box" x="470" y="64" width="150" height="70" rx="6"/><text x="484" y="90">checkout.svg</text><text class="small" x="484" y="108">data-ref on elements</text><text class="small" x="484" y="124">&lt;metadata&gt;&lt;rdf:RDF&gt;</text>
+<rect class="box" x="650" y="20" width="100" height="54" rx="6"/><text x="664" y="44">player</text><text class="small" x="664" y="62">JSON projection</text>
+<rect class="box" x="650" y="120" width="100" height="54" rx="6"/><rect class="alt" x="650" y="120" width="100" height="54" rx="6"/><text x="664" y="144">any tool</text><text class="small" x="664" y="162">extract → dataset</text>
+<path class="arrow" d="M160 47 C200 47 200 85 228 88"/><path class="arrow" d="M160 147 C200 147 200 112 228 110"/>
+<path class="arrow" d="M400 99 L468 99"/><path class="arrow" d="M620 88 C636 80 636 56 648 50"/><path class="arrow" d="M620 112 C636 120 636 140 648 146"/>
+</svg>
+
+<h2 id="decisions">Decisions</h2>
+
+<h3 id="ref-1">REF-1. Element references use authored identifiers plus per-kind ordinals</h3>
+<p>Every element gets a reference string of the form <code>kind=key</code>. It is written on the element's outer <code>&lt;g&gt;</code> as <code>data-ref</code>, and is the fragment of the element IRI (<a href="#ref-2">REF-2</a>).</p>
+<table>
+<thead><tr><th>Element</th><th>Reference</th><th>Example</th></tr></thead>
+<tbody>
+<tr><td>Flow node</td><td><code>node=&lt;id&gt;</code></td><td><code>node=Billing</code></td></tr>
+<tr><td>Group (subgraph)</td><td><code>group=&lt;id&gt;</code></td><td><code>group=payments</code></td></tr>
+<tr><td>Flow edge</td><td><code>edge=&lt;source&gt;/&lt;target&gt;/&lt;n&gt;</code></td><td><code>edge=Cart/Billing/0</code>, <code>edge=Cart/Billing/1</code></td></tr>
+<tr><td>Participant</td><td><code>participant=&lt;id&gt;</code></td><td><code>participant=Api</code></td></tr>
+<tr><td>Message</td><td><code>message=&lt;sender&gt;/&lt;receiver&gt;/&lt;n&gt;</code></td><td><code>message=Api/Db/2</code></td></tr>
+<tr><td>Note, frame</td><td><code>note=&lt;n&gt;</code>, <code>frame=&lt;n&gt;</code></td><td><code>frame=0</code></td></tr>
+<tr><td>Playback step</td><td><code>step=&lt;n&gt;</code></td><td><code>step=3</code></td></tr>
+</tbody>
+</table>
+<p>The ordinal <code>n</code> starts at 0 and counts in source order, among elements of the same kind and, for edges and messages, the same endpoint pair. Adding an edge elsewhere does not change <code>Cart/Billing/0</code>. Inside keys, <code>%</code>, <code>/</code>, <code>=</code> and every character outside RFC 3987 <code>ifragment</code> are percent-encoded as UTF-8, so parsing is unambiguous.</p>
+<p><strong>Alternatives considered:</strong></p>
+<ul>
+<li><strong>Global positional indices.</strong> Rejected, because any insertion renumbers everything after it.</li>
+<li><strong>Hashes of label content.</strong> Rejected, because fixing a typo in a label would orphan every comment on that element.</li>
+<li><strong>Mermaid's <code>e1@--&gt;</code> edge identifiers.</strong> The reader does not parse these today. When it does, an authored edge id becomes <code>edge=@e1</code>. The leading <code>@</code> cannot be confused with the endpoint form, so this extension is backward compatible.</li>
+</ul>
+<p>Notes and frames have no authored identity or natural endpoints, so their ordinals are fragile. The <a href="#risks">risks</a> section covers this, and the dangling-target warning surfaces it.</p>
+
+<h3 id="ref-2">REF-2. The diagram is a knowledge document. Its revision defaults to a content hash.</h3>
+<p>The caller supplies a <code>DocumentId</code>, for example <code>https://example.org/diagrams/checkout</code>. An element IRI is <code>{document IRI}#{reference}</code>, for example <code>https://example.org/diagrams/checkout#edge=Cart/Billing/0</code>. A document IRI that already has a fragment is rejected, because the element reference must own the fragment.</p>
+<p>The revision is a <code>RevisionId</code>. The caller can supply one, such as a git blob id. Otherwise it defaults to <code>sha256:</code> followed by the lowercase hex SHA-256 of the UTF-8 source text. The hash is over the exact text, including line endings, which matches what <code>DiagramDocument.Source</code> keeps.</p>
+<p><strong>Alternative considered:</strong> making the revision mandatory. Rejected, because a one-off render should not need a version-control concept, and the hash is stable and free.</p>
+
+<h3 id="sel-1">SEL-1. <code>DiagramSnapshot</code> and <code>DiagramSelection</code> mirror the text types</h3>
+<pre><code class="language-fsharp">type DiagramElementRef        // REF-1 value; Parse / TryParse / ToString
+type DiagramSnapshot =        // like TextSnapshot
+    static member Create : DocumentVersion * DiagramDocument -&gt; DiagramSnapshot
+    static member FromSource : DocumentId * DiagramDocument -&gt; DiagramSnapshot  // sha256 revision
+    member Version : DocumentVersion
+    member ElementIri : DiagramElementRef -&gt; Iri
+    member TryResolve : Iri -&gt; DiagramElementRef option
+
+type DiagramSelection =       // like TextSelection
+    static member TryCreate : DiagramSnapshot * seq&lt;DiagramElementRef&gt;
+                              -&gt; Result&lt;DiagramSelection, DiagramSelectionError&gt;
+    member Version : DocumentVersion
+    member Elements : ImmutableArray&lt;DiagramElementRef&gt;   // deduplicated, kind order then source order
+    member TryRead : DiagramSnapshot -&gt; Result&lt;..., DiagramSelectionError&gt;   // VersionMismatch</code></pre>
+<p>In the worked example, the comment target is <code>DiagramSelection.TryCreate(snapshot, [edge=Cart/Billing/0])</code>, and the comment is an <code>Annotation&lt;DiagramSelection, string&gt;</code>. The code link is a <code>KnowledgeLink&lt;DiagramSelection, TextSelection&gt;</code>, with a <code>TextSelection</code> over <code>Billing.fs</code> at the commit's revision.</p>
+<p><code>DiagramSelectionError</code> mirrors <code>SelectionError</code>, with the cases <code>Empty</code>, <code>UnknownElement of ref</code> and <code>VersionMismatch</code>. Construction is the only check. A selection is immutable and never re-resolved silently.</p>
+
+<h3 id="rdf-1">RDF-1. Comments use Web Annotation. Links use a link node plus a direct triple.</h3>
+<p>Statements for the worked example, using prefixes <code>oa:</code> (W3C Web Annotation), <code>dcterms:</code>, <code>xsd:</code> and <code>md:</code> (the Morphir diagram vocabulary, see <a href="#open-questions">open questions</a>):</p>
+<pre><code class="language-text">&lt;urn:review:1&gt; a oa:Annotation ;
+    oa:motivatedBy oa:commenting ;
+    oa:bodyValue "Is this call idempotent?" ;
+    dcterms:creator &lt;urn:reviewer:one&gt; ;
+    dcterms:created "2026-11-18T09:00:00Z"^^xsd:dateTime ;
+    oa:hasTarget _:t .
+_:t a oa:SpecificResource ;
+    oa:hasSource &lt;https://example.org/diagrams/checkout&gt; ;
+    md:revision "sha256:9f2c…" ;
+    oa:hasSelector [ a oa:FragmentSelector ; rdf:value "edge=Cart/Billing/0" ] .
+
+&lt;urn:link:billing-impl&gt; a md:Link ;
+    md:linkSource _:s ; md:linkPredicate ex:implementedBy ; md:linkTarget _:code .
+_:code a oa:SpecificResource ;
+    oa:hasSource &lt;https://example.org/src/Billing.fs&gt; ; md:revision "4be1…" ;
+    oa:hasSelector [ a oa:TextPositionSelector ; oa:start 312 ; oa:end 901 ] .
+&lt;https://example.org/diagrams/checkout#node=Billing&gt; ex:implementedBy &lt;https://example.org/src/Billing.fs&gt; .
+
+&lt;https://example.org/diagrams/checkout#node=Ledger&gt; ex:owner "payments-team" .</code></pre>
+<p>The mapping works as follows:</p>
+<ul>
+<li><strong>Selections.</strong> A diagram selection is one <code>oa:SpecificResource</code> with the document as its source, the revision, and one <code>oa:FragmentSelector</code> per element. A text selection is the same, with one <code>oa:TextPositionSelector</code> per range.</li>
+<li><strong>Text offsets.</strong> Web Annotation counts code points, so offsets are converted from UTF-16 on write and back on read.</li>
+<li><strong>Links.</strong> A link has its own identity, so it is a node. When the source is a single element and the target resolves to an IRI, the writer also emits the direct triple. Consumers that know nothing about Web Annotation can then query <code>?element ex:implementedBy ?x</code>.</li>
+<li><strong>Reading.</strong> The reader reconstructs annotations and links from their nodes. It recognizes the direct triples that match a link, and leaves every other statement in the dataset untouched. <code>ex:owner</code> above is an example: it stays as it is, and the player shows it as a property (<a href="#ui-1">UI-1</a>).</li>
+</ul>
+<p><strong>Alternatives considered:</strong></p>
+<ul>
+<li><strong>Direct triples only.</strong> Rejected, because it loses link identity and revision pinning.</li>
+<li><strong>RDF-star.</strong> Not in RDF 1.1, and the dataset model would need quoted triples.</li>
+<li><strong>A Morphir-only comment vocabulary.</strong> Rejected, because Web Annotation is the W3C standard for exactly this, and existing annotation tools understand it.</li>
+</ul>
+
+<h3 id="rdf-2">RDF-2. N-Triples and RDF/XML codecs, with RDFC-1.0 for canonical output</h3>
+<p><strong>N-Triples</strong> reuses the N-Quads grammar with the graph term disabled. It adds an <code>NTriples</code> type with <code>Read</code>, <code>TryRead</code>, <code>Write</code> and <code>TryWrite</code>, following the <code>NQuads</code> shape.</p>
+<p><strong>The RDF/XML writer</strong> produces a fixed striped form:</p>
+<ul>
+<li>One <code>rdf:Description</code> per subject, using <code>rdf:about</code> or <code>rdf:nodeID</code>.</li>
+<li>Property elements with <code>rdf:resource</code> or <code>rdf:nodeID</code>, or literal content with <code>rdf:datatype</code> or <code>xml:lang</code>.</li>
+<li>No abbreviations, no <code>rdf:parseType</code>, no typed-node shorthand.</li>
+<li>Predicates split at the longest suffix that is a valid NCName. If no such suffix exists, the write fails with a typed error.</li>
+<li>Namespace prefixes are well-known (<code>rdf</code>, <code>rdfs</code>, <code>xsd</code>, <code>oa</code>, <code>dcterms</code>, <code>md</code>), then <code>ns0</code>, <code>ns1</code>, … in sorted namespace order.</li>
+</ul>
+<p>The writer can produce a document, or an element written into a caller's <code>XmlWriter</code> for embedding.</p>
+<p><strong>The RDF/XML reader</strong> implements the full RDF 1.1 XML Syntax grammar over <code>XmlReader</code>, or over an <code>XElement</code> that inherits namespace bindings. The grammar includes:</p>
+<ul>
+<li><code>parseType</code> <code>Resource</code>, <code>Literal</code> and <code>Collection</code></li>
+<li><code>xml:base</code></li>
+<li><code>rdf:li</code></li>
+<li>Reification through <code>rdf:ID</code></li>
+<li>Property attributes</li>
+</ul>
+<p>It is tested against the pinned W3C rdf-xml suite, with a <code>PROVENANCE.md</code> like the one for the N-Quads fixtures. <code>DtdProcessing.Prohibit</code> and <code>XmlResolver = null</code> are always set. The few suite tests that declare entities in a DTD are listed as excluded in the provenance file, with that reason.</p>
+<p><strong>Canonical output:</strong> blank nodes are <code>Guid</code> identities, fresh per read, so two reads of one sidecar would otherwise serialize differently. <code>RdfCanonicalization.Canonicalize(dataset, limits)</code> implements RDFC-1.0, tested against the W3C rdf-canon suite. Each writer gets a canonical option that sorts quads and uses canonical labels, which <code>_:c14n0</code> becomes in RDF/XML <code>rdf:nodeID</code>s. The diagram renderer always writes canonically.</p>
+<p><strong>Alternatives considered:</strong></p>
+<ul>
+<li><strong>A hand-rolled one-hop hash labelling.</strong> Rejected, because it is nondeterministic on symmetric graphs and has no test suite.</li>
+<li><strong>Making determinism depend on the caller keeping identities stable.</strong> Rejected, because it is easy to break silently.</li>
+</ul>
+
+<h3 id="svg-1">SVG-1. Namespaced <code>SvgName</code>, an escaped text payload, and a safe reader</h3>
+<p><code>SvgName</code> gains an optional namespace and prefix, through <code>SvgName.Qualified(prefix, local, namespace)</code>. The existing unqualified cases are unchanged. The scene validates the following:</p>
+<ul>
+<li>NCName local names and prefixes.</li>
+<li>No <code>xmlns</code> prefix.</li>
+<li>The <code>xml</code> prefix is bound only to its namespace.</li>
+<li>One prefix per namespace for each element.</li>
+</ul>
+<p>The writer emits each declaration once, at the outermost element that uses it. <code>SvgDocument</code> gets an optional <code>Metadata</code> node, written as the root's first child. Text payloads go through <code>XmlWriter.WriteString</code>, which escapes them rather than using CDATA, so <code>]]&gt;</code> needs no special handling.</p>
+<p><code>SvgMetadataReader.TryRead(ReadOnlyMemory&lt;byte&gt;)</code> uses an <code>XmlReader</code> with these settings:</p>
+<ul>
+<li>DTD processing prohibited</li>
+<li>No resolver</li>
+<li>A <code>MaxCharactersInDocument</code> limit</li>
+</ul>
+<p>It returns the metadata content as <code>XElement</code>s and text, reports no metadata separately from an error, and gives typed errors with a line and column.</p>
+<p><strong>Alternative considered:</strong> returning <code>SvgNode</code> trees from the reader. Rejected, because <code>Morphir.Knowledge.Rdf</code> cannot depend on <code>Morphir.Svg</code>, and <code>XElement</code> is the common type both packages already reach through the BCL.</p>
+
+<h3 id="car-1">CAR-1. The caller supplies the dataset, and the renderer embeds it</h3>
+<pre><code class="language-csharp">var dataset = NQuads.Read(File.ReadAllBytes("checkout.mmd.nq")).ResultValue;   // any codec
+var options = SvgRenderOptions.Default
+    .WithDocument(DocumentId.Create(Iri.Create("https://example.org/diagrams/checkout")))
+    .WithMetadata(dataset, MetadataEmbedding.RdfXml, NamedGraphHandling.Reject);
+var svg = Mermaid.RenderSvg(source, options);            // diagnostics: dangling refs, lossy graphs
+
+if (DiagramMetadata.TryRead(svgBytes, out var extracted, out var error)) { ... }</code></pre>
+<p>The library does not look for sidecar files. The suggested naming, which a future CLI can adopt, is <code>&lt;diagram&gt;.&lt;ext&gt;.nq</code>, <code>.nt</code> or <code>.rdf</code>.</p>
+<p><strong>Embedding formats:</strong></p>
+<ul>
+<li><strong>RDF/XML (default).</strong> An <code>rdf:RDF</code> element inside <code>&lt;metadata&gt;</code>. This is the form SVG and RDF tooling expect.</li>
+<li><strong>N-Quads or N-Triples.</strong> A <code>&lt;md:dataset media-type="application/n-quads"&gt;</code> text element. N-Quads is the choice when named graphs matter.</li>
+</ul>
+<p><code>DiagramMetadata.TryRead</code> detects which form is present.</p>
+<p><strong>Failure paths:</strong></p>
+<ul>
+<li>A dataset supplied without a document identity is an error.</li>
+<li>Named graphs combined with RDF/XML or N-Triples are an error, unless <code>NamedGraphHandling.DropNamedGraphs</code> is set. The rendered result then lists the dropped graphs.</li>
+<li>A statement under the document IRI that resolves to no element is a warning, and the statement is embedded anyway, so a renamed node never loses its comments.</li>
+</ul>
+
+<h3 id="ui-1">UI-1. The player gets a JSON projection and an annotation layer</h3>
+<p>The renderer projects the dataset into a new <code>annotations</code> array in the player's existing motion-data JSON. The array is keyed by element reference, and each entry has a kind (comment, link or property), an author, a time, a body or value, and a target IRI with an <code>isWeb</code> flag. JavaScript never sees RDF.</p>
+<p><code>Player.js</code> adds the following:</p>
+<ul>
+<li>A focusable marker button on each annotated element's bounding box.</li>
+<li>A side panel, which becomes a bottom sheet at narrow widths.</li>
+<li>Highlighting of the target element when an annotation is focused.</li>
+<li><kbd>Esc</kbd> closes the panel.</li>
+</ul>
+<p>Text is set with <code>textContent</code> only. Only <code>http:</code> and <code>https:</code> targets become <code>&lt;a rel="noopener noreferrer"&gt;</code> links. The styling comes from the theme variables and the redesigned controls the main diagrams branch is adding. Print hides markers, as it hides the other controls.</p>
+<p>Static SVG adds no visual change for metadata, which keeps it byte-stable and printable. It carries the data only.</p>
+
+<h3 id="pkg-1">PKG-1. Diagrams reference the knowledge packages directly</h3>
+<ul>
+<li><code>Morphir.Diagrams</code> references <code>Morphir.Knowledge</code> and <code>Morphir.Knowledge.Rdf</code>.</li>
+<li><code>Morphir.Svg</code> gains no dependencies.</li>
+<li>The public F# API follows the <code>fsharp-csharp-interop</code> skill: <code>TryCreate</code> and <code>TryRead</code> overloads with <code>out</code> parameters, nullness annotations, <code>Match</code> on public unions, and <code>ImmutableArray</code> collections.</li>
+<li>The <code>fsharp-csharp-interop-reviewer</code> agent reviews each group's diff.</li>
+</ul>
+<p><strong>Alternative considered:</strong> a <code>Morphir.Diagrams.Knowledge</code> bridge package. Deferred, because both dependencies are small and AOT-clean, and a bridge would split the public types across two packages for little benefit. It remains possible if measured size says otherwise.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>Renaming a node, or reordering notes and frames, orphans the annotations on them.</td><td>Statements are never dropped. The render warns with the orphaned IRI. Authored edge ids (<code>edge=@id</code>) and re-anchoring tools can come later.</td></tr>
+<tr><td>A full RDF/XML reader is large, and the grammar has subtle cases.</td><td>Implement it in its own task group against the pinned W3C suite, before any diagram work depends on reading RDF/XML. The writer and N-Triples are not blocked by it.</td></tr>
+<tr><td>RDFC-1.0 is exponential on adversarial blank-node graphs.</td><td>A caller-set work limit stops it with a typed failure. The renderer uses a conservative default.</td></tr>
+<tr><td>XML input can be hostile: entity expansion, external entities, huge documents.</td><td>DTDs are prohibited and there is no resolver in every reader. Character limits apply. Tests cover these cases explicitly.</td></tr>
+<tr><td>Comment bodies could carry script into the player.</td><td>Bodies are set with <code>textContent</code> only, links are limited to an http/https allowlist, and the JSON encoder already escapes script terminators.</td></tr>
+<tr><td>Adding <code>data-ref</code> changes every SVG's bytes.</td><td>The diagrams packages are unreleased. Golden outputs are updated once in the first group.</td></tr>
+<tr><td>The player panel conflicts with the player redesign in progress.</td><td>The player group (UI-1) starts only after the redesign has landed.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<p>This change is additive and unreleased, so there is no data migration. The N-Quads API is unchanged. Rollback is a revert of the change's commits. The task groups are ordered so that each one can land independently.</p>
+
+<h2 id="open-questions">Open questions</h2>
+<ul>
+<li>The final IRI for the Morphir diagram vocabulary (<code>md:</code>). The proposal is <code>https://morphir.finos.org/ns/diagram#</code>. This needs agreement from the project owners and a dereferenceable page later. It changes no requirement or task.</li>
+<li>Whether a future CLI should find sidecars by the suggested naming convention or require an explicit flag.</li>
+</ul>
+
+</main>
+</body>
+</html>

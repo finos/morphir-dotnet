@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
+        <GenerateProgramFile>false</GenerateProgramFile>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Expecto" />
+        <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="YoloDev.Expecto.TestSdk" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="../../src/Morphir.Diagrams/Morphir.Diagrams.fsproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <EmbeddedResource Include="../../src/Morphir.Diagrams/README.md" LogicalName="Morphir.Diagrams.README.md" />
+    </ItemGroup>
+    <ItemGroup>
+        <Compile Include="DiagramMother.fs" />
+        <Compile Include="ReadmeSampleTests.fs" />
+        <Compile Include="Program.fs" />
+    </ItemGroup>
+</Project>

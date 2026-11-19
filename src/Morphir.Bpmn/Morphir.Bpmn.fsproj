@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
+        <Description>Reads, validates, traverses and writes BPMN 2.0.2 XML documents.</Description>
+        <PackageTags>$(PackageTags);bpmn;xml</PackageTags>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <IsTrimmable>true</IsTrimmable>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsAotCompatible>true</IsAotCompatible>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <Compile Include="Model.fs" />
+        <Compile Include="Reader.fs" />
+        <Compile Include="Writer.fs" />
+        <Compile Include="Document.fs" />
+        <Compile Include="Traversal.fs" />
+    </ItemGroup>
+</Project>

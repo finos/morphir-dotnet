@@ -127,6 +127,7 @@
   -->
   <ItemGroup>
     <MorphirTestProgram Include="../Morphir.Compilation.Smoke/Morphir.Compilation.Smoke.fsproj" Name="compilation-smoke" />
+    <MorphirTestProgram Include="../Morphir.Diagrams.Smoke/Morphir.Diagrams.Smoke.csproj" Name="diagrams-smoke" />
     <MorphirTestProgram Include="../Morphir.Configuration.IO.Smoke/Morphir.Configuration.IO.Smoke.csproj" Name="configuration-io-smoke" />
     <MorphirTestProgram Include="../Morphir.Configuration.Inspection.Smoke/Morphir.Configuration.Inspection.Smoke.csproj" Name="configuration-inspection-smoke" />
     <MorphirTestProgram Include="../Morphir.Configuration.Microsoft.Smoke/Morphir.Configuration.Microsoft.Smoke.csproj" Name="configuration-microsoft-smoke" />

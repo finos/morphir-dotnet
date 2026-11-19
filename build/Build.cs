@@ -135,11 +135,20 @@ partial class Build : FalloutBuild
         ("Morphir.FSharp.Annotations", SourceDirectory / "Morphir.FSharp.Annotations" / "Morphir.FSharp.Annotations.csproj", true),
         ("Morphir.Configuration", SourceDirectory / "Morphir.Configuration" / "Morphir.Configuration.fsproj", true),
         ("Morphir.Configuration.IO", SourceDirectory / "Morphir.Configuration.IO" / "Morphir.Configuration.IO.csproj", true),
+        ("Morphir.Svg", SourceDirectory / "Morphir.Svg" / "Morphir.Svg.fsproj", true),
+        // No Morphir dependency: BPMN 2.0.2 documents, which Morphir.Diagrams draws.
+        ("Morphir.Bpmn", SourceDirectory / "Morphir.Bpmn" / "Morphir.Bpmn.fsproj", true),
+        // Morphir.Diagrams.Query references Morphir.Bpmn for its BPMN adapter.
+        ("Morphir.Diagrams.Query", SourceDirectory / "Morphir.Diagrams.Query" / "Morphir.Diagrams.Query.fsproj", true),
         // Morphir.Models references Morphir.Files, so Morphir.Files comes first.
         ("Morphir.Files", SourceDirectory / "Morphir.Files" / "Morphir.Files.fsproj", true),
         ("Morphir.Knowledge", SourceDirectory / "Morphir.Knowledge" / "Morphir.Knowledge.fsproj", true),
         ("Morphir.Knowledge.Okf", SourceDirectory / "Morphir.Knowledge.Okf" / "Morphir.Knowledge.Okf.fsproj", true),
         ("Morphir.Knowledge.Rdf", SourceDirectory / "Morphir.Knowledge.Rdf" / "Morphir.Knowledge.Rdf.fsproj", true),
+        // Morphir.Diagrams references Morphir.Svg, Morphir.Bpmn, Morphir.Knowledge and Morphir.Knowledge.Rdf.
+        ("Morphir.Diagrams", SourceDirectory / "Morphir.Diagrams" / "Morphir.Diagrams.fsproj", true),
+        // Morphir.Diagrams.Raster references Morphir.Diagrams.
+        ("Morphir.Diagrams.Raster", SourceDirectory / "Morphir.Diagrams.Raster" / "Morphir.Diagrams.Raster.fsproj", true),
         ("Morphir.Models", MorphirModelsProject, true),
         ("Morphir.Compilation", SourceDirectory / "Morphir.Compilation" / "Morphir.Compilation.fsproj", true),
         ("Morphir.MiddleEnd", SourceDirectory / "Morphir.MiddleEnd" / "Morphir.MiddleEnd.fsproj", true),

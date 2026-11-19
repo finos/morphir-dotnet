@@ -2,6 +2,7 @@
 
 | PRD | Status | Phase | Current task |
 | --- | --- | --- | --- |
+| [Migrate diagrams.mbt to .NET](./migrate-diagrams.md) | In Progress | First library increment | Mermaid flowcharts and sequences, SVG, and C# interop |
 | [C# language support](./csharp-language-support.md) | Implemented | Specification archive | Steps 0 to 7 landed in [#664](https://github.com/finos/morphir-dotnet/pull/664); the OpenSpec change is archived and its specs are synced; open: the generator and the code fix in IDEs, and a `net8.0` runtime |
 | [Generic guest kit adoption](./adopt-generic-guest-kit.md) | Draft | Planning review | Distinct OpenSpec adoption of parent #1154; dev morphir-mck; runtime #570 dependency, [#563](https://github.com/finos/morphir-dotnet/issues/563) |
 | [F# source frontend and compile](./fsharp-source-frontend.md) | In Progress | Tracking and acceptance | #499; compile acceptance and native compilation contracts |

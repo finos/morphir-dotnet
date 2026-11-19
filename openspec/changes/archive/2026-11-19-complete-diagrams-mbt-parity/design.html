@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>complete-diagrams-mbt-parity: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+.diagram text { fill: currentColor; font: 13px system-ui, sans-serif; }
+.diagram rect { fill: var(--panel); stroke: var(--line); }
+.diagram path { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>complete-diagrams-mbt-parity: design</h1>
+<p class="meta">OpenSpec change | 2026-11-19 | proposed</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#decisions">Decisions</a></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for why. Today <code>Morphir.Diagrams</code> (F#, with a C# test project and an F# test project) reads a subset of Mermaid flowcharts and sequences, lays them out with its own simple rank layout, and writes themed SVG through <code>Morphir.Svg</code>. The offline player (<code>Player.js</code>, <code>Viewport.js</code>) plays authored-order connector motion and shows comments from the embedded RDF dataset. Element references, selections and the RDF mapping come from the open change <code>add-diagram-linked-metadata</code> on the same branch.</p>
+<p>Upstream, diagrams.mbt at 60a8dd1, has about 1.5 MB of hand-written MoonBit for the missing families, plus generated BPMN schema code, raster fonts and an icon catalogue. Its specs promise identical output on four compilation targets. Here the equivalent promise is identical bytes on Linux, Windows and macOS, under JIT and Native AOT.</p>
+<p>Constraints: every package stays trimmable and Native AOT compatible; F# public types follow the <code>fsharp-csharp-interop</code> rules; XML readers prohibit DTDs and use no resolver; tests follow the <code>test-manager</code> rules, with fixtures owned by <code>FixtureCatalog</code> and pinned in <code>PROVENANCE.md</code>.</p>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong> one reading entry point for every upstream family; one layout and connector engine that every family shares; the knowledge, theme and player features for every family; all of it delivered in PR #692, group by group, with CI green after each push.</p>
+<p><strong>Non-goals:</strong> executing diagrams (no guard, condition, timer or regex evaluation); a general-purpose SVG renderer (the rasteriser reads only SVG this library writes); the Python binding, the gallery site and the browser raster worker from upstream; Draw.io and Graphviz DOT, which upstream itself has not built; loading themes from JSON files.</p>
+
+<h2 id="decisions">Decisions</h2>
+<p>The decisions follow one source through the system: the state diagram from the proposal, read, laid out, coloured, annotated, played and exported.</p>
+
+<svg class="diagram" viewBox="0 0 900 150" role="img" aria-label="Pipeline: source to reader, model, layout, SVG, player and raster">
+<title>From source to output</title>
+<rect x="10" y="50" width="110" height="44" rx="6"/><text x="65" y="77" text-anchor="middle">Source text</text>
+<rect x="160" y="50" width="120" height="44" rx="6"/><text x="220" y="70" text-anchor="middle">Reader</text><text x="220" y="86" text-anchor="middle">CST, AST</text>
+<rect x="320" y="50" width="110" height="44" rx="6"/><text x="375" y="77" text-anchor="middle">Family model</text>
+<rect x="470" y="50" width="120" height="44" rx="6"/><text x="530" y="70" text-anchor="middle">Shared layout</text><text x="530" y="86" text-anchor="middle">and connectors</text>
+<rect x="630" y="10" width="110" height="40" rx="6"/><text x="685" y="35" text-anchor="middle">Themed SVG</text>
+<rect x="630" y="60" width="110" height="40" rx="6"/><text x="685" y="85" text-anchor="middle">Player HTML</text>
+<rect x="630" y="110" width="110" height="34" rx="6"/><text x="685" y="132" text-anchor="middle">PNG, JPEG, GIF</text>
+<rect x="780" y="50" width="110" height="44" rx="6"/><text x="835" y="70" text-anchor="middle">RDF metadata</text><text x="835" y="86" text-anchor="middle">and refs</text>
+<path d="M120 72 H160 M280 72 H320 M430 72 H470 M590 72 H610 V30 H630 M610 72 V80 H630 M610 72 V127 H630 M740 80 H780"/>
+</svg>
+
+<h3 id="pkg-1">PKG-1. Packages</h3>
+<p>Mermaid and PlantUML reading, the family models, layout, SVG, icons and the player stay in <code>Morphir.Diagrams</code>, because every family shares the theme, element-reference and player code there. Three new packages hold code that has no reason to load with every diagram:</p>
+<table>
+<thead><tr><th>Package</th><th>Holds</th><th>Depends on</th></tr></thead>
+<tbody>
+<tr><td><code>Morphir.Bpmn</code></td><td>BPMN 2.0.2 documents: secure XML reading, a lossless element tree with a typed view, validation, writing, traversal and graph queries</td><td>none of the diagram packages, as upstream keeps <code>moonrockz/bpmn</code> independent</td></tr>
+<tr><td><code>Morphir.Diagrams.Query</code></td><td>The tree query language and its BPMN adapter</td><td><code>Morphir.Bpmn</code></td></tr>
+<tr><td><code>Morphir.Diagrams.Raster</code></td><td>The rasteriser, TrueType reader, PNG, JPEG and GIF encoders and the Noto fonts</td><td><code>Morphir.Diagrams</code></td></tr>
+</tbody>
+</table>
+<p><code>Morphir.Diagrams</code> references <code>Morphir.Bpmn</code> to render BPMN views. Alternatives: one package for everything (rejected: every caller would carry about 700 KB of fonts and the BPMN schema), or one package per family (rejected: themes, references and the player would need a shared core package, which is <code>Morphir.Diagrams</code> already).</p>
+
+<h3 id="syn-1">SYN-1. Statement readers over the kept source</h3>
+<p>Each language gets a hand-written statement reader over the shared <code>Reading</code> lines and cursor, as the flowchart and sequence readers already are. Readers keep explicit stacks for nesting, so a 10,000-level input hits the depth limit, not the call stack, and the new readers continue at the next statement after an error. Lossless reproduction is the exact source text that every <code>DiagramDocument</code> already keeps; there is no separate concrete syntax tree. Canonical printers write the family model.</p>
+<pre><code class="language-console">stateDiagram-v2          → statements: header, then one statement per line
+  [*] --> Draft          → Transition(Initial(scope=root), State "Draft")
+  Draft --> Review : submit
+                         → Model: states [Draft; Review], transitions [t0; t1] in source order</code></pre>
+<p>Alternatives: a lossless concrete syntax tree for every language (rejected: the kept source already reproduces the input, and a tree per language would roughly double the reader code without a caller that edits trees), a parser-combinator library (rejected: no AOT-clean option in the dependency set).</p>
+
+<h3 id="lay-1">LAY-1. Families drawn through a shared graph projection</h3>
+<p>Every family except sequences has an internal projection onto the flowchart graph: nodes with a shape and an optional colour family and icon, groups for composites, lanes and pools, and edges with line styles and heads. State diagrams, swimlanes, activity diagrams, architecture diagrams and BPMN views without diagram interchange are laid out and painted by the flowchart engine through that projection, so existing flowchart SVG does not change. The projection gains marker shapes (filled and framed circles, bars, notes, documents, small, crossed and thick circles, text). Railroad and data-tree diagrams have their own box layouts and use the projection only for their element references. Sequences and ZenUML keep the sequence layout.</p>
+<p>Alternative: a new layered engine that flowcharts move onto (rejected: it would change existing output for no caller-visible gain, and two layouts of the same graph shape would drift apart).</p>
+
+<h3 id="con-1">CON-1. Connectors after layout</h3>
+<p>Routing produces orthogonal points with shape-aware attachments (diamond points, spread side slots, declared ports). A separate pass styles the points (elbow, rounded, curve), reserves straight endpoint approaches, then finds crossings between unrelated connectors and inserts bridges, owned by the later connector in stable order. The result is a final path per connector, which the SVG, the player and the rasteriser all use. The route points stay available. This extends the one-turn routing already in <code>FlowchartSvg</code>.</p>
+
+<h3 id="thm-1">THM-1. Colour families per element kind</h3>
+<p>No new theme tokens. Every element kind maps to one of the seven existing families, so all built-in and custom themes cover every family. For example: ordinary states, tasks, services and rules use <code>backend</code>; choices, gateways and decisions use <code>cloud</code>; stores, data objects and databases use <code>database</code>; events, queues and message flows use <code>messagebus</code>; error and terminate events use <code>security</code>; actors and clients use <code>frontend</code>; notes, annotations and pseudostates use <code>external</code>. Lanes, pools, composites and frames use <code>--frame</code>. The README documents the full table.</p>
+
+<h3 id="ref-1">REF-1. Element references through the projection</h3>
+<p>Element references keep their existing kinds. A family's elements are the nodes, groups and edges of its projection (<code>node=Idle</code>, <code>group=Active</code>, <code>edge=Idle/Active/0</code>), and ZenUML uses the sequence kinds. BPMN elements use their XML ID, EBNF rules their name and data-tree rows their JSON-pointer path. Selections, annotations, carriage and the player work unchanged because they enumerate references from the projection. Alternative: new reference kinds per family (rejected: it would widen the public reference union and its <code>Match</code> for names that add no information).</p>
+
+<h3 id="icn-1">ICN-1. Icon catalogue</h3>
+<p>A development script reads upstream's <code>catalog.json</code> and assets at 60a8dd1, checks every source digest, normalises each SVG into a compact path form (no runtime SVG parser), and writes one embedded resource plus a generated F# key table. Provider assets are copied unchanged in shape and colour. Technology logos are kept only when their SVG Repo licence allows redistribution; the script reads an allow-list recorded in the catalogue's provenance file, and every other key, along with <code>externalsystem</code>, uses an original drawing in the repository. <code>THIRD-PARTY-NOTICES.md</code> and a trademark notice ship in the package. Rendering emits only used symbols as <code>&lt;symbol&gt;</code> definitions prefixed with the diagram ID.</p>
+
+<h3 id="ply-1">PLY-1. Player exploration</h3>
+<p>The motion data gains a connection graph per diagram: nodes, directed connections with kind and head flags, and node-visit targets. Route and reachability queries run in <code>Player.js</code> by breadth-first search with explicit limits, in the same order as the F# reference implementation, which tests use to compute expected answers. The exploration controls sit in a panel next to the notes panel and reuse its narrow-screen layout.</p>
+
+<h3 id="ras-1">RAS-1. Managed rasteriser</h3>
+<p>The rasteriser reads the SVG this library writes (paths, rects, circles, ellipses, polygons, text, markers, masks, symbols and the CSS-variable theme blocks), resolves the export theme, flattens curves, and fills with a non-zero scanline coverage rasteriser with 4x4 anti-aliasing in fixed-point arithmetic, so output is identical on every platform. Glyphs come from a small TrueType reader over the embedded Noto fonts. PNG uses <code>System.IO.Compression.ZLibStream</code> at a fixed compression level; JPEG ports upstream's integer-DCT baseline encoder (adapted from mizchi/image under Apache-2.0, credited in the notice); GIF uses a fixed median-cut palette and LZW. Alternatives: SkiaSharp (rejected: native dependencies) and ImageSharp (rejected: not Apache-2.0).</p>
+
+<h3 id="tst-1">TST-1. Fixtures and evidence</h3>
+<p>Upstream's compatibility corpora and expected outputs at 60a8dd1 are pinned under <code>tests/Fixtures/diagrams-mbt/</code> with a <code>PROVENANCE.md</code> row and SHA-256 per file and a <code>FixtureCatalog.Diagrams</code> owner. Each family gets unit tests in the C# test project, F# tests where F# callers need them, and committed SVG snapshots. Every group ends with a Chromium check of its family in all built-in themes, dark and light, at desktop and 420 px widths.</p>
+
+<h3 id="pr-1">PR-1. Delivery in PR #692</h3>
+<p>Work lands in the order of <a href="tasks.md">tasks.md</a>: foundations, connectors and layout, then each family with its knowledge, theme and player support, then BPMN, queries, exploration and raster. Each group is test-first, committed and pushed, and must leave CI green. The pull request description gains a section per group and a heads-up to FINOS about the icon catalogue. The pull request merges after the last group once every check is green.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>One very large pull request is hard to review.</td><td>One commit or more per task group, each with its own tests and snapshot diffs, and a per-group summary in the description.</td></tr>
+<tr><td>The projection limits how far other families can differ from flowcharts.</td><td>Railroad and data-tree diagrams have their own layouts; a family that needs more than the projection gives gets its own painter without changing references (<a href="#lay-1">LAY-1</a>).</td></tr>
+<tr><td>Raster output differs between platforms.</td><td>Fixed-point rasterisation, a fixed zlib level and golden byte tests on all three CI operating systems (<a href="#ras-1">RAS-1</a>).</td></tr>
+<tr><td>Native AOT size grows with the icon catalogue and fonts.</td><td>Fonts live in <code>Morphir.Diagrams.Raster</code>; the catalogue is one compressed resource read on first use; the AOT smoke tests record size.</td></tr>
+<tr><td>Provider icon terms or SVG Repo licences change, or FINOS objects.</td><td>Every symbol's source and terms are in the catalogue; any key can switch to an original drawing without changing the public API (<a href="#icn-1">ICN-1</a>).</td></tr>
+<tr><td>BPMN 2.0.2 coverage is broad.</td><td>A lossless element tree keeps every element and attribute, so writing round-trips content the typed view does not model; the typed view covers the elements that rendering and validation use.</td></tr>
+<tr><td>Upstream behaviour is only specified at 60a8dd1.</td><td>Pinned fixtures and expected outputs from that commit are the reference; deviations are listed in the README's migration coverage.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<p>All changes are additive to unreleased packages on the diagrams branch. No caller migration is needed. Rollback is reverting the group's commits on the branch before merge.</p>
+
+<h2 id="open-questions">Open questions</h2>
+<p>Which SVG Repo technology logos allow redistribution is answered per icon while building the catalogue (<a href="#icn-1">ICN-1</a>); the answer changes only which keys use an original drawing.</p>
+
+</main>
+</body>
+</html>

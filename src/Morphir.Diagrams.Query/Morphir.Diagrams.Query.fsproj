@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
+        <Description>A bounded structural query language over trees such as BPMN documents.</Description>
+        <PackageTags>$(PackageTags);bpmn;query</PackageTags>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <IsTrimmable>true</IsTrimmable>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsAotCompatible>true</IsAotCompatible>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <ProjectReference Include="../Morphir.Bpmn/Morphir.Bpmn.fsproj" />
+        <Compile Include="Tree.fs" />
+        <Compile Include="Query.fs" />
+    </ItemGroup>
+</Project>

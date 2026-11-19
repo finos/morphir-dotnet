@@ -1,0 +1,70 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
+        <Description>Reads diagrams and renders them to standalone SVG.</Description>
+        <PackageTags>$(PackageTags);mermaid;diagrams;svg</PackageTags>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <IsTrimmable>true</IsTrimmable>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsAotCompatible>true</IsAotCompatible>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <ProjectReference Include="../Morphir.Svg/Morphir.Svg.fsproj" />
+        <ProjectReference Include="../Morphir.Bpmn/Morphir.Bpmn.fsproj" />
+        <ProjectReference Include="../Morphir.Knowledge/Morphir.Knowledge.fsproj" />
+        <ProjectReference Include="../Morphir.Knowledge.Rdf/Morphir.Knowledge.Rdf.fsproj" />
+        <Compile Include="Model.fs" />
+        <Compile Include="StateModel.fs" />
+        <Compile Include="SwimlaneModel.fs" />
+        <Compile Include="ArchitectureModel.fs" />
+        <Compile Include="RailroadModel.fs" />
+        <Compile Include="DataTreeModel.fs" />
+        <Compile Include="BpmnLayout.fs" />
+        <Compile Include="BpmnView.fs" />
+        <Compile Include="Diagram.fs" />
+        <Compile Include="ElementReferences.fs" />
+        <Compile Include="Selections.fs" />
+        <Compile Include="DiagramAnnotations.fs" />
+        <Compile Include="Themes.fs" />
+        <Compile Include="Carriage.fs" />
+        <Compile Include="Exploration.fs" />
+        <Compile Include="DiagramScene.fs" />
+        <Compile Include="Reading.fs" />
+        <Compile Include="Icons.fs" />
+        <Compile Include="FlowchartReader.fs" />
+        <Compile Include="SequenceReader.fs" />
+        <Compile Include="StateReader.fs" />
+        <Compile Include="SwimlaneReader.fs" />
+        <Compile Include="ArchitectureReader.fs" />
+        <Compile Include="ZenUmlReader.fs" />
+        <Compile Include="PlantUmlStateReader.fs" />
+        <Compile Include="PlantUmlActivityReader.fs" />
+        <Compile Include="RailroadReader.fs" />
+        <Compile Include="DataTreeReader.fs" />
+        <Compile Include="BpmnSource.fs" />
+        <Compile Include="Theme.fs" />
+        <Compile Include="SvgWriting.fs" />
+        <Compile Include="Connectors.fs" />
+        <Compile Include="FlowchartSvg.fs" />
+        <Compile Include="SequenceLayout.fs" />
+        <Compile Include="SequenceSvg.fs" />
+        <Compile Include="RailroadSvg.fs" />
+        <Compile Include="DataTreeSvg.fs" />
+        <Compile Include="BpmnSvg.fs" />
+        <Compile Include="SvgRenderer.fs" />
+        <Compile Include="AnimatedRenderer.fs" />
+        <Compile Include="MermaidPrinter.fs" />
+        <Compile Include="SourceReading.fs" />
+        <Compile Include="Mermaid.fs" />
+        <Compile Include="PlantUml.fs" />
+        <Compile Include="DiagramSource.fs" />
+        <None Include="THIRD-PARTY-NOTICES.md" Pack="true" PackagePath="/" />
+        <None Include="Icons/PROVENANCE.md" Pack="true" PackagePath="licenses/icons/" />
+        <EmbeddedResource Include="Icons/icons.json.gz" LogicalName="Morphir.Diagrams.Icons.json.gz" />
+        <EmbeddedResource Include="Player.js" LogicalName="Morphir.Diagrams.Player.js" />
+        <EmbeddedResource Include="Viewport.js" LogicalName="Morphir.Diagrams.Viewport.js" />
+    </ItemGroup>
+</Project>

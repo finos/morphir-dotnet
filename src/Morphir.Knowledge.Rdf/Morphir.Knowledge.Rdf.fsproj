@@ -15,7 +15,16 @@
         <ProjectReference Include="../Morphir.Knowledge/Morphir.Knowledge.fsproj" />
     </ItemGroup>
     <ItemGroup>
+        <InternalsVisibleTo Include="Morphir.Knowledge.Rdf.Tests" />
+    </ItemGroup>
+    <ItemGroup>
         <Compile Include="Dataset.fs" />
+        <Compile Include="Formats.fs" />
+        <Compile Include="Canonicalization.fs" />
         <Compile Include="NQuads.fs" />
+        <Compile Include="NTriples.fs" />
+        <Compile Include="Namespaces.fs" />
+        <Compile Include="RdfXmlReader.fs" />
+        <Compile Include="RdfXml.fs" />
     </ItemGroup>
 </Project>

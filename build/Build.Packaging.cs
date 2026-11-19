@@ -58,6 +58,12 @@ partial class Build
         {
             OutputDir.CreateOrCleanDirectory();
 
+            var misordered = PublishOrder.Violations(
+                LibraryPackages.Select(package => (package.PackageId, package.Project.ToString())).ToList(),
+                PublishOrder.ProjectReferences);
+            if (misordered.Count > 0)
+                throw new Exception("LibraryPackages must list dependencies first: " + string.Join(" ", misordered));
+
             var versionString = Version.ToString();
             Serilog.Log.Information($"Packing with version: {versionString}");
 

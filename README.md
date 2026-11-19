@@ -115,6 +115,10 @@ manual download and the standalone `morphir` CLI. If something goes wrong, see
 C#/.NET public types. See the [C# SDK guide](docs/content/docs/sdk/csharp/_index.md)
 for its bounded operation contract and package usage.
 
+`Morphir.Diagrams` reads Mermaid flowcharts and sequence diagrams into
+immutable models and renders them to standalone SVG.
+See the [diagram library guide](src/Morphir.Diagrams/README.md).
+
 The in-memory [C# generator](docs/content/docs/backends/csharp/_index.md) lowers
 typed classic/v4 libraries as C# 15 (Roslyn syntax trees), immutable
 values, executable functions/patterns/record operations and public SDK bindings.

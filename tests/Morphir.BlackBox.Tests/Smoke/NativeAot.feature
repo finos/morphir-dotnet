@@ -24,6 +24,7 @@ Feature: Each probe and each library host gives the same output with Native AOT
       | sdk-csharp-probe               |             |
       | morphirup                      | FSharp.Core |
       | compilation-smoke              | FSharp.Core |
+      | diagrams-smoke                 | FSharp.Core |
       | configuration-io-smoke         | FSharp.Core |
       | configuration-inspection-smoke | FSharp.Core |
       | configuration-microsoft-smoke  | FSharp.Core |

@@ -348,6 +348,33 @@ public class FixtureCatalogTests
     }
 
     [Test]
+    public void ThePinnedRdfXmlSuiteHasEveryActiveTestAndNoExclusions()
+    {
+        var suite = JsonNode.Parse(FixtureCatalog.ReadBytes(FixtureCatalog.RdfXml.Corpus))!;
+
+        suite["revision"]!.GetValue<string>().Should().Be("56076c0efec4c353efcae2971be8f6005294ac64");
+        suite["base"]!.GetValue<string>().Should().Be("https://w3c.github.io/rdf-tests/rdf/rdf11/rdf-xml/");
+        suite["excluded"]!.AsArray().Should().BeEmpty("no pinned test declares a document type");
+        var tests = suite["tests"]!.AsArray();
+        tests.Count(test => test!["type"]!.GetValue<string>() == "eval").Should().Be(126);
+        tests.Count(test => test!["type"]!.GetValue<string>() == "negative").Should().Be(40);
+        tests.Should().OnlyContain(test => test!["type"]!.GetValue<string>() == "negative" || test!["result"] != null);
+    }
+
+    [Test]
+    public void ThePinnedCanonicalizationSuiteHasEveryTest()
+    {
+        var suite = JsonNode.Parse(FixtureCatalog.ReadBytes(FixtureCatalog.RdfCanon.Corpus))!;
+
+        suite["revision"]!.GetValue<string>().Should().Be("5ffaaa13c0e19a2a2f9e60d0ecd9efaf3edab633");
+        var tests = suite["tests"]!.AsArray();
+        tests.Count(test => test!["type"]!.GetValue<string>() == "eval").Should().Be(64);
+        tests.Count(test => test!["type"]!.GetValue<string>() == "map").Should().Be(21);
+        tests.Count(test => test!["type"]!.GetValue<string>() == "negative").Should().Be(1);
+        tests.Count(test => test!["hashAlgorithm"]!.GetValue<string>() == "SHA384").Should().Be(2, "one evaluation test and its map test use SHA-384");
+    }
+
+    [Test]
     public void AnUnknownCaseIdIsRefused()
     {
         var act = () => FixtureCatalog.Kit.Case("document-tree-9999");
