@@ -114,6 +114,7 @@
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
           "Morphir.Knowledge": "[1.0.0, )",
+          "Morphir.Knowledge.Rdf": "[1.0.0, )",
           "Morphir.Svg": "[1.0.0, )"
         }
       },
@@ -121,6 +122,13 @@
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )"
+        }
+      },
+      "morphir.knowledge.rdf": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Knowledge": "[1.0.0, )"
         }
       },
       "morphir.svg": {
