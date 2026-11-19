@@ -381,12 +381,99 @@ module internal MermaidPrinter =
         else
             Ok(String.Join("\n", lines) + "\n")
 
+    /// Canonical Mermaid text for a state diagram. Each region's block declares its states and the transitions that
+    /// use its `[*]`; other transitions follow at the top level, where a mention does not move a state.
+    let state (model: StateDiagram) =
+        let lines = ResizeArray<string>()
+        let errors = ResizeArray<string>()
+        let byId = model.States |> Seq.map (fun state -> state.Id, state) |> dict
+        let pseudo (id: DiagramId) = match byId.TryGetValue id with | true, state -> state.Role = StateRole.Initial || state.Role = StateRole.Final | false, _ -> false
+        let regionOfStar (transition: StateTransition) = [ transition.Source; transition.Target ] |> List.tryFind pseudo |> Option.map (fun id -> byId[id].Region)
+
+        let endpoint (id: DiagramId) = if pseudo id then "[*]" else id.Value
+
+        let transition pad (transition: StateTransition) =
+            let label = if transition.Label = "" then "" else $" : {transition.Label}"
+            lines.Add $"{pad}{endpoint transition.Source} --> {endpoint transition.Target}{label}"
+
+        let quoted (label: string) =
+            if label.Contains '"' then errors.Add $"The label {label} has a quote that Mermaid cannot write."
+            "\"" + label + "\""
+
+        lines.Add "stateDiagram-v2"
+
+        match model.Direction with
+        | FlowDirection.TopToBottom -> ()
+        | other -> lines.Add $"  direction {direction other}"
+
+        let stack = Collections.Generic.Stack<Choice<string * int, string>>()
+        stack.Push(Choice1Of2("root", 1))
+
+        while stack.Count > 0 do
+            match stack.Pop() with
+            | Choice2Of2 line -> lines.Add line
+            | Choice1Of2(region, indent) ->
+                let pad = String(' ', 2 * indent)
+                let members = model.States |> Seq.filter (fun state -> state.Region = region) |> Seq.toList
+                let pending = ResizeArray<Choice<string * int, string>>()
+
+                for state in members do
+                    match state.Role with
+                    | StateRole.Initial
+                    | StateRole.Final -> ()
+                    | StateRole.Simple ->
+                        if state.Label <> state.Id.Value then lines.Add $"{pad}state {quoted state.Label} as {state.Id.Value}"
+                        else lines.Add $"{pad}{state.Id.Value}"
+
+                        for text in state.Descriptions do lines.Add $"{pad}{state.Id.Value} : {text}"
+                    | StateRole.Choice
+                    | StateRole.Fork
+                    | StateRole.Join -> lines.Add $"{pad}state {state.Id.Value} <<{state.Role.WireValue}>>"
+                    | StateRole.Composite ->
+                        let regions = model.Regions |> Seq.filter (fun candidate -> candidate.Owner = state.Id) |> Seq.toList
+                        let opening = if state.Label <> state.Id.Value then $"state {quoted state.Label} as {state.Id.Value} {{" else $"state {state.Id.Value} {{"
+                        pending.Add(Choice2Of2 $"{pad}{opening}")
+
+                        regions
+                        |> List.iteri (fun index inner ->
+                            if index > 0 then pending.Add(Choice2Of2 $"{pad}  --")
+                            pending.Add(Choice1Of2(inner.Id, indent + 1)))
+
+                        pending.Add(Choice2Of2 $"{pad}}}")
+                    | role -> errors.Add $"Mermaid state diagrams cannot write the {role} state {state.Id}."
+
+                for item in Seq.rev pending do stack.Push item
+
+                // Transitions of this region's [*] come after its states; nested blocks print after them.
+                let own = model.Transitions |> Seq.filter (fun transition -> regionOfStar transition = Some region) |> Seq.toList
+
+                for item in own do transition pad item
+
+        // The top-level transitions and the notes close the text.
+        for item in model.Transitions do
+            match regionOfStar item with
+            | None -> transition "  " item
+            | Some _ -> ()
+
+        for note in model.Notes do
+            let side = if note.Placement = NotePlacement.Left then "left" else "right"
+
+            if note.Text.Contains '\n' then
+                lines.Add $"  note {side} of {note.Target.Value}"
+                for line in note.Text.Split '\n' do lines.Add $"    {line}"
+                lines.Add "  end note"
+            else
+                lines.Add $"  note {side} of {note.Target.Value} : {note.Text}"
+
+        if errors.Count > 0 then Error(List.ofSeq errors) else Ok(String.Join("\n", lines) + "\n")
+
     /// Canonical Mermaid text for a flowchart or sequence diagram.
     let print (diagram: Diagram) =
         let result =
             match diagram with
             | Diagram.Flowchart model -> flowchart model
             | Diagram.Sequence model -> sequence model
+            | Diagram.State model -> state model
             | other -> Error [ $"{other} has no Mermaid printer." ]
 
         result
