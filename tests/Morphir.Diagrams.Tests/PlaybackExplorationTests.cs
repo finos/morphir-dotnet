@@ -73,6 +73,46 @@ public partial class PlaybackExplorationTests
             .ShouldBe(["edge=A/B/0:True", "edge=B/C/0:False"]);
     }
 
+    [Test]
+    public void AScenarioCanPlayALoopReturnTwiceAndVisitNodes()
+    {
+        Mermaid.TryParse("flowchart LR\n  A --> B\n  B --> A\n", out var document, out _).ShouldBeTrue();
+        var scene = SvgRenderer.BuildScene(document!.Diagram);
+        var back = scene.Connectors[1];
+        var steps = new[] { PlaybackStep.Create(back, 0, 500), PlaybackStep.Create(back, 500, 500) };
+        var visits = new[] { NodeVisit.Create(DiagramElementRef.Create("node=A"), 1000, 400) };
+
+        var data = MotionData(AnimatedRenderer.Render(scene, steps, visits).Output!);
+
+        data.GetProperty("steps").EnumerateArray().Select(step => step.GetProperty("connector").GetInt32()).ShouldBe([1, 1]);
+        data.GetProperty("visits").EnumerateArray().ShouldHaveSingleItem().GetProperty("ref").GetString().ShouldBe("node=A");
+        data.GetProperty("durationMs").GetInt64().ShouldBe(1400);
+        data.GetProperty("authored").GetBoolean().ShouldBeFalse();
+    }
+
+    [Test]
+    public void AVisitToAnElementOfAnotherDiagramIsReported()
+    {
+        Mermaid.TryParse("flowchart LR\n  A --> B\n", out var document, out _).ShouldBeTrue();
+        var scene = SvgRenderer.BuildScene(document!.Diagram);
+
+        var rendered = AnimatedRenderer.Render(scene, [], [NodeVisit.Create(DiagramElementRef.Create("node=Z"), 0, 100)]);
+
+        rendered.Output.ShouldBeNull();
+        rendered.Diagnostics.ShouldHaveSingleItem().Code.ShouldBe("animation/visit-mismatch");
+        Should.Throw<ArgumentException>(() => NodeVisit.Create(DiagramElementRef.Create("node=A"), 0, 0));
+    }
+
+    [Test]
+    public void ADiagramWithNothingToPlayVisitsItsElementsInOrder()
+    {
+        var data = MotionData(Mermaid.RenderAnimated("flowchart LR\n  A --- B\n").Output!);
+
+        data.GetProperty("steps").GetArrayLength().ShouldBe(0);
+        data.GetProperty("visits").EnumerateArray().Select(visit => visit.GetProperty("ref").GetString()).ShouldBe(["node=A", "node=B"]);
+        data.GetProperty("repeat").GetBoolean().ShouldBeFalse();
+    }
+
     private static JsonElement MotionData(string html)
     {
         var json = MotionScript().Match(html).Groups[1].Value;
