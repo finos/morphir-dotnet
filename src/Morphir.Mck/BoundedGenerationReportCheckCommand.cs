@@ -5,12 +5,13 @@ using Morphir.Conformance.BoundedGeneration;
 
 namespace Morphir.Mck;
 
-/// <summary>Replays one receipt against the pinned synthetic controls without running an adapter.</summary>
+/// <summary>Replays one receipt against pinned controls or real scale cases without running an adapter.</summary>
 public sealed class BoundedGenerationReportCheckCommand : Command, IMckParseErrorHandler
 {
     private readonly Action<string> _stdout;
     private readonly Option<string> _schema = new("--schema") { Required = true, Description = "Explicit path to the frozen receipt schema" };
-    private readonly Option<string> _controls = new("--controls") { Required = true, Description = "Explicit path to the byte-pinned parent receipt.controls.json" };
+    private readonly Option<string> _controls = new("--controls") { Description = "Explicit path to the byte-pinned parent receipt.controls.json" };
+    private readonly Option<string> _scaleCases = new("--scale-cases") { Description = "Explicit path to the byte-pinned parent orders-scale.cases.json; mutually exclusive with --controls" };
     private readonly Option<string> _receipt = new("--receipt") { Required = true, Description = "Receipt file to replay" };
 
     public BoundedGenerationReportCheckCommand(Action<string> stdout)
@@ -20,7 +21,17 @@ public sealed class BoundedGenerationReportCheckCommand : Command, IMckParseErro
         Options.Add(_schema);
         Options.Add(_controls);
         Options.Add(_receipt);
-        SetAction(parsed => Render(ReceiptCommands.CheckReport(parsed.GetValue(_schema)!, parsed.GetValue(_controls)!, parsed.GetValue(_receipt)!)));
+        Options.Add(_scaleCases);
+        SetAction(parsed =>
+        {
+            var controls = parsed.GetValue(_controls);
+            var scaleCases = parsed.GetValue(_scaleCases);
+            if ((controls is null) == (scaleCases is null))
+                return Render(ReceiptCommands.UsageError("Supply exactly one of --controls or --scale-cases."));
+            return Render(scaleCases is null
+                ? ReceiptCommands.CheckReport(parsed.GetValue(_schema), controls, parsed.GetValue(_receipt))
+                : ReceiptCommands.CheckScaleReport(parsed.GetValue(_schema), scaleCases, parsed.GetValue(_receipt)));
+        });
     }
 
     public int HandleParseErrors(ParseResult result) =>
