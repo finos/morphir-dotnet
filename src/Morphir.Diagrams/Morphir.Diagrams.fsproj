@@ -18,6 +18,7 @@
         <Compile Include="Reading.fs" />
         <Compile Include="FlowchartReader.fs" />
         <Compile Include="SequenceReader.fs" />
+        <Compile Include="Theme.fs" />
         <Compile Include="SvgWriting.fs" />
         <Compile Include="FlowchartSvg.fs" />
         <Compile Include="SequenceLayout.fs" />

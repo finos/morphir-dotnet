@@ -72,10 +72,11 @@ module private PlayerArtifact =
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>Diagram playback</title>
 <style>
-body { font: 1rem system-ui, sans-serif; margin: 1.5rem; }
-.diagram-canvas { overflow: auto; box-sizing: border-box; border: 1px solid var(--diagram-viewer-border, #bac8db); background: var(--diagram-viewer-canvas-bg, white); }
+:root { color-scheme: light dark; }
+body { font: 1rem system-ui, sans-serif; margin: 1.5rem; background: light-dark(#f9fafb, #0f1014); color: light-dark(#111827, #e5e7eb); }
+.diagram-canvas { overflow: auto; box-sizing: border-box; border: 1px solid var(--diagram-viewer-border, light-dark(#d1d5db, #374151)); background: var(--diagram-viewer-canvas-bg, light-dark(#f4f5f7, #020617)); }
 .diagram-canvas svg { display: block; max-width: 100%; height: auto; }
-.diagram-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .25rem; padding: .25rem; background: var(--diagram-viewer-toolbar-bg, #f4f5f7); }
+.diagram-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .25rem; padding: .25rem; background: var(--diagram-viewer-toolbar-bg, light-dark(#ffffff, #17181f)); }
 .diagram-toolbar[hidden] { display: none; }
 .diagram-toolbar button { min-width: 44px; min-height: 44px; border-radius: var(--diagram-viewer-control-radius, .35rem); }
 .diagram-toolbar output { min-width: 3rem; text-align: center; }

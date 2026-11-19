@@ -69,8 +69,30 @@ Style the viewport per player on the `[data-diagram-viewer]` root with the
 `--diagram-viewer-toolbar-bg`, `--diagram-viewer-border`,
 `--diagram-viewer-control-radius`, and `--diagram-viewer-focus` properties.
 
-Route exploration, the Archify theme and connector styling, and raster
+Route exploration, rounded and bridged connector routing, and raster
 exports are tracked in the migration PRD.
+
+## Theme
+
+SVG output uses the classic preset of archify, as diagrams.mbt adapts it.
+The diagram is dark by default and light when the viewer prefers light.
+A `data-theme="dark"` or `data-theme="light"` attribute on the root `<svg>`
+overrides the viewer preference. The colours are CSS custom properties
+scoped to the root's generated `id`, so several diagrams can share a page.
+The `id` and the marker identifiers derive from the output, so the same
+diagram always produces the same bytes.
+
+Flowchart nodes take a colour family from their shape: decisions and
+hexagons are amber, cylinders are violet, circles are orange, and other
+shapes are green. Groups are dashed outlines. Sequence actors are cyan, and
+plain participants cycle through cyan, green, violet, amber and orange.
+Requests use their sender's colour, dotted replies are grey dashed lines,
+and messages with a cross head are rose. Labels sit on opaque chips. In the
+light theme, text uses a darker shade of each accent so that it keeps at
+least 4.5:1 contrast. Text uses a monospace font stack and the SVG embeds no
+font data.
+
+The offline player page follows the same colour-scheme preference.
 
 ## Migration coverage
 
@@ -83,10 +105,9 @@ The sequence model exposes ordered `Events` at the root and in each frame
 section. `Messages` and `Notes` include nested items in source order.
 `par_over` sections use the same vertical layout as `par`.
 
-The native .NET layout produces deterministic, script-free SVG. It uses a
-separate layout and theme from the upstream SVG renderer. Source preservation
-includes comments, front matter and directives, while the current layout
-uses its own presentation.
+The native .NET layout produces deterministic, script-free SVG. It shares the
+upstream theme but uses its own, simpler layout. Source preservation
+includes comments, front matter and directives.
 
 Mermaid style and configuration statements, subgraph endpoints and direction
 overrides, and sequence participant metadata, groups, creation, destruction,

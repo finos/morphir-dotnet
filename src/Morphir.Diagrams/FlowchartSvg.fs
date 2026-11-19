@@ -135,51 +135,74 @@ module internal FlowchartSvg =
 
         levels
 
+    /// The colour family of a shape, as diagrams.mbt assigns it.
+    let private family shape =
+        match shape with
+        | FlowShape.Diamond
+        | FlowShape.Hexagon -> Theme.Cloud
+        | FlowShape.Cylinder -> Theme.Database
+        | FlowShape.Circle
+        | FlowShape.DoubleCircle -> Theme.MessageBus
+        | _ -> Theme.Backend
+
+    /// Paints the shape of a node and returns its colour family.
     let private shape writer (node: FlowNode) x y halfWidth halfHeight =
         let left, right = x - halfWidth, x + halfWidth
 
         let top, bottom = y - halfHeight, y + halfHeight
+        let family = family node.Shape
+        let fill, stroke = Theme.fill family, Theme.stroke family
+
+        let paint (role: string) fill =
+            [ "class", role; "fill", fill; "stroke", stroke; "stroke-width", "1.5" ]
 
         let rectangle radius =
-            SvgWriting.rectangle
+            SvgWriting.empty
                 writer
-                left
-                top
-                (2 * halfWidth)
-                (2 * halfHeight)
-                radius
-                SvgWriting.fill
-                SvgWriting.ink
+                "rect"
+                [
+                    "x", SvgWriting.number left
+                    "y", SvgWriting.number top
+                    "width", SvgWriting.number (2 * halfWidth)
+                    "height", SvgWriting.number (2 * halfHeight)
+                    "rx", SvgWriting.number radius
+                    yield! paint "outline" fill
+                ]
 
         let polygon points =
             let data =
                 points |> List.map (fun (px, py) -> SvgWriting.point px py) |> String.concat " "
 
+            SvgWriting.empty writer "polygon" (("points", data) :: paint "outline" fill)
+
+        let circle role radius fill =
             SvgWriting.empty
                 writer
-                "polygon"
-                [ "points", data; "fill", SvgWriting.fill; "stroke", SvgWriting.ink ]
-
-        let circle radius fill =
-            SvgWriting.circle writer x y radius fill SvgWriting.ink
+                "circle"
+                [
+                    "cx", SvgWriting.number x
+                    "cy", SvgWriting.number y
+                    "r", SvgWriting.number radius
+                    yield! paint role fill
+                ]
 
         match node.Shape with
         | FlowShape.Rectangle -> rectangle 0
         | FlowShape.Rounded -> rectangle 8
         | FlowShape.Stadium -> rectangle halfHeight
-        | FlowShape.Circle -> circle halfWidth SvgWriting.fill
+        | FlowShape.Circle -> circle "outline" halfWidth fill
         | FlowShape.DoubleCircle ->
-            circle halfWidth SvgWriting.fill
+            circle "outline" halfWidth fill
 
-            circle (halfWidth - 5) "none"
+            circle "decoration" (halfWidth - 6) "none"
         | FlowShape.Diamond -> polygon [ x, top; right, y; x, bottom; left, y ]
         | FlowShape.Subroutine ->
             rectangle 0
 
             SvgWriting.path
                 writer
-                $"M{SvgWriting.point (left + 7) top} V{SvgWriting.number bottom} M{SvgWriting.point (right - 7) top} V{SvgWriting.number bottom}"
-                [ "stroke", SvgWriting.ink ]
+                $"M{SvgWriting.point (left + 10) top} V{SvgWriting.number bottom} M{SvgWriting.point (right - 10) top} V{SvgWriting.number bottom}"
+                (paint "decoration" "none")
         | FlowShape.Cylinder ->
             rectangle 10
 
@@ -191,8 +214,7 @@ module internal FlowchartSvg =
                     "cy", SvgWriting.number (top + 8)
                     "rx", SvgWriting.number halfWidth
                     "ry", "8"
-                    "fill", SvgWriting.fill
-                    "stroke", SvgWriting.ink
+                    yield! paint "decoration" "none"
                 ]
         | FlowShape.Hexagon ->
             polygon
@@ -214,6 +236,8 @@ module internal FlowchartSvg =
             polygon [ left + 12, top; right - 12, top; right, bottom; left, bottom ]
         | FlowShape.ReverseTrapezoid ->
             polygon [ left, top; right, top; right - 12, bottom; left + 12, bottom ]
+
+        family
 
     let private dimensions (node: FlowNode) =
         let textWidth = node.Label.Length * 8 |> min 320
@@ -305,13 +329,18 @@ module internal FlowchartSvg =
             groups |> Array.fold (fun height (_, box) -> max height (box.Bottom + 24)) baseHeight
 
         let heads =
-            model.Edges |> Seq.collect (fun edge -> [ edge.StartHead; edge.EndHead ])
+            model.Edges
+            |> Seq.filter (fun edge -> edge.Line <> FlowLine.Invisible)
+            |> Seq.collect (fun edge -> [ edge.StartHead, Theme.arrow; edge.EndHead, Theme.arrow ])
 
         SvgWriting.document
+            "flowchart"
             "Flowchart"
             width
             height
             heads
+            (Theme.onFills Theme.dark)
+            (Theme.onFills Theme.light)
             (fun writer ->
                 for group, box in groups do
                     SvgWriting.element
@@ -319,20 +348,29 @@ module internal FlowchartSvg =
                         "g"
                         [ "data-group", group.Id.Value ]
                         (fun () ->
-                            SvgWriting.rectangle
+                            SvgWriting.empty
                                 writer
-                                box.Left
-                                box.Top
-                                (box.Right - box.Left)
-                                (box.Bottom - box.Top)
-                                8
-                                "#f5f8fd"
-                                "#bac8db"
+                                "rect"
+                                [
+                                    "class", "outline"
+                                    "x", SvgWriting.number box.Left
+                                    "y", SvgWriting.number box.Top
+                                    "width", SvgWriting.number (box.Right - box.Left)
+                                    "height", SvgWriting.number (box.Bottom - box.Top)
+                                    "rx", "8"
+                                    "fill", Theme.bg
+                                    "stroke", Theme.muted
+                                    "stroke-width", "1.5"
+                                    "stroke-dasharray", "6 4"
+                                ]
 
-                            SvgWriting.text
+                            SvgWriting.label
                                 writer
                                 ((box.Left + box.Right) / 2)
-                                (box.Top + 18)
+                                (box.Top + 19)
+                                13
+                                700
+                                Theme.text
                                 group.Label
                         )
 
@@ -402,9 +440,14 @@ module internal FlowchartSvg =
                             route
                             edge.StartHead
                             edge.EndHead
-                            (edge.Line = FlowLine.Dotted)
-                            (if edge.Line = FlowLine.Thick then 3 else 1)
-                            [ "data-source", edge.Source.Value; "data-target", edge.Target.Value ]
+                            Theme.arrow
+                            (if edge.Line = FlowLine.Dotted then Some "5 4" else None)
+                            (if edge.Line = FlowLine.Thick then "3" else "1.5")
+                            [
+                                "class", "connector"
+                                "data-source", edge.Source.Value
+                                "data-target", edge.Target.Value
+                            ]
 
                         if edge.StartHead <> EdgeHead.None || edge.EndHead <> EdgeHead.None then
                             let reversed = edge.EndHead = EdgeHead.None
@@ -412,7 +455,9 @@ module internal FlowchartSvg =
 
                         match edge.Label with
                         | null -> ()
-                        | label -> SvgWriting.text writer labelX labelY label
+                        | label ->
+                            SvgWriting.chip writer labelX labelY 13 Theme.bg label
+                            SvgWriting.label writer labelX labelY 13 400 Theme.text label
 
                 model.Nodes
                 |> Seq.iteri (fun index node ->
@@ -424,8 +469,8 @@ module internal FlowchartSvg =
                         "g"
                         [ "data-node", node.Id.Value; "data-shape", node.Shape.WireValue ]
                         (fun () ->
-                            shape writer node x y w h
-                            SvgWriting.text writer x (y + 5) node.Label
+                            let family = shape writer node x y w h
+                            SvgWriting.label writer x (y + 5) 13 400 (Theme.ink family) node.Label
                         )
                 )
             )

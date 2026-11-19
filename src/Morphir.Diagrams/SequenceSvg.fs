@@ -9,38 +9,67 @@ open System.Globalization
 
 [<RequireQualifiedAccess>]
 module internal SequenceSvg =
-    let private drawParticipant writer (participant: Participant) x y halfWidth =
+    /// Plain participants cycle through these families in order.
+    let private cycle =
+        [| Theme.Frontend; Theme.Backend; Theme.Database; Theme.Cloud; Theme.MessageBus |]
+
+    let private families (participants: seq<Participant>) =
+        let result = Dictionary<DiagramId, Theme.Family>()
+        let mutable next = 0
+
+        for participant in participants do
+            match participant.Kind with
+            | ParticipantKind.Actor -> result.Add(participant.Id, Theme.Frontend)
+            | ParticipantKind.Participant ->
+                result.Add(participant.Id, cycle[next % cycle.Length])
+                next <- next + 1
+
+        result
+
+    let private drawParticipant writer (participant: Participant) (family: Theme.Family) x y halfWidth =
         SvgWriting.element
             writer
             "g"
-            [ "data-participant", participant.Id.Value ]
+            [ "class", $"participant f-{family.Name}"; "data-participant", participant.Id.Value ]
             (fun () ->
+                let stroke = Theme.stroke family
+
                 if participant.Kind = ParticipantKind.Actor then
-                    SvgWriting.circle writer x (y - 15) 6 SvgWriting.fill SvgWriting.ink
+                    SvgWriting.circle writer x (y + 6) 6 (Theme.fill family) stroke
 
                     SvgWriting.path
                         writer
-                        $"M{SvgWriting.point x (y - 9)} v16 m-10,-10 h20 m-10,10 l-8,9 m8,-9 l8,9"
-                        [ "fill", "none"; "stroke", SvgWriting.ink ]
+                        $"M{SvgWriting.point x (y + 12)} v12 m-10,-7 h20 m-10,7 l-8,9 m8,-9 l8,9"
+                        [ "fill", "none"; "stroke", stroke; "stroke-width", "1.5" ]
 
-                    SvgWriting.text writer x (y + 34) participant.Label
+                    SvgWriting.chip writer x (y + 47) 12 Theme.mask participant.Label
+                    SvgWriting.label writer x (y + 47) 12 600 Theme.text participant.Label
                 else
-                    SvgWriting.rectangle
-                        writer
-                        (x - halfWidth)
-                        y
-                        (2 * halfWidth)
-                        42
-                        6
-                        SvgWriting.fill
-                        SvgWriting.ink
+                    let box role fill stroke =
+                        SvgWriting.empty
+                            writer
+                            "rect"
+                            [
+                                "class", role
+                                "x", SvgWriting.number (x - halfWidth)
+                                "y", SvgWriting.number y
+                                "width", SvgWriting.number (2 * halfWidth)
+                                "height", "42"
+                                "rx", "6"
+                                "fill", fill
+                                if stroke <> "none" then
+                                    "stroke", stroke
+                                    "stroke-width", "1.5"
+                            ]
 
-                    SvgWriting.text writer x (y + 26) participant.Label
+                    box "mask" Theme.mask "none"
+                    box "box" (Theme.fill family) stroke
+                    SvgWriting.label writer x (y + 25) 12 600 Theme.text participant.Label
             )
 
     let private drawNote writer x y (note: SequenceNote) =
         let px = x note.Participants[0]
-        let width = max 76 (min 380 (note.Text.Length * 8 + 24))
+        let width = max 76 (min 380 (SvgWriting.textWidth 12 note.Text + 28))
 
         let left =
             match note.Placement with
@@ -50,17 +79,46 @@ module internal SequenceSvg =
                 (px + x note.Participants[1] - width) / 2
             | NotePlacement.Over -> px - width / 2
 
-        SvgWriting.rectangle writer left (y - 21) width 35 5 "#fff8d8" SvgWriting.ink
-        SvgWriting.text writer (left + width / 2) (y + 1) note.Text
+        SvgWriting.element
+            writer
+            "g"
+            [ "class", "note" ]
+            (fun () ->
+                let external = Theme.External
+                SvgWriting.rectangle writer left (y - 21) width 35 4 Theme.mask "none"
 
-    let private drawMessage writer x y (message: SequenceMessage) =
+                SvgWriting.rectangle
+                    writer
+                    left
+                    (y - 21)
+                    width
+                    35
+                    4
+                    (Theme.fill external)
+                    (Theme.stroke external)
+
+                SvgWriting.label writer (left + width / 2) (y + 1) 12 400 Theme.text note.Text
+            )
+
+    /// Cross heads use the security family, and dotted replies the external family.
+    let private messageFamily (families: Dictionary<DiagramId, Theme.Family>) (message: SequenceMessage) =
+        if message.SenderHead = EdgeHead.Cross || message.ReceiverHead = EdgeHead.Cross then
+            Theme.Security
+        elif message.IsDashed then
+            Theme.External
+        else
+            families[message.Sender]
+
+    /// Dotted replies are grey dashed lines unless they are crossed.
+    let private messageStroke family (message: SequenceMessage) =
+        if message.IsDashed && family <> Theme.Security then
+            Theme.arrow
+        else
+            Theme.stroke family
+
+    let private drawMessage writer families x y (message: SequenceMessage) =
         let sx, tx = x message.Sender, x message.Receiver
-
-        let route, labelX =
-            if sx = tx then
-                $"M{SvgWriting.point sx y} h36 v22 h-36", sx + 26
-            else
-                $"M{SvgWriting.point sx y} H{SvgWriting.number tx}", (sx + tx) / 2
+        let family = messageFamily families message
 
         let attributes =
             [ "data-sender", message.Sender.Value; "data-receiver", message.Receiver.Value ]
@@ -72,17 +130,32 @@ module internal SequenceSvg =
                 let number = number.ToString("0.##", CultureInfo.InvariantCulture)
                 ("data-number", number) :: attributes, $"[{number}] {message.Text}"
 
-        SvgWriting.connector
+        let route, labelX =
+            if sx = tx then
+                $"M{SvgWriting.point sx y} h36 v22 h-36", sx + 44 + SvgWriting.textWidth 11 text / 2
+            else
+                $"M{SvgWriting.point sx y} H{SvgWriting.number tx}", (sx + tx) / 2
+
+        SvgWriting.element
             writer
-            route
-            message.SenderHead
-            message.ReceiverHead
-            message.IsDashed
-            1
-            attributes
+            "g"
+            [ "class", $"message f-{family.Name}" ]
+            (fun () ->
+                SvgWriting.connector
+                    writer
+                    route
+                    message.SenderHead
+                    message.ReceiverHead
+                    (messageStroke family message)
+                    (if message.IsDashed then Some "4 4" else None)
+                    "1.4"
+                    (("class", "m-line") :: attributes)
+
+                SvgWriting.chip writer labelX (y - 8) 11 Theme.mask text
+                SvgWriting.label writer labelX (y - 8) 11 400 (Theme.ink family) text
+            )
 
         writer.BindConnector message.Sender message.Receiver route false
-        SvgWriting.text writer labelX (y - 8) text
 
     // The authored value is retained on the model. Only literal colors can be SVG paint values.
     let private literalColor =
@@ -96,26 +169,43 @@ module internal SequenceSvg =
         let right = width - left
         let kind = frame.Model.Kind
 
-        let shade =
+        // Author colours become 18 percent tints over an opaque background band.
+        let tint =
             match kind, Option.ofObj frame.Model.Color with
-            | SequenceFrameKind.Rectangle, Some color when literalColor.IsMatch color -> color
-            | SequenceFrameKind.Rectangle, _ -> SvgWriting.fill
-            | _ -> "none"
+            | SequenceFrameKind.Rectangle, Some color when literalColor.IsMatch color -> Some color
+            | _ -> None
 
         SvgWriting.element
             writer
             "g"
-            [ "data-frame", kind.WireValue ]
+            [ "class", "frame"; "data-frame", kind.WireValue ]
             (fun () ->
-                SvgWriting.rectangle
-                    writer
-                    left
-                    frame.Top
-                    (right - left)
-                    (frame.Bottom - frame.Top)
-                    4
-                    shade
-                    SvgWriting.ink
+                let band role fill (extra: (string * string) list) =
+                    SvgWriting.empty
+                        writer
+                        "rect"
+                        [
+                            "class", role
+                            "x", SvgWriting.number left
+                            "y", SvgWriting.number frame.Top
+                            "width", SvgWriting.number (right - left)
+                            "height", SvgWriting.number (frame.Bottom - frame.Top)
+                            "rx", "6"
+                            "fill", fill
+                            yield! extra
+                        ]
+
+                band "band-mask" Theme.bg []
+
+                band
+                    "band"
+                    (tint |> Option.defaultValue (Theme.fill Theme.External))
+                    [
+                        if tint.IsSome then
+                            "fill-opacity", "0.18"
+                        "stroke", Theme.arrow
+                        "stroke-width", "1.5"
+                    ]
 
                 frame.Sections
                 |> Array.iteri (fun index (y, label) ->
@@ -123,7 +213,13 @@ module internal SequenceSvg =
                         SvgWriting.path
                             writer
                             $"M{SvgWriting.point left y} H{SvgWriting.number right}"
-                            [ "stroke", SvgWriting.ink; "stroke-dasharray", "5 4" ]
+                            [
+                                "class", "section-divider"
+                                "fill", "none"
+                                "stroke", Theme.arrow
+                                "stroke-width", "1.4"
+                                "stroke-dasharray", "4 4"
+                            ]
 
                     let caption =
                         match index, label with
@@ -133,30 +229,44 @@ module internal SequenceSvg =
                         | _, None -> ""
 
                     if caption.Length > 0 then
-                        SvgWriting.text writer (width / 2) (y + 18) caption
+                        let weight = if index = 0 then 700 else 400
+                        SvgWriting.chip writer (width / 2) (y + 18) 11 Theme.mask caption
+                        SvgWriting.label writer (width / 2) (y + 18) 11 weight Theme.text caption
                 )
             )
 
-    let private drawActivation writer x (activation: SequenceLayout.Activation) =
+    let private drawActivation
+        writer
+        (families: Dictionary<DiagramId, Theme.Family>)
+        x
+        (activation: SequenceLayout.Activation)
+        =
         let indent = (activation.Depth - 1) * 4
+        let family = families[activation.Participant]
+        let left = x activation.Participant - 6 + indent
+        let height = activation.Bottom - activation.Top
+
+        // The bar is opaque, so lifelines and frames do not show through its tint.
+        SvgWriting.rectangle writer left activation.Top 12 height 0 Theme.mask "none"
 
         SvgWriting.element
             writer
             "g"
             [
+                "class", "activation"
                 "data-activation", activation.Participant.Value
                 "data-depth", SvgWriting.number activation.Depth
             ]
             (fun () ->
                 SvgWriting.rectangle
                     writer
-                    (x activation.Participant - 6 + indent)
+                    left
                     activation.Top
                     12
-                    (activation.Bottom - activation.Top)
+                    height
                     0
-                    SvgWriting.fill
-                    SvgWriting.ink
+                    (Theme.fill family)
+                    (Theme.stroke family)
             )
 
     let render (model: SequenceDiagram) =
@@ -202,15 +312,23 @@ module internal SequenceSvg =
         let bottom = layout.Bottom
         let height = bottom + 80
 
+        let families = families model.Participants
+
         let heads =
             model.Messages
-            |> Seq.collect (fun message -> [ message.SenderHead; message.ReceiverHead ])
+            |> Seq.collect (fun message ->
+                let stroke = messageStroke (messageFamily families message) message
+                [ message.SenderHead, stroke; message.ReceiverHead, stroke ]
+            )
 
         SvgWriting.document
+            "sequence"
             "Sequence diagram"
             width
             height
             heads
+            Theme.dark
+            Theme.light
             (fun writer ->
                 layout.Frames
                 |> Seq.sortBy (fun frame -> frame.Top, frame.Depth)
@@ -222,17 +340,27 @@ module internal SequenceSvg =
                     SvgWriting.path
                         writer
                         $"M{SvgWriting.point px (top + 42)} V{SvgWriting.number (bottom + 6)}"
-                        [ "stroke", SvgWriting.ink; "stroke-dasharray", "4 4" ]
-
-                    drawParticipant writer participant px top halfWidth
-                    drawParticipant writer participant px (bottom + 6) halfWidth
+                        [
+                            "class", "lifeline"
+                            "fill", "none"
+                            "stroke", Theme.arrow
+                            "stroke-width", "0.8"
+                            "stroke-dasharray", "3 7"
+                        ]
 
                 layout.Activations
                 |> Seq.sortBy (fun activation -> activation.Depth)
-                |> Seq.iter (drawActivation writer x)
+                |> Seq.iter (drawActivation writer families x)
 
                 for row in layout.Rows do
                     match row with
-                    | SequenceLayout.Message(y, message) -> drawMessage writer x y message
+                    | SequenceLayout.Message(y, message) -> drawMessage writer families x y message
                     | SequenceLayout.Note(y, note) -> drawNote writer x y note
+
+                // Participants paint last, over lifelines and self-messages, as upstream does.
+                for participant in model.Participants do
+                    let px = x participant.Id
+                    let family = families[participant.Id]
+                    drawParticipant writer participant family px top halfWidth
+                    drawParticipant writer participant family px (bottom + 6) halfWidth
             )

@@ -23,16 +23,17 @@ Status: In Progress
 | Shared SVG scene and authored-order offline playback | Implemented |
 | Finite scenarios with repeated and concurrent connector occurrences | Implemented |
 | Offline viewport zoom, fit, pan, and fullscreen | Implemented |
-| Playback route exploration, Archify theme and connector styling, trace evidence, and raster export | Planned |
+| Archify classic theme with adaptive dark and light palettes and colour families | Implemented |
+| Playback route exploration, rounded and bridged connector styling, trace evidence, and raster export | Planned |
 
 ## Implementation notes
 
 - The reference is [diagrams.mbt at 60a8dd1](https://github.com/moonrockz/diagrams.mbt/tree/60a8dd19f386b6fc65e9ddf5ddccec213c622d07). Its Draw.io and Graphviz DOT readers are planned upstream.
 - The first increment exercises the full source-to-SVG path from both F# and C# library APIs. It establishes a shared diagnostic and document contract for subsequent format work.
-- Standalone SVG uses a native layout and fixed presentation. See the [library guide](../../../../../src/Morphir.Diagrams/README.md) for the supported syntax.
+- Standalone SVG uses a native layout with the archify classic theme of the upstream renderer. Its palette values and the light-theme text shades match the upstream output. The fixed dark and light output modes of upstream are not yet exposed. See the [library guide](../../../../../src/Morphir.Diagrams/README.md) for the supported syntax.
 - The migration proceeds in native F# by diagram family, starting with Mermaid flowcharts and sequences. The Mermaid sequence model now retains nested frame sections and activation events. Numbered messages carry their resolved numbers.
 - A local render check of the pinned upstream inputs produced well-formed SVG for 24 of the 38 sequence documentation examples and 16 of the 34 flowchart corpus cases. This check exercises reading and rendering. The upstream semantic and layout assertions still need to be ported.
 - [Morphir.Svg](../../../../../src/Morphir.Svg/README.md) owns immutable SVG authoring and serialization. `Morphir.Diagrams` captures the final path geometry when it emits each headed flowchart edge or sequence message. The standalone player uses that geometry for its moving overlay and embeds the canonical SVG for byte-exact downloads.
 - Finite scenarios schedule connector bindings from the same scene. Equal start times and overlapping intervals preserve concurrency, and repeated references create distinct playback occurrences.
 - Viewport controls transform the SVG and its motion overlay together. Fullscreen uses the browser API with an HTML dialog fallback, and print styles restore the fitted static diagram.
-- [The upstream animation specification](https://github.com/moonrockz/diagrams.mbt/blob/60a8dd19f386b6fc65e9ddf5ddccec213c622d07/openspec/specs/diagram-animation/spec.md) defines the remaining playback and structural exploration behavior. Matching the Archify theme and connector styling is part of rendering parity.
+- [The upstream animation specification](https://github.com/moonrockz/diagrams.mbt/blob/60a8dd19f386b6fc65e9ddf5ddccec213c622d07/openspec/specs/diagram-animation/spec.md) defines the remaining playback and structural exploration behavior. Matching the rounded and bridged connector styling is part of rendering parity.
