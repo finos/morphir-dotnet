@@ -79,6 +79,10 @@ type internal RequestIdStartPolicy =
         | Product -> -1L
         | Conformance -> 0L
 
+/// An owned output can explain why it stopped accepting writes without sending bytes to the peer.
+type internal ITransportWriteAvailability =
+    abstract member EnsureWriteAvailable: unit -> unit
+
 /// A JSON-RPC connection on a framed stream pair (design RPC-1): it dispatches inbound requests, matches inbound
 /// responses to the pending-request table, and sends and receives $/cancelRequest.
 [<Sealed>]
@@ -255,6 +259,9 @@ type Connection
                             Ok(id, waiter))
                 match registered with
                 | Error reason ->
+                    match box output with
+                    | :? ITransportWriteAvailability as owner -> owner.EnsureWriteAvailable()
+                    | _ -> ()
                     return { Result = Error(RpcErrors.withMessage ErrorCode.InternalError reason); Exchange = None; Submitted = false }
                 | Ok(id, waiter) ->
                     try
