@@ -693,8 +693,82 @@ type DiagramThemes private () =
                 ]
         )
 
+    static let ocean =
+        DiagramTheme(
+            "Ocean",
+            accents
+                0.18m
+                0x2b303b
+                0xc0c5ce
+                0xa7adba
+                0x232730
+                0xa7adba
+                [
+                    0x96b5b4, 0x96b5b4
+                    0xa3be8c, 0xa3be8c
+                    0xb48ead, 0xb48ead
+                    0xebcb8b, 0xebcb8b
+                    0xbf616a, 0xbf616a
+                    0xd08770, 0xd08770
+                    0x65737e, 0x65737e
+                ],
+            accents
+                0.16m
+                0xeff1f5
+                0x2b303b
+                0x606e78
+                0xffffff
+                0x606e78
+                [
+                    0x96b5b4, 0x4c6b6a
+                    0xa3be8c, 0x546e3e
+                    0xb48ead, 0x815679
+                    0xebcb8b, 0x846017
+                    0xbf616a, 0x9e4049
+                    0xd08770, 0x9c4d33
+                    0x65737e, 0x55616a
+                ]
+        )
+
+    static let darcula =
+        DiagramTheme(
+            "Darcula",
+            accents
+                0.18m
+                0x2b2b2b
+                0xa9b7c6
+                0x949494
+                0x232323
+                0x949494
+                [
+                    0x6897bb, 0x6897bb
+                    0x6a8759, 0x6a8759
+                    0x9876aa, 0x9876aa
+                    0xffc66d, 0xffc66d
+                    0xc75450, 0xc75450
+                    0xcc7832, 0xcc7832
+                    0x808080, 0x808080
+                ],
+            accents
+                0.16m
+                0xf5f5f5
+                0x2b2b2b
+                0x6e6e6e
+                0xffffff
+                0x6e6e6e
+                [
+                    0x6897bb, 0x3e6989
+                    0x6a8759, 0x526845
+                    0x9876aa, 0x775589
+                    0xffc66d, 0x965b00
+                    0xc75450, 0xa93a36
+                    0xcc7832, 0x8f5423
+                    0x808080, 0x616161
+                ]
+        )
+
     static let all: IReadOnlyList<DiagramTheme> =
-        ImmutableArray.Create(archify, monokai, cobalt, solarized, gruvbox)
+        ImmutableArray.Create(archify, monokai, cobalt, solarized, gruvbox, ocean, darcula)
 
     /// The classic preset of archify v3.2 by tt-a1i (MIT), as diagrams.mbt adapts it. The default.
     static member Archify = archify
@@ -710,6 +784,12 @@ type DiagramThemes private () =
 
     /// Earthy, warm accents on brown-grey or parchment, with a hand-tuned light variant.
     static member Gruvbox = gruvbox
+
+    /// Soft pastel accents on slate or pale grey-blue, with a hand-tuned light variant.
+    static member Ocean = ocean
+
+    /// Muted IDE accents on charcoal or light grey, with a hand-tuned light variant.
+    static member Darcula = darcula
 
     /// Every built-in theme, Archify first.
     static member All = all

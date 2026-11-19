@@ -21,9 +21,11 @@ public partial class DiagramThemeTests
     [Test]
     public void BuiltInThemesAreListedWithArchifyAsTheDefault()
     {
-        DiagramThemes.All.Select(theme => theme.Name).ShouldBe(["Archify", "Monokai", "Cobalt", "Solarized", "Gruvbox"]);
-        DiagramThemes.Solarized.ShouldBeSameAs(DiagramThemes.All[3]);
-        DiagramThemes.Gruvbox.ShouldBeSameAs(DiagramThemes.All[4]);
+        DiagramThemes.All.Select(theme => theme.Name)
+            .ShouldBe(["Archify", "Monokai", "Cobalt", "Solarized", "Gruvbox", "Ocean", "Darcula"]);
+        DiagramThemes.All.ShouldBe([
+            DiagramThemes.Archify, DiagramThemes.Monokai, DiagramThemes.Cobalt, DiagramThemes.Solarized,
+            DiagramThemes.Gruvbox, DiagramThemes.Ocean, DiagramThemes.Darcula]);
         SvgRenderOptions.Default.Theme.ShouldBeSameAs(DiagramThemes.Archify);
         SvgRenderOptions.Default.Mode.ShouldBe(ThemeMode.Auto);
         Mermaid.RenderSvg(Flowchart, SvgRenderOptions.Default).Output
