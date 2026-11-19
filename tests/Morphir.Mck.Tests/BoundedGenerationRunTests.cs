@@ -117,6 +117,35 @@ public sealed class BoundedGenerationRunTests
         report.RootElement.GetProperty("resources").GetProperty("state").GetString().Should().Be("not-run");
     }
 
+    private sealed class TimedOutOwner : IAsyncDisposable
+    {
+        public ValueTask DisposeAsync() =>
+            ValueTask.FromException(new TimeoutException("Adapter descendants did not settle."));
+    }
+
+    [Test]
+    public async Task FinalOwnershipTimeoutRefusesACompleteObservation()
+    {
+        using var inputs = new Inputs();
+        var launches = 0;
+        var result = await BoundedGenerationRun.RunAsync(inputs.Selection, async (request, _) =>
+        {
+            launches++;
+            await using var owner = new TimedOutOwner();
+            return Reply(request);
+        }, CancellationToken.None);
+
+        launches.Should().Be(1);
+        result.ExitCode.Should().Be(1);
+        using var report = JsonDocument.Parse(result.Output);
+        report.RootElement.GetProperty("correctness").GetProperty("state").GetString().Should().Be("failed");
+        report.RootElement.GetProperty("resources").GetProperty("state").GetString().Should().Be("not-run");
+        var cases = report.RootElement.GetProperty("cases").EnumerateArray().ToArray();
+        cases.Should().ContainSingle();
+        cases[0].GetProperty("reason").GetString().Should().Be("adapter.cleanup_timeout");
+        cases[0].GetProperty("observationSha256").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
     [Test]
     public async Task ProductionDotNetObserverMatchesTheIndependentCorpusInAllEightCases()
     {
