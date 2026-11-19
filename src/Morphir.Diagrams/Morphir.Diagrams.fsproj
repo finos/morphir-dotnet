@@ -43,6 +43,7 @@
         <Compile Include="BpmnSource.fs" />
         <Compile Include="Theme.fs" />
         <Compile Include="SvgWriting.fs" />
+        <Compile Include="Connectors.fs" />
         <Compile Include="FlowchartSvg.fs" />
         <Compile Include="SequenceLayout.fs" />
         <Compile Include="SequenceSvg.fs" />

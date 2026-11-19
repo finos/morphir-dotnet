@@ -899,6 +899,25 @@ type MetadataEmbedding =
 
     override this.ToString() = this.WireValue
 
+/// How connectors in graph families bend.
+[<RequireQualifiedAccess>]
+type ConnectorStyle =
+    /// Straight segments that meet at right angles. The default.
+    | Elbow
+    /// Straight segments joined by short curves.
+    | Rounded
+    /// One smooth curve from end to end.
+    | Curved
+
+    /// The style as options and documentation write it.
+    member this.WireValue =
+        match this with
+        | ConnectorStyle.Elbow -> "elbow"
+        | ConnectorStyle.Rounded -> "rounded"
+        | ConnectorStyle.Curved -> "curved"
+
+    override this.ToString() = this.WireValue
+
 /// Presentation choices for SVG and playback output, and the document identity and dataset that the
 /// SVG carries.
 [<Sealed>]
@@ -908,9 +927,29 @@ type SvgRenderOptions
         theme: DiagramTheme,
         mode: ThemeMode,
         document: DocumentId option,
-        metadata: (RdfDataset * MetadataEmbedding * NamedGraphHandling) option
+        metadata: (RdfDataset * MetadataEmbedding * NamedGraphHandling) option,
+        connectors: ConnectorStyle,
+        bridges: bool
     ) =
-    static let defaults = SvgRenderOptions(DiagramThemes.Archify, ThemeMode.Auto, None, None)
+    static let defaults = SvgRenderOptions(DiagramThemes.Archify, ThemeMode.Auto, None, None, ConnectorStyle.Elbow, false)
+
+    internal new(theme, mode, document, metadata) =
+        SvgRenderOptions(theme, mode, document, metadata, ConnectorStyle.Elbow, false)
+
+    /// How connectors bend. Elbow by default.
+    member _.ConnectorStyle = connectors
+
+    /// Whether a connector hops over an earlier one that it crosses. Off by default.
+    member _.Bridges = bridges
+
+    /// A copy with another connector style.
+    member _.WithConnectorStyle(style: ConnectorStyle) =
+        ArgumentNullException.ThrowIfNull style
+        SvgRenderOptions(theme, mode, document, metadata, style, bridges)
+
+    /// A copy that draws bridges where connectors cross, or plain crossings.
+    member _.WithBridges(enabled: bool) =
+        SvgRenderOptions(theme, mode, document, metadata, connectors, enabled)
 
     /// The colour theme. Archify by default.
     member _.Theme = theme
@@ -929,17 +968,17 @@ type SvgRenderOptions
     /// A copy with another theme.
     member _.WithTheme(theme: DiagramTheme) =
         ArgumentNullException.ThrowIfNull theme
-        SvgRenderOptions(theme, mode, document, metadata)
+        SvgRenderOptions(theme, mode, document, metadata, connectors, bridges)
 
     /// A copy with another mode.
     member _.WithMode(mode: ThemeMode) =
         ArgumentNullException.ThrowIfNull mode
-        SvgRenderOptions(theme, mode, document, metadata)
+        SvgRenderOptions(theme, mode, document, metadata, connectors, bridges)
 
     /// A copy with the diagram's knowledge document. Embedded metadata needs it.
     member _.WithDocument(document: DocumentId) =
         ArgumentNullException.ThrowIfNull document
-        SvgRenderOptions(theme, mode, Some document, metadata)
+        SvgRenderOptions(theme, mode, Some document, metadata, connectors, bridges)
 
     /// A copy that embeds the dataset in the SVG's metadata element, in canonical form. Named graphs
     /// that the embedding cannot hold are an error unless the caller drops them explicitly.
@@ -947,7 +986,7 @@ type SvgRenderOptions
         ArgumentNullException.ThrowIfNull dataset
         ArgumentNullException.ThrowIfNull embedding
         ArgumentNullException.ThrowIfNull namedGraphs
-        SvgRenderOptions(theme, mode, document, Some(dataset, embedding, namedGraphs))
+        SvgRenderOptions(theme, mode, document, Some(dataset, embedding, namedGraphs), connectors, bridges)
 
     override _.ToString() =
         let carried = if metadata.IsSome then ", with metadata" else ""

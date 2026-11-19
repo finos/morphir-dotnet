@@ -612,106 +612,175 @@ module internal FlowchartSvg =
                     && between sourceRow targetRow |> Seq.forall (fun row -> not (occupied.Contains((sourceRank, row))))
                     && between sourceRank targetRank |> Seq.forall (fun rank -> not (occupied.Contains((rank, targetRow))))
 
+                let flat shape side =
+                    match shape, side with
+                    | (FlowShape.Rectangle | FlowShape.Rounded | FlowShape.Subroutine | FlowShape.Note | FlowShape.Document | FlowShape.Text), _ -> true
+                    | FlowShape.Cylinder, ('L' | 'R') -> true
+                    | (FlowShape.Parallelogram | FlowShape.ReverseParallelogram | FlowShape.Trapezoid | FlowShape.ReverseTrapezoid | FlowShape.Hexagon | FlowShape.Asymmetric), ('T' | 'B') -> true
+                    | _ -> false
+
+                // The straight routes between ranks attach to a side of each end. Where several share a flat side,
+                // they spread evenly along it, ordered by the position of their other end.
+                let straight source target =
+                    let sx, sy = positions[source]
+                    let tx, ty = positions[target]
+
+                    if source = target then None
+                    elif turnsOnce source target then
+                        if horizontal then Some((if ty > sy then 'B' else 'T'), (if tx > sx then 'L' else 'R'))
+                        else Some((if tx > sx then 'R' else 'L'), (if ty > sy then 'T' else 'B'))
+                    elif (horizontal && sx <> tx) || sy = ty then Some(if tx > sx then 'R', 'L' else 'L', 'R')
+                    else Some(if ty > sy then 'B', 'T' else 'T', 'B')
+
+                let attachments = Dictionary<int * char, ResizeArray<int * int * int>>()
+
+                let attach node side edge other =
+                    match attachments.TryGetValue((node, side)) with
+                    | true, list -> list.Add(edge, node, other)
+                    | false, _ -> attachments[(node, side)] <- ResizeArray [ edge, node, other ]
+
                 for index in 0 .. edges.Length - 1 do
                     let source, target = edges[index]
+
+                    if model.Edges[index].Line <> FlowLine.Invisible then
+                        match straight source target with
+                        | Some(startSide, endSide) ->
+                            attach source startSide index target
+                            attach target endSide index source
+                        | None -> ()
+
+                let offsets = Dictionary<int * int, int>()
+
+                for KeyValue((node, side), list) in attachments do
+                    if list.Count > 1 && flat model.Nodes[node].Shape side then
+                        // Ties nest: links that turn away from the side's far end leave in order of distance.
+                        let along other =
+                            let x, y = positions[other]
+                            let nx, ny = positions[node]
+
+                            if side = 'L' || side = 'R' then y, (if y > ny then -1 else 1) * abs (x - nx)
+                            else x, (if x > nx then -1 else 1) * abs (y - ny)
+
+                        let half =
+                            let w, h = sizes[node]
+                            if side = 'L' || side = 'R' then h else w
+
+                        let spacing = min 16 (2 * half / (list.Count + 1))
+
+                        list
+                        |> Seq.sortBy (fun (edge, _, other) -> along other, edge)
+                        |> Seq.iteri (fun order (edge, _, _) ->
+                            offsets[(edge, node)] <- (2 * (order + 1) - (list.Count + 1)) * spacing / 2)
+
+                let offset edge node =
+                    match offsets.TryGetValue((edge, node)) with
+                    | true, value -> value
+                    | false, _ -> 0
+
+                let routes =
+                    [|
+                        for index in 0 .. edges.Length - 1 do
+                            let source, target = edges[index]
+                            let edge = model.Edges[index]
+
+                            if edge.Line <> FlowLine.Invisible then
+                                let sx, sy = positions[source]
+                                let tx, ty = positions[target]
+                                let sw, sh = sizes[source]
+                                let tw, th = sizes[target]
+                                let key = min source target, max source target
+                                let _, count = edgeCounts.TryGetValue key
+                                edgeCounts[key] <- count + 1
+
+                                let shift =
+                                    (if count % 2 = 0 then -1 else 1) * min 24 (8 * ((count + 1) / 2))
+
+                                let os, ot = offset index source, offset index target
+
+                                let points, label =
+                                    if source <> target && turnsOnce source target then
+                                        let signX = if tx > sx then 1 else -1
+                                        let signY = if ty > sy then 1 else -1
+
+                                        if horizontal then
+                                            let b = tx - signX * tw
+
+                                            [| sx + os, sy + signY * sh; sx + os, ty + ot; sx + os, ty + ot; b, ty + ot |],
+                                            ((sx + os + b) / 2, ty + ot - 9)
+                                        else
+                                            let b = ty - signY * th
+
+                                            [| sx + signX * sw, sy + os; tx + ot, sy + os; tx + ot, sy + os; tx + ot, b |],
+                                            (tx + ot, (sy + os + b) / 2 + 5)
+                                    elif source = target then
+                                        let routeX = sx + sw + 22 + shift
+
+                                        let top = sy - sh - 22
+
+                                        [| sx + sw, sy; routeX, sy; routeX, top; sx, top; sx, sy - sh |], (routeX, top - 6)
+                                    elif (horizontal && sx <> tx) || sy = ty then
+                                        let sign = if tx > sx then 1 else -1
+
+                                        let a, b = sx + sign * sw, tx - sign * tw
+
+                                        let mid =
+                                            if abs (levels[target] - levels[source]) > 1 then sx + sign * (xStep / 2 + 12) + shift
+                                            else (a + b) / 2 + shift
+
+                                        [| a, sy + os; mid, sy + os; mid, ty + ot; b, ty + ot |], (mid, min (sy + os) (ty + ot) - 9)
+                                    else
+                                        let sign = if ty > sy then 1 else -1
+
+                                        let a, b = sy + sign * sh, ty - sign * th
+
+                                        let mid =
+                                            if abs (levels[target] - levels[source]) > 1 then sy + sign * (yStep / 2 + 12) + shift
+                                            else (a + b) / 2 + shift
+
+                                        [| sx + os, a; sx + os, mid; tx + ot, mid; tx + ot, b |], ((sx + os + tx + ot) / 2 + 15, mid - 8)
+
+                                yield index, points, label
+                    |]
+
+                let hops =
+                    if options.Bridges && options.ConnectorStyle <> ConnectorStyle.Curved then
+                        routes |> Array.map (fun (index, points, _) -> points, fst edges[index], snd edges[index]) |> Connectors.bridges
+                    else
+                        routes |> Array.map (fun _ -> [||])
+
+                for (index, points, (labelX, labelY)), hops in Array.zip routes hops do
                     let edge = model.Edges[index]
+                    let route = Connectors.path options.ConnectorStyle points hops
 
-                    if edge.Line <> FlowLine.Invisible then
-                        let sx, sy = positions[source]
-                        let tx, ty = positions[target]
-                        let sw, sh = sizes[source]
-                        let tw, th = sizes[target]
-                        let key = min source target, max source target
-                        let _, count = edgeCounts.TryGetValue key
-                        edgeCounts[key] <- count + 1
-
-                        let shift =
-                            (if count % 2 = 0 then -1 else 1) * min 24 (8 * ((count + 1) / 2))
-
-                        let startPoint, bend1, bend2, endPoint, (labelX, labelY) =
-                            if source <> target && turnsOnce source target then
-                                let signX = if tx > sx then 1 else -1
-                                let signY = if ty > sy then 1 else -1
-
-                                if horizontal then
-                                    let b = tx - signX * tw
-
-                                    (sx, sy + signY * sh), (sx, ty), (sx, ty), (b, ty), ((sx + b) / 2, ty - 9)
-                                else
-                                    let b = ty - signY * th
-
-                                    (sx + signX * sw, sy), (tx, sy), (tx, sy), (tx, b), (tx, (sy + b) / 2 + 5)
-                            elif source = target then
-                                let routeX = sx + sw + 22 + shift
-
-                                let top = sy - sh - 22
-
-                                (sx + sw, sy),
-                                (routeX, sy),
-                                (routeX, top),
-                                (sx, top),
-                                (routeX, top - 6)
-                            elif (horizontal && sx <> tx) || sy = ty then
-                                let sign = if tx > sx then 1 else -1
-
-                                let a, b = sx + sign * sw, tx - sign * tw
-
-                                let mid = (a + b) / 2 + shift
-
-                                (a, sy), (mid, sy), (mid, ty), (b, ty), (mid, min sy ty - 9)
-                            else
-                                let sign = if ty > sy then 1 else -1
-
-                                let a, b = sy + sign * sh, ty - sign * th
-
-                                let mid = (a + b) / 2 + shift
-
-                                (sx, a),
-                                (sx, mid),
-                                (tx, mid),
-                                (tx, b),
-                                ((sx + tx) / 2 + 15, mid - 8)
-
-                        let point (x, y) = SvgWriting.point x y
-
-                        let finish =
-                            if source = target then
-                                $" L{SvgWriting.point sx (sy - sh)}"
-                            else
-                                ""
-
-                        let route =
-                            $"M{point startPoint} L{point bend1} L{point bend2} L{point endPoint}{finish}"
-
-                        SvgWriting.element
+                    SvgWriting.element
+                        writer
+                        "g"
+                        [ "class", "edge"; "data-ref", edgeRefs[index].ToString() ]
+                        (fun () ->
+                        SvgWriting.connector
                             writer
-                            "g"
-                            [ "class", "edge"; "data-ref", edgeRefs[index].ToString() ]
-                            (fun () ->
-                            SvgWriting.connector
-                                writer
-                                route
-                                edge.StartHead
-                                edge.EndHead
-                                Theme.arrow
-                                (if edge.Line = FlowLine.Dotted then Some "5 4" else None)
-                                (if edge.Line = FlowLine.Thick then "3" else "1.5")
-                                [
-                                    "class", "connector"
-                                    "data-source", edge.Source.Value
-                                    "data-target", edge.Target.Value
-                                ]
+                            route
+                            edge.StartHead
+                            edge.EndHead
+                            Theme.arrow
+                            (if edge.Line = FlowLine.Dotted then Some "5 4" else None)
+                            (if edge.Line = FlowLine.Thick then "3" else "1.5")
+                            [
+                                "class", "connector"
+                                "data-source", edge.Source.Value
+                                "data-target", edge.Target.Value
+                            ]
 
-                            if edge.StartHead <> EdgeHead.None || edge.EndHead <> EdgeHead.None then
-                                let reversed = edge.EndHead = EdgeHead.None
-                                writer.BindConnector edge.Source edge.Target route reversed
+                        if edge.StartHead <> EdgeHead.None || edge.EndHead <> EdgeHead.None then
+                            let reversed = edge.EndHead = EdgeHead.None
+                            writer.BindConnector edge.Source edge.Target route reversed
 
-                            match edge.Label with
-                            | null -> ()
-                            | label ->
-                                SvgWriting.chip writer labelX labelY 13 Theme.bg label
-                                SvgWriting.label writer labelX labelY 13 400 Theme.text label
-                            )
+                        match edge.Label with
+                        | null -> ()
+                        | label ->
+                            SvgWriting.chip writer labelX labelY 13 Theme.bg label
+                            SvgWriting.label writer labelX labelY 13 400 Theme.text label
+                        )
 
                 model.Nodes
                 |> Seq.iteri (fun index node ->
