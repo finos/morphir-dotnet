@@ -25,6 +25,8 @@ Status: In Progress
 | Offline viewport zoom, fit, pan, and fullscreen | Implemented |
 | Archify classic theme with adaptive dark and light palettes and colour families | Implemented |
 | Custom themes, Monokai, Cobalt, Solarized, Gruvbox, Ocean, Darcula and Material built-ins, and fixed dark or light output | Implemented |
+| Element references, snapshots and selections of a diagram revision | Implemented |
+| Comments, links and statements in RDF, embedded in the SVG and shown in the offline player | Implemented |
 | Playback route exploration, rounded and bridged connector styling, trace evidence, and raster export | Planned |
 
 ## Implementation notes
@@ -37,4 +39,5 @@ Status: In Progress
 - [Morphir.Svg](../../../../../src/Morphir.Svg/README.md) owns immutable SVG authoring and serialization. `Morphir.Diagrams` captures the final path geometry when it emits each headed flowchart edge or sequence message. The standalone player uses that geometry for its moving overlay and embeds the canonical SVG for byte-exact downloads.
 - Finite scenarios schedule connector bindings from the same scene. Equal start times and overlapping intervals preserve concurrency, and repeated references create distinct playback occurrences.
 - Viewport controls transform the SVG and its motion overlay together. Fullscreen uses the browser API with an HTML dialog fallback, and print styles restore the fitted static diagram.
+- Diagram-linked metadata ([#689](https://github.com/finos/morphir-dotnet/issues/689)) gives each element a reference from its authored identifier and a per-kind ordinal, so references survive layout changes. A dataset about the diagram's document is embedded canonically (RDFC-1.0) in the SVG's `metadata`, so the same inputs give identical bytes. The player receives a JSON projection of it and never reads RDF.
 - [The upstream animation specification](https://github.com/moonrockz/diagrams.mbt/blob/60a8dd19f386b6fc65e9ddf5ddccec213c622d07/openspec/specs/diagram-animation/spec.md) defines the remaining playback and structural exploration behavior. Matching the rounded and bridged connector styling is part of rendering parity.

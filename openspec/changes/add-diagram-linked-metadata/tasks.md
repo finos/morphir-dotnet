@@ -80,8 +80,8 @@ Start only after the player control redesign on the diagrams branch has landed.
 
 ## 12. Integration
 
-- [ ] 12.1 Run the full repository test build (`./build.sh --target Test`), and verify that every suite passes
-- [ ] 12.2 Update `CHANGELOG.md` and the diagrams PRD (`docs/content/contributing/design/prds/migrate-diagrams.md`) feature status, and verify that `openspec validate add-diagram-linked-metadata --strict` passes
+- [x] 12.1 Run the full repository test build (`./build.sh --target Test`), and verify that every suite passes
+- [x] 12.2 Update `CHANGELOG.md` and the diagrams PRD (`docs/content/contributing/design/prds/migrate-diagrams.md`) feature status, and verify that `openspec validate add-diagram-linked-metadata --strict` passes
 
 ## Workflow follow-up
 
