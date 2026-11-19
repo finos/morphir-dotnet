@@ -123,8 +123,8 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 - [x] 18.1 Run `./build.sh --target Test` and `openspec validate --strict` for both open changes; verify all suites pass.
 - [x] 18.2 Check every family in every built-in theme, dark and light, at desktop and 420 px in Chromium; verify no overlaps, contrast failures or horizontal scroll.
 - [x] 18.3 Update the CHANGELOG, the PRD feature table and the pull request description, including the icon catalogue note for FINOS; verify the description lists each group.
-- [ ] 18.4 Merge PR #692 once every required check is green.
+- [x] 18.4 Merge PR #692 once every required check is green.
 
 ## Workflow follow-up
 
-- Archive `add-diagram-linked-metadata` and `complete-diagrams-mbt-parity` after the merge, and verify the archived specs.
+- Archive `add-diagram-linked-metadata` and `complete-diagrams-mbt-parity` in the pull request that merges them, and verify the archived specs.
