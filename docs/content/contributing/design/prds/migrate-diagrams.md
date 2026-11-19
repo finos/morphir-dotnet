@@ -16,10 +16,10 @@ Status: In Progress
 | Capability | Status |
 | --- | --- |
 | Shared diagnostics, initial Mermaid flowcharts and sequences, SVG, and C# API | Implemented |
-| Extended Mermaid flowchart and sequence syntax and upstream corpus parity | In Progress |
-| Remaining Mermaid syntax and canonical printing | Planned |
-| PlantUML activity, state, regex, EBNF, JSON, and YAML | Planned |
-| BPMN XML reading and process and collaboration rendering | Planned |
+| Extended Mermaid flowchart and sequence syntax and upstream corpus parity | Implemented |
+| Remaining Mermaid syntax (state, swimlane, architecture, ZenUML) and canonical printing | Implemented |
+| PlantUML activity, state, regex, EBNF, JSON, and YAML | Implemented |
+| BPMN XML reading and process and collaboration rendering (`Morphir.Bpmn`) | Implemented |
 | Shared SVG scene and authored-order offline playback | Implemented |
 | Finite scenarios with repeated and concurrent connector occurrences | Implemented |
 | Offline viewport zoom, fit, pan, and fullscreen | Implemented |
@@ -27,7 +27,8 @@ Status: In Progress
 | Custom themes, Monokai, Cobalt, Solarized, Gruvbox, Ocean, Darcula and Material built-ins, and fixed dark or light output | Implemented |
 | Element references, snapshots and selections of a diagram revision | Implemented |
 | Comments, links and statements in RDF, embedded in the SVG and shown in the offline player | Implemented |
-| Playback route exploration, rounded and bridged connector styling, trace evidence, and raster export | Planned |
+| Playback route exploration, rounded and bridged connector styling, trace evidence, and raster export (`Morphir.Diagrams.Raster`) | Implemented |
+| Tree queries over BPMN documents (`Morphir.Diagrams.Query`) | Implemented |
 
 ## Implementation notes
 

@@ -7,7 +7,7 @@ Converts the library's own SVG output to PNG or JPEG and a playback plan to an a
 ## ADDED Requirements
 
 ### Requirement: Still raster export
-The library SHALL convert SVG produced by `Morphir.Diagrams` to PNG (the default, with alpha) or JPEG (onto an explicit opaque background with a validated quality), keeping labels, symbols, colours, curves, arrowheads, clipping and crossing masks. Adaptive SVG SHALL be resolved to an explicit export theme.
+The library SHALL convert SVG produced by `Morphir.Diagrams` to PNG (the default, with alpha) or JPEG (onto an explicit opaque background with a validated quality), keeping labels, symbols, colours, curves, arrowheads and connector bridges. Gradients paint their first stop; clip paths, masks and filters, which only one copied provider icon uses, are not applied. Adaptive SVG SHALL be resolved to an explicit export theme.
 
 #### Scenario: PNG of a themed flowchart
 - **WHEN** a flowchart rendered in Monokai is exported as PNG with the dark theme
@@ -42,7 +42,7 @@ Equal SVG, fonts, options and samples SHALL give identical bytes. Dimensions, sc
 - **THEN** it fails with a pixel-limit diagnostic before allocating
 
 ### Requirement: Player downloads
-The player SHALL offer PNG, JPEG and GIF downloads beside SVG through the same conversion, excluding zoom, pan and transient highlights from stills, without changing playback position, speed or route.
+The player SHALL offer PNG, JPEG and GIF downloads beside SVG through the same conversion, excluding zoom, pan and transient highlights from stills, without changing playback position, speed or route. The images are made when the player page is written, by `DiagramRaster.RenderPlayer`, because the conversion is managed code.
 
 #### Scenario: Download while zoomed
 - **WHEN** the reader is zoomed to 300% and downloads PNG
