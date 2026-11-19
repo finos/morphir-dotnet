@@ -817,6 +817,56 @@ public static class FixtureCatalog
             ReadResource("Morphir.TestSupport.Provenance/" + Provenance);
     }
 
+    /// <summary>The diagrams.mbt test corpora at 60a8dd1, one JSON file per corpus with each input's path, SHA-256 and text.</summary>
+    public static class DiagramsMbt
+    {
+        private const string Provenance = "DiagramsMbt/PROVENANCE.md";
+
+        /// <summary>The Mermaid 12.2.0 sequence diagram examples.</summary>
+        public static FixtureEntry Sequence { get; } = new(
+            "the Mermaid 12.2.0 sequence diagram examples", "DiagramsMbt/mermaid-sequence.json", "7cd477db928f6a841c776c0c27c090d9f20fe6fe63be360877e3915333729605", Provenance);
+
+        /// <summary>The Mermaid flowchart corpus.</summary>
+        public static FixtureEntry Flowcharts { get; } = new(
+            "the Mermaid flowchart corpus", "DiagramsMbt/mermaid-flowcharts.json", "da3b94ad1aae41a70c100aa0262018d9e7a8921b5e17107b1e26d4863bb67426", Provenance);
+
+        /// <summary>The Mermaid state diagram corpus.</summary>
+        public static FixtureEntry States { get; } = new(
+            "the Mermaid state diagram corpus", "DiagramsMbt/mermaid-states.json", "f9b8acc9efc8429d2ca8109ab40540c13028e7a9b6f7a128ca24d6e7cb8180ce", Provenance);
+
+        /// <summary>The Mermaid swimlane corpus.</summary>
+        public static FixtureEntry Swimlanes { get; } = new(
+            "the Mermaid swimlane corpus", "DiagramsMbt/mermaid-swimlanes.json", "aa6df8e9ecc434022ab278f31a4f3f94ec22ac9c91819239ec092a5967e8cac6", Provenance);
+
+        /// <summary>The Mermaid architecture corpus.</summary>
+        public static FixtureEntry Architecture { get; } = new(
+            "the Mermaid architecture corpus", "DiagramsMbt/mermaid-architecture.json", "7a31ac39512bc195e4dc8df3db7ab411e54d932e9b3001070b5fcf01a69fac52", Provenance);
+
+        /// <summary>The ZenUML corpus.</summary>
+        public static FixtureEntry ZenUml { get; } = new(
+            "the ZenUML corpus", "DiagramsMbt/zenuml.json", "5151feea04dc965d591bdee6d008231e9f40189a3d3ac18a1c543a82b441a9b7", Provenance);
+
+        /// <summary>The PlantUML activity corpus.</summary>
+        public static FixtureEntry PlantUmlActivity { get; } = new(
+            "the PlantUML activity corpus", "DiagramsMbt/plantuml-activity.json", "eb8042306a84f9434d6cacedaca8c836dedee8a097b9b7178ac250132594430a", Provenance);
+
+        /// <summary>The PlantUML state corpus.</summary>
+        public static FixtureEntry PlantUmlState { get; } = new(
+            "the PlantUML state corpus", "DiagramsMbt/plantuml-state.json", "3706af83fa431d5fd00d39b9655389c7e2334bd75377aea14e3e468be91b4ffe", Provenance);
+
+        /// <summary>The PlantUML 1.2026.9 envelope, regex, EBNF, JSON and YAML corpus.</summary>
+        public static FixtureEntry PlantUml { get; } = new(
+            "the PlantUML 1.2026.9 envelope, regex, EBNF, JSON and YAML corpus", "DiagramsMbt/plantuml.json", "6937882e83a81962d78e2dd75067ada54922f104db9a894d465b464764933266", Provenance);
+
+        /// <summary>The BPMN model, traversal and query corpus.</summary>
+        public static FixtureEntry Bpmn { get; } = new(
+            "the BPMN model, traversal and query corpus", "DiagramsMbt/bpmn.json", "8199636723b4ee0f413bdf25d07c1aa244ae675055f6530fdd0e409982b19acb", Provenance);
+
+        /// <summary>Every pinned corpus.</summary>
+        public static IReadOnlyList<FixtureEntry> Files { get; } =
+            [Sequence, Flowcharts, States, Swimlanes, Architecture, ZenUml, PlantUmlActivity, PlantUmlState, PlantUml, Bpmn];
+    }
+
     /// <summary>Every file that the catalog owns and serves.</summary>
     public static IReadOnlyCollection<FixtureEntry> All { get; } =
     [
@@ -824,7 +874,7 @@ public static class FixtureCatalog
         .. Models.All, .. BoundedOrders.Files, BoundedOrders.ExpandedV4, .. Trees.AcmeDemo, .. Trees.Written,
         .. UpstreamIr.Documents, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark,
         WasmHost.Corpus, WasmHost.UnknownNamespaceModule, .. Context.Files, .. Context.Policy.Files,
-        .. Context.Naming.Files
+        .. Context.Naming.Files, .. DiagramsMbt.Files
     ];
 
     /// <summary>

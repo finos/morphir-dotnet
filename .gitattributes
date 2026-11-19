@@ -116,6 +116,8 @@ tests/Fixtures/RdfNQuads/rdf11-syntax.json text eol=lf
 # The catalog verifies these envelope hashes over their LF bytes, on every checkout.
 tests/Fixtures/RdfXml/rdf11-xml.json text eol=lf
 tests/Fixtures/RdfCanon/rdfc10.json text eol=lf
+# diagrams.mbt corpora; the catalog verifies each envelope over its LF bytes (tests/Fixtures/DiagramsMbt/PROVENANCE.md).
+tests/Fixtures/DiagramsMbt/*.json text eol=lf
 # CommonMark example JSON as published, pinned by the catalog.
 tests/Fixtures/OkfDocuments/commonmark-0.31.2.json -text
 # Morphir file context data from finos/morphir, checked by SHA-256 (tests/Fixtures/MorphirContext/PROVENANCE.md).

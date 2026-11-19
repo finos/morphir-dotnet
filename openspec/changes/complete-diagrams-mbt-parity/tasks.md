@@ -4,7 +4,7 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 
 ## 1. Foundations
 
-- [ ] 1.1 Pin upstream diagrams.mbt fixtures and expected outputs at 60a8dd1 under `tests/Fixtures/diagrams-mbt/` with `PROVENANCE.md` rows and a `FixtureCatalog.Diagrams` owner; verify `FixtureOwnershipTests` passes.
+- [x] 1.1 Pin upstream diagrams.mbt fixtures and expected outputs at 60a8dd1 under `tests/Fixtures/DiagramsMbt/` with `PROVENANCE.md` rows and a `FixtureCatalog.DiagramsMbt` owner; verify `FixtureOwnershipTests` passes.
 - [ ] 1.2 Add the shared lossless syntax tree, source span and diagnostic infrastructure with UTF-16 spans, one-based line and column, and CRLF as one break; verify with unit tests over CRLF, non-BMP text and invalid regions.
 - [ ] 1.3 Add the shared limits type (source, output, depth, counts, diagnostics, work) with a limit diagnostic distinct from invalid input; verify a 10,000-level nesting test returns the depth diagnostic without a stack overflow.
 - [ ] 1.4 Add family dispatch for Mermaid headers, PlantUML `@start` keywords and BPMN roots, with `unsupported-kind` for `classDiagram` and class `@startuml`; verify the dispatch tests, including keywords inside comments.
