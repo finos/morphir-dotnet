@@ -23,6 +23,8 @@ module private DarwinNative =
     [<Literal>]
     let Interrupted = 4
     [<Literal>]
+    let OperationNotPermitted = 1
+    [<Literal>]
     let NoSuchProcess = 3
     [<Literal>]
     let NoChild = 10
@@ -373,29 +375,33 @@ type internal DarwinChild private (input: DarwinPipe, output: DarwinPipe, errors
             elif actual <> pid then
                 raise (IOException $"Guest PID {pid} changed its process group to {actual}.")
 
-    let stopAndObserve force =
+    let stopAndObserve () =
         lock gate (fun () ->
             let exited = rootExited ()
             verifyGroup exited
-            if force || not exited || DarwinNative.hasLiveMember pid exited then
+            if exited && not (DarwinNative.hasLiveMember pid true) then
+                // Detect a foreign reap during enumeration as an error.
+                rootExited ()
+            else
                 // Revalidate immediately before every signal. Our waitable
                 // child pins the PID, and therefore the creation-time PGID.
                 rootExited () |> ignore
-                if DarwinNative.killpg(pid, 9) <> 0 then
+                if DarwinNative.killpg(pid, 9) = 0 then false
+                else
                     let code = DarwinNative.errno ()
-                    if code <> DarwinNative.NoSuchProcess || not (rootExited ()) || DarwinNative.hasLiveMember pid true then
-                        raise (DarwinNative.error $"killpg({pid}, SIGKILL)" code)
-                false
-            else
-                // Detect a foreign reap during enumeration as an error.
-                rootExited ())
+                    // The last live member can exit between the scan and signal.
+                    if (code = DarwinNative.NoSuchProcess || code = DarwinNative.OperationNotPermitted)
+                       && rootExited () && not (DarwinNative.hasLiveMember pid true) then
+                        rootExited ()
+                    else
+                        raise (DarwinNative.error $"killpg({pid}, SIGKILL)" code))
 
     let settlement = lazy (task {
         let timer = Stopwatch.StartNew()
-        let mutable stopped = stopAndObserve true
+        let mutable stopped = stopAndObserve ()
         while not stopped && timer.Elapsed < bound do
             do! Task.Delay 10
-            stopped <- stopAndObserve false
+            stopped <- stopAndObserve ()
         if not stopped then raise (TimeoutException $"Darwin guest group {pid} did not settle within {bound}.")
     })
 
