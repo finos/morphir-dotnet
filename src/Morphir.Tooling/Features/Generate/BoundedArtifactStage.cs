@@ -12,7 +12,10 @@ internal sealed record StagedGenerationArtifact(string Path, long Bytes, Sha256D
 
 /// <summary>Private files and verified metadata, valid while the stage is owned by the caller.</summary>
 internal sealed record StagedGenerationOutput(string Directory, IEnumerable<StagedGenerationArtifact> Artifacts,
-    ImmutableArray<GenerationDiagnostic> Diagnostics);
+    ImmutableArray<GenerationDiagnostic> Diagnostics)
+{
+    public long MaxInputBatchBytes { get; init; }
+}
 
 /// <summary>Stages the admitted replies of one generation session under a caller-owned task directory.</summary>
 internal sealed class BoundedArtifactStage : IDisposable
@@ -60,6 +63,9 @@ internal sealed class BoundedArtifactStage : IDisposable
     }
 
     public string Directory { get; }
+
+    /// <summary>Largest fully admitted response, summing canonical artifact bytes across all its chunks.</summary>
+    public long MaxOutputBatchBytes { get; private set; }
 
     public Outcome<StagedGenerationOutput?> Apply(ModelAccessStep step, CancellationToken cancellationToken = default,
         BoundedTreeWorkBudget? work = null)
@@ -125,10 +131,15 @@ internal sealed class BoundedArtifactStage : IDisposable
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        if (!complete) return new Outcome<StagedGenerationOutput?>.Success(null);
+        if (!complete)
+        {
+            MaxOutputBatchBytes = Math.Max(MaxOutputBatchBytes, decoded);
+            return new Outcome<StagedGenerationOutput?>.Success(null);
+        }
         if (_openArtifacts != 0)
             return Abort(Failure("extension.artifact_unclosed", "Generation completed with an artifact missing its end marker."));
 
+        MaxOutputBatchBytes = Math.Max(MaxOutputBatchBytes, decoded);
         _settled = true;
         return new Outcome<StagedGenerationOutput?>.Success(new(Directory, _paths.Values
             .Select(entry => entry.Closed).OfType<StagedGenerationArtifact>(), _diagnostics.ToImmutable()));

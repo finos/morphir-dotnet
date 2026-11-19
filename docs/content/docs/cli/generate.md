@@ -447,3 +447,11 @@ lifetime, so these final sizes are its logical peaks. Host process residency
 and frame peaks require separate observations.
 The production-sized black-box cases use one original 64-payload module and
 the embedded streaming guest pinned to finos/morphir at `3652032a`.
+
+On a successful `orders-scale` run, `boundedAccess.maxInputBatchBytes` reports
+the largest total of decoded model-document bytes sent in one admitted advance.
+`boundedAccess.maxOutputBatchBytes` reports the largest total of validated
+artifact bytes across all chunks in one staged response. The two maxima are
+independent. They exclude inventory, diagnostics, framing and base64 overhead.
+Resident working sets, cache peaks and operation-wide I/O require separate
+measurements.

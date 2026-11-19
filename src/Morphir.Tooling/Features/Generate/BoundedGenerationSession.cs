@@ -32,6 +32,8 @@ internal static class BoundedGenerationSession
 
         if (!sessionDeadline.CanBeCanceled) deadline.CancelAfter(limits.MaxSessionMilliseconds);
         ModelAccessAdvance? advance = null;
+        long deliveryBytes = 0;
+        long maxInputBatchBytes = 0;
 
         try
         {
@@ -62,6 +64,8 @@ internal static class BoundedGenerationSession
                 if (step is null)
                     return await AbortAsync(Operational("extension.bounded_exchange", replyError!));
 
+                // Preparation supplies trusted sizes; only a successful exchange admits this delivery batch.
+                maxInputBatchBytes = Math.Max(maxInputBatchBytes, deliveryBytes);
                 var staged = stage.Apply(step, deadline.Token, work);
                 if (staged is Outcome<StagedGenerationOutput?>.Failure refusal)
                 {
@@ -75,11 +79,11 @@ internal static class BoundedGenerationSession
                     return await AbortAsync(failure, cleanStage: false);
                 }
                 if (staged is Outcome<StagedGenerationOutput?>.Success { Value: { } output })
-                    return new Outcome<StagedGenerationOutput>.Success(output);
+                    return new Outcome<StagedGenerationOutput>.Success(output with { MaxInputBatchBytes = maxInputBatchBytes });
                 if (continuation is not { } next)
                     return await AbortAsync(Operational("extension.bounded_exchange", "The guest did not complete generation."));
 
-                var (delivery, deliveryFailure) = bound.PrepareHostAdvance(next.Round, next.Requests).Match(
+                var (delivery, deliveryFailure) = bound.PrepareHostAdvance(next.Round, next.Requests, out deliveryBytes).Match(
                     static value => ((ModelAccessAdvance?)value, (GenerationFailure?)null),
                     static errors => (null, StoreFailure(errors)));
                 deadline.Token.ThrowIfCancellationRequested();
