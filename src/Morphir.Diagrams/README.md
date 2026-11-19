@@ -60,8 +60,17 @@ start time in milliseconds, and a positive duration. Schedule the same
 connector more than once for repetition, and overlap intervals for
 concurrent playback. A schedule from a different scene is rejected.
 
-Route exploration, the Archify theme and connector styling, viewport
-controls, and raster exports are tracked in the migration PRD.
+Use the viewport toolbar to zoom from 25% to 800%, fit the full diagram, or
+enter fullscreen. Drag with a pointer or focus the stage and use the arrow
+keys to pan at zoom levels above 100%. Fullscreen uses a page dialog when
+native fullscreen is unavailable. Printing lays out the full static diagram.
+Style the viewport per player on the `[data-diagram-viewer]` root with the
+`--diagram-viewer-height`, `--diagram-viewer-canvas-bg`,
+`--diagram-viewer-toolbar-bg`, `--diagram-viewer-border`,
+`--diagram-viewer-control-radius`, and `--diagram-viewer-focus` properties.
+
+Route exploration, the Archify theme and connector styling, and raster
+exports are tracked in the migration PRD.
 
 ## Migration coverage
 

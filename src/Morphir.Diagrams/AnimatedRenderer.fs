@@ -51,18 +51,21 @@ type PlaybackStep
 module private PlayerArtifact =
     let stepMilliseconds = 1000L
 
-    let private player =
+    let private script name =
         lazy
             let resource =
                 typeof<DiagramScene>
-                    .Assembly.GetManifestResourceStream("Morphir.Diagrams.Player.js")
+                    .Assembly.GetManifestResourceStream($"Morphir.Diagrams.{name}.js")
 
             match resource with
-            | null -> invalidOp "The diagram player resource is missing."
+            | null -> invalidOp $"The {name} resource is missing."
             | stream ->
                 use stream = stream
                 use reader = new StreamReader(stream, Encoding.UTF8)
                 reader.ReadToEnd()
+
+    let private player = script "Player"
+    let private viewport = script "Viewport"
 
     let private opening =
         """<!doctype html>
@@ -70,19 +73,53 @@ module private PlayerArtifact =
 <title>Diagram playback</title>
 <style>
 body { font: 1rem system-ui, sans-serif; margin: 1.5rem; }
-.diagram-canvas { overflow: auto; border: 1px solid #bac8db; }
+.diagram-canvas { overflow: auto; box-sizing: border-box; border: 1px solid var(--diagram-viewer-border, #bac8db); background: var(--diagram-viewer-canvas-bg, white); }
 .diagram-canvas svg { display: block; max-width: 100%; height: auto; }
+.diagram-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .25rem; padding: .25rem; background: var(--diagram-viewer-toolbar-bg, #f4f5f7); }
+.diagram-toolbar[hidden] { display: none; }
+.diagram-toolbar button { min-width: 44px; min-height: 44px; border-radius: var(--diagram-viewer-control-radius, .35rem); }
+.diagram-toolbar output { min-width: 3rem; text-align: center; }
+.diagram-viewport:focus-visible, .diagram-toolbar button:focus-visible { outline: 3px solid var(--diagram-viewer-focus, #2563eb); outline-offset: -3px; }
+[data-viewport-ready] .diagram-viewport { position: relative; overflow: hidden; block-size: var(--diagram-viewer-height, clamp(18rem, 60vh, 48rem)); }
+[data-viewport-ready] .diagram-content { position: absolute; top: 50%; left: 50%; }
+[data-viewport-ready] .diagram-content svg { width: 100%; height: 100%; }
+.diagram-viewport--pannable { cursor: grab; touch-action: none; }
+.diagram-viewport--pannable:active { cursor: grabbing; user-select: none; }
+.diagram-canvas:fullscreen, .diagram-fullscreen[open] > .diagram-canvas {
+    display: grid; grid-template-rows: auto minmax(0, 1fr); width: 100%; height: 100%;
+}
+.diagram-canvas:fullscreen .diagram-viewport, .diagram-fullscreen[open] .diagram-viewport { block-size: auto; }
+.diagram-fullscreen { box-sizing: border-box; width: 100%; height: 100%; max-width: none; max-height: none; padding: 0; border: 0; }
+body:has(.diagram-fullscreen[open]) { overflow: hidden; }
 .motion-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin: 1rem 0; }
 .motion-overlay { pointer-events: none; }
-@media print { .motion-controls, [data-control="status"], .motion-overlay { display: none; } }
+@media print {
+    .diagram-toolbar, .motion-controls, [data-control="status"], .motion-overlay { display: none; }
+    [data-viewport-ready] .diagram-viewport { block-size: auto; overflow: visible; }
+    [data-viewport-ready] .diagram-content { position: static; width: auto !important; height: auto !important; transform: none !important; }
+    [data-viewport-ready] .diagram-content svg { height: auto; }
+    .diagram-fullscreen[open] { position: static; height: auto; }
+}
 </style></head><body>
 <main data-diagram-viewer aria-label="Diagram playback">
-<div class="diagram-canvas">
+<div class="diagram-canvas" data-viewport-root>
+<div class="diagram-toolbar" role="group" aria-label="Diagram view" data-viewport-toolbar hidden>
+<button type="button" data-view-control="zoom-out" aria-label="Zoom out">−</button>
+<output data-view-control="scale" aria-label="Diagram scale">100%</output>
+<button type="button" data-view-control="zoom-in" aria-label="Zoom in">+</button>
+<button type="button" data-view-control="fit">Fit</button>
+<button type="button" data-view-control="fullscreen" aria-pressed="false">Fullscreen</button>
+</div>
+<div class="diagram-viewport" data-viewport tabindex="0" role="region" aria-label="Diagram viewport. Zoom in to pan with arrow keys or drag.">
+<div class="diagram-content" data-viewport-content>
 """
 
     let private controls =
         """
 </div>
+</div>
+</div>
+<dialog class="diagram-fullscreen" data-viewport-dialog aria-label="Expanded diagram"></dialog>
 <section class="motion-controls" aria-label="Playback controls">
 <button type="button" data-control="play" aria-pressed="false" disabled>Play</button>
 <button type="button" data-control="restart" disabled>Restart</button>
@@ -148,6 +185,8 @@ body { font: 1rem system-ui, sans-serif; margin: 1.5rem; }
                     motionData scene repeat steps svg
                     "</script>\n<script>\n"
                     player.Value
+                    "\n"
+                    viewport.Value
                     "\n</script>\n</main></body></html>\n"
                 |]
             )

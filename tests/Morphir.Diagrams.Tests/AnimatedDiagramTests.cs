@@ -88,6 +88,20 @@ public class AnimatedDiagramTests
         result.Diagnostics.ShouldHaveSingleItem().Code.ShouldBe("animation/plan-mismatch");
     }
 
+    [Test]
+    public void StaticDiagramHasAnEnhanceableViewportEvenWhenThereAreNoMessages()
+    {
+        var canonical = Mermaid.RenderSvg("flowchart LR\n  A[Review]").Output.ShouldNotBeNull();
+        var html = Mermaid.RenderAnimated("flowchart LR\n  A[Review]").Output.ShouldNotBeNull();
+
+        html.ShouldContain(canonical);
+        html.ShouldContain("data-viewport-toolbar hidden");
+        html.ShouldContain("data-view-control=\"zoom-in\"");
+        html.ShouldContain("data-view-control=\"zoom-out\"");
+        html.ShouldContain("data-view-control=\"fit\"");
+        html.ShouldContain("data-view-control=\"fullscreen\"");
+    }
+
     private static DiagramScene ReadScene(string source)
     {
         if (Mermaid.TryParse(source, out var document, out var diagnostics))

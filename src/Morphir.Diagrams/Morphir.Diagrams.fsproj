@@ -26,5 +26,6 @@
         <Compile Include="AnimatedRenderer.fs" />
         <Compile Include="Mermaid.fs" />
         <EmbeddedResource Include="Player.js" LogicalName="Morphir.Diagrams.Player.js" />
+        <EmbeddedResource Include="Viewport.js" LogicalName="Morphir.Diagrams.Viewport.js" />
     </ItemGroup>
 </Project>

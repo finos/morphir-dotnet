@@ -22,7 +22,8 @@ Status: In Progress
 | BPMN XML reading and process and collaboration rendering | Planned |
 | Shared SVG scene and authored-order offline playback | Implemented |
 | Finite scenarios with repeated and concurrent connector occurrences | Implemented |
-| Playback route exploration, Archify theme and connector styling, viewport controls, trace evidence, and raster export | Planned |
+| Offline viewport zoom, fit, pan, and fullscreen | Implemented |
+| Playback route exploration, Archify theme and connector styling, trace evidence, and raster export | Planned |
 
 ## Implementation notes
 
@@ -33,4 +34,5 @@ Status: In Progress
 - A local render check of the pinned upstream inputs produced well-formed SVG for 24 of the 38 sequence documentation examples and 16 of the 34 flowchart corpus cases. This check exercises reading and rendering. The upstream semantic and layout assertions still need to be ported.
 - [Morphir.Svg](../../../../../src/Morphir.Svg/README.md) owns immutable SVG authoring and serialization. `Morphir.Diagrams` captures the final path geometry when it emits each headed flowchart edge or sequence message. The standalone player uses that geometry for its moving overlay and embeds the canonical SVG for byte-exact downloads.
 - Finite scenarios schedule connector bindings from the same scene. Equal start times and overlapping intervals preserve concurrency, and repeated references create distinct playback occurrences.
+- Viewport controls transform the SVG and its motion overlay together. Fullscreen uses the browser API with an HTML dialog fallback, and print styles restore the fitted static diagram.
 - [The upstream animation specification](https://github.com/moonrockz/diagrams.mbt/blob/60a8dd19f386b6fc65e9ddf5ddccec213c622d07/openspec/specs/diagram-animation/spec.md) defines the remaining playback and structural exploration behavior. Matching the Archify theme and connector styling is part of rendering parity.
