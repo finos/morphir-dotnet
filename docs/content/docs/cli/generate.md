@@ -439,6 +439,11 @@ chunk total 32,945 decoded bytes in one exchange. The pinned guest admits that
 combination under the 64 KiB decoded and encoded exchange ceilings; full request
 and response frames remain capped at 64 KiB and individual chunks at 32 KiB.
 For the explicit profile, JSON reports include effective ceilings in
-`boundedAccess`. These are selected limits, not measured frame peaks or memory.
+`boundedAccess`. For a successful Wasmtime session, `boundedAccess.linearMemory`
+gives the guest's and Extism kernel's peak linear-memory sizes and the actual
+ceiling applied to each. The engine samples both memories at `morphir.exit`
+before disposing the instance. Linear memory grows in pages over the instance's
+lifetime, so these final sizes are its logical peaks. Host process residency
+and frame peaks require separate observations.
 The production-sized black-box cases use one original 64-payload module and
 the embedded streaming guest pinned to finos/morphir at `3652032a`.

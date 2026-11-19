@@ -137,6 +137,14 @@ public sealed class BoundedGenerationSteps(IBoundedGenerationDriver bounded, ISc
         limits.GetProperty("maxDecodedBytesPerExchange").GetInt32().Should().Be(65_536);
         limits.GetProperty("maxFrameBytes").GetInt32().Should().Be(65_536);
         limits.GetProperty("maxArtifactChunkBytes").GetInt32().Should().Be(32_768);
+
+        var measured = access.GetProperty("linearMemory");
+        measured.GetProperty("peakGuestLinearMemoryBytes").GetInt64().Should().Be(1_048_576);
+        var ceiling = measured.GetProperty("perMemoryCeilingBytes").GetInt64();
+        ceiling.Should().Be(limits.GetProperty("maxGuestStateBytes").GetInt64());
+        var kernelBytes = measured.GetProperty("peakKernelLinearMemoryBytes").GetInt64();
+        kernelBytes.Should().BeInRange(65_536L, ceiling);
+        (kernelBytes % 65_536).Should().Be(0);
     }
 
     [Then("the Orders scale profile refuses a document one byte over")]

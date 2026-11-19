@@ -63,6 +63,7 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable, IAsyncDisp
     bool storeDisposed;
     bool deliversNotifications;
     bool modelAccessLimitsApplied;
+    MemoryUse? closedLinearMemory;
     ChannelState state = ChannelState.Open;
 
     enum ChannelState
@@ -128,6 +129,15 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable, IAsyncDisp
     /// (<see cref="SessionStore.WorkspaceDirectory"/>). It is removed when the instance ends, at <c>morphir.exit</c>,
     /// at a failure or when the channel is disposed.</summary>
     public string? WorkspaceDirectory => store.WorkspaceDirectory;
+
+    // The store is already gone when a successful generation report reads this value.
+    internal MemoryUse? ClosedLinearMemory
+    {
+        get
+        {
+            lock (gate) return closedLinearMemory;
+        }
+    }
 
     /// <summary>How many <c>handle</c> calls the channel has made.</summary>
     public int HandleCalls => Volatile.Read(ref handleCalls);
@@ -443,7 +453,17 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable, IAsyncDisp
             storeDisposed = true;
             try
             {
-                store.Dispose();
+                // The guest and kernel each have at most one memory. Both can grow but neither
+                // can shrink, so reading once at clean exit gives the instance lifetime peaks.
+                try
+                {
+                    if (state == ChannelState.Exited && modelAccessLimitsApplied)
+                        closedLinearMemory = store.Memory;
+                }
+                finally
+                {
+                    store.Dispose();
+                }
                 storeClosed.TrySetResult();
             }
             catch (Exception error)
