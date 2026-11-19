@@ -168,7 +168,8 @@ internal static class RecordedBoundedGeneration
                     BoundedAccess = settings.BoundedProfile == BoundedGenerationProfile.OrdersScale
                         ? AccessObservation(readerLimits, negotiated.Capabilities.ModelAccessOrNull()!.Limits,
                             ConfiguredWasmModule.ClosedLinearMemory(connection.WasmChannel),
-                            staged.MaxInputBatchBytes, stage.MaxOutputBatchBytes) : null,
+                            staged.MaxInputBatchBytes, stage.MaxOutputBatchBytes,
+                            snapshot.PeakDiscoveryIndexChargedBytes) : null,
                 });
             }
             finally
@@ -194,7 +195,7 @@ internal static class RecordedBoundedGeneration
     }
 
     private static JsonElement AccessObservation(ModelReadLimits reader, ModelAccessLimits selected, MemoryUse? memory,
-        long maxInputBatchBytes, long maxOutputBatchBytes)
+        long maxInputBatchBytes, long maxOutputBatchBytes, long peakDiscoveryIndexChargedBytes)
     {
         var wasm = RecordedGenerationAdmission.WasmLimits(BoundedGenerationProfile.OrdersScale, selected);
         var bytes = new ArrayBufferWriter<byte>();
@@ -207,6 +208,7 @@ internal static class RecordedBoundedGeneration
             writer.WriteNumber("maxResponseFrameBytes", wasm.ResponseFrameBytes);
             writer.WriteNumber("maxInputBatchBytes", maxInputBatchBytes);
             writer.WriteNumber("maxOutputBatchBytes", maxOutputBatchBytes);
+            writer.WriteNumber("peakDiscoveryIndexChargedBytes", peakDiscoveryIndexChargedBytes);
             writer.WritePropertyName("limits");
             JsonSerializer.Serialize(writer, selected, MepJson.Default.ModelAccessLimits);
             if (memory is not null)

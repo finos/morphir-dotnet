@@ -453,5 +453,8 @@ the largest total of decoded model-document bytes sent in one admitted advance.
 `boundedAccess.maxOutputBatchBytes` reports the largest total of validated
 artifact bytes across all chunks in one staged response. The two maxima are
 independent. They exclude inventory, diagnostics, framing and base64 overhead.
-Resident working sets, cache peaks and operation-wide I/O require separate
-measurements.
+`boundedAccess.peakDiscoveryIndexChargedBytes` records the peak charged bytes
+for the discovery index. The charge covers the retained paths, sorted builder
+and final index array. It excludes provider state, traversal data, temporary
+paths and objects awaiting garbage collection. Resident working sets, context
+caches and operation-wide I/O require separate measurements.

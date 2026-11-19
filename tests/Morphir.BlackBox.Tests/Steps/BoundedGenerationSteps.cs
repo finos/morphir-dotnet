@@ -141,6 +141,8 @@ public sealed class BoundedGenerationSteps(IBoundedGenerationDriver bounded, ISc
         limits.GetProperty("maxDecodedBytesPerExchange").GetInt32().Should().Be(65_536);
         limits.GetProperty("maxFrameBytes").GetInt32().Should().Be(65_536);
         limits.GetProperty("maxArtifactChunkBytes").GetInt32().Should().Be(32_768);
+        access.GetProperty("peakDiscoveryIndexChargedBytes").GetInt64().Should().BeInRange(
+            1, limits.GetProperty("maxHostCacheBytes").GetInt64() / 4);
 
         var measured = access.GetProperty("linearMemory");
         measured.GetProperty("peakGuestLinearMemoryBytes").GetInt64().Should().Be(1_048_576);
