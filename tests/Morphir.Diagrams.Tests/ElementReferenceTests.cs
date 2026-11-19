@@ -12,7 +12,7 @@ public class ElementReferenceTests
     [Test]
     public void EveryFlowchartElementHasAReferenceInKindThenSourceOrder()
     {
-        var references = DiagramElementRef.Enumerate(ElementReferenceMother.Read(ElementReferenceMother.Checkout))
+        var references = DiagramElementRef.Enumerate(DiagramMother.Read(DiagramMother.Checkout))
             .Select(reference => reference.ToString());
 
         references.ShouldBe([
@@ -26,7 +26,7 @@ public class ElementReferenceTests
     [Test]
     public void EverySequenceElementHasAReferenceInKindThenSourceOrder()
     {
-        var references = DiagramElementRef.Enumerate(ElementReferenceMother.Read(ElementReferenceMother.Exchange))
+        var references = DiagramElementRef.Enumerate(DiagramMother.Read(DiagramMother.Exchange))
             .Select(reference => reference.ToString());
 
         references.ShouldBe([
@@ -41,8 +41,8 @@ public class ElementReferenceTests
     [Test]
     public void AnUnrelatedInsertionKeepsReferences()
     {
-        var before = DiagramElementRef.Enumerate(ElementReferenceMother.Read(ElementReferenceMother.Checkout));
-        var after = DiagramElementRef.Enumerate(ElementReferenceMother.Read(ElementReferenceMother.CheckoutWithAudit));
+        var before = DiagramElementRef.Enumerate(DiagramMother.Read(DiagramMother.Checkout));
+        var after = DiagramElementRef.Enumerate(DiagramMother.Read(DiagramMother.CheckoutWithAudit));
 
         foreach (var kept in new[] { "node=Billing", "edge=Cart/Billing/0", "edge=Cart/Billing/1", "edge=Billing/Ledger/0" })
             after.Select(reference => reference.ToString()).ShouldContain(kept);
@@ -108,11 +108,11 @@ public class ElementReferenceTests
     }
 
     [Test]
-    [Arguments(ElementReferenceMother.Checkout)]
-    [Arguments(ElementReferenceMother.Exchange)]
+    [Arguments(DiagramMother.Checkout)]
+    [Arguments(DiagramMother.Exchange)]
     public void RenderedElementsCarryTheirReferences(string source)
     {
-        var diagram = ElementReferenceMother.Read(source);
+        var diagram = DiagramMother.Read(source);
         var svg = XElement.Parse(SvgRenderer.Render(diagram).Output.ShouldNotBeNull());
 
         var rendered = svg.Descendants().Attributes("data-ref").Select(attribute => attribute.Value).ToArray();
@@ -141,49 +141,4 @@ public class ElementReferenceTests
         Should.Throw<ArgumentOutOfRangeException>(() => DiagramElementRef.Note(-1));
         Should.Throw<ArgumentOutOfRangeException>(() => DiagramElementRef.Message(DiagramId.Create("A"), DiagramId.Create("B"), -1));
     }
-}
-
-internal static class ElementReferenceMother
-{
-    /// <summary>Two parallel Cart → Billing edges inside a payments subgraph, and Billing → Ledger.</summary>
-    public const string Checkout = """
-        flowchart LR
-          subgraph payments
-            Cart --> Billing
-            Cart --> Billing
-          end
-          Billing --> Ledger
-        """;
-
-    /// <summary>The checkout with an unrelated Audit node and edge before the others.</summary>
-    public const string CheckoutWithAudit = """
-        flowchart LR
-          Audit --> Cart
-          subgraph payments
-            Cart --> Billing
-            Cart --> Billing
-          end
-          Billing --> Ledger
-        """;
-
-    /// <summary>Two Api → Db messages, a reply, notes inside and outside nested frames.</summary>
-    public const string Exchange = """
-        sequenceDiagram
-          participant Api
-          participant Db
-          Api->>Db: Query
-          loop Retry
-            Db-->>Api: Rows
-            alt Cached
-              Note over Api: Hit
-            end
-          end
-          Note over Db: Done
-          Api->>Db: Close
-        """;
-
-    public static Diagram Read(string source) =>
-        Mermaid.TryParse(source, out var document, out var diagnostics)
-            ? document.Diagram
-            : throw new InvalidOperationException(string.Join("\n", diagnostics));
 }

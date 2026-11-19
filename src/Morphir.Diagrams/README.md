@@ -91,6 +91,9 @@ Every theme has a dark and a light palette. The built-in themes are
 diagrams.mbt adapts it. Pass a theme and a mode in `SvgRenderOptions`:
 
 ```fsharp
+open Morphir.Diagrams
+
+let source = "flowchart LR\n  Cart --> Billing"
 let options = SvgRenderOptions.Create(DiagramThemes.Cobalt, ThemeMode.Dark)
 let svg = Mermaid.RenderSvg(source, options)
 ```
@@ -269,6 +272,88 @@ if (!second.TryToIri(Iri.Create("https://example.org/diagrams/checkout"), out va
     throw new InvalidOperationException(error.ToString());
 
 Console.WriteLine(iri);
+```
+
+## Selections, comments and links
+
+A diagram is a knowledge document of `Morphir.Knowledge`. `DiagramSnapshot`
+binds a parsed diagram to a `DocumentVersion`, as `TextSnapshot` does for text.
+`DiagramSnapshot.TryFromSource` derives the revision from the source: `sha256:`
+and the lowercase hex SHA-256 of its exact UTF-8 text, so two parses of the same
+text agree, and any edit changes it. `TryCreate` takes a revision you already
+have, such as a git blob id. `ElementIri` forms element IRIs, and `TryResolve`
+reads one back to an element of the snapshot.
+
+`DiagramSelection` holds one or more elements of one revision, as
+`TextSelection` holds ranges. Unknown elements and an empty selection are
+`DiagramSelectionError` failures, duplicates collapse, and the elements keep the
+order of `DiagramElementRef.Enumerate`. Reading a selection against another
+revision is `DiagramSelectionError.VersionMismatch`, and the selection is never
+re-resolved silently.
+
+Selections work with the shared `Annotation` and `KnowledgeLink` records. A
+comment is an `Annotation<DiagramSelection, string>`. A link from a node to a code
+snippet is a `KnowledgeLink<DiagramSelection, TextSelection>`; a link to a web page
+uses an `Iri` target, and a link to another diagram uses a `DiagramSelection`.
+
+### F#
+
+```fsharp
+open System
+open Morphir.Diagrams
+open Morphir.Knowledge
+
+let source = "flowchart LR\n  Cart --> Billing\n  Cart --> Billing"
+let checkout = DocumentId.Create(Iri.Create "https://example.org/diagrams/checkout")
+
+let snapshot =
+    match Mermaid.Parse source |> Result.mapError (fun _ -> "parse") |> Result.bind (fun document ->
+        DiagramSnapshot.TryFromSource(checkout, document) |> Result.mapError (fun error -> error.ToString())) with
+    | Ok snapshot -> snapshot
+    | Error error -> failwith error
+
+let edge =
+    match DiagramSelection.TryCreate(snapshot, [ DiagramElementRef.Create "edge=Cart/Billing/0" ]) with
+    | Ok selection -> selection
+    | Error error -> failwith (error.ToString())
+
+let comment: Annotation<DiagramSelection, string> =
+    { Id = AnnotationId.Create(Iri.Create "urn:review:1")
+      Target = edge
+      Body = "Is this call idempotent?"
+      Provenance = { Author = Iri.Create "urn:reviewer:one"; CreatedAt = DateTimeOffset.UtcNow } }
+
+printfn "%s on %O" comment.Body (snapshot.ElementIri edge.Elements[0])
+```
+
+### C#
+
+```csharp
+using System;
+using Morphir.Diagrams;
+using Morphir.Knowledge;
+
+const string source = "flowchart LR\n  Cart --> Billing\n  Billing --> Ledger";
+if (!Mermaid.TryParse(source, out var document, out var diagnostics))
+    throw new InvalidOperationException(string.Join("\n", diagnostics));
+
+var checkout = DocumentId.Create(Iri.Create("https://example.org/diagrams/checkout"));
+if (!DiagramSnapshot.TryFromSource(checkout, document, out var snapshot, out var snapshotError))
+    throw new InvalidOperationException(snapshotError.ToString());
+
+if (!DiagramSelection.TryCreate(snapshot, [DiagramElementRef.Create("node=Billing")], out var billing, out var selectionError))
+    throw new InvalidOperationException(selectionError.ToString());
+
+var code = TextSnapshot.Create(
+    new DocumentVersion(DocumentId.Create(Iri.Create("https://example.org/src/Billing.fs")), RevisionId.Create("4be1")),
+    "module Billing\nlet charge amount = amount\n");
+if (!TextSelection.TryCreate(code, [Morphir.Knowledge.SourceSpan.Create(TextOffset.Create(15), TextOffset.Create(41))], out var snippet, out var textError))
+    throw new InvalidOperationException(textError.ToString());
+
+var link = new KnowledgeLink<DiagramSelection, TextSelection>(
+    LinkId.Create(Iri.Create("urn:link:billing-impl")), billing, Iri.Create("https://example.org/vocab/implementedBy"), snippet);
+
+Console.WriteLine($"{snapshot.ElementIri(link.Source.Elements[0])} -> {link.Target.Version}");
 ```
 
 ## Migration coverage

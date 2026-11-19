@@ -78,6 +78,7 @@
     <Project Path="tests/Morphir.Conformance.Smoke/Morphir.Conformance.Smoke.fsproj" />
     <Project Path="tests/Morphir.Conformance.Tests/Morphir.Conformance.Tests.fsproj" />
     <Project Path="tests/Morphir.Diagrams.Tests/Morphir.Diagrams.Tests.csproj" />
+    <Project Path="tests/Morphir.Diagrams.FSharp.Tests/Morphir.Diagrams.FSharp.Tests.fsproj" />
     <Project Path="tests/Morphir.Svg.Tests/Morphir.Svg.Tests.csproj" />
     <Project Path="tests/Morphir.Diagrams.Smoke/Morphir.Diagrams.Smoke.csproj" />
     <Project Path="tests/Morphir.Frontend.FSharp.Tests/Morphir.Frontend.FSharp.Tests.fsproj" />

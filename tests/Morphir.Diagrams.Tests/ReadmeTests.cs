@@ -28,6 +28,7 @@ public partial class ReadmeTests
         Blocks("csharp").Select(block => (Func<string>)(() => block));
 
     [Test]
+    [Category("PlatformSpecific")]
     [MethodDataSource(nameof(CSharpBlocks))]
     public void TheCSharpSampleCompilesWithoutWarnings(string source)
     {
@@ -50,10 +51,10 @@ public partial class ReadmeTests
     public void TheReferenceExampleMatchesTheTestFixture()
     {
         var mermaid = Blocks("mermaid").ShouldHaveSingleItem();
-        mermaid.ShouldBe(ElementReferenceMother.Checkout.Replace("\r\n", "\n", StringComparison.Ordinal) + "\n");
+        mermaid.ShouldBe(DiagramMother.Checkout.Replace("\r\n", "\n", StringComparison.Ordinal) + "\n");
 
         var listed = Blocks("text").ShouldHaveSingleItem().Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        listed.ShouldBe(DiagramElementRef.Enumerate(ElementReferenceMother.Read(ElementReferenceMother.Checkout))
+        listed.ShouldBe(DiagramElementRef.Enumerate(DiagramMother.Read(DiagramMother.Checkout))
             .Select(reference => reference.ToString()));
     }
 

@@ -50,10 +50,10 @@ Decision ids (REF-1 … PKG-1) refer to [design.html](design.html). Before addin
 
 ## 8. Snapshots and selections (diagram-linked-metadata, SEL-1)
 
-- [ ] 8.1 Write failing tests for `DiagramSnapshot.Create`/`FromSource` (sha256 revision stability and sensitivity), `ElementIri`/`TryResolve`, and `DiagramSelection.TryCreate` (empty, unknown, deduplicated, ordered, version mismatch)
-- [ ] 8.2 Add the `Morphir.Knowledge` reference, implement the snapshot and selection types with C# `TryCreate` overloads, and verify that the tests from 8.1 pass
-- [ ] 8.3 Add tests showing an `Annotation<DiagramSelection, string>` and `KnowledgeLink`s to a `TextSelection`, to an `Iri` and to another `DiagramSelection`, and verify the three link scenarios
-- [ ] 8.4 Document selections, comments and links in F# and C# in the Diagrams README, and verify the samples in a test
+- [x] 8.1 Write failing tests for `DiagramSnapshot.Create`/`FromSource` (sha256 revision stability and sensitivity), `ElementIri`/`TryResolve`, and `DiagramSelection.TryCreate` (empty, unknown, deduplicated, ordered, version mismatch)
+- [x] 8.2 Add the `Morphir.Knowledge` reference, implement the snapshot and selection types with C# `TryCreate` overloads, and verify that the tests from 8.1 pass
+- [x] 8.3 Add tests showing an `Annotation<DiagramSelection, string>` and `KnowledgeLink`s to a `TextSelection`, to an `Iri` and to another `DiagramSelection`, and verify the three link scenarios
+- [x] 8.4 Document selections, comments and links in F# and C# in the Diagrams README, and verify the samples in a test
 
 ## 9. RDF mapping (diagram-linked-metadata, RDF-1)
 
