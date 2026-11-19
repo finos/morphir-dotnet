@@ -40,6 +40,10 @@ Feature: Generate from a recorded Orders tree with bounded model access
       | 128   |
 
   @needs-built-extensions
+  Scenario: Preserve the previous install when a late definition is invalid
+    Then bounded generation records only completed products and preserves the prior install on late failure
+
+  @needs-built-extensions
   Scenario: Protect another member's producer record
     Then bounded generation protects sibling task records
 

@@ -102,7 +102,7 @@ internal sealed class BoundedOrdersGuest(string mode)
         try
         {
             var mode = File.ReadAllText(ModeFile).Trim();
-            Require(mode is "orders" or "pause" or "mark-initialize" or "large-reply" or "small-frame" or "root-exits" or "stall-exit",
+            Require(mode is "orders" or "pause" or "mark-initialize" or "large-reply" or "small-frame" or "root-exits" or "stall-exit" or "stage-before-read",
                 "Unknown orders mode.");
             return new BoundedOrdersGuest(mode).Serve();
         }
@@ -252,6 +252,15 @@ internal sealed class BoundedOrdersGuest(string mode)
                 var order = run.Order!;
                 var reference = Text(ReadBody(delivery, "final", run.Final!), "Reference");
                 Require(reference == $"{Package}:{Module}#{order.Name}", "The final value must reference the earlier value.");
+                if (mode == "stage-before-read")
+                {
+                    var prelude = "privately staged\n"u8.ToArray();
+                    return Continue(run, Document("order", order),
+                    [
+                        new { path = "prelude.txt", offset = 0, decodedByteLength = prelude.Length, sha256 = Digest(prelude),
+                            content = Convert.ToBase64String(prelude), end = true },
+                    ]);
+                }
                 return Continue(run, Document("order", order));
             case 5:
                 var text = RenderLiteral(ReadBody(delivery, "order", run.Order!));
@@ -351,13 +360,13 @@ internal sealed class BoundedOrdersGuest(string mode)
         return new(Text(value, "name"), Text(value, "documentId"));
     }
 
-    private static object Continue(OrdersRun run, object request) => new
+    private static object Continue(OrdersRun run, object request, object[]? artifacts = null) => new
     {
         state = "continue",
         sessionId = run.SessionId,
         round = run.Round,
         requests = new[] { request },
-        artifacts = Array.Empty<object>(),
+        artifacts = artifacts ?? [],
         diagnostics = run.Round == 1
             ? new[] { new { severity = "warning", code = "orders.inventory", message = "Reading the package inventory." } }
             : Array.Empty<object>(),

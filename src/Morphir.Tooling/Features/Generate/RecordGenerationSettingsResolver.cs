@@ -12,8 +12,9 @@ namespace Morphir.Tooling.Features.Generate;
 /// The generation settings resolver in front of the CLI resolver (REC-1). An explicit <c>--input</c> goes to
 /// the CLI resolver and never reads a record. Without <c>--input</c>, it finds the project and the out root in
 /// the same way as <c>morphir compile</c>, opens the most recent successful compile record with the shared lock,
-/// and gives the record's IR as the input. The lock is held until model loading ends, so a compile cannot clear
-/// <c>.dest</c> while the IR is read. A missing record or a tombstone fails with exit code 2 and tells the user
+/// and gives the record's IR as the input. The lock is held until model loading ends, or through guest settlement
+/// and publication on the bounded tree route, so a compile cannot clear <c>.dest</c> while the IR is read.
+/// A missing record or a tombstone fails with exit code 2 and tells the user
 /// to run <c>morphir compile</c> first.
 /// <para>
 /// In both modes, when <c>--extension</c> is absent, it loads the project configuration as compile does and
@@ -71,7 +72,9 @@ public sealed class RecordGenerationSettingsResolver(
         var loaded = ((Outcome<LoadedCompileConfiguration>.Success)loadedOutcome).Value;
         var located = CompileTaskLocator.Locate(loaded, compileContext, overrides.OutDir);
         if (located is Outcome<CompileTaskPlace>.Failure notLocated) return Fail(notLocated.Error);
-        var store = ((Outcome<CompileTaskPlace>.Success)located).Value.Store(_options);
+        var place = ((Outcome<CompileTaskPlace>.Success)located).Value;
+        var taskOptions = _options with { MorphirHome = _options.MorphirHome ?? place.MorphirHome };
+        var store = place.Store(taskOptions);
 
         // Check the other values before the record is read. The input path is a placeholder until then.
         var validated = await inner.ResolveAsync(overrides with { Input = store.Location.Record }, context, ct);
@@ -103,7 +106,7 @@ public sealed class RecordGenerationSettingsResolver(
         var fromRecord = valid.Value with
         {
             Input = new ModelInput(output.IrPath, format!.Value),
-            InputLease = new RecordLease(output),
+            InputLease = new RecordLease(output, taskOptions),
         };
         var withExtension = WithConfiguredExtension(fromRecord, loaded, compileContext.WorkingDirectory);
         if (withExtension is Outcome<GenerationSettings>.Failure) output.Dispose();
@@ -151,9 +154,10 @@ public sealed class RecordGenerationSettingsResolver(
     private static Outcome<GenerationSettings> Fail(GenerationFailure failure) => new Outcome<GenerationSettings>.Failure(failure);
 
     /// <summary>Holds the shared lock of the record, and keeps the format version that the record names.</summary>
-    internal sealed class RecordLease(CompileTaskOutput output) : ModelInputLease
+    internal sealed class RecordLease(CompileTaskOutput output, TaskStoreOptions options) : ModelInputLease
     {
         public CompileTaskOutput Output => output;
+        public TaskStoreOptions Options => options;
 
         public override Outcome<LoadedModel> Admit(LoadedModel model)
         {

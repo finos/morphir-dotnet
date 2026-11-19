@@ -285,11 +285,24 @@ morphir generate --out-dir build-artifacts --target text --output generated
 
 For the orders fixture, the guest follows two inventory pages to the final
 value, reads the earlier value it references, and emits `order.txt`. Morphir
-stages the output chunks below `build-artifacts/generate/text.dest` for a
-root project, then publishes the completed files to `generated`. Choose a
-publication directory outside the workspace task output root to protect task
-records. The CLI acceptance case compares this v4 JSON tree run with the same guest's inline
-run over the expanded v4 model.
+stages the chunks privately until the guest stops. For a root project, it
+then places the completed files in `build-artifacts/generate/text.dest`,
+records their paths in `build-artifacts/generate/text.json`, and installs
+them into `generated`. A workspace member uses its own directory under the
+configured output root. Choose an install directory outside that root.
+The CLI acceptance case compares this v4 JSON tree run with the same guest's
+inline run over the expanded v4 model.
+
+The compile lease stays held until generation and installation finish. If
+generation fails after replacing a previous working result, its record
+becomes a tombstone and the previous install remains in place. Fix the input
+or guest and run the same command with the same `--out-dir` and `--output`.
+If installation is refused or cancelled after the generation record was
+written, the completed working files remain in `text.dest`. Resolve the
+reported target conflict or select a clean install directory and rerun.
+The installer replaces files it owns through the task record's `installed`
+ledger. An older `.morphir-generated.json` manifest does not transfer
+ownership to that ledger.
 
 ## Examples
 
