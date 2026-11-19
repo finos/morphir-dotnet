@@ -51,7 +51,7 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 
 ## 8. Icon catalogue
 
-- [ ] 8.1 Write the catalogue script that checks upstream digests, normalises assets and writes the embedded resource and key table; verify a test regenerates them identically.
+- [x] 8.1 Write the catalogue script that checks upstream digests, normalises assets and writes the embedded resource and key table; verify a test regenerates them identically.
 - [ ] 8.2 Record SVG Repo licences per technology logo and draw original symbols for disallowed logos, `externalsystem`, the architecture defaults and the generic fallback; verify every registry key resolves without a fallback warning.
 - [ ] 8.3 Add `THIRD-PARTY-NOTICES.md` and the trademark notice to the package; verify the packed `.nupkg` contains them.
 - [ ] 8.4 Render only used symbols as ID-scoped definitions with accessible names; verify two inlined diagrams do not share IDs and symbols are visible in every theme.
