@@ -36,10 +36,10 @@ Decision ids (REF-1 … PKG-1) refer to [design.html](design.html). Before addin
 
 ## 6. SVG namespaces and metadata (svg-metadata, SVG-1)
 
-- [ ] 6.1 Write failing tests in `tests/Morphir.Svg.Tests` for qualified element and attribute names, a single namespace declaration, reserved-prefix and duplicate-prefix failures, the metadata element as first child, and a text payload with `<`, `&` and `]]>`
-- [ ] 6.2 Extend `SvgName` with `Qualified(prefix, local, namespace)`, add the optional `Metadata` node to `SvgDocument`, and update the writer. Verify that the tests from 6.1 and all existing SVG tests pass
-- [ ] 6.3 Write failing tests, then implement `SvgMetadataReader.TryRead`: XML and text content, the no-metadata result, DOCTYPE refusal, a character limit, and malformed-input line and column
-- [ ] 6.4 Document namespaced content and the reader in `src/Morphir.Svg/README.md`, and verify the samples in a test
+- [x] 6.1 Write failing tests in `tests/Morphir.Svg.Tests` for qualified element and attribute names, a single namespace declaration, reserved-prefix and duplicate-prefix failures, the metadata element as first child, and a text payload with `<`, `&` and `]]>`
+- [x] 6.2 Extend `SvgName` with `Qualified(prefix, local, namespace)`, add the optional `Metadata` node to `SvgDocument`, and update the writer. Verify that the tests from 6.1 and all existing SVG tests pass
+- [x] 6.3 Write failing tests, then implement `SvgMetadataReader.TryRead`: XML and text content, the no-metadata result, DOCTYPE refusal, a character limit, and malformed-input line and column
+- [x] 6.4 Document namespaced content and the reader in `src/Morphir.Svg/README.md`, and verify the samples in a test
 
 ## 7. Element references (diagram-linked-metadata, REF-1, REF-2)
 

@@ -14,5 +14,6 @@
         <PackageReference Include="FSharp.Core" />
         <Compile Include="Scene.fs" />
         <Compile Include="Svg.fs" />
+        <Compile Include="MetadataReader.fs" />
     </ItemGroup>
 </Project>
