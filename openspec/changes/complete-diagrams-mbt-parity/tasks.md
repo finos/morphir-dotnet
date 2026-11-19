@@ -89,14 +89,14 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 - [x] 13.3 Add DI, extensions, validation and reference resolution; verify the pinned BPMN corpus.
 - [x] 13.4 Add canonical and pretty writing; verify canonical round trips are byte-identical.
 - [x] 13.5 Add traversal styles and bounded graph queries; verify the 10,000-deep and cycle tests.
-- [ ] 13.6 Add `Morphir.Bpmn` to the solution, test plan, package validation and AOT smoke tests; verify the build and AOT smoke pass.
+- [x] 13.6 Add `Morphir.Bpmn` to the solution, test plan, package validation and AOT smoke tests; verify the build and AOT smoke pass.
 
 ## 14. BPMN diagrams
 
-- [ ] 14.1 Add view selection and conversion to the BPMN diagram model; verify selection and ambiguity tests.
-- [ ] 14.2 Paint every BPMN process and collaboration symbol; verify SVG tests per symbol.
-- [ ] 14.3 Add the supplied-geometry policies and automatic layout on the shared engine; verify policy tests.
-- [ ] 14.4 Add BPMN references, colour families, carriage and player support; verify in Chromium.
+- [x] 14.1 Add view selection and conversion to the BPMN diagram model; verify selection and ambiguity tests.
+- [x] 14.2 Paint every BPMN process and collaboration symbol; verify SVG tests per symbol.
+- [x] 14.3 Add the supplied-geometry policies and automatic layout on the shared engine; verify policy tests.
+- [x] 14.4 Add BPMN references, colour families, carriage and player support; verify in Chromium.
 
 ## 15. Tree queries
 

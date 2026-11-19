@@ -757,6 +757,46 @@ A reference escapes each `/` of an identifier as `%2F`. Long keys and values wra
 off. A highlighted row changes only its fill and outline, in the theme's cloud family; no row
 moves. The player visits the values in member order and plays no connector paths.
 
+## BPMN views
+
+BPMN 2.0.2 XML reads through [Morphir.Bpmn](../Morphir.Bpmn/README.md), with DTDs and entity
+declarations refused, into a `BpmnDiagram`: one process or collaboration view. `DiagramSource`
+selects the view automatically: the diagram interchange plane, else the collaboration, else the
+process. Several candidates of one kind give `bpmn/ambiguous-view`, and a choreography or
+conversation view gives `bpmn/unsupported-view`. `BpmnDiagram.Create` (F#) and `TryCreate` (C#)
+take a view ID and a geometry policy:
+
+| `BpmnGeometry` | With complete interchange | With missing interchange |
+| --- | --- | --- |
+| `PreferSupplied` | Bounds and waypoints kept as given | Whole view laid out automatically, with a `bpmn/automatic-geometry` warning |
+| `RequireSupplied` | Bounds and waypoints kept as given | `bpmn/missing-geometry` error |
+| `Automatic` | Laid out automatically | Laid out automatically |
+
+Automatic layout puts nodes in columns by sequence-flow rank, back flows below, lanes stacked in
+their pool, boundary events on their activity's bottom border, expanded subprocesses around their
+contents, and data and annotations in a row below. Disconnected nodes fill columns of four.
+
+The painter draws BPMN notation: tasks with their type icon (user, service, send, receive,
+manual, business rule, script), call activities with a thick border, collapsed and expanded
+subprocesses, transactions with a double border, event subprocesses dotted, ad hoc `~`, loop,
+multi-instance and compensation markers; start, intermediate, boundary and end events with every
+event definition, dashed when non-interrupting; the five gateways; data objects (with collection,
+input and output marks), data stores, text annotations and groups; pools, black-box pools and
+nested lanes; sequence flows with default and conditional marks, message flows, associations and
+data associations. A view that holds a choreography or conversation element gives
+`bpmn/undrawable-element`.
+
+| Element | Reference | Colour family |
+| --- | --- | --- |
+| Activity | `node=Review` | frontend |
+| Start, intermediate, end event | `node=Start` | backend, cloud, security |
+| Gateway | `node=Ok` | messagebus |
+| Data object or store | `node=Orders` | database |
+| Pool, lane, expanded subprocess, group | `group=Sales` | external, frame |
+| Flow | `edge=Start/Review/0` | arrow |
+
+The player plays the flows in document order.
+
 ## Exploring routes and scenarios
 
 Players of diagrams with connections have an *Explore routes* disclosure under the

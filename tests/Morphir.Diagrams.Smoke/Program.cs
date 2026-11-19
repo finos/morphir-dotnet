@@ -51,6 +51,19 @@ if (!DiagramMetadata.TryRead(Encoding.UTF8.GetBytes(markup), out var extracted, 
     return 1;
 }
 
+// A BPMN view, which reads its XML through Morphir.Bpmn with DTDs refused.
+var bpmn = DiagramSource.RenderSvg("""
+    <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" id="D" targetNamespace="urn:smoke">
+      <bpmn:process id="P">
+        <bpmn:startEvent id="Start"/><bpmn:userTask id="Review" name="Review"/><bpmn:endEvent id="End"/>
+        <bpmn:sequenceFlow id="F1" sourceRef="Start" targetRef="Review"/><bpmn:sequenceFlow id="F2" sourceRef="Review" targetRef="End"/>
+      </bpmn:process>
+    </bpmn:definitions>
+    """);
+if (bpmn.Output is not { } bpmnSvg || !bpmnSvg.Contains("data-ref=\"node=Review\"", StringComparison.Ordinal))
+    return Fail(bpmn);
+Console.WriteLine("bpmn render: ok");
+
 var expected = Canonical(dataset);
 var actual = Canonical(extracted);
 Console.WriteLine(actual);
