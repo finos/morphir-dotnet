@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
+        <Description>Reads diagrams and renders them to standalone SVG.</Description>
+        <PackageTags>$(PackageTags);mermaid;diagrams;svg</PackageTags>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <IsTrimmable>true</IsTrimmable>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsAotCompatible>true</IsAotCompatible>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <ProjectReference Include="../Morphir.Svg/Morphir.Svg.fsproj" />
+        <Compile Include="Model.fs" />
+        <Compile Include="DiagramScene.fs" />
+        <Compile Include="Reading.fs" />
+        <Compile Include="FlowchartReader.fs" />
+        <Compile Include="SequenceReader.fs" />
+        <Compile Include="SvgWriting.fs" />
+        <Compile Include="FlowchartSvg.fs" />
+        <Compile Include="SequenceLayout.fs" />
+        <Compile Include="SequenceSvg.fs" />
+        <Compile Include="SvgRenderer.fs" />
+        <Compile Include="AnimatedRenderer.fs" />
+        <Compile Include="Mermaid.fs" />
+        <EmbeddedResource Include="Player.js" LogicalName="Morphir.Diagrams.Player.js" />
+    </ItemGroup>
+</Project>

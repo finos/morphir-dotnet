@@ -135,6 +135,8 @@ partial class Build : FalloutBuild
         ("Morphir.FSharp.Annotations", SourceDirectory / "Morphir.FSharp.Annotations" / "Morphir.FSharp.Annotations.csproj", true),
         ("Morphir.Configuration", SourceDirectory / "Morphir.Configuration" / "Morphir.Configuration.fsproj", true),
         ("Morphir.Configuration.IO", SourceDirectory / "Morphir.Configuration.IO" / "Morphir.Configuration.IO.csproj", true),
+        ("Morphir.Svg", SourceDirectory / "Morphir.Svg" / "Morphir.Svg.fsproj", true),
+        ("Morphir.Diagrams", SourceDirectory / "Morphir.Diagrams" / "Morphir.Diagrams.fsproj", true),
         // Morphir.Models references Morphir.Files, so Morphir.Files comes first.
         ("Morphir.Files", SourceDirectory / "Morphir.Files" / "Morphir.Files.fsproj", true),
         ("Morphir.Knowledge", SourceDirectory / "Morphir.Knowledge" / "Morphir.Knowledge.fsproj", true),

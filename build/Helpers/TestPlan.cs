@@ -206,6 +206,8 @@ public static class TestPlan
         TestSuite.Expecto("Morphir.Frontend.FSharp.Extension.Tests").WithSourceProjects(),
         TestSuite.TUnit("Morphir.Tests"),
         TestSuite.TUnit("Morphir.Managed.Tests"),
+        TestSuite.TUnit("Morphir.Diagrams.Tests"),
+        TestSuite.TUnit("Morphir.Svg.Tests"),
         TestSuite.Expecto("Morphir.CodeGeneration.FSharp.Tests"),
         TestSuite.Expecto("Morphir.CodeGeneration.FSharp.Extension.Tests"),
         TestSuite.Expecto("Morphir.Lang.CSharp.Backend.Tests", "--sequenced"),

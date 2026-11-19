@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
+        <Description>Immutable SVG scenes with declarative F# builders and C# factories.</Description>
+        <PackageTags>$(PackageTags);svg</PackageTags>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <IsTrimmable>true</IsTrimmable>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsAotCompatible>true</IsAotCompatible>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <Compile Include="Scene.fs" />
+        <Compile Include="Svg.fs" />
+    </ItemGroup>
+</Project>

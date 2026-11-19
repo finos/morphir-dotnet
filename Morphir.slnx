@@ -46,6 +46,8 @@
     <Project Path="src/Morphir.Tooling/Morphir.Tooling.csproj" />
     <Project Path="src/Morphir/Morphir.csproj" />
     <Project Path="src/Morphir.Configuration/Morphir.Configuration.fsproj" />
+    <Project Path="src/Morphir.Diagrams/Morphir.Diagrams.fsproj" />
+    <Project Path="src/Morphir.Svg/Morphir.Svg.fsproj" />
     <Project Path="src/Morphir.Compilation/Morphir.Compilation.fsproj" />
     <Project Path="src/Morphir.Frontend.FSharp/Morphir.Frontend.FSharp.fsproj" />
     <Project Path="src/Morphir.Frontend.FSharp.Extension/Morphir.Frontend.FSharp.Extension.fsproj" />
@@ -75,6 +77,9 @@
     <Project Path="tests/Morphir.Conformance.FakeWorker/Morphir.Conformance.FakeWorker.csproj" />
     <Project Path="tests/Morphir.Conformance.Smoke/Morphir.Conformance.Smoke.fsproj" />
     <Project Path="tests/Morphir.Conformance.Tests/Morphir.Conformance.Tests.fsproj" />
+    <Project Path="tests/Morphir.Diagrams.Tests/Morphir.Diagrams.Tests.csproj" />
+    <Project Path="tests/Morphir.Svg.Tests/Morphir.Svg.Tests.csproj" />
+    <Project Path="tests/Morphir.Diagrams.Smoke/Morphir.Diagrams.Smoke.csproj" />
     <Project Path="tests/Morphir.Frontend.FSharp.Tests/Morphir.Frontend.FSharp.Tests.fsproj" />
     <Project Path="tests/Morphir.Frontend.FSharp.Extension.Tests/Morphir.Frontend.FSharp.Extension.Tests.fsproj" />
     <Project Path="tests/Morphir.Compilation.Mep.Tests/Morphir.Compilation.Mep.Tests.fsproj" />
