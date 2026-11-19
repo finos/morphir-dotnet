@@ -29,7 +29,7 @@ let private ordersSource files =
     let source: TreeFileSource.SnapshotSource = {
         Revision = fun () -> revision
         ContainsFile = fun location -> Map.containsKey location files
-        NextModule = fun _ _ _ -> failtest "Member reads do not enumerate modules"
+        NextModule = fun _ _ _ _ -> failtest "Member reads do not enumerate modules"
         FindFile =
             fun location ->
                 lookedUp.Add location
@@ -258,7 +258,7 @@ let private moduleSource version =
     let recording =
         { source with
             NextModule =
-                fun _ prefix after ->
+                fun _ _ prefix after ->
                     enumerated.Add(prefix, after)
 
                     [ audit; orders; sdk ]
@@ -397,7 +397,7 @@ let modulePages =
 
                 let unsafe =
                     { source with
-                        NextModule = fun _ _ _ -> Ok(Some path)
+                        NextModule = fun _ _ _ _ -> Ok(Some path)
                     }
 
                 let snapshot = read (BoundedTreeReader.openTree 1024L unsafe)
@@ -415,7 +415,7 @@ let modulePages =
 
             let unordered =
                 { source with
-                    NextModule = fun _ _ _ -> Ok(Some repeated)
+                    NextModule = fun _ _ _ _ -> Ok(Some repeated)
                 }
 
             let snapshot = read (BoundedTreeReader.openTree 1024L unordered)
@@ -554,7 +554,7 @@ let private frozenOrdersFiles version profile =
         Revision = fun () -> "3f3157318"
         ContainsFile = fun location -> Set.contains location files
         NextModule =
-            fun _ prefix after ->
+            fun _ _ prefix after ->
                 modules
                 |> List.tryFind (fun path ->
                     path.StartsWith(prefix, System.StringComparison.Ordinal)
@@ -1513,7 +1513,7 @@ let providerTests =
                 Revision = fun () -> "stable"
                 ContainsFile = fun path -> path = manifestLocation
                 FindFile = fun _ -> Some file
-                NextModule = fun _ _ _ -> Ok None
+                NextModule = fun _ _ _ _ -> Ok None
             }
 
             BoundedTreeReader.openTree limits.MaxFileBytes direct

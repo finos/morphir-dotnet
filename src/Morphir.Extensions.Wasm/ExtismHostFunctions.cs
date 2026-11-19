@@ -281,6 +281,13 @@ internal sealed class ExtismHostFunctions
 
         public byte[]? Get(byte[] key) => values.GetValueOrDefault(key);
 
+        public bool TryRestrictBytes(long limit)
+        {
+            if (bytes > limit) return false;
+            byteLimit = Math.Min(byteLimit, limit);
+            return true;
+        }
+
         public void Remove(byte[] key)
         {
             if (values.Remove(key, out var old))
@@ -312,6 +319,8 @@ internal sealed class ExtismHostFunctions
             bytes = total;
         }
     }
+
+    internal bool TryRestrictVariableBytes(long limit) => variables.TryRestrictBytes(limit);
 
     sealed class ByteKeys : IEqualityComparer<byte[]>
     {

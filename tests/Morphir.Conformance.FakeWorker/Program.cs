@@ -4,6 +4,7 @@
 // A scripted fake of `<host> extension worker`. The command line is
 //
 //   [--script <file>] [--log <file>] extension worker <worker arguments>
+//   (no arguments, with bounded-orders.mode)  a native MEP generation fixture
 //   --sleep                           (a child that would outlive its parent; it sleeps until stopped)
 //   --sleep <ms>                      (a child that sleeps this long, then exits)
 //
@@ -50,6 +51,12 @@ internal static class Program
 
     private static int Main(string[] args)
     {
+        if (args.Length == 0 && File.Exists(BoundedOrdersGuest.ModeFile))
+            return BoundedOrdersGuest.Run();
+
+        if (args is ["--bounded-orders-pipe-descendant"])
+            return BoundedOrdersGuest.RunPipeDescendant();
+
         if (args is ["--sleep"])
         {
             Thread.Sleep(Timeout.Infinite);
@@ -226,10 +233,10 @@ internal static class Program
         WriteStderr(Replace(line.ToJsonString(), replacements));
     }
 
-    private static byte[] Frame(byte[] body) =>
+    internal static byte[] Frame(byte[] body) =>
         [.. Encoding.ASCII.GetBytes($"Content-Length: {body.Length}\r\n\r\n"), .. body];
 
-    private static byte[]? ReadFrame(Stream input)
+    internal static byte[]? ReadFrame(Stream input)
     {
         var header = new List<byte>();
         while (!(header.Count >= 4 && header[^4] == '\r' && header[^3] == '\n' && header[^2] == '\r' && header[^1] == '\n'))
@@ -290,7 +297,7 @@ internal static class Program
         Process.Start(start);
     }
 
-    private static void WriteStdout(byte[] bytes)
+    internal static void WriteStdout(byte[] bytes)
     {
         var stdout = Console.OpenStandardOutput();
         stdout.Write(bytes);

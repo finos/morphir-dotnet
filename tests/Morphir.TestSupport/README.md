@@ -246,3 +246,5 @@ a default host for a run that names none, and imports `build/Morphir.CliArtifact
 `tests/Morphir.Frontend.FSharp.Tests/CliAdapterTests.fs` (the tool host by default) and
 `tests/Morphir.Extensions.Wasm.Tests/WorkerGuestKitModelTierTests.cs`.
 
+
+The bounded Orders scenarios use `IBoundedGenerationDriver` with `IGenerationDriver`. The driver writes independent schema-1 producer records and catalog tree cases; it never loads a product assembly. The native fake worker is `BuiltExtension.BoundedOrders`, supplied by the existing `needs-built-extensions` capability. WASM scenarios use `needs-wasm-guests` and retain the optional `MORPHIR_SHARED_ORDERS_WASM` input.

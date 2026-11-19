@@ -27,6 +27,9 @@ public enum BuiltExtension
 
     /// <summary>The stub of the external tool <c>morphir-mck</c> (<c>tests/Morphir.Mck.Stub</c>), which <c>morphir mck</c> runs.</summary>
     MckStub,
+
+    /// <summary>The bounded Orders protocol guest.</summary>
+    BoundedOrders,
 }
 
 /// <summary>
@@ -40,6 +43,7 @@ public sealed class ExtensionArtifacts
     private static readonly IReadOnlyDictionary<BuiltExtension, string> Projects = new Dictionary<BuiltExtension, string>
     {
         [BuiltExtension.FSharpBackend] = "src/Morphir.CodeGeneration.FSharp.Extension/Morphir.CodeGeneration.FSharp.Extension.fsproj",
+        [BuiltExtension.BoundedOrders] = "tests/Morphir.Conformance.FakeWorker/Morphir.Conformance.FakeWorker.csproj",
         [BuiltExtension.MckStub] = "tests/Morphir.Mck.Stub/Morphir.Mck.Stub.csproj",
     };
 

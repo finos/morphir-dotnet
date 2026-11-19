@@ -1,6 +1,9 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
+using Morphir.Compilation.Mep;
 using Morphir.Extensions;
+using Morphir.Extensions.Wasm;
+using Morphir.Mep;
 using Morphir.Tooling.Features.Compile;
 using Morphir.Tooling.Infrastructure;
 using Morphir.Tooling.Features.Extensions;
@@ -55,6 +58,40 @@ public sealed class MepBackendExtensionConnector(IWasmModuleLoader? wasmLoader) 
 {
     /// <summary>Preserves the process-only connector's parameterless constructor.</summary>
     public MepBackendExtensionConnector() : this(null) { }
+
+    internal async Task<Outcome<IModelAccessGuest>> ConnectModelAccessAsync(
+        BackendExtensionRequest request, ModelAccessSupport offer, CancellationToken ct)
+    {
+        var deadline = TimeSpan.FromMilliseconds(offer.Limits.MaxCallMilliseconds);
+        if (request.WasmModule is { } module)
+        {
+            var defaults = SessionLimits.Default;
+            var limits = defaults with
+            {
+                MemoryCeilingBytes = Math.Min(defaults.MemoryCeilingBytes, offer.Limits.MaxGuestStateBytes),
+                CallDeadline = deadline,
+            };
+            if (!ConfiguredWasmModule.TryOpen(wasmLoader, module, out var channel, out var code, out var message, limits))
+                return Refuse(code, message);
+            var host = new PeerInfo(PeerKind.Cli, MepExtensionCommand.HostName, MepExtensionCommand.HostVersion);
+            return (await MepChannelGuest.StartModelAccessAsync(channel, host, offer, deadline, ct))
+                .Match<MepChannelGuest, MepGuestFailure, Outcome<IModelAccessGuest>>(
+                    guest => new Outcome<IModelAccessGuest>.Success(guest),
+                    failure => Refuse(failure.Code, failure.Message));
+        }
+
+        if (!MepExtensionCommand.TryResolve(request.Extension.Value, request.WorkingDirectory, out var executable, out var arguments, out var error))
+            return Refuse("extension.unavailable", error);
+        var options = MepGuestOptions.Create(executable, arguments, request.WorkingDirectory, deadline,
+            Console.Error, MepExtensionCommand.HostName, MepExtensionCommand.HostVersion, request.Environment);
+        return (await MepGuestProcess.StartModelAccessAsync(options, offer, ct))
+            .Match<MepGuestProcess, MepGuestFailure, Outcome<IModelAccessGuest>>(
+                guest => new Outcome<IModelAccessGuest>.Success(guest),
+                failure => Refuse(failure.Code, failure.Message));
+
+        static Outcome<IModelAccessGuest>.Failure Refuse(string code, string message) =>
+            new(GenerationFailure.One(GenerationFailureKind.Operational, code, message));
+    }
 
     /// <inheritdoc />
     public async Task<Outcome<IExternalGenerationBackend>> ConnectAsync(BackendExtensionRequest request, CancellationToken ct)

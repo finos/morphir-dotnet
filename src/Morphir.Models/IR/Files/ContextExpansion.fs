@@ -35,6 +35,38 @@ exception private ContextExpansionRefused of StoreError
 /// inside it is left for the decoder to refuse as the wrong type.
 /// </remarks>
 module internal ContextExpansion =
+    // Count one node per container or scalar value, excluding property names and closing tokens.
+    // The original parser still supplies the syntax diagnostic for malformed input.
+    let countJsonNodes maxDepth nodeLimit file (bytes: ReadOnlyMemory<byte>) =
+        match nodeLimit with
+        | None -> Ok 0
+        | Some maxNodes ->
+            try
+                let span = bytes.Span
+                let json =
+                    if span.Length >= 3 && span[0] = 0xEFuy && span[1] = 0xBBuy && span[2] = 0xBFuy then
+                        span.Slice 3
+                    else span
+                let mutable reader = Utf8JsonReader(json, JsonReaderOptions(MaxDepth = maxDepth + 1))
+                let mutable nodes = 0
+                let mutable refusal = None
+
+                while refusal.IsNone && reader.Read() do
+                    match reader.TokenType with
+                    | JsonTokenType.PropertyName | JsonTokenType.EndObject | JsonTokenType.EndArray -> ()
+                    | JsonTokenType.StartObject | JsonTokenType.StartArray when reader.CurrentDepth >= maxDepth ->
+                        refusal <- Some(StoreErrors.error "depth_limit_exceeded" (Some file)
+                            $"The file is nested more than {maxDepth} levels deep.")
+                    | _ when nodes >= maxNodes ->
+                        refusal <- Some(StoreErrors.error "tree.document_node_limit" (Some file)
+                            "The decoded document exceeds the available maxNodes for this exchange.")
+                    | _ -> nodes <- nodes + 1
+
+                match refusal with
+                | Some error -> Error [ error ]
+                | None -> Ok nodes
+            with :? JsonException -> Ok 0
+
     /// The table that a position resolves through.
     type Table =
         | NamesTable
@@ -1235,14 +1267,16 @@ module internal ContextExpansion =
     /// </summary>
     let private expandPart
         (limits: ContextLimits)
-        maxOutput
+        byteLimit
+        maxNodes
+        (work: BoundedTreeWorkBudget option)
         (file: string)
         (context: FileContext)
         projection
         location
         shape
         (document: JsonElement)
-        : Result<JsonElement, StoreError list> =
+        : Result<JsonElement * int, StoreError list> =
         let problems = {
             Unknown = ResizeArray()
             Unholdable = ResizeArray()
@@ -1258,12 +1292,19 @@ module internal ContextExpansion =
             ]
 
         use buffer = new MemoryStream()
+        let maxOutput =
+            match byteLimit, work with
+            | Some limit, Some meter -> Some(meter.CapBytes limit)
+            | _ -> byteLimit
+
+        let exhausted () = Error [ StoreErrors.workLimit (Some file) ]
 
         // A spelling is at most three levels deeper than the reference it replaces (a classic FQName), so the writer
         // has room for that; the parse below checks the limit itself. The walk recurses once for each level, and a
         // stack that cannot hold the document's depth refuses it as too deep rather than ending the process.
         let written =
             try
+                if maxOutput = Some 0L && work.IsSome then raise ContextExpansionLimit
                 use writer =
                     new Utf8JsonWriter(
                         buffer,
@@ -1311,6 +1352,7 @@ module internal ContextExpansion =
                 Ok()
             with
             | ContextExpansionRefused error -> Error [ error ]
+            | ContextExpansionLimit when maxOutput <> byteLimit -> exhausted ()
             | ContextExpansionLimit ->
                 Error [
                     StoreErrors.error
@@ -1353,25 +1395,27 @@ module internal ContextExpansion =
             // A classic spelling is deeper than the reference it replaces, so a document within the limit can expand
             // past it.
             let maxDepth = limits.MaxDepth
-
-            try
-                use expanded =
-                    JsonDocument.Parse(
-                        ReadOnlyMemory(buffer.GetBuffer(), 0, int buffer.Length),
-                        JsonDocumentOptions(MaxDepth = maxDepth)
-                    )
-
-                Ok(expanded.RootElement.Clone())
-            with :? JsonException ->
-                tooDeep ()
+            let bytes = ReadOnlyMemory(buffer.GetBuffer(), 0, int buffer.Length)
+            if work |> Option.exists (fun meter -> not (meter.TryCharge(BoundedTreeWorkBudget.Blocks(int64 bytes.Length)))) then
+                exhausted ()
+            else
+                countJsonNodes maxDepth maxNodes file bytes
+                |> Result.bind (fun nodes ->
+                    try
+                        use expanded = JsonDocument.Parse(bytes, JsonDocumentOptions(MaxDepth = maxDepth))
+                        Ok(expanded.RootElement.Clone(), nodes)
+                    with :? JsonException -> tooDeep ())
 
     let expand limits family file context document =
-        expandPart limits None file context Projection.Complete "$" (rootOf family) document
+        expandPart limits None None None file context Projection.Complete "$" (rootOf family) document
+        |> Result.map fst
 
-    let expandBounded limit family file context projection document =
+    let expandBounded limits limit maxNodes work family file context projection document =
         expandPart
-            ContextLimits.draft1
+            limits
             (Some limit)
+            maxNodes
+            work
             file
             context
             projection
@@ -1379,18 +1423,21 @@ module internal ContextExpansion =
             (rootOf family)
             document
 
-    let expandMember limit family file context isType holdsDefinitions location element =
+    let expandMember limits limit maxNodes work family file context isType holdsDefinitions location element =
         let shape = memberShape family isType holdsDefinitions
 
         expandPart
-            ContextLimits.draft1
+            limits
             (Some limit)
+            maxNodes
+            work
             file
             context
             Projection.Complete
             location
             shape
             element
+        |> Result.map fst
 
     /// Follows only the requested slot. A path token is a property name or a canonical array index.
     let resolveMemberAlias
@@ -1421,12 +1468,15 @@ module internal ContextExpansion =
                 expandPart
                     ContextLimits.draft1
                     (Some limit)
+                    None
+                    None
                     file
                     context
                     Projection.Complete
                     location
                     shape
                     element
+                |> Result.map fst
             | [], _ -> refused location
             | field :: rest, JsonValueKind.Object ->
                 let child = V4JsonDecoding.memberAt location field

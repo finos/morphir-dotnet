@@ -605,6 +605,36 @@ public static class FixtureCatalog
             "2b564178596e1c7420fc8c689b31e7dbd68dabaed3d57ac0e9497ce21886cb34", "Mep/PROVENANCE.md");
     }
 
+    /// <summary>Test guests that select a fixed memory and frame allowance.</summary>
+    public static class BoundedWasmLimits
+    {
+        private const string Directory = "BoundedWasmLimits/";
+        private const string Provenance = Directory + "PROVENANCE.md";
+
+        public static FixtureEntry StateBelowPage { get; } = new(
+            "the WASM guest that selects state below one memory page", Directory + "state-below-page.wasm",
+            "e1a45ea2a086d4b9935ba091719818654f1db9d564586e5c7dec355e0318150b", Provenance);
+
+        public static FixtureEntry FrameOneUnder { get; } = new(
+            "the WASM guest that selects a one-byte-short frame", Directory + "frame-one-under.wasm",
+            "16a79de45520e9e779b8e46f9917ef33d59f844297a681523beed2b05c24a541", Provenance);
+
+        public static FixtureEntry FrameExact { get; } = new(
+            "the WASM guest that selects an exact-size frame", Directory + "frame-exact.wasm",
+            "99a139a7d0126ffe9fb490dd082aabef9e4bd8ec50db6f557265cf812b0feede", Provenance);
+
+        public static IReadOnlyList<FixtureEntry> Files { get; } =
+        [
+            StateBelowPage, FrameOneUnder, FrameExact,
+            Source("state-below-page", "927d631b62442b938799c2a507ab0efbe59a52291b66dd20baab5088604b22e3"),
+            Source("frame-one-under", "39995def01a1f9b411902c109337c69233bf1b7d3ef44505c4983117c4dc208f"),
+            Source("frame-exact", "b1e236f111b8466638514ec427fd8bf880078864ef3154c019b7e5ee5d24397c"),
+        ];
+
+        private static FixtureEntry Source(string name, string sha256) =>
+            new($"the source of the bounded WASM guest {name}", Directory + name + ".wat", sha256, Provenance);
+    }
+
     /// <summary>The frozen bounded-generation receipt, schema and replay controls from finos/morphir.</summary>
     public static class BoundedGenerationReceipts
     {
@@ -634,6 +664,9 @@ public static class FixtureCatalog
 
         private static FixtureEntry Document(string path, string sha256) =>
             new($"the frozen bounded orders document {path}", Directory + path, sha256, Provenance);
+
+        public static FixtureEntry ExpandedV4 { get; } =
+            Document("v4/single-file.json", "33649fb3718da07237c603ba7f9095621c59acee6c99def79c7a3220e4a2c47b");
 
         public static IReadOnlyList<FixtureEntry> Files { get; } =
         [
@@ -752,7 +785,14 @@ public static class FixtureCatalog
     }
 
     /// <summary>Every file that the catalog owns and serves.</summary>
-    public static IReadOnlyCollection<FixtureEntry> All { get; } = [.. Kit.Files, Mep.BoundedGenerationSession, .. BoundedGenerationReceipts.Files, .. Models.All, .. BoundedOrders.Files, .. Trees.AcmeDemo, .. Trees.Written, .. UpstreamIr.Documents, Rfc8785.Text, RdfNQuads.Corpus, OkfDocuments.CommonMark, WasmHost.Corpus, WasmHost.UnknownNamespaceModule, .. Context.Files, .. Context.Policy.Files, .. Context.Naming.Files];
+    public static IReadOnlyCollection<FixtureEntry> All { get; } =
+    [
+        .. Kit.Files, Mep.BoundedGenerationSession, .. BoundedWasmLimits.Files, .. BoundedGenerationReceipts.Files,
+        .. Models.All, .. BoundedOrders.Files, BoundedOrders.ExpandedV4, .. Trees.AcmeDemo, .. Trees.Written,
+        .. UpstreamIr.Documents, Rfc8785.Text, RdfNQuads.Corpus, OkfDocuments.CommonMark,
+        WasmHost.Corpus, WasmHost.UnknownNamespaceModule, .. Context.Files, .. Context.Policy.Files,
+        .. Context.Naming.Files
+    ];
 
     /// <summary>
     /// The directories and files below <c>tests/Fixtures</c> that a test project owned before the catalog, with that

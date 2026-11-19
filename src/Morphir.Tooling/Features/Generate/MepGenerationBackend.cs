@@ -454,7 +454,7 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
     }
 
     /// <summary>A MEP diagnostic of the guest as a generation diagnostic.</summary>
-    private static GenerationDiagnostic ToDiagnostic(Morphir.Mep.Diagnostic diagnostic)
+    internal static GenerationDiagnostic ToDiagnostic(Morphir.Mep.Diagnostic diagnostic)
     {
         var location = diagnostic.LocationOrNull();
         var logical = diagnostic.DataOrNull() is { ValueKind: JsonValueKind.Object } data

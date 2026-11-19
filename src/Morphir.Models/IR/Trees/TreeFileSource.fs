@@ -22,6 +22,8 @@ module internal TreeFileSource =
     open TreeLayout
 
     let private error code file message = StoreErrors.error code file message
+    let private charge (work: BoundedTreeWorkBudget option) units =
+        work |> Option.forall (fun meter -> meter.TryCharge units)
 
     /// Looking up a file does not open its content. A revision must change when
     /// the source changes and must never identify more than one set of files.
@@ -31,7 +33,7 @@ module internal TreeFileSource =
         FindFile: string -> Morphir.Files.VFile option
         /// The first logical module path in a package after the optional cursor, in ordinal order.
         /// This callback only examines storage metadata.
-        NextModule: int -> string -> string option -> Result<string option, StoreError>
+        NextModule: BoundedTreeWorkBudget option -> int -> string -> string option -> Result<string option, StoreError>
     }
 
 
@@ -48,7 +50,7 @@ module internal TreeFileSource =
             else
                 None
 
-        let nextModule pathBudget (prefix: string) after =
+        let nextModule work pathBudget (prefix: string) after =
             let root = prefix.TrimEnd('/')
             let directories = Stack<string * IEnumerator<IFileInfo>>()
             let mutable remaining = maxEntries
@@ -56,10 +58,13 @@ module internal TreeFileSource =
             let mutable refusal = None
 
             let push directory =
-                directories.Push(
-                    directory,
-                    provider.GetDirectoryContents(directory).GetEnumerator()
-                )
+                if charge work 1L then
+                    directories.Push(
+                        directory,
+                        provider.GetDirectoryContents(directory).GetEnumerator()
+                    )
+                else
+                    refusal <- Some(StoreErrors.workLimit (Some directory))
 
             try
                 push root
@@ -68,7 +73,9 @@ module internal TreeFileSource =
                       && Option.isNone refusal do
                     let directory, entries = directories.Peek()
 
-                    if not (entries.MoveNext()) then
+                    if not (charge work 1L) then
+                        refusal <- Some(StoreErrors.workLimit (Some directory))
+                    elif not (entries.MoveNext()) then
                         directories.Pop()
                         |> ignore
 
@@ -170,7 +177,7 @@ module internal TreeFileSource =
         | Yaml
 
     /// Inspect the physical spellings without opening any of them.
-    let snapshotLocation (source: SnapshotSource) expected logical =
+    let private locateSnapshot (source: SnapshotSource) expected logical =
         try
             let found =
                 [ Json, ".json"; Yaml, ".yaml"; Yaml, ".yml" ]
@@ -203,6 +210,10 @@ module internal TreeFileSource =
                 )
         with ex ->
             Error(error "tree.unreadable_file" (Some logical) ex.Message)
+
+    let snapshotLocation work source expected logical =
+        if charge work 3L then locateSnapshot source expected logical
+        else Error(StoreErrors.workLimit (Some logical))
 
     let profileOf (location: string) =
         if location.EndsWith(".json", StringComparison.Ordinal) then
@@ -281,11 +292,22 @@ module internal TreeFileSource =
                 with ex ->
                     Error(error "tree.unreadable_file" (Some location) ex.Message)
 
-    let snapshotBytes limit (source: SnapshotSource) location =
+    let snapshotBytes limit (source: SnapshotSource) location (work: BoundedTreeWorkBudget option) =
+        let exhausted () = Error(StoreErrors.workLimit (Some location))
         try
-            match source.FindFile location with
-            | Some file -> contentBytes limit location file
-            | None -> Error(error "tree.missing_member" (Some location) "The tree file is missing.")
+            if not (charge work 1L) then exhausted ()
+            else
+                let cap = work |> Option.map (fun meter -> meter.CapBytes limit) |> Option.defaultValue limit
+                if cap <= 0L then exhausted ()
+                else
+                    match source.FindFile location with
+                    | None -> Error(error "tree.missing_member" (Some location) "The tree file is missing.")
+                    | Some file ->
+                        match contentBytes cap location file with
+                        | Ok bytes when charge work (BoundedTreeWorkBudget.Blocks(int64 bytes.Length)) -> Ok bytes
+                        | Ok _ -> exhausted ()
+                        | Error problem when cap < limit && problem.Code = "tree.file_too_large" -> exhausted ()
+                        | Error problem -> Error problem
         with ex ->
             Error(error "tree.unreadable_file" (Some location) ex.Message)
 

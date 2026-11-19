@@ -35,6 +35,34 @@ type ReadOptions = {
     MaxFileBytes: int64
 }
 
+/// The shared work allowance for one bounded operation.
+[<Sealed>]
+type BoundedTreeWorkBudget(limit: int64) =
+    let gate = obj ()
+    let mutable remaining = limit
+
+    do if limit <= 0L then invalidArg (nameof limit) "A work budget must be positive."
+
+    /// Charge one unit per started 4 KiB block, without overflowing on a large byte count.
+    static member Blocks(bytes: int64) =
+        bytes / 4096L + (if bytes % 4096L = 0L then 0L else 1L)
+
+    /// Cap a read or write by the current allowance before it starts.
+    member _.CapBytes(bytes: int64) =
+        lock gate (fun () ->
+            if remaining < BoundedTreeWorkBudget.Blocks bytes then remaining * 4096L else bytes)
+
+    /// Charge actual work before admitting it. A failed charge exhausts the allowance.
+    member _.TryCharge(units: int64) =
+        if units < 0L then invalidArg (nameof units) "Work cannot be negative."
+        lock gate (fun () ->
+            if units > remaining then
+                remaining <- 0L
+                false
+            else
+                remaining <- remaining - units
+                true)
+
 /// <summary>What a read found besides the tree.</summary>
 type ReadReport = {
     /// <summary>
@@ -126,3 +154,6 @@ module internal StoreErrors =
         File = file
         Message = message
     }
+
+    let workLimit file =
+        error "extension.bounded_work_limit" file "Processing exceeds the negotiated maxSessionWorkUnits."

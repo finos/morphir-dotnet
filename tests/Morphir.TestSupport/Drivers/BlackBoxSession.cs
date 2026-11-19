@@ -32,6 +32,7 @@ public sealed class DriverSet : IAsyncDisposable
         Configuration = new ConfigurationDriver(Cli);
         Migration = new MigrationDriver(Cli);
         Extensions = new ExtensionDriver(Cli, guests);
+        BoundedGeneration = new BoundedGenerationDriver(workspace, Generation, Extensions);
         ExtensionInstallation = new ExtensionInstallDriver(Cli, workspace);
         ToolRouting = new ToolRoutingDriver(Cli, workspace, guests);
         Validation = new ModelValidationDriver(Cli);
@@ -97,6 +98,8 @@ public sealed class DriverSet : IAsyncDisposable
     public IModelVerificationDriver Verification { get; }
 
     public IGenerationDriver Generation { get; }
+
+    public IBoundedGenerationDriver BoundedGeneration { get; }
 
     public ICompilationDriver Compilation { get; }
 

@@ -56,6 +56,24 @@ public static class GenerateHandler
             var resolution = await settingsResolver.ResolveAsync(command.Overrides, command.Context, ct);
             if (resolution is Outcome<GenerationSettings>.Failure settingsFailure) return GenerationStages.Failed(settingsFailure.Error, null);
             var settings = ((Outcome<GenerationSettings>.Success)resolution).Value;
+            if (settings.InputLease is RecordGenerationSettingsResolver.RecordLease recorded
+                && recorded.Output.Ir.Layout == TaskRecords.IrLayout.DocumentTree
+                && recorded.Output.Ir.Format is TaskRecords.IrStorageFormat.Json or TaskRecords.IrStorageFormat.Yaml
+                && settings.Extension is { } configured && settings.InstalledExtensionId is null
+                && settings.Target is RequestedTarget.Valid boundedTarget && backendExtensions is MepBackendExtensionConnector or null)
+            {
+                using (recorded)
+                {
+                    var request = new BackendExtensionRequest(configured, boundedTarget.Id, command.Context.WorkingDirectory)
+                    {
+                        WasmModule = settings.WasmModule,
+                        Environment = command.Context.Environment,
+                    };
+                    return await RecordedBoundedGeneration.RunAsync(recorded.Output, request, settings,
+                        backendExtensions as MepBackendExtensionConnector ?? new MepBackendExtensionConnector(),
+                        publisher, registered, ct);
+                }
+            }
             var loaded = await LoadAsync(loader, settings, ct);
             if (loaded is Outcome<LoadedModel>.Failure loadFailure) return GenerationStages.Failed(loadFailure.Error, null);
             var model = ((Outcome<LoadedModel>.Success)loaded).Value;

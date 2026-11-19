@@ -18,7 +18,13 @@ open Morphir.Mep
 
 let private host =
     match Environment.GetEnvironmentVariable "DOTNET_HOST_PATH" with
-    | null -> "dotnet"
+    | null ->
+        let name = if OperatingSystem.IsWindows() then "dotnet.exe" else "dotnet"
+        let path = Environment.GetEnvironmentVariable "PATH" |> Option.ofObj |> Option.defaultValue ""
+        path.Split(Path.PathSeparator)
+        |> Array.map (fun directory -> Path.GetFullPath(Path.Combine(directory, name)))
+        |> Array.tryFind File.Exists
+        |> Option.defaultWith (fun () -> failtest "Set DOTNET_HOST_PATH to an absolute dotnet host.")
     | path -> path
 
 let private stderr = new StringWriter()
@@ -498,40 +504,115 @@ let tests =
 
 [<Tests>]
 let processTreeOwnership =
-    testLabel "PlatformSpecific" <| testList "MepProcessTreeOwnership" [
-        testCase "disposal settles an inherited-pipe descendant after its direct guest root exits" (fun () ->
-            if not (OperatingSystem.IsWindows()) then skiptest "Windows creation-time job control."
-            let marker = Path.Combine(guestWork.Value.Work,"descendant.pid")
-            if File.Exists marker then File.Delete marker
-            let startup = Stopwatch.StartNew()
-            let frontend =
-                // This controls tree settlement, not a one-second cold initialization SLA.
-                try connect {fakeOptions "root-exits-with-child" with Deadline=TimeSpan.FromSeconds 5.}
-                finally eprintfn "Ownership fixture initialization took %O; child stderr: %s" startup.Elapsed (stderr.ToString())
-            let mutable child: Process option = None
-            try
-                let _ = (frontend :> IFrontend).CompileAsync(request (Versioning.Classic 4) frontend,CancellationToken.None).GetAwaiter().GetResult()
-                let identity = File.ReadAllText(marker).Split '|'
-                let descendant = Process.GetProcessById(int identity[0])
-                if descendant.StartTime.ToUniversalTime().Ticks <> int64 identity[1] then failtest "descendant identity changed"
-                child <- Some descendant
-                let disposed = (frontend :> IAsyncDisposable).DisposeAsync().AsTask()
-                let settled = disposed.Wait(TimeSpan.FromSeconds 5.)
-                if not settled then
-                    descendant.Kill(true)
-                    descendant.WaitForExit()
-                    disposed.GetAwaiter().GetResult()
-                Expect.isTrue settled "package lifetime must be releasable only after the actual tree and pumps settle"
-                Expect.isTrue descendant.HasExited "descendant is gone at successful disposal"
-            finally
-                match child with
-                | Some descendant ->
-                    if not descendant.HasExited then descendant.Kill(true);descendant.WaitForExit()
-                    descendant.Dispose()
-                | None -> ()
-                dispose frontend)
-    ]
+    let settle scenario =
+        if not (OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() || OperatingSystem.IsLinux()) then
+            skiptest "This ownership case requires Windows, macOS or Linux."
 
+        let bound = TimeSpan.FromSeconds 5.
+        let marker = Path.Combine(guestWork.Value.Work, "descendant.pid")
+        File.Delete marker
+        let frontend = connect { fakeOptions scenario with Deadline = bound }
+        let mutable closing: System.Threading.Tasks.Task option = None
+        let beginClose () =
+            match closing with
+            | Some pending -> pending
+            | None ->
+                let pending = (frontend :> IAsyncDisposable).DisposeAsync().AsTask()
+                closing <- Some pending
+                pending
+
+        try
+            let _ = (frontend :> IFrontend).CompileAsync(request (Versioning.Classic 4) frontend, CancellationToken.None).GetAwaiter().GetResult()
+            let identity = File.ReadAllText(marker).Split '|'
+            let started = int64 identity[1]
+            use descendant = Process.GetProcessById(int identity[0])
+            Expect.equal (ProcessIdentity.start descendant) started "the marked process belongs to this test"
+            try
+                Expect.isTrue (SpinWait.SpinUntil((fun () -> frontend.HasExited), bound)) "the guest root must exit before disposal"
+                let disposed = beginClose ()
+                Expect.isTrue (disposed.Wait bound) "disposal must settle the guest tree and pipes within its bound"
+                Expect.isTrue (ProcessIdentity.exited descendant) "descendant is gone at successful disposal"
+            finally
+                if not (ProcessIdentity.exited descendant) && ProcessIdentity.start descendant = started then
+                    descendant.Kill(true)
+                    descendant.WaitForExitAsync().WaitAsync(bound).GetAwaiter().GetResult()
+        finally
+            (beginClose ()).WaitAsync(bound).GetAwaiter().GetResult()
+
+    testList "MepProcessTreeOwnership" [
+        testCase "disposal settles an inherited-pipe descendant after its direct guest root exits"
+            (fun () -> settle "root-exits-with-child")
+        testCase "disposal settles a descendant even when inherited output already reached EOF"
+            (fun () -> settle "root-exits-with-closed-pipes")
+    ]
+    |> testSequenced
+    |> testLabel "PlatformSpecific"
+
+[<Tests>]
+let modelAccessClose =
+    let run legacy =
+        if not (OperatingSystem.IsLinux()) then
+            skiptest "This test exercises Linux owned and explicit legacy process paths."
+
+        let bound = TimeSpan.FromSeconds 5.
+        let scenario = fakeOptions "root-exits-with-child"
+        let working = Directory.CreateDirectory(Path.Combine(guestWork.Value.Work, "legacy-model-access-close")).FullName
+        let marker = Path.Combine(working, "descendant.pid")
+        File.Delete marker
+        let options = MepGuestOptions.Create(
+            (if legacy then Path.GetFileName scenario.Executable else scenario.Executable), scenario.Arguments, working, bound, scenario.Stderr,
+            "model-access-close-test", "1.0.0",
+            (let environment = Collections.Generic.Dictionary<string, string>(sandboxEnvironment ())
+             let hostDirectory = Path.GetDirectoryName(scenario.Executable) |> nonNull
+             let searchPath = environment["PATH"]
+             environment["PATH"] <- $"{hostDirectory}{Path.PathSeparator}{searchPath}"
+             environment)
+        )
+        let offer: ModelTransportSupport =
+            { Tuples = Morphir.Frontend.FSharp.Extension.FSharpGuest.support.Tuples
+              Limits = { MaxEncodedBytes = 8192; MaxDecodedBytes = 6144; MaxDepth = 64; MaxNodes = 256 }
+              Guarantees = [||] }
+        let guest =
+            match MepGuestProcess.StartAsync(options, offer, CancellationToken.None).GetAwaiter().GetResult() with
+            | Ok guest -> guest
+            | Error failure -> failtest failure.Message
+        let mutable descendant: Process option = None
+        let mutable descendantStart = 0L
+        try
+            let exchange = guest.HostSession.RequestAsync(Method.CompileModel, Nullable(), CancellationToken.None)
+            Expect.isTrue (SpinWait.SpinUntil((fun () -> File.Exists marker && guest.HasExited), bound)) "the root has exited"
+            let identity = File.ReadAllText(marker).Split '|'
+            let child = Process.GetProcessById(int identity[0])
+            descendant <- Some child
+            descendantStart <- int64 identity[1]
+            Expect.equal (ProcessIdentity.start child) descendantStart "the marked process belongs to this test"
+            use deadline = new CancellationTokenSource(TimeSpan.FromMilliseconds 200.)
+            let refused =
+                try
+                    guest.CloseModelAccessAsync(deadline.Token).WaitAsync(bound).GetAwaiter().GetResult()
+                    |> Result.isError
+                with :? IOException as error ->
+                    Expect.stringContains error.Message "redirected streams" "reports unfinished legacy stream draining"
+                    true
+            Expect.isTrue refused "closing an exited guest reports failure"
+            if not legacy then Expect.isTrue (ProcessIdentity.exited child) "owned close settles the descendant"
+            Expect.isTrue (SpinWait.SpinUntil((fun () -> exchange.IsCompleted), bound)) "the pending exchange settles"
+        finally
+            match descendant with
+            | Some child ->
+                use owned = child
+                if not (ProcessIdentity.exited child) && ProcessIdentity.start child = descendantStart then
+                    child.Kill(true)
+                    child.WaitForExitAsync().WaitAsync(bound).GetAwaiter().GetResult()
+            | None -> ()
+            (guest :> IAsyncDisposable).DisposeAsync().AsTask().WaitAsync(bound).GetAwaiter().GetResult()
+
+    testList "MepModelAccessClose" [
+        testCase "owned Linux close settles descendants after deadline" (fun () -> run false)
+        testCase "explicit legacy close refuses inherited open pipes within its bound" (fun () -> run true)
+    ]
+    |> testSequenced
+    |> testLabel "PlatformSpecific"
 
 
 [<Tests>]

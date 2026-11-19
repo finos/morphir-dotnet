@@ -83,6 +83,7 @@ public sealed class RecordGenerationSettingsResolver(
         var format = output.Ir.Format switch
         {
             IrStorageFormat.Json => InputFormat.Json,
+            IrStorageFormat.Yaml when output.Ir.Layout == IrLayout.DocumentTree => InputFormat.Auto,
             IrStorageFormat.Ion => InputFormat.Ion,
             _ => (InputFormat?)null,
         };
@@ -150,8 +151,10 @@ public sealed class RecordGenerationSettingsResolver(
     private static Outcome<GenerationSettings> Fail(GenerationFailure failure) => new Outcome<GenerationSettings>.Failure(failure);
 
     /// <summary>Holds the shared lock of the record, and keeps the format version that the record names.</summary>
-    private sealed class RecordLease(CompileTaskOutput output) : ModelInputLease
+    internal sealed class RecordLease(CompileTaskOutput output) : ModelInputLease
     {
+        public CompileTaskOutput Output => output;
+
         public override Outcome<LoadedModel> Admit(LoadedModel model)
         {
             var recorded = output.Ir.Version;

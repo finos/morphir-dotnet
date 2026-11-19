@@ -31,6 +31,8 @@
     <Compile Include="ConformanceControl.fs" />
     <Compile Include="Peers.fs" />
     <InternalsVisibleTo Include="Morphir.Mep.Tests" />
+    <InternalsVisibleTo Include="Morphir.Compilation.Mep" />
+    <InternalsVisibleTo Include="Morphir.Tooling" />
     <InternalsVisibleTo Include="Morphir.Conformance" />
     <None Remove="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../README.md'))" />
     <None Include="README.md" Pack="true" PackagePath="/" />
