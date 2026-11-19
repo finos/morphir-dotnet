@@ -17,7 +17,8 @@
     const minimum = .25;
     const maximum = 8;
     const box = svg.viewBox.baseVal;
-    let scale = 1, x = 0, y = 0, width = 0, height = 0;
+    // `fitted` is the ratio at which Fit draws the diagram; `scale` is the zoom on top of it.
+    let scale = 1, fitted = 1, x = 0, y = 0, width = 0, height = 0;
     let pointer = null;
     let expanded = null;
     let switching = false;
@@ -31,7 +32,7 @@
         y = clamp(y, -limitY, limitY);
         content.style.transform = `translate(-50%, -50%) translate(${x}px, ${y}px) scale(${scale})`;
         viewport.classList.toggle("diagram-viewport--pannable", scale > 1);
-        control("scale").value = `${Math.round(scale * 100)}%`;
+        control("scale").value = `${Math.round(scale * fitted * 100)}%`;
         zoomIn.disabled = scale >= maximum;
         zoomOut.disabled = scale <= minimum;
     }
@@ -42,9 +43,9 @@
         content.style.top = `calc(50% + ${reserve / 2}px)`;
         const widthAvailable = Math.max(1, viewport.clientWidth - 16);
         const heightAvailable = Math.max(1, viewport.clientHeight - 16 - reserve);
-        const ratio = Math.min(widthAvailable / box.width, heightAvailable / box.height);
-        width = box.width * ratio;
-        height = box.height * ratio;
+        fitted = Math.min(widthAvailable / box.width, heightAvailable / box.height);
+        width = box.width * fitted;
+        height = box.height * fitted;
         content.style.width = `${width}px`;
         content.style.height = `${height}px`;
         draw();

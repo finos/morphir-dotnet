@@ -44,6 +44,9 @@ public partial class DiagramThemeTests
         var background = flow["bg"];
         Contrast(flow["text"], background).ShouldBeGreaterThanOrEqualTo(4.5, "text");
         Contrast(flow["muted"], background).ShouldBeGreaterThanOrEqualTo(4.5, "muted");
+        // Lines and frames are graphics, which need 3:1.
+        Contrast(flow["arrow"], background).ShouldBeGreaterThanOrEqualTo(3, "arrow");
+        Contrast(flow["frame"], background).ShouldBeGreaterThanOrEqualTo(3, "frame");
         foreach (var family in ColorFamily.All)
         {
             var ink = flow[$"{family.WireValue}-ink"];
@@ -60,6 +63,63 @@ public partial class DiagramThemeTests
             Contrast(ink, sequence["bg"]).ShouldBeGreaterThanOrEqualTo(4.5, $"{family} ink on bg");
             Contrast(ink, sequence["mask"]).ShouldBeGreaterThanOrEqualTo(4.5, $"{family} ink on mask");
         }
+    }
+
+    [Test]
+    [Arguments("Archify", "#34d399")]
+    [Arguments("Monokai", "#f92672")]
+    [Arguments("Cobalt", "#ffc600")]
+    [Arguments("Solarized", "#268bd2")]
+    [Arguments("Gruvbox", "#fe8019")]
+    [Arguments("Ocean", "#6699cc")]
+    [Arguments("Darcula", "#cc7832")]
+    [Arguments("Material", "#c792ea")]
+    public void MostNodesOfAFlowchartTakeTheSignatureAccentOfTheirTheme(string name, string signature)
+    {
+        var theme = DiagramThemes.All.Single(candidate => candidate.Name == name);
+        var svg = Mermaid.RenderSvg(DiagramMother.OrderPipeline("LR"), SvgRenderOptions.Create(theme, ThemeMode.Dark)).Output;
+
+        var stroke = XElement.Parse(svg.ShouldNotBeNull()).Descendants(Svg + "g")
+            .Where(g => g.Attribute("data-node") is not null)
+            .Select(g => (string?)g.Elements().First(e => (string?)e.Attribute("class") == "outline").Attribute("stroke"))
+            .GroupBy(value => value)
+            .MaxBy(group => group.Count())!.Key.ShouldNotBeNull();
+
+        stroke.ShouldStartWith("var(--");
+        Blocks(Style(svg)).ShouldHaveSingleItem()[stroke["var(--".Length..^1]].ShouldBe(signature);
+    }
+
+    [Test]
+    public void ThemesDrawArrowsAndFramesInTheirOwnColour()
+    {
+        var cobalt = SvgRenderOptions.Create(DiagramThemes.Cobalt, ThemeMode.Dark);
+        var flowchart = Mermaid.RenderSvg(DiagramMother.Checkout, cobalt).Output;
+        var sequence = Mermaid.RenderSvg(DiagramMother.Exchange, cobalt).Output;
+
+        var variables = Blocks(Style(flowchart)).ShouldHaveSingleItem();
+        variables["arrow"].ShouldBe("#0088ff");
+        variables["frame"].ShouldBe("#0088ff");
+        XElement.Parse(flowchart.ShouldNotBeNull()).Descendants(Svg + "g")
+            .Single(g => (string?)g.Attribute("data-group") == "payments")
+            .Element(Svg + "rect").ShouldNotBeNull().Attribute("stroke")!.Value.ShouldBe("var(--frame)");
+        XElement.Parse(sequence.ShouldNotBeNull()).Descendants(Svg + "rect")
+            .Where(rect => (string?)rect.Attribute("class") == "band")
+            .ShouldAllBe(rect => (string?)rect.Attribute("stroke") == "var(--frame)");
+
+        // Archify keeps its grey frames.
+        var archify = Blocks(Style(Mermaid.RenderSvg(DiagramMother.Checkout, SvgRenderOptions.Create(DiagramThemes.Archify, ThemeMode.Dark)).Output));
+        archify.ShouldHaveSingleItem()["frame"].ShouldBe("#94a3b8");
+    }
+
+    [Test]
+    [Arguments("Monokai")]
+    [Arguments("Cobalt")]
+    public void DarkFillsOfMonokaiAndCobaltAreFaint(string name)
+    {
+        var palette = DiagramThemes.All.Single(candidate => candidate.Name == name).Dark;
+
+        foreach (var family in ColorFamily.All)
+            palette.Family(family).Fill.Opacity.ShouldBeLessThanOrEqualTo(0.12m, family.ToString());
     }
 
     [Test]
@@ -104,7 +164,7 @@ public partial class DiagramThemeTests
         var dark = Palette("#102030", "#f0f0f0", "#a0a8b0", "#0c1824", "#8090a0")
             .WithFamily(ColorFamily.Frontend,
                 FamilyColors.Create(Color.Create("rgba(1, 2, 3, 0.25)"), Color.Create("#44ccff"), Color.Create("#abcdef")));
-        var light = Palette("#fdfcfb", "#202020", "#5a5a5a", "#ffffff", "#606060");
+        var light = Palette("#fdfcfb", "#202020", "#5a5a5a", "#ffffff", "#606060").WithFrame(Color.Create("#3366aa"));
         var theme = DiagramTheme.Create("Harbour", dark, light);
 
         var style = Style(Mermaid.RenderSvg(Flowchart, SvgRenderOptions.Default.WithTheme(theme)).Output);
@@ -113,6 +173,9 @@ public partial class DiagramThemeTests
         blocks[0]["bg"].ShouldBe("#102030");
         blocks[0]["mask"].ShouldBe("#0c1824");
         blocks[0]["arrow"].ShouldBe("#8090a0");
+        // A palette's frame is its muted colour unless it sets one.
+        blocks[0]["frame"].ShouldBe("#a0a8b0");
+        blocks[1]["frame"].ShouldBe("#3366aa");
         blocks[0]["frontend-fill"].ShouldBe("rgba(1, 2, 3, 0.25)");
         blocks[0]["frontend-stroke"].ShouldBe("#44ccff");
         blocks[0]["frontend-ink"].ShouldBe("#abcdef");
@@ -166,6 +229,7 @@ public partial class DiagramThemeTests
         var light = ThemePalette.DeriveLight(DiagramThemes.Monokai.Dark);
         Contrast(light.Text, light.Background).ShouldBeGreaterThanOrEqualTo(4.5);
         Contrast(light.Muted, light.Background).ShouldBeGreaterThanOrEqualTo(4.5);
+        Contrast(light.Frame, light.Background).ShouldBeGreaterThanOrEqualTo(3);
         foreach (var family in ColorFamily.All)
             Contrast(light.Family(family).Stroke, light.Background).ShouldBeGreaterThanOrEqualTo(4.5, family.ToString());
 

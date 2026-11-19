@@ -485,7 +485,7 @@ module internal FlowchartSvg =
                                     "height", SvgWriting.number (box.Bottom - box.Top)
                                     "rx", "8"
                                     "fill", Theme.bg
-                                    "stroke", Theme.muted
+                                    "stroke", Theme.frame
                                     "stroke-width", "1.5"
                                     "stroke-dasharray", "6 4"
                                 ]

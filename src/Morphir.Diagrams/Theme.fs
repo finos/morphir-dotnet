@@ -18,6 +18,7 @@ module internal Theme =
     let muted = "var(--muted)"
     let mask = "var(--mask)"
     let arrow = "var(--arrow)"
+    let frame = "var(--frame)"
     let fill (family: ColorFamily) = $"var(--{family.WireValue}-fill)"
     let stroke (family: ColorFamily) = $"var(--{family.WireValue}-stroke)"
     let ink (family: ColorFamily) = $"var(--{family.WireValue}-ink)"
@@ -47,6 +48,7 @@ module internal Theme =
         put "muted" palette.Muted
         put "mask" palette.Mask
         put "arrow" palette.Arrow
+        put "frame" palette.Frame
 
         for family in ColorFamily.All do
             let colors = palette.Family family

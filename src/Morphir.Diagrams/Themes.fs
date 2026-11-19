@@ -296,14 +296,22 @@ type FamilyColors internal (fill: Color, stroke: Color, ink: Color option) =
 [<Sealed>]
 type ThemePalette
     internal
-    (background: Color, text: Color, muted: Color, mask: Color, arrow: Color, families: Map<ColorFamily, FamilyColors>) =
+    (
+        background: Color,
+        text: Color,
+        muted: Color,
+        mask: Color,
+        arrow: Color,
+        frame: Color,
+        families: Map<ColorFamily, FamilyColors>
+    ) =
     /// Canvas colour. Treated as opaque.
     member _.Background = background
 
     /// Body text.
     member _.Text = text
 
-    /// Secondary text and group outlines.
+    /// Secondary text.
     member _.Muted = muted
 
     /// Opaque colour behind labels and participant boxes.
@@ -312,17 +320,25 @@ type ThemePalette
     /// Connector lines and arrowheads.
     member _.Arrow = arrow
 
+    /// Outlines of flowchart subgraphs and sequence frames. The muted colour unless `WithFrame` sets one.
+    member _.Frame = frame
+
     /// The colours of a family.
     member _.Family(family: ColorFamily) = families[family]
 
     /// A copy with one family's colours replaced.
     member _.WithFamily(family: ColorFamily, colors: FamilyColors) =
         ArgumentNullException.ThrowIfNull colors
-        ThemePalette(background, text, muted, mask, arrow, families.Add(family, colors))
+        ThemePalette(background, text, muted, mask, arrow, frame, families.Add(family, colors))
+
+    /// A copy whose subgraph and frame outlines take the colour.
+    member _.WithFrame(frame: Color) =
+        ArgumentNullException.ThrowIfNull frame
+        ThemePalette(background, text, muted, mask, arrow, frame, families)
 
     override _.ToString() = $"palette on {background}, text {text}"
 
-    /// Creates a palette with every family.
+    /// Creates a palette with every family. Frames take the muted colour; `WithFrame` changes it.
     static member Create
         (
             background: Color,
@@ -357,7 +373,7 @@ type ThemePalette
         for _, family in families do
             ArgumentNullException.ThrowIfNull family
 
-        ThemePalette(background, text, muted, mask, arrow, Map.ofList families)
+        ThemePalette(background, text, muted, mask, arrow, muted, Map.ofList families)
 
     /// Derives a light palette from a dark one, for custom themes that supply one mode.
     /// The background is a light tint of the dark background; text and strokes are
@@ -381,6 +397,7 @@ type ThemePalette
             readable dark.Muted,
             white,
             readable dark.Arrow,
+            readable dark.Frame,
             ColorFamily.All |> Seq.map family |> Map.ofSeq
         )
 
@@ -491,16 +508,16 @@ type DiagramThemes private () =
 
     static let rgba r g b opacity = Color(r, g, b, opacity)
 
-    static let palette background text muted mask arrow families =
+    static let palette background text muted mask arrow frame families =
         let families =
             families
             |> List.map (fun (family, fill, stroke) -> family, FamilyColors(fill, color stroke, None))
             |> Map.ofList
 
-        ThemePalette(color background, color text, color muted, color mask, color arrow, families)
+        ThemePalette(color background, color text, color muted, color mask, color arrow, color frame, families)
 
-    /// Fills are the accent of each family at a fixed opacity.
-    static let accents opacity background text muted mask arrow (strokes: (int * int) list) =
+    /// Fills are the accent of each family at the theme's opacity.
+    static let accents opacity background text muted mask arrow frame (strokes: (int * int) list) =
         let families =
             List.zip (List.ofSeq ColorFamily.All) strokes
             |> List.map (fun (family, (fill, stroke)) ->
@@ -508,7 +525,7 @@ type DiagramThemes private () =
                 family, rgba source.R source.G source.B opacity, stroke
             )
 
-        palette background text muted mask arrow families
+        palette background text muted mask arrow frame families
 
     static let archify =
         DiagramTheme(
@@ -518,6 +535,7 @@ type DiagramThemes private () =
                 0xffffff
                 0x94a3b8
                 0x0f172a
+                0x94a3b8
                 0x94a3b8
                 [
                     ColorFamily.Frontend, rgba 8 51 68 0.4m, 0x22d3ee
@@ -534,6 +552,7 @@ type DiagramThemes private () =
                 0x5b6474
                 0xffffff
                 0x64748b
+                0x5b6474
                 [
                     ColorFamily.Frontend, rgba 34 211 238 0.15m, 0x0891b2
                     ColorFamily.Backend, rgba 52 211 153 0.18m, 0x059669
@@ -545,42 +564,46 @@ type DiagramThemes private () =
                 ]
         )
 
-    // Light strokes are the dark accents darkened by hand until they pass 4.5:1
-    // on the background, the white mask and their own fill.
+    // Each theme puts its signature accent on the backend family, which most flowchart shapes take, and draws
+    // arrows and frames in a second accent. Fills are faint so that shapes read as flat outlines. Light strokes
+    // are the dark accents darkened until they pass 4.5:1 on the background, the white mask and their own fill;
+    // light arrows and frames pass 3:1.
     static let monokai =
         DiagramTheme(
             "Monokai",
             accents
-                0.18m
+                0.10m
                 0x272822
                 0xf8f8f2
                 0x938e78
                 0x1e1f1c
-                0x938e78
+                0x66d9ef
+                0x66d9ef
                 [
-                    0x66d9ef, 0x66d9ef
                     0xa6e22e, 0xa6e22e
+                    0xf92672, 0xf92672
                     0xae81ff, 0xae81ff
                     0xe6db74, 0xe6db74
                     0xf92672, 0xf92672
                     0xfd971f, 0xfd971f
-                    0x75715e, 0x75715e
+                    0x66d9ef, 0x66d9ef
                 ],
             accents
-                0.16m
+                0.12m
                 0xfafaf8
                 0x272822
                 0x75715e
                 0xffffff
-                0x75715e
+                0x139eb8
+                0x139eb8
                 [
-                    0x66d9ef, 0x0e768a
-                    0xa6e22e, 0x547610
-                    0xae81ff, 0x7a2fff
+                    0xa6e22e, 0x577a11
+                    0xf92672, 0xcd064d
+                    0xae81ff, 0x803aff
                     0xe6db74, 0x786f16
-                    0xf92672, 0xc3054a
-                    0xfd971f, 0xa05701
-                    0x75715e, 0x676353
+                    0xf92672, 0xcd064d
+                    0xfd971f, 0xa55a01
+                    0x66d9ef, 0x0f7a8e
                 ]
         )
 
@@ -588,36 +611,38 @@ type DiagramThemes private () =
         DiagramTheme(
             "Cobalt",
             accents
-                0.18m
+                0.12m
                 0x193549
                 0xffffff
                 0x8fa5b8
                 0x122738
-                0x8fa5b8
+                0x0088ff
+                0x0088ff
                 [
                     0x9effff, 0x9effff
-                    0x3ad900, 0x3ad900
-                    0xfb94ff, 0xfb94ff
                     0xffc600, 0xffc600
-                    0xff628c, 0xff628c
+                    0xfb94ff, 0xfb94ff
                     0xff9d00, 0xff9d00
+                    0xff0088, 0xff0088
+                    0xff628c, 0xff628c
                     0x0088ff, 0x0088ff
                 ],
             accents
-                0.16m
+                0.12m
                 0xf2f6fa
                 0x193549
                 0x57728a
                 0xffffff
-                0x57728a
+                0x0088ff
+                0x0088ff
                 [
                     0x9effff, 0x007a7a
-                    0x3ad900, 0x207800
-                    0xfb94ff, 0xb600bd
-                    0xffc600, 0x806300
-                    0xff628c, 0xc80036
+                    0xffc600, 0x856700
+                    0xfb94ff, 0xbb00c2
                     0xff9d00, 0x945b00
-                    0x0088ff, 0x0062b8
+                    0xff0088, 0xc20067
+                    0xff628c, 0xd20038
+                    0x0088ff, 0x0067c2
                 ]
         )
 
@@ -625,15 +650,16 @@ type DiagramThemes private () =
         DiagramTheme(
             "Solarized",
             accents
-                0.18m
+                0.14m
                 0x002b36
                 0x93a1a1
                 0x839496
                 0x073642
-                0x839496
+                0x2aa198
+                0x2aa198
                 [
-                    0x2aa198, 0x2aa198
                     0x859900, 0x859900
+                    0x268bd2, 0x268bd2
                     0x6c71c4, 0x6c71c4
                     0xb58900, 0xb58900
                     0xdc322f, 0xdc322f
@@ -641,20 +667,21 @@ type DiagramThemes private () =
                     0x657b83, 0x657b83
                 ],
             accents
-                0.16m
+                0.12m
                 0xfdf6e3
                 0x073642
                 0x5e737a
                 0xfffdf6
-                0x5e737a
+                0x299d94
+                0x299d94
                 [
-                    0x2aa198, 0x1d706a
-                    0x859900, 0x5d6b00
-                    0x6c71c4, 0x5358ba
-                    0xb58900, 0x7d5f00
-                    0xdc322f, 0xb9221f
-                    0xcb4b16, 0xa63d12
-                    0x657b83, 0x53656c
+                    0x859900, 0x627000
+                    0x268bd2, 0x1d6ca2
+                    0x6c71c4, 0x565cbb
+                    0xb58900, 0x826200
+                    0xdc322f, 0xc22321
+                    0xcb4b16, 0xaf4113
+                    0x657b83, 0x586b72
                 ]
         )
 
@@ -662,36 +689,38 @@ type DiagramThemes private () =
         DiagramTheme(
             "Gruvbox",
             accents
-                0.18m
+                0.14m
                 0x282828
                 0xebdbb2
                 0xa89984
                 0x1d2021
-                0xa89984
+                0x83a598
+                0x83a598
                 [
                     0x8ec07c, 0x8ec07c
-                    0xb8bb26, 0xb8bb26
+                    0xfe8019, 0xfe8019
                     0xd3869b, 0xd3869b
                     0xfabd2f, 0xfabd2f
                     0xfb4934, 0xfb4934
-                    0xfe8019, 0xfe8019
+                    0xb8bb26, 0xb8bb26
                     0x928374, 0x928374
                 ],
             accents
-                0.16m
+                0.12m
                 0xfbf1c7
                 0x3c3836
                 0x766a5f
                 0xf9f5d7
-                0x766a5f
+                0x699182
+                0x699182
                 [
-                    0x8ec07c, 0x3b6e4f
-                    0xb8bb26, 0x6b670c
-                    0xd3869b, 0x8f3f71
-                    0xfabd2f, 0x8c5b0f
-                    0xfb4934, 0x9d0006
-                    0xfe8019, 0xaf3a03
-                    0x928374, 0x685d54
+                    0x8ec07c, 0x467237
+                    0xfe8019, 0xa64b01
+                    0xd3869b, 0xae3f5e
+                    0xfabd2f, 0x8d6303
+                    0xfb4934, 0xc51804
+                    0xb8bb26, 0x696a16
+                    0x928374, 0x6e6256
                 ]
         )
 
@@ -699,36 +728,38 @@ type DiagramThemes private () =
         DiagramTheme(
             "Ocean",
             accents
-                0.18m
+                0.14m
                 0x1b2b34
                 0xd8dee9
                 0xa7adba
                 0x14222a
-                0xa7adba
+                0x5fb3b3
+                0x5fb3b3
                 [
-                    0x5fb3b3, 0x5fb3b3
                     0x99c794, 0x99c794
+                    0x6699cc, 0x6699cc
                     0xc594c5, 0xc594c5
                     0xfac863, 0xfac863
                     0xec5f67, 0xec5f67
                     0xf99157, 0xf99157
-                    0x6699cc, 0x6699cc
+                    0xa7adba, 0xa7adba
                 ],
             accents
-                0.16m
+                0.12m
                 0xeef4f8
                 0x1b2b34
                 0x606e78
                 0xffffff
-                0x606e78
+                0x489797
+                0x489797
                 [
-                    0x5fb3b3, 0x346e6e
-                    0x99c794, 0x41723c
-                    0xc594c5, 0x8d4c8d
-                    0xfac863, 0x8c5f05
-                    0xec5f67, 0xbf1720
-                    0xf99157, 0xac4106
-                    0x6699cc, 0x336699
+                    0x99c794, 0x43753d
+                    0x6699cc, 0x366ba1
+                    0xc594c5, 0x945094
+                    0xfac863, 0x916305
+                    0xec5f67, 0xc81822
+                    0xf99157, 0xb64506
+                    0xa7adba, 0x61697c
                 ]
         )
 
@@ -736,36 +767,38 @@ type DiagramThemes private () =
         DiagramTheme(
             "Darcula",
             accents
-                0.18m
+                0.14m
                 0x2b2b2b
                 0xa9b7c6
                 0x949494
                 0x232323
-                0x949494
+                0x6897bb
+                0x6897bb
                 [
-                    0x6897bb, 0x6897bb
                     0x6a8759, 0x6a8759
+                    0xcc7832, 0xcc7832
                     0x9876aa, 0x9876aa
                     0xffc66d, 0xffc66d
                     0xc75450, 0xc75450
-                    0xcc7832, 0xcc7832
+                    0xbbb529, 0xbbb529
                     0x808080, 0x808080
                 ],
             accents
-                0.16m
+                0.12m
                 0xf5f5f5
                 0x2b2b2b
                 0x6e6e6e
                 0xffffff
-                0x6e6e6e
+                0x6192b8
+                0x6192b8
                 [
-                    0x6897bb, 0x3e6989
-                    0x6a8759, 0x526845
-                    0x9876aa, 0x775589
-                    0xffc66d, 0x965b00
-                    0xc75450, 0xa93a36
-                    0xcc7832, 0x8f5423
-                    0x808080, 0x616161
+                    0x6a8759, 0x576e49
+                    0xcc7832, 0x975925
+                    0x9876aa, 0x7c598f
+                    0xffc66d, 0x9b5e00
+                    0xc75450, 0xb43e3a
+                    0xbbb529, 0x706c18
+                    0x808080, 0x666666
                 ]
         )
 
@@ -773,36 +806,38 @@ type DiagramThemes private () =
         DiagramTheme(
             "Material",
             accents
-                0.18m
+                0.14m
                 0x263238
                 0xeeffff
                 0xb0bec5
                 0x1e272c
-                0xb0bec5
+                0x80cbc4
+                0x80cbc4
                 [
                     0x89ddff, 0x89ddff
-                    0xc3e88d, 0xc3e88d
                     0xc792ea, 0xc792ea
+                    0x82aaff, 0x82aaff
                     0xffcb6b, 0xffcb6b
                     0xff5370, 0xff5370
                     0xf78c6c, 0xf78c6c
                     0x78909c, 0x78909c
                 ],
             accents
-                0.16m
+                0.12m
                 0xfafafa
                 0x263238
                 0x546e7a
                 0xffffff
-                0x546e7a
+                0x419f96
+                0x419f96
                 [
-                    0x89ddff, 0x27757b
-                    0xc3e88d, 0x597432
-                    0xc792ea, 0x884daf
-                    0xffcb6b, 0x9e5e07
-                    0xff5370, 0xc41d19
-                    0xf78c6c, 0xc53109
-                    0x78909c, 0x546973
+                    0x89ddff, 0x0077a8
+                    0xc792ea, 0x9b3cda
+                    0x82aaff, 0x125eff
+                    0xffcb6b, 0x996300
+                    0xff5370, 0xd20023
+                    0xf78c6c, 0xc9370b
+                    0x78909c, 0x596e79
                 ]
         )
 
@@ -812,25 +847,25 @@ type DiagramThemes private () =
     /// The classic preset of archify v3.2 by tt-a1i (MIT), as diagrams.mbt adapts it. The default.
     static member Archify = archify
 
-    /// Warm accents on olive charcoal, with a hand-tuned light variant.
+    /// Pink services, green clients and yellow decisions with cyan arrows on olive charcoal, with a hand-tuned light variant.
     static member Monokai = monokai
 
-    /// Bright accents on deep blue, with a hand-tuned light variant.
+    /// Yellow services, orange decisions and aqua clients with blue arrows on deep blue, with a hand-tuned light variant.
     static member Cobalt = cobalt
 
-    /// Low-contrast cyan, olive and violet accents on blue-green or cream, with a hand-tuned light variant.
+    /// Blue services, green clients and yellow decisions with cyan arrows on blue-green or cream, with a hand-tuned light variant.
     static member Solarized = solarized
 
-    /// Earthy, warm accents on brown-grey or parchment, with a hand-tuned light variant.
+    /// Orange services, aqua clients and yellow decisions with blue arrows on brown-grey or parchment, with a hand-tuned light variant.
     static member Gruvbox = gruvbox
 
-    /// Teal, blue and coral accents on deep blue-teal or pale blue, with a hand-tuned light variant.
+    /// Blue services, green clients and yellow decisions with teal arrows on deep blue-teal or pale blue, with a hand-tuned light variant.
     static member Ocean = ocean
 
-    /// Muted IDE accents on charcoal or light grey, with a hand-tuned light variant.
+    /// Orange services, green clients and yellow decisions with blue arrows on charcoal or light grey, with a hand-tuned light variant.
     static member Darcula = darcula
 
-    /// Bright pastel accents on blue-grey or near-white, with a hand-tuned light variant.
+    /// Purple services, cyan clients and yellow decisions with teal arrows on blue-grey or near-white, with a hand-tuned light variant.
     static member Material = material
 
     /// Every built-in theme, Archify first.

@@ -107,6 +107,21 @@ var options = SvgRenderOptions.Default.WithTheme(DiagramThemes.Monokai);
 Console.Write(Mermaid.RenderAnimated(source, options).Output);
 ```
 
+Each built-in theme gives the `backend` family, which most flowchart shapes
+take, the accent that the theme is known for, and draws arrows and frames in
+a second accent of its own:
+
+| Theme | Services (`backend`) | Decisions (`cloud`) | Arrows and frames |
+| --- | --- | --- | --- |
+| Archify | Green | Amber | Grey |
+| Monokai | Pink | Yellow | Cyan |
+| Cobalt | Yellow | Orange | Blue |
+| Solarized | Blue | Yellow | Cyan |
+| Gruvbox | Orange | Yellow | Blue |
+| Ocean | Blue | Yellow | Teal |
+| Darcula | Orange | Yellow | Blue |
+| Material | Purple | Yellow | Teal |
+
 `ThemeMode.Auto`, the default, writes both palettes. The diagram is dark
 unless the viewer prefers light, and a `data-theme="dark"` or
 `data-theme="light"` attribute on the root `<svg>` overrides the preference.
@@ -120,7 +135,9 @@ produces the same bytes.
 
 A palette has a background, text, muted text, a mask for the opaque chips
 behind labels, an arrow colour, and a fill and stroke for each of the seven
-`ColorFamily` values. `Color.Parse` and `Color.TryParse` read `#rgb`,
+`ColorFamily` values. Subgraph and sequence frame outlines take the muted
+colour unless `ThemePalette.WithFrame` gives them their own. The opacity of a
+family's fill sets how strongly shapes are tinted. `Color.Parse` and `Color.TryParse` read `#rgb`,
 `#rrggbb`, `rgb(r, g, b)` and `rgba(r, g, b, a)`.
 
 ```csharp
@@ -172,9 +189,10 @@ public contract:
 | --- | --- |
 | `--bg` | Canvas and group backgrounds |
 | `--text` | Participant names, group titles, edge labels and notes |
-| `--muted` | Group outlines |
+| `--muted` | Secondary text |
 | `--mask` | Opaque chips behind labels, participant boxes and activation bars |
-| `--arrow` | Connectors, lifelines, frames and dotted replies |
+| `--arrow` | Connectors, lifelines and dotted replies |
+| `--frame` | Subgraph outlines, sequence frames and their section dividers |
 | `--{family}-fill` | Fills of the family's shapes |
 | `--{family}-stroke` | Outlines and message lines of the family |
 | `--{family}-ink` | Labels of the family |
@@ -190,7 +208,7 @@ matches the inline `<svg>` overrides a variable:
 
 Flowchart nodes take a colour family from their shape: decisions and
 hexagons are `cloud`, cylinders are `database`, circles are `messagebus`,
-and other shapes are `backend`. Groups are dashed outlines. Sequence actors
+and other shapes are `backend`. Groups are dashed outlines in `--frame`. Sequence actors
 are `frontend`, and plain participants cycle through `frontend`, `backend`,
 `database`, `cloud` and `messagebus`. Requests use their sender's family,
 dotted replies use `external` with an `--arrow` line, and messages with a

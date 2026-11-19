@@ -203,7 +203,7 @@ module internal SequenceSvg =
                     [
                         if tint.IsSome then
                             "fill-opacity", "0.18"
-                        "stroke", Theme.arrow
+                        "stroke", Theme.frame
                         "stroke-width", "1.5"
                     ]
 
@@ -216,7 +216,7 @@ module internal SequenceSvg =
                             [
                                 "class", "section-divider"
                                 "fill", "none"
-                                "stroke", Theme.arrow
+                                "stroke", Theme.frame
                                 "stroke-width", "1.4"
                                 "stroke-dasharray", "4 4"
                             ]

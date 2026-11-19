@@ -88,7 +88,7 @@ public class ArchifyThemeTests
 
         var group = svg.Descendants(Svg + "g").Single(g => (string?)g.Attribute("data-group") == "Intake");
         var outline = group.Elements().First(element => element.Name.LocalName is "rect" or "path");
-        ((string?)outline.Attribute("stroke")).ShouldBe("var(--muted)");
+        ((string?)outline.Attribute("stroke")).ShouldBe("var(--frame)");
         ((string?)outline.Attribute("stroke-dasharray")).ShouldBe("6 4");
 
         var connectors = svg.Descendants(Svg + "path").Where(path => path.Attribute("data-source") is not null);

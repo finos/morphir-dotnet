@@ -131,12 +131,32 @@ public class AnimatedDiagramTests
     {
         var cobalt = Mermaid.RenderAnimated("sequenceDiagram\n  A->>B: Submit",
             SvgRenderOptions.Create(DiagramThemes.Cobalt, ThemeMode.Dark)).Output.ShouldNotBeNull();
-        cobalt.ShouldContain("--diagram-page-accent: #ffc600;");
+        cobalt.ShouldContain("--diagram-page-accent: #ff9d00;");
 
         // Archify's light amber is darkened to the readable ink of the cloud family.
         var archify = Mermaid.RenderAnimated("sequenceDiagram\n  A->>B: Submit",
             SvgRenderOptions.Create(DiagramThemes.Archify, ThemeMode.Light)).Output.ShouldNotBeNull();
         archify.ShouldContain("--diagram-page-accent: #a75c05;");
+    }
+
+    [Test]
+    public void TheScaleReadoutShowsTheScaleAtWhichTheDiagramIsDrawn()
+    {
+        var html = Mermaid.RenderAnimated(DiagramMother.Checkout).Output.ShouldNotBeNull();
+
+        // Fit draws the diagram at the ratio that fits the viewport, so 100% is its natural size, not the fitted one.
+        html.ShouldContain("control(\"scale\").value = `${Math.round(scale * fitted * 100)}%`;");
+    }
+
+    [Test]
+    public void OnANarrowScreenTheTimelineRunsUpToThePosition()
+    {
+        var html = Mermaid.RenderAnimated(DiagramMother.Checkout).Output.ShouldNotBeNull();
+        var start = html.IndexOf("@media (max-width: 36rem)", StringComparison.Ordinal);
+        start.ShouldBeGreaterThanOrEqualTo(0);
+        var narrow = html[start..];
+
+        narrow.ShouldContain("\"seek seek seek seek seek position\"");
     }
 
     private static DiagramScene ReadScene(string source)

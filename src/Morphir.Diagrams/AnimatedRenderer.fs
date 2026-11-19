@@ -204,12 +204,12 @@ a.annotation-iri { color: var(--diagram-page-accent); text-decoration: underline
     @keyframes annotation-open { from { opacity: 0; translate: .75rem 0; } }
 }
 @media (max-width: 36rem) {
-    .motion-controls { display: grid; grid-template-columns: auto auto auto 1fr auto auto; grid-template-areas: "play restart step . speed download" "seek seek seek seek position position"; }
+    .motion-controls { display: grid; grid-template-columns: auto auto auto 1fr auto auto; grid-template-areas: "play restart step . speed download" "seek seek seek seek seek position"; }
     [data-control="play"] { grid-area: play; }
     [data-control="restart"] { grid-area: restart; }
     [data-control="step"] { grid-area: step; }
     .motion-speed { grid-area: speed; }
-    [data-control="download"] { grid-area: download; }
+    [data-control="download"] { grid-area: download; justify-self: end; }
     .motion-timeline { grid-area: seek; min-inline-size: 0; }
     [data-control="position"] { grid-area: position; justify-self: end; }
     .diagram-canvas[data-annotation-open] .diagram-viewport { margin-inline-end: 0; }
