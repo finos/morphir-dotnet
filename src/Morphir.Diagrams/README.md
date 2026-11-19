@@ -215,6 +215,29 @@ dotted replies use `external` with an `--arrow` line, and messages with a
 cross head use `security`. Text uses a monospace font stack and the SVG
 embeds no font data.
 
+## Connectors
+
+Graph families (flowcharts, state, swimlane, activity, architecture and BPMN diagrams) draw connectors as elbows by
+default. Two options change how they look; neither changes the model, the endpoints or the element references.
+
+| Option | Values | Default |
+| --- | --- | --- |
+| `WithConnectorStyle` | `ConnectorStyle.Elbow`, `ConnectorStyle.Rounded` (short curves at each bend), `ConnectorStyle.Curved` (one smooth curve) | `Elbow` |
+| `WithBridges` | `true` draws a small arc where a connector crosses an earlier one that shares no endpoint with it | `false` |
+
+```csharp
+using Morphir.Diagrams;
+
+var options = SvgRenderOptions.Default
+    .WithConnectorStyle(ConnectorStyle.Rounded)
+    .WithBridges(true);
+var svg = Mermaid.RenderSvg("flowchart LR\n  A --> B\n  A --> C", options).Output;
+```
+
+Links that leave or enter the same flat side of a box spread evenly along it, and the last segment before an
+arrowhead is straight for at least 12 px. The player follows the same final path, arcs included. Curved connectors
+get no bridges.
+
 ## Element references
 
 Every element of a diagram has a reference that depends only on authored
