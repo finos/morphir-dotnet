@@ -444,7 +444,8 @@ module internal FlowchartSvg =
     let private dimensions (direction: FlowDirection) (node: FlowNode) =
         let lines = node.Label.Split '\n'
         let textWidth = (lines |> Array.map String.length |> Array.max) * 8 |> min 320
-        let extra = (lines.Length - 1) * 8
+        // An icon stands above the label.
+        let extra = (lines.Length - 1) * 8 + (if node.Icon.IsSome then 18 else 0)
 
         match node.Shape with
         | FlowShape.Circle
@@ -464,7 +465,7 @@ module internal FlowchartSvg =
             | FlowDirection.TopToBottom
             | FlowDirection.BottomToTop -> 36, 4
         | FlowShape.Diamond -> max 45 (textWidth + 10), 32 + extra
-        | _ -> max 40 (textWidth / 2 + 18), 23 + extra
+        | _ -> max (if node.Icon.IsSome then 44 else 40) (textWidth / 2 + 18), 23 + extra
 
     let render (options: SvgRenderOptions) (metadata: Morphir.Svg.SvgNode list option) (model: Flowchart) =
         let indices = Dictionary<DiagramId, int>()
@@ -523,10 +524,37 @@ module internal FlowchartSvg =
                     if not inside.IsEmpty then Seq.empty
                     else seq { for source in members edge.Source do for target in members edge.Target -> source, target }
                 else
-                    Seq.singleton (indices[edge.Source], indices[edge.Target]))
+                    let pair = indices[edge.Source], indices[edge.Target]
+                    let flows = model.Direction = FlowDirection.LeftToRight || model.Direction = FlowDirection.RightToLeft
+
+                    // A port says where the ends sit: `A:L -- R:B` puts B before A across the flow, and ports
+                    // along the other axis put both ends in one rank.
+                    match edge.Sides with
+                    | Some(first, second) ->
+                        let forward, backward = if flows then 'R', 'L' else 'B', 'T'
+
+                        if first = forward || second = backward then Seq.singleton pair
+                        elif first = backward || second = forward then Seq.singleton (snd pair, fst pair)
+                        else Seq.empty
+                    | None -> Seq.singleton pair)
             |> Seq.toArray
 
         let levels = ranks model.Nodes.Length rankEdges
+
+        // An element joined only through ports along the other axis takes the rank of the element at the other end.
+        let ranked = HashSet<int>(rankEdges |> Seq.collect (fun (source, target) -> [ source; target ]))
+
+        for _ in 1..2 do
+            for edge in model.Edges do
+                match edge.Sides, indices.TryGetValue edge.Source, indices.TryGetValue edge.Target with
+                | Some _, (true, source), (true, target) ->
+                    if not (ranked.Contains target) && ranked.Contains source then
+                        levels[target] <- levels[source]
+                        ranked.Add target |> ignore
+                    elif not (ranked.Contains source) && ranked.Contains target then
+                        levels[source] <- levels[target]
+                        ranked.Add source |> ignore
+                | _ -> ()
 
         let rankCount = 1 + (if levels.Length = 0 then 0 else Array.max levels)
 
@@ -560,6 +588,20 @@ module internal FlowchartSvg =
             result
 
         let slotOf = if model.Lanes then laneSlots () else rows model indices levels rankEdges
+
+        // Within one rank, a port across it orders its two ends: `A:L -- R:B` puts B first.
+        if not model.Lanes then
+            let flows = model.Direction = FlowDirection.LeftToRight || model.Direction = FlowDirection.RightToLeft
+            let before, after = if flows then 'T', 'B' else 'L', 'R'
+
+            for edge in model.Edges do
+                match edge.Sides, indices.TryGetValue edge.Source, indices.TryGetValue edge.Target with
+                | Some(first, _), (true, source), (true, target) when levels[source] = levels[target] && source <> target ->
+                    if (first = before && slotOf[source] < slotOf[target]) || (first = after && slotOf[source] > slotOf[target]) then
+                        let kept = slotOf[source]
+                        slotOf[source] <- slotOf[target]
+                        slotOf[target] <- kept
+                | _ -> ()
 
         let maxWidth = sizes |> Array.fold (fun width (x, _) -> max width x) 40
 
@@ -649,6 +691,19 @@ module internal FlowchartSvg =
             metadata
             true
             (fun writer ->
+                // Each icon that a node uses is one symbol, scoped to this diagram.
+                let icons =
+                    model.Nodes
+                    |> Seq.choose (fun node -> node.Icon)
+                    |> Seq.distinct
+                    |> Seq.mapi (fun index key -> key, $"{writer.Prefix}-icon-{index}")
+                    |> dict
+
+                if icons.Count > 0 then
+                    SvgWriting.element writer "defs" [] (fun () ->
+                        for KeyValue(key, id) in icons do
+                            writer.Add(Icons.symbol id key))
+
                 for group, box in groups do
                     SvgWriting.element
                         writer
@@ -799,47 +854,74 @@ module internal FlowchartSvg =
 
                                 let os, ot = offset index source, offset index target
 
+                                // A port fixes the side each end uses: leave it straight for 18 px, then join orthogonally.
+                                let port (x, y) (w, h) side =
+                                    match side with
+                                    | 'L' -> (x - w, y), (-1, 0)
+                                    | 'R' -> (x + w, y), (1, 0)
+                                    | 'T' -> (x, y - h), (0, -1)
+                                    | _ -> (x, y + h), (0, 1)
+
                                 let points, label =
-                                    if source <> target && not grouped && turnsOnce source target then
-                                        let signX = if tx > sx then 1 else -1
-                                        let signY = if ty > sy then 1 else -1
+                                    match edge.Sides with
+                                    | Some(first, second) when edge.Source <> edge.Target ->
+                                        let (px, py), (dx, dy) = port (sx, sy) (sw, sh) first
+                                        let (qx, qy), (ex, ey) = port (tx, ty) (tw, th) second
+                                        let ax, ay = px + 18 * dx, py + 18 * dy
+                                        let bx, by = qx + 18 * ex, qy + 18 * ey
+                                        let across side = side = 'L' || side = 'R'
 
-                                        if horizontal then
-                                            let b = tx - signX * tw
+                                        let middle =
+                                            match across first, across second with
+                                            | true, false -> [| bx, ay |]
+                                            | false, true -> [| ax, by |]
+                                            | true, true -> [| (ax + bx) / 2, ay; (ax + bx) / 2, by |]
+                                            | false, false -> [| ax, (ay + by) / 2; bx, (ay + by) / 2 |]
 
-                                            [| sx + os, sy + signY * sh; sx + os, ty + ot; sx + os, ty + ot; b, ty + ot |],
-                                            ((sx + os + b) / 2, ty + ot - 9)
+                                        let points = Array.concat [ [| px, py; ax, ay |]; middle; [| bx, by; qx, qy |] ]
+                                        let lx, ly = middle[0]
+                                        points, (lx, ly - 9)
+                                    | _ ->
+                                        if source <> target && not grouped && turnsOnce source target then
+                                            let signX = if tx > sx then 1 else -1
+                                            let signY = if ty > sy then 1 else -1
+
+                                            if horizontal then
+                                                let b = tx - signX * tw
+
+                                                [| sx + os, sy + signY * sh; sx + os, ty + ot; sx + os, ty + ot; b, ty + ot |],
+                                                ((sx + os + b) / 2, ty + ot - 9)
+                                            else
+                                                let b = ty - signY * th
+
+                                                [| sx + signX * sw, sy + os; tx + ot, sy + os; tx + ot, sy + os; tx + ot, b |],
+                                                (tx + ot, (sy + os + b) / 2 + 5)
+                                        elif edge.Source = edge.Target then
+                                            let routeX = sx + sw + 22 + shift
+
+                                            let top = sy - sh - 22
+
+                                            [| sx + sw, sy; routeX, sy; routeX, top; sx, top; sx, sy - sh |], (routeX, top - 6)
+                                        elif (horizontal && sx <> tx) || sy = ty then
+                                            let sign = if tx > sx then 1 else -1
+
+                                            let a, b = sx + sign * sw, tx - sign * tw
+
+                                            let mid =
+                                                if abs (levels[target] - levels[source]) > 1 && not grouped then sx + sign * (xStep / 2 + 12) + shift
+                                                else (a + b) / 2 + shift
+
+                                            [| a, sy + os; mid, sy + os; mid, ty + ot; b, ty + ot |], (mid, min (sy + os) (ty + ot) - 9)
                                         else
-                                            let b = ty - signY * th
+                                            let sign = if ty > sy then 1 else -1
 
-                                            [| sx + signX * sw, sy + os; tx + ot, sy + os; tx + ot, sy + os; tx + ot, b |],
-                                            (tx + ot, (sy + os + b) / 2 + 5)
-                                    elif edge.Source = edge.Target then
-                                        let routeX = sx + sw + 22 + shift
+                                            let a, b = sy + sign * sh, ty - sign * th
 
-                                        let top = sy - sh - 22
+                                            let mid =
+                                                if abs (levels[target] - levels[source]) > 1 && not grouped then sy + sign * (yStep / 2 + 12) + shift
+                                                else (a + b) / 2 + shift
 
-                                        [| sx + sw, sy; routeX, sy; routeX, top; sx, top; sx, sy - sh |], (routeX, top - 6)
-                                    elif (horizontal && sx <> tx) || sy = ty then
-                                        let sign = if tx > sx then 1 else -1
-
-                                        let a, b = sx + sign * sw, tx - sign * tw
-
-                                        let mid =
-                                            if abs (levels[target] - levels[source]) > 1 && not grouped then sx + sign * (xStep / 2 + 12) + shift
-                                            else (a + b) / 2 + shift
-
-                                        [| a, sy + os; mid, sy + os; mid, ty + ot; b, ty + ot |], (mid, min (sy + os) (ty + ot) - 9)
-                                    else
-                                        let sign = if ty > sy then 1 else -1
-
-                                        let a, b = sy + sign * sh, ty - sign * th
-
-                                        let mid =
-                                            if abs (levels[target] - levels[source]) > 1 && not grouped then sy + sign * (yStep / 2 + 12) + shift
-                                            else (a + b) / 2 + shift
-
-                                        [| sx + os, a; sx + os, mid; tx + ot, mid; tx + ot, b |], ((sx + os + tx + ot) / 2 + 15, mid - 8)
+                                            [| sx + os, a; sx + os, mid; tx + ot, mid; tx + ot, b |], ((sx + os + tx + ot) / 2 + 15, mid - 8)
 
                                 yield index, points, label
                     |]
@@ -896,9 +978,33 @@ module internal FlowchartSvg =
                         (fun () ->
                             let family = shape writer node x y w h
 
-                            if not (isMarker node.Shape) then
+                            match node.Icon with
+                            | Some key ->
+                                let top = y - h + 6
+
+                                if Icons.keepsColours key then
+                                    SvgWriting.rectangle writer (x - 17) (top - 3) 34 34 6 "#ffffff" "none"
+
+                                SvgWriting.empty
+                                    writer
+                                    "use"
+                                    [
+                                        "href", "#" + icons[key]
+                                        "x", SvgWriting.number (x - 14)
+                                        "y", SvgWriting.number top
+                                        "width", "28"
+                                        "height", "28"
+                                        "color", Theme.ink family
+                                        "role", "img"
+                                        "aria-label", key
+                                    ]
+
+                                SvgWriting.label writer x (y + 5 + 18) 13 400 (Theme.ink family) node.Label
+                            | None when not (isMarker node.Shape) ->
                                 SvgWriting.label writer x (y + 5) 13 400 (Theme.ink family) node.Label
-                            elif node.Label <> "" then
+                            | None -> ()
+
+                            if isMarker node.Shape && node.Label <> "" then
                                 SvgWriting.label writer x (y - h - 6) 12 400 Theme.muted node.Label
                         )
                 )

@@ -336,8 +336,15 @@ type FlowEdge
         line: FlowLine,
         startHead: EdgeHead,
         endHead: EdgeHead,
-        span: SourceSpan
+        span: SourceSpan,
+        sides: (char * char) option
     ) =
+    internal new(source, target, label, line, startHead, endHead, span) =
+        FlowEdge(source, target, label, line, startHead, endHead, span, None)
+
+    /// The sides (L, R, T or B) that the edge leaves its source and enters its target by, when a port fixes them.
+    member internal _.Sides = sides
+
     /// Identifier of the source node.
     member _.Source = source
 
