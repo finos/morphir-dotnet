@@ -127,7 +127,9 @@ let private tryDuringActive label input =
             latency.Elapsed.TotalMilliseconds
 
         Expect.isTrue
-            (latency.Elapsed < TimeSpan.FromMilliseconds 500.0)
+            // 2 s, not 500 ms: a shared macOS runner took 540 ms to stop a 16M-character literal (finos/morphir-dotnet#692 CI).
+            // A generation that ignores the token runs to the end of a 16M-64M-character literal, far longer.
+            (latency.Elapsed < TimeSpan.FromSeconds 2.0)
             (sprintf "Cancellation should interrupt %s promptly, observed %A" label latency.Elapsed)
 
         true

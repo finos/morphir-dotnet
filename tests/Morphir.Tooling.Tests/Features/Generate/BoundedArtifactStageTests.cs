@@ -32,6 +32,7 @@ public sealed class BoundedArtifactStageTests
         }
         var completed = Accept(stage.Apply(Complete(Chunk("sub/order.txt", 540, "odd", true))))!;
 
+        stage.MaxOutputBatchBytes.Should().Be(108L);
         completed.Directory.Should().Be(stage.Directory);
         completed.Artifacts.Should().ContainSingle().Which.Should().Be(
             new StagedGenerationArtifact("sub/order.txt", expected.Length, Sha256Digest.Compute(expected)));
@@ -149,6 +150,7 @@ public sealed class BoundedArtifactStageTests
         var invalid = new ModelArtifactChunk("order.txt", 0, length, Sha256Digest.Compute("a"u8), encoded, true);
 
         Refused(stage.Apply(Complete(invalid))).Should().Be("extension.artifact_integrity");
+        stage.MaxOutputBatchBytes.Should().Be(0L);
         Directory.Exists(stage.Directory).Should().BeFalse();
     }
 
@@ -168,6 +170,7 @@ public sealed class BoundedArtifactStageTests
         var result = stage.Apply(Complete(Chunk("one", 0, "12345"), Chunk("one", 5, "67890", true)));
 
         Refused(result).Should().Be("extension.artifact_limit");
+        stage.MaxOutputBatchBytes.Should().Be(0L);
         ((Outcome<StagedGenerationOutput?>.Failure)result).Error.Diagnostics[0].Message.Should().Contain(limit);
         Directory.Exists(stage.Directory).Should().BeFalse();
     }
@@ -216,6 +219,7 @@ public sealed class BoundedArtifactStageTests
         using var stage = Open(sandbox, Limits("exactExchange"));
         Accept(stage.Apply(Complete(Chunk("one", 0, "12345", true), Chunk("two", 0, "67890", true))))
             .Should().NotBeNull();
+        stage.MaxOutputBatchBytes.Should().Be(10L);
         File.ReadAllText(Path.Combine(stage.Directory, "one")).Should().Be("12345");
         File.ReadAllText(Path.Combine(stage.Directory, "two")).Should().Be("67890");
     }

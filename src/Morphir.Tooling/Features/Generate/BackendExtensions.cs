@@ -49,6 +49,8 @@ public interface IBackendExtensionConnector
     Task<Outcome<IExternalGenerationBackend>> ConnectAsync(BackendExtensionRequest request, CancellationToken ct);
 }
 
+internal sealed record ModelAccessConnection(IModelAccessGuest Guest, ISingleMessageChannel? WasmChannel);
+
 /// <summary>
 /// Connects a configured backend extension as a MEP 0.2.0-draft.1 guest process. The extension setting has the
 /// same forms as for <c>compile</c>: an executable path, a command name on PATH, or a framework-dependent
@@ -60,7 +62,7 @@ public sealed class MepBackendExtensionConnector(IWasmModuleLoader? wasmLoader) 
     /// <summary>Preserves the process-only connector's parameterless constructor.</summary>
     public MepBackendExtensionConnector() : this(null) { }
 
-    internal async Task<Outcome<IModelAccessGuest>> ConnectModelAccessAsync(
+    internal async Task<Outcome<ModelAccessConnection>> ConnectModelAccessAsync(
         BackendExtensionRequest request, ModelAccessSupport offer, CancellationToken ct)
     {
         var deadline = TimeSpan.FromMilliseconds(offer.Limits.MaxCallMilliseconds);
@@ -71,8 +73,8 @@ public sealed class MepBackendExtensionConnector(IWasmModuleLoader? wasmLoader) 
                 return Refuse(code, message);
             var host = new PeerInfo(PeerKind.Cli, MepExtensionCommand.HostName, MepExtensionCommand.HostVersion);
             return (await MepChannelGuest.StartModelAccessAsync(channel, host, offer, deadline, ct))
-                .Match<MepChannelGuest, MepGuestFailure, Outcome<IModelAccessGuest>>(
-                    guest => new Outcome<IModelAccessGuest>.Success(guest),
+                .Match<MepChannelGuest, MepGuestFailure, Outcome<ModelAccessConnection>>(
+                    guest => new Outcome<ModelAccessConnection>.Success(new(guest, channel)),
                     failure => Refuse(failure.Code, failure.Message));
         }
 
@@ -81,11 +83,11 @@ public sealed class MepBackendExtensionConnector(IWasmModuleLoader? wasmLoader) 
         var options = MepGuestOptions.Create(executable, arguments, request.WorkingDirectory, deadline,
             Console.Error, MepExtensionCommand.HostName, MepExtensionCommand.HostVersion, request.Environment);
         return (await MepGuestProcess.StartModelAccessAsync(options, offer, ct))
-            .Match<MepGuestProcess, MepGuestFailure, Outcome<IModelAccessGuest>>(
-                guest => new Outcome<IModelAccessGuest>.Success(guest),
+            .Match<MepGuestProcess, MepGuestFailure, Outcome<ModelAccessConnection>>(
+                guest => new Outcome<ModelAccessConnection>.Success(new(guest, null)),
                 failure => Refuse(failure.Code, failure.Message));
 
-        static Outcome<IModelAccessGuest>.Failure Refuse(string code, string message) =>
+        static Outcome<ModelAccessConnection>.Failure Refuse(string code, string message) =>
             new(GenerationFailure.One(GenerationFailureKind.Operational, code, message));
     }
 

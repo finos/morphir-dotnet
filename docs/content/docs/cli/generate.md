@@ -195,6 +195,12 @@ under the workspace root. `generate` then reads the compile record
 that IR file as `input` and the recorded IR version as `sourceVersion`. An
 explicit `--input` never reads a record.
 
+When the explicit input is a directory, `generate` captures its files under
+the model-read limits and verifies their paths and bytes in a second pass.
+If a captured file changes or disappears between those passes, generation
+stops before it starts the backend. After verification, the backend uses
+the captured bytes even if the original files are edited.
+
 If there is no compile record, or the most recent compile failed and left a
 tombstone, `generate` fails with `compile.record_missing` and exit code 2, tells
 you to run `morphir compile` first, and publishes nothing. If the IR file does
@@ -285,11 +291,24 @@ morphir generate --out-dir build-artifacts --target text --output generated
 
 For the orders fixture, the guest follows two inventory pages to the final
 value, reads the earlier value it references, and emits `order.txt`. Morphir
-stages the output chunks below `build-artifacts/generate/text.dest` for a
-root project, then publishes the completed files to `generated`. Choose a
-publication directory outside the workspace task output root to protect task
-records. The CLI acceptance case compares this v4 JSON tree run with the same guest's inline
-run over the expanded v4 model.
+stages the chunks privately until the guest stops. For a root project, it
+then places the completed files in `build-artifacts/generate/text.dest`,
+records their paths in `build-artifacts/generate/text.json`, and installs
+them into `generated`. A workspace member uses its own directory under the
+configured output root. Choose an install directory outside that root.
+The CLI acceptance case compares this v4 JSON tree run with the same guest's
+inline run over the expanded v4 model.
+
+The compile lease stays held until generation and installation finish. If
+generation fails after replacing a previous working result, its record
+becomes a tombstone and the previous install remains in place. Fix the input
+or guest and run the same command with the same `--out-dir` and `--output`.
+If installation is refused or cancelled after the generation record was
+written, the completed working files remain in `text.dest`. Resolve the
+reported target conflict or select a clean install directory and rerun.
+The installer replaces files it owns through the task record's `installed`
+ledger. An older `.morphir-generated.json` manifest does not transfer
+ownership to that ledger.
 
 ## Examples
 
@@ -439,6 +458,22 @@ chunk total 32,945 decoded bytes in one exchange. The pinned guest admits that
 combination under the 64 KiB decoded and encoded exchange ceilings; full request
 and response frames remain capped at 64 KiB and individual chunks at 32 KiB.
 For the explicit profile, JSON reports include effective ceilings in
-`boundedAccess`. These are selected limits, not measured frame peaks or memory.
+`boundedAccess`. For a successful Wasmtime session, `boundedAccess.linearMemory`
+gives the guest's and Extism kernel's peak linear-memory sizes and the actual
+ceiling applied to each. The engine samples both memories at `morphir.exit`
+before disposing the instance. Linear memory grows in pages over the instance's
+lifetime, so these final sizes are its logical peaks. Host process residency
+and frame peaks require separate observations.
 The production-sized black-box cases use one original 64-payload module and
 the embedded streaming guest pinned to finos/morphir at `3652032a`.
+
+On a successful `orders-scale` run, `boundedAccess.maxInputBatchBytes` reports
+the largest total of decoded model-document bytes sent in one admitted advance.
+`boundedAccess.maxOutputBatchBytes` reports the largest total of validated
+artifact bytes across all chunks in one staged response. The two maxima are
+independent. They exclude inventory, diagnostics, framing and base64 overhead.
+`boundedAccess.peakDiscoveryIndexChargedBytes` records the peak charged bytes
+for the discovery index. The charge covers the retained paths, sorted builder
+and final index array. It excludes provider state, traversal data, temporary
+paths and objects awaiting garbage collection. Resident working sets, context
+caches and operation-wide I/O require separate measurements.

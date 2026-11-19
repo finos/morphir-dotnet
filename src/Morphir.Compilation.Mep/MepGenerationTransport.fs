@@ -209,12 +209,13 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
         MepGenerationSnapshot.Bind(snapshot, start, work)
         |> Result.mapError (fun errors -> List.toArray errors :> IReadOnlyList<StoreError>)
 
-    /// Prepare the ordered deliveries for the supplied continuation.
-    member _.PrepareAdvance
+    member private _.PrepareAdvanceCounted
         (
             round: int,
-            requests: IReadOnlyList<ModelAccessRequest>
+            requests: IReadOnlyList<ModelAccessRequest>,
+            decodedBytes: byref<int64>
         ) : Result<ModelAccessAdvance, StoreError list> =
+        decodedBytes <- 0L
         let limits = start.Limits
 
         if
@@ -304,6 +305,7 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
             match failure with
             | Some errors -> Result.Error errors
             | None ->
+                decodedBytes <- int64 limits.MaxDecodedBytesPerExchange - decoded
                 Ok
                     {
                         SessionId = start.SessionId
@@ -311,8 +313,25 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
                         Deliveries = deliveries.ToArray()
                     }
 
+    /// Prepare the ordered deliveries for the supplied continuation.
+    member this.PrepareAdvance(round: int, requests: IReadOnlyList<ModelAccessRequest>)
+        : Result<ModelAccessAdvance, StoreError list> =
+        let mutable decodedBytes = 0L
+        this.PrepareAdvanceCounted(round, requests, &decodedBytes)
+
     /// Prepare host deliveries with a read-only error collection.
     member this.PrepareHostAdvance(round: int, requests: IReadOnlyList<ModelAccessRequest>)
         : Result<ModelAccessAdvance, IReadOnlyList<StoreError>> =
         this.PrepareAdvance(round, requests)
+        |> Result.mapError (fun errors -> List.toArray errors :> IReadOnlyList<StoreError>)
+
+    /// <summary>
+    /// Prepare host deliveries and return their original decoded document bytes for C# callers.
+    /// Inventory is excluded. A refused batch returns zero, including when an earlier document was prepared.
+    /// The caller records the count only after the exchange is admitted.
+    /// </summary>
+    member this.PrepareHostAdvance
+        (round: int, requests: IReadOnlyList<ModelAccessRequest>, [<Out>] decodedBytes: byref<int64>)
+        : Result<ModelAccessAdvance, IReadOnlyList<StoreError>> =
+        this.PrepareAdvanceCounted(round, requests, &decodedBytes)
         |> Result.mapError (fun errors -> List.toArray errors :> IReadOnlyList<StoreError>)

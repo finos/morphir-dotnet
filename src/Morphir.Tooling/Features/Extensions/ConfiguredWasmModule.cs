@@ -73,9 +73,14 @@ internal static class ConfiguredWasmModule
         return true;
     }
 
+    internal static MemoryUse? ClosedLinearMemory(ISingleMessageChannel? channel) =>
+        (channel as OutputChannel)?.ClosedLinearMemory;
+
     // Only output routing and ownership are added here. HostSession retains all protocol/model checks.
     private sealed class OutputChannel(WasmChannel channel) : ISingleMessageChannel, IModelAccessLimitAdmission, IDisposable, IAsyncDisposable
     {
+        internal MemoryUse? ClosedLinearMemory => channel.ClosedLinearMemory;
+
         string? IModelAccessLimitAdmission.ApplyModelAccessLimits(ModelAccessLimits limits) =>
             channel.ApplyModelAccessLimits(limits);
 

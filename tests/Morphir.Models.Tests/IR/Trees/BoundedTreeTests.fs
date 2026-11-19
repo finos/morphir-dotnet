@@ -28,6 +28,7 @@ let private ordersSource files =
 
     let source: TreeFileSource.SnapshotSource = {
         Revision = fun () -> revision
+        DiscoveryIndexPeakBytes = fun () -> 0L
         ContainsFile = fun location -> Map.containsKey location files
         NextModule = fun _ _ _ _ -> failtest "Member reads do not enumerate modules"
         FindFile =
@@ -552,6 +553,7 @@ let private frozenOrdersFiles version profile =
 
     let source: TreeFileSource.SnapshotSource = {
         Revision = fun () -> "3f3157318"
+        DiscoveryIndexPeakBytes = fun () -> 0L
         ContainsFile = fun location -> Set.contains location files
         NextModule =
             fun _ _ prefix after ->
@@ -585,6 +587,63 @@ let private frozenOrdersFiles version profile =
 let private frozenOrders version profile =
     let source, opened, _ = frozenOrdersFiles version profile
     source, opened
+
+// Native observations are compared with the independently authored parent oracle.
+// This is an in-process unit test, with embedded files only and no kit runner.
+[<Tests>]
+let observationTests =
+    testList "Bounded reader observations" [
+        for version in [ "v3.1"; "v4" ] do
+            for profile in [ "plain-json"; "plain-yaml"; "contextual-json"; "contextual-yaml" ] do
+                test $"Observes parent facts for {version} {profile}" {
+                    use expectedFile = JsonDocument.Parse(FixtureCatalog.ReadText FixtureCatalog.BoundedOrders.Expected)
+                    let expected = expectedFile.RootElement
+                    let source, _ = frozenOrders version profile
+                    let encoding =
+                        if profile.StartsWith "contextual-" then BoundedTreeEncoding.ContextualDraft1
+                        else BoundedTreeEncoding.Plain
+                    let snapshot = read (BoundedTreeReader.openTreeWithEncoding encoding 8192L source)
+                    let inventory = expected.GetProperty "domainInventory"
+                    let selection = "pkg/acme/orders/domain/module"
+                    let actual =
+                        read (Morphir.BoundedGeneration.ReaderObservation.observe selection (inventory.GetProperty("pageSize").GetInt32()) 8192L snapshot)
+                    let equalJson actual expected message =
+                        Expect.isTrue (JsonElement.DeepEquals(actual, expected)) message
+                    for field in [ "distribution"; "package"; "pathBudget"; "dependencies"; "modules" ] do
+                        equalJson (actual.GetProperty field) (expected.GetProperty field) field
+                    equalJson (actual.GetProperty "pages") (inventory.GetProperty "pages") "Production cursor order"
+                    equalJson (actual.GetProperty "finalPageBody") (inventory.GetProperty "finalPageBody") "Typed selected reference and observed target literal"
+                    Expect.equal (actual.GetProperty("scope").GetString()) "native-reader" "Explicit native scope"
+                    Expect.equal (actual.GetProperty("revision").GetString()) snapshot.RevisionId "Caller snapshot"
+                    if version = "v3.1" then
+                        let documents = actual.GetProperty "classicDocuments"
+                        for attribute in expected.GetProperty("classicAttributes").EnumerateArray() do
+                            let pointer = attribute.GetProperty("pointer").GetString() |> nonNull
+                            let mutable value = documents.GetProperty(attribute.GetProperty("document").GetString() |> nonNull)
+                            for token in pointer.Substring(1).Split('/') do
+                                value <-
+                                    if value.ValueKind = JsonValueKind.Array then value[int token]
+                                    else value.GetProperty(token.Replace("~1", "/").Replace("~0", "~"))
+                            equalJson value (attribute.GetProperty "value") pointer
+                }
+        test "Observation retains a stale snapshot refusal" {
+            let source, _, advance = ordersSource (Orders.selectedValues "v4")
+            let snapshot = read (BoundedTreeReader.openTree 8192L source)
+            advance ()
+            let errors =
+                Morphir.BoundedGeneration.ReaderObservation.observe "pkg/acme/orders/domain/module" 2 8192L snapshot
+                |> StoreTestKit.refusal
+            Expect.equal (errors |> List.map _.Code) [ "tree.revision_changed" ] "No synthetic observations"
+        }
+        test "Observation uses the caller selection" {
+            let source, _ = frozenOrders "v4" "plain-json"
+            let snapshot = read (BoundedTreeReader.openTree 8192L source)
+            let errors =
+                Morphir.BoundedGeneration.ReaderObservation.observe "deps/morphir/_sdk/@/basics/module" 2 8192L snapshot
+                |> StoreTestKit.refusal
+            Expect.equal (errors |> List.map _.Code) [ "observation.unsupported_selection" ] "A specification is not a value definition"
+        }
+    ]
 
 [<Tests>]
 let profileTests =
@@ -1511,6 +1570,7 @@ let providerTests =
 
             let direct: TreeFileSource.SnapshotSource = {
                 Revision = fun () -> "stable"
+                DiscoveryIndexPeakBytes = fun () -> 0L
                 ContainsFile = fun path -> path = manifestLocation
                 FindFile = fun _ -> Some file
                 NextModule = fun _ _ _ _ -> Ok None
@@ -2037,6 +2097,58 @@ let private countedProvider () =
 [<Tests>]
 let discoveryCacheTests =
     testList "Metered module discovery" [
+        test "Peak index charge follows constructed paths and survives reuse and eviction" {
+            let provider, opened, counts = countedProvider ()
+            let source = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 65536L (fun () -> "stable") provider
+            let ownPaths = [ "pkg/acme/orders/audit/module"; "pkg/acme/orders/domain/module" ]
+            let ownCharge = 128L + (ownPaths |> List.sumBy (fun path -> 160L + 4L * int64 path.Length))
+            Expect.equal (source.DiscoveryIndexPeakBytes ()) 0L "No index has been constructed"
+            Expect.equal (counts ()) (0, 0) "Reading the counter is lazy"
+            source.NextModule None 240 "deps/morphir/_sdk/@/" None |> Result.mapError List.singleton |> read |> ignore
+            let dependencyCharge = 128L + 160L + 4L * int64 "deps/morphir/_sdk/@/basics/module".Length
+            Expect.equal (source.DiscoveryIndexPeakBytes ()) dependencyCharge "The first smaller package charges only its own index"
+            let first = source.NextModule None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read
+            Expect.equal (source.DiscoveryIndexPeakBytes ()) ownCharge "Charge uses actual distinct paths, not the reservation"
+            let scanned = counts ()
+            source.NextModule None 240 "pkg/acme/orders/" first |> Result.mapError List.singleton |> read |> ignore
+            Expect.equal (source.DiscoveryIndexPeakBytes ()) ownCharge "Reuse does not charge the same index twice"
+            Expect.equal (counts ()) scanned "Reuse does not walk again"
+            source.NextModule None 240 "deps/morphir/_sdk/@/" None |> Result.mapError List.singleton |> read |> ignore
+            Expect.equal (source.DiscoveryIndexPeakBytes ()) ownCharge "A smaller replacement preserves the high water mark"
+            source.NextModule None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read |> ignore
+            Expect.equal (source.DiscoveryIndexPeakBytes ()) ownCharge "Rebuilding an evicted package is not cumulative"
+            Expect.isEmpty opened "The counter and index open no content"
+        }
+        test "Failed index admission charges its partial builder and never publishes it" {
+            let provider, opened, counts = countedProvider ()
+            let charges = [ "pkg/acme/orders/audit/module"; "pkg/acme/orders/domain/module" ]
+                          |> List.map (fun path -> 128L + 160L + 4L * int64 path.Length)
+            let source = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 (List.max charges) (fun () -> "stable") provider
+            let attempt after =
+                source.NextModule None 240 "pkg/acme/orders/" after |> Result.mapError List.singleton
+                |> expectReadError "tree.discovery_cache_limit" "pkg/acme/orders/"
+            attempt None
+            let peak = source.DiscoveryIndexPeakBytes ()
+            Expect.contains charges peak "Only the admitted distinct path and fixed overhead are charged"
+            let scanned = counts ()
+            attempt (Some "pkg/acme/orders/audit/module")
+            Expect.isGreaterThan (fst (counts ())) (fst scanned) "A failed walk cannot supply a cached continuation"
+            Expect.equal (source.DiscoveryIndexPeakBytes ()) peak "Retry preserves the peak rather than accumulating charges"
+            Expect.isEmpty opened "Refused admission opens no bodies"
+        }
+        test "Empty and fixed-overhead-refused indexes report constructed overhead" {
+            for budget in [ 127L; 128L ] do
+                let provider, opened, counts = countedProvider ()
+                let source = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 budget (fun () -> "stable") provider
+                let result = source.NextModule None 240 "pkg/absent/" None |> Result.mapError List.singleton
+                if budget = 128L then
+                    Expect.isNone (read result) "An empty index fits exactly"
+                else
+                    result |> expectReadError "tree.discovery_cache_limit" "pkg/absent/"
+                    Expect.equal (counts ()) (0, 0) "Fixed overhead refusal does not walk"
+                Expect.equal (source.DiscoveryIndexPeakBytes ()) 128L "The builder exists even when its fixed charge is refused"
+                Expect.isEmpty opened "Only metadata is involved"
+        }
         test "Reuses one ordinal metadata walk across pages and refuses stale snapshots" {
             let provider, opened, counts = countedProvider ()
             let mutable revision = "one"
@@ -2075,6 +2187,7 @@ let discoveryCacheTests =
             let provider, _, counts = countedProvider ()
             let baseline = TreeFileSource.fromFileProvider 1000 (fun () -> "stable") provider
             baseline.NextModule None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read |> ignore
+            Expect.equal (baseline.DiscoveryIndexPeakBytes ()) 0L "The ordinary scan has no index"
             let total, _ = counts ()
             for cap in [ total; total - 1 ] do
                 let cached = TreeFileSource.fromFileProviderWithDiscoveryCache cap 65536L (fun () -> "stable") provider
@@ -2086,6 +2199,7 @@ let discoveryCacheTests =
             let before = counts ()
             fallback.NextModule None 240 "pkg/acme/orders/" first |> Result.mapError List.singleton |> read |> ignore
             Expect.isGreaterThan (fst (counts ())) (fst before) "Zero reservation uses the public streaming fallback"
+            Expect.equal (fallback.DiscoveryIndexPeakBytes ()) 0L "A disabled index reports zero after repeated scans"
         }
         test "Switching packages evicts paths and a mid-walk revision never publishes them" {
             let provider, _, counts = countedProvider ()
@@ -2116,6 +2230,9 @@ let discoveryCacheTests =
             let snapshot = DocumentTreeStore.openSnapshotWithDiscoveryCache ReadOptions.defaults 65536L (System.Func<string>(fun () -> "one")) provider |> read
             DocumentTreeStore.pageModules 1 None snapshot.Package snapshot
             |> expectReadError "tree.ambiguous_profile" "pkg/acme/orders/audit/module"
+            let expected = 128L + 160L + 4L * int64 "pkg/acme/orders/audit/module".Length
+                           + 160L + 4L * int64 "pkg/acme/orders/domain/module".Length
+            Expect.equal snapshot.PeakDiscoveryIndexChargedBytes expected "Physical spellings share one charged logical path"
         }
         test "C# cached admission retains lazy discovery and read-only refusal errors" {
             let provider, opened, counts = countedProvider ()
@@ -2124,11 +2241,16 @@ let discoveryCacheTests =
                     ReadOptions.defaults, 65536L, System.Func<string>(fun () -> "stable"), provider)
                 |> read
             Expect.equal (counts ()) (0, 0) "Admission does not walk metadata"
+            Expect.equal snapshot.PeakDiscoveryIndexChargedBytes 0L "Snapshot observation does not construct the index"
             Expect.sequenceEqual opened [ "manifest.json" ] "Only the manifest opens"
             let first = DocumentTreeStore.pageModules 1 None snapshot.Package snapshot |> read
             let scanned = counts ()
             DocumentTreeStore.pageModules 1 first.Next snapshot.Package snapshot |> read |> ignore
             Expect.equal (counts ()) scanned "C# admission uses the same cached discovery"
+            let expected = 128L + 160L + 4L * int64 "pkg/acme/orders/audit/module".Length
+                           + 160L + 4L * int64 "pkg/acme/orders/domain/module".Length
+            let peak: int64 = snapshot.PeakDiscoveryIndexChargedBytes
+            Expect.equal peak expected "C#-safe read-only snapshot property reports actual index charge"
             match DocumentTreeStore.openPlainSnapshotWithDiscoveryCache(
                 ReadOptions.defaults, -1L, System.Func<string>(fun () -> "stable"), provider) with
             | Ok _ -> failtest "A negative reservation cannot be admitted"

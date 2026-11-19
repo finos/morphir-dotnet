@@ -10,10 +10,10 @@ using Morphir.Compilation;
 using Morphir.Compilation.Mep;
 using Morphir.Extensions;
 using Morphir.Extensions.Wasm;
-using Morphir.Files;
 using Morphir.IR.Model;
 using Morphir.IR.Trees;
 using Morphir.Mep;
+using Morphir.Tooling.Features.Extensions;
 using Morphir.Tooling.Features.TaskRecords;
 using Morphir.Tooling.Infrastructure;
 
@@ -23,7 +23,7 @@ namespace Morphir.Tooling.Features.Generate;
 internal static class RecordedBoundedGeneration
 {
     public static async Task<Outcome<GenerationSuccess>> RunAsync(CompileTaskOutput producer, BackendExtensionRequest request,
-        GenerationSettings settings, MepBackendExtensionConnector connector, IGenerationPublisher publisher,
+        GenerationSettings settings, MepBackendExtensionConnector connector, TaskStoreOptions taskOptions,
         IEnumerable<IGenerationBackend> registered, CancellationToken ct)
     {
         var target = request.Target;
@@ -62,13 +62,20 @@ internal static class RecordedBoundedGeneration
             if (settings.BoundedProfile == BoundedGenerationProfile.OrdersScale && (!json || snapshot.IrVersion != "4.0.0"))
                 return Refuse("generate.invalid_bounded_profile", "orders-scale requires a plain JSON v4 recorded tree.");
 
+            if (!TaskId.TryParse($"generate/{target.Value}", out var task, out var invalid))
+                return Refuse("extension.bounded_output", invalid ?? "The generation task name is invalid.");
+            var location = producer.Location.Root.Task(producer.Location.Member, task);
+            // The caller still owns the shared compile lease. Always acquire in compile -> generation order.
+            using var taskRun = await RecordedGenerationTask.OpenAsync(location, outputPath, taskOptions, ct);
+
             var tuple = new ModelAccessTuple(ModelAccess.protocolVersion, ModelAccess.accessVersion, ModelOperation.GenerateModel,
                 SemanticVersion.Create(snapshot.IrVersion), "morphir-ir",
                 json ? ModelAccessCodec.MorphirJson : ModelAccessCodec.MorphirYaml, "document-tree", ModelAccessEncoding.Plain);
             var connected = await connector.ConnectModelAccessAsync(request, new ModelAccessSupport([tuple], limits), ct);
-            if (connected is Outcome<IModelAccessGuest>.Failure refusedGuest)
+            if (connected is Outcome<ModelAccessConnection>.Failure refusedGuest)
                 return new Outcome<GenerationSuccess>.Failure(refusedGuest.Error);
-            var guest = ((Outcome<IModelAccessGuest>.Success)connected).Value;
+            var connection = ((Outcome<ModelAccessConnection>.Success)connected).Value;
+            var guest = connection.Guest;
             var negotiated = guest.Session;
             var label = negotiated.Extension;
 
@@ -90,11 +97,6 @@ internal static class RecordedBoundedGeneration
                         || !access.Tuples.Contains(tuple))
                         return Refuse("extension.tuple_unavailable", $"Extension {label.Id} did not agree to bounded generation with {tuple}.");
 
-                    if (!TaskId.TryParse($"generate/{target.Value}", out var task, out var invalid))
-                        return Refuse("extension.bounded_output", invalid ?? "The generation task name is invalid.");
-                    var location = producer.Location.Root.Task(producer.Location.Member, task);
-                    if (GenerationPublisher.LinkedPath(location.Dest) is not null)
-                        return Refuse("unsafe-publication-path", $"The task directory {location.Dest} must not be a link.");
                     // Reserve a bounded quarter of the negotiated cache for the active package's
                     // paths before any discovery. The stage can use only the remaining bytes.
                     var discoveryReservation = access.Limits.MaxHostCacheBytes / 4L;
@@ -102,7 +104,6 @@ internal static class RecordedBoundedGeneration
                         settings.BoundedProfile, access.Limits.MaxHostCacheBytes);
                     if (requestIdReservation is { } reservation && !guest.HostSession.TryReserveSingleGenerationRequestCache(reservation))
                         return Refuse("extension.bounded_cache_limit", "The request-ID reservation cannot be installed for this generation session.");
-                    Directory.CreateDirectory(location.Dest);
                     var indexed = DocumentTreeStore.OpenPlainSnapshotWithDiscoveryCache(
                             new ReadOptions(readerLimits.MaxEntries, RecordedGenerationAdmission.DocumentByteLimit(readerLimits, access.Limits)),
                             discoveryReservation, () => revision, files)
@@ -114,6 +115,8 @@ internal static class RecordedBoundedGeneration
                     if (indexed is Outcome<BoundedTreeSnapshot>.Failure refusedIndex)
                         return Failed(refusedIndex.Error);
                     snapshot = ((Outcome<BoundedTreeSnapshot>.Success)indexed).Value;
+                    ct.ThrowIfCancellationRequested();
+                    taskRun.Prepare();
                     stage = new BoundedArtifactStage(location.Dest, access.Limits,
                         new GenerationSessionDiskBudget(access.Limits.MaxSessionDiskBytes), discoveryReservation, requestIdReservation.GetValueOrDefault());
                     var start = Start(snapshot, tuple, target, settings.Options, access.Limits);
@@ -149,13 +152,14 @@ internal static class RecordedBoundedGeneration
                     return Failed(failure.Error);
                 ct.ThrowIfCancellationRequested();
                 var staged = ((Outcome<StagedGenerationOutput>.Success)result).Value;
-                // The publisher streams these files from disk. The VFile tree contains metadata and source paths.
-                var tree = VFileTree.OfFiles(staged.Artifacts.Select(file => KeyValuePair.Create(file.Path,
-                    VFileModule.ofDiskFile(file.Path, RecordPath.Parse(file.Path).Under(staged.Directory)))));
-                var published = await publisher.PublishAsync(new GenerationArtifacts(tree, staged.Diagnostics), settings.Input, settings.Publication, ct);
-                if (published is Outcome<GenerationPublication>.Failure refused)
+                // The guest has shut down and its owned process/session has settled. Move, clean, record,
+                // then install independently through the task ledger. No second private copy of artifact bytes.
+                taskRun.Commit(stage!, staged, ct);
+                var installed = await taskRun.InstallAsync(ct);
+                if (installed is Outcome<InstallReport>.Failure refused)
                     return Failed(refused.Error);
-                var receipt = ((Outcome<GenerationPublication>.Success)published).Value;
+                var install = ((Outcome<InstallReport>.Success)installed).Value;
+                var receipt = new GenerationPublication(install.Copied, install.Written, install.Unchanged, install.Removed);
                 var family = snapshot.IrVersion == "4.0.0" ? ModelFamily.V4 : ModelFamily.Classic;
                 return new Outcome<GenerationSuccess>.Success(new(target.Value, label.Id, producer.IrPath,
                     settings.Publication.OutputDirectory, producer.Ir.Version.Text, ModelLabels.Family(family), snapshot.KindName,
@@ -164,7 +168,10 @@ internal static class RecordedBoundedGeneration
                     BackendTransport = guest.Transport,
                     BackendVersion = label.Version,
                     BoundedAccess = settings.BoundedProfile == BoundedGenerationProfile.OrdersScale
-                        ? AccessObservation(readerLimits, negotiated.Capabilities.ModelAccessOrNull()!.Limits) : null,
+                        ? AccessObservation(readerLimits, negotiated.Capabilities.ModelAccessOrNull()!.Limits,
+                            ConfiguredWasmModule.ClosedLinearMemory(connection.WasmChannel),
+                            staged.MaxInputBatchBytes, stage.MaxOutputBatchBytes,
+                            snapshot.PeakDiscoveryIndexChargedBytes) : null,
                 });
             }
             finally
@@ -172,9 +179,26 @@ internal static class RecordedBoundedGeneration
                 stage?.Dispose();
             }
         }
+        catch (OperationCanceledException cancelled) when (ct.IsCancellationRequested)
+        {
+            return Failed(WithPublicationCleanup(GenerationFailure.One(GenerationFailureKind.Cancelled,
+                "cancelled", "Generation was cancelled."), cancelled));
+        }
         catch (Exception fault) when (fault is IOException or UnauthorizedAccessException)
         {
-            return Refuse("extension.bounded_io", fault.Message);
+            return Failed(WithPublicationCleanup(Refusal("extension.bounded_io", fault.Message), fault));
+        }
+
+        static GenerationFailure WithPublicationCleanup(GenerationFailure primary, Exception fault)
+        {
+            foreach (var key in new[] { "generation.promotion_cleanup", "generation.stage_cleanup" })
+                if (fault.Data[key] is { } cleanup)
+                    primary = primary with
+                    {
+                        Diagnostics = primary.Diagnostics.Add(new("extension.artifact_cleanup",
+                        cleanup is Exception error ? error.Message : cleanup.ToString()!))
+                    };
+            return primary;
         }
 
         GenerationFailure Refusal(string code, string message) =>
@@ -189,7 +213,8 @@ internal static class RecordedBoundedGeneration
                 : failure);
     }
 
-    private static JsonElement AccessObservation(ModelReadLimits reader, ModelAccessLimits selected)
+    private static JsonElement AccessObservation(ModelReadLimits reader, ModelAccessLimits selected, MemoryUse? memory,
+        long maxInputBatchBytes, long maxOutputBatchBytes, long peakDiscoveryIndexChargedBytes)
     {
         var wasm = RecordedGenerationAdmission.WasmLimits(BoundedGenerationProfile.OrdersScale, selected);
         var bytes = new ArrayBufferWriter<byte>();
@@ -200,8 +225,22 @@ internal static class RecordedBoundedGeneration
             writer.WriteNumber("maxDocumentBytes", RecordedGenerationAdmission.DocumentByteLimit(reader, selected));
             writer.WriteNumber("maxRequestFrameBytes", wasm.RequestFrameBytes);
             writer.WriteNumber("maxResponseFrameBytes", wasm.ResponseFrameBytes);
+            writer.WriteNumber("maxInputBatchBytes", maxInputBatchBytes);
+            writer.WriteNumber("maxOutputBatchBytes", maxOutputBatchBytes);
+            writer.WriteNumber("peakDiscoveryIndexChargedBytes", peakDiscoveryIndexChargedBytes);
             writer.WritePropertyName("limits");
             JsonSerializer.Serialize(writer, selected, MepJson.Default.ModelAccessLimits);
+            if (memory is not null)
+            {
+                writer.WriteStartObject("linearMemory");
+                if (memory.GuestBytes is { } guestBytes)
+                    writer.WriteNumber("peakGuestLinearMemoryBytes", guestBytes);
+                else
+                    writer.WriteNull("peakGuestLinearMemoryBytes");
+                writer.WriteNumber("peakKernelLinearMemoryBytes", memory.KernelBytes);
+                writer.WriteNumber("perMemoryCeilingBytes", memory.CeilingBytes);
+                writer.WriteEndObject();
+            }
             writer.WriteEndObject();
         }
         using var document = JsonDocument.Parse(bytes.WrittenMemory);
