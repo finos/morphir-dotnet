@@ -47,6 +47,11 @@ public sealed class RecordedGenerationTaskTests
             RecordFile.Write(Location.Record, previous);
             return previous;
         }
+        public void WithForeignOutput()
+        {
+            Directory.CreateDirectory(Output);
+            File.WriteAllText(Path.Combine(Output, "order.txt"), "foreign\n");
+        }
         public BoundedArtifactStage Stage() => new(Location.Dest, Limits(), new GenerationSessionDiskBudget(8192));
         public void WithLinkedTaskPath(string selected)
         {
@@ -128,8 +133,7 @@ public sealed class RecordedGenerationTaskTests
     public async Task InstallRefusalKeepsAValidWorkingResultAndDoesNotClaimForeignContent()
     {
         using var data = new PublicationCase();
-        Directory.CreateDirectory(data.Output);
-        File.WriteAllText(Path.Combine(data.Output, "order.txt"), "foreign\n");
+        data.WithForeignOutput();
         using var run = await RecordedGenerationTask.OpenAsync(data.Location, data.Output, data.Options, default);
         run.Prepare();
         using var stage = data.Stage();
