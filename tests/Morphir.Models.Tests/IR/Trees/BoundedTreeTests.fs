@@ -9,6 +9,8 @@ open Morphir.IR.Trees
 open Morphir.TestSupport.Fixtures
 
 module Orders = Morphir.Models.TestSupport.DocumentTreeMother.BoundedOrders
+module Mother = Morphir.Models.TestSupport.DocumentTreeMother
+module Driver = Morphir.Models.TestSupport.DocumentTreeStoreDriver
 
 let private domain = ModulePath(Path [ Name [ "domain" ] ])
 let private manifestLocation = Orders.manifestLocation
@@ -965,6 +967,297 @@ let profileTests =
     ]
 
 [<Tests>]
+let logicalDocumentTests =
+    testList "Bounded logical document delivery" [
+        for version in [ "v3.1"; "v4" ] do
+            for profile in [ "plain-json"; "plain-yaml"; "contextual-json"; "contextual-yaml" ] do
+                test
+                    $"Delivers original manifest, module and selected body bytes in {version} {profile}" {
+                    let source, opened = frozenOrders version profile
+                    let files = Orders.catalogDocuments version profile
+                    let extension = if profile.EndsWith("-yaml") then ".yaml" else ".json"
+
+                    let encoding =
+                        if profile.StartsWith("contextual-") then
+                            BoundedTreeEncoding.ContextualDraft1
+                        else
+                            BoundedTreeEncoding.Plain
+
+                    let snapshot =
+                        read (BoundedTreeReader.openTreeWithEncoding encoding 8192L source)
+
+                    opened.Clear()
+
+                    let expectDocument id =
+                        let original =
+                            FixtureCatalog.ReadBytes(
+                                files[id
+                                      + extension]
+                            )
+
+                        let bytes = read (DocumentTreeStore.readDocument id snapshot)
+
+                        Expect.sequenceEqual
+                            (bytes.ToArray())
+                            original
+                            "Return the unchanged encoded document"
+
+                    expectDocument "manifest"
+                    expectDocument "pkg/acme/orders/domain/module"
+                    expectDocument "pkg/acme/orders/domain/total-in-_usd.value"
+                    expectDocument "deps/morphir/_sdk/@/basics/int.type"
+
+                    Expect.sequenceEqual
+                        opened
+                        ([
+                            "manifest"
+                            "pkg/acme/orders/domain/module"
+                            "pkg/acme/orders/domain/module"
+                            "pkg/acme/orders/domain/total-in-_usd.value"
+                            "deps/morphir/_sdk/@/basics/module"
+                            "deps/morphir/_sdk/@/basics/int.type"
+                         ]
+                         |> List.map (fun id ->
+                             id
+                             + extension
+                         ))
+                        "No unrelated definition opens"
+                }
+
+        test "Rejects physical and out-of-scope IDs before looking up files" {
+            let source, opened = frozenOrders "v4" "plain-json"
+            let snapshot = read (BoundedTreeReader.openTree 8192L source)
+            opened.Clear()
+
+            for invalid in
+                [
+                    "../manifest"
+                    "manifest.json"
+                    "/pkg/acme/orders/domain/order.value"
+                    "pkg/acme/orders/domain/order.value.json"
+                    "pkg/acme/orders/../domain/order.value"
+                    "pkg/acme/orders/domain/unknown.spec"
+                    "deps/foreign/sdk/@/basics/int.type"
+                    "deps/morphir/_sdk/@v4/basics/int.type"
+                ] do
+                let errors =
+                    DocumentTreeStore.readDocument invalid snapshot
+                    |> StoreTestKit.refusal
+
+                Expect.equal
+                    (StoreTestKit.codesAndFiles errors
+                     |> List.map fst)
+                    [ "tree.invalid_selection" ]
+                    invalid
+
+            Expect.isEmpty opened "Forged logical IDs never open a file"
+        }
+
+        test "An inline member can only be fetched through its advertised module ID" {
+            let source, lookedUp, _ =
+                ordersSource (Orders.contextualInlineWithUnknownSiblingAlias ())
+
+            let snapshot =
+                read (
+                    BoundedTreeReader.openTreeWithEncoding
+                        BoundedTreeEncoding.ContextualDraft1
+                        8192L
+                        source
+                )
+
+            lookedUp.Clear()
+
+            let error =
+                DocumentTreeStore.readDocument "pkg/acme/orders/domain/order.value" snapshot
+                |> StoreTestKit.refusal
+                |> StoreTestKit.codesAndFiles
+
+            Expect.equal
+                error
+                [ "tree.invalid_selection", None ]
+                "No synthetic member document is delivered"
+
+            let bytes =
+                read (DocumentTreeStore.readDocument "pkg/acme/orders/domain/module" snapshot)
+
+            Expect.isGreaterThan bytes.Length 0 "Deliver the containing module's original bytes"
+            Expect.sequenceEqual lookedUp [ moduleLocation; moduleLocation ] "No sidecar is opened"
+        }
+
+        test "A selected split document must agree with its requested member" {
+            let source, _, _ = ordersSource (Orders.selectedValueWithWrongName "v4")
+            let snapshot = read (BoundedTreeReader.openTree 8192L source)
+
+            DocumentTreeStore.readDocument "pkg/acme/orders/domain/order.value" snapshot
+            |> expectReadError "tree.name_mismatch" orderLocation
+        }
+
+        test "Rejects a logical read after the admitted revision changes" {
+            let source, lookedUp, advance = ordersSource (Orders.selectedValues "v4")
+            let snapshot = read (BoundedTreeReader.openTree 8192L source)
+            lookedUp.Clear()
+            advance ()
+
+            let result =
+                DocumentTreeStore.readDocument "pkg/acme/orders/domain/order.value" snapshot
+
+            let errors = StoreTestKit.refusal result
+
+            Expect.equal
+                (StoreTestKit.codesAndFiles errors
+                 |> List.map fst)
+                [ "tree.revision_changed" ]
+                "No read on stale revision"
+
+            Expect.isEmpty lookedUp "The stale snapshot did not reach storage"
+        }
+    ]
+
+[<Tests>]
+let logicalInventoryTests =
+    let moduleIds (page: BoundedTreeInventoryPage) =
+        page.Entries
+        |> List.map (
+            function
+            | BoundedTreeInventoryEntry.ModuleEntry item -> item.DocumentId, item.Role
+            | _ -> failtest "Root must contain modules"
+        )
+
+    let memberIds (page: BoundedTreeInventoryPage) =
+        page.Entries
+        |> List.map (
+            function
+            | BoundedTreeInventoryEntry.MemberEntry(item, role) -> item.DocumentId, role
+            | _ -> failtest "A member page cannot contain modules"
+        )
+
+    testList "Bounded logical inventory" [
+        test "Pages own modules and dependency modules without reading bodies" {
+            let source, opened = frozenOrders "v4" "contextual-yaml"
+
+            let snapshot =
+                read (
+                    BoundedTreeReader.openTreeWithEncoding
+                        BoundedTreeEncoding.ContextualDraft1
+                        8192L
+                        source
+                )
+
+            opened.Clear()
+
+            let first = read (DocumentTreeStore.pageInventory "root" 1 None snapshot)
+
+            Expect.equal
+                (moduleIds first)
+                [ "pkg/acme/orders/audit/module", BoundedTreeRole.Definition ]
+                "First module"
+
+            Expect.sequenceEqual
+                opened
+                [ "pkg/acme/orders/audit/module.yaml" ]
+                "The first page reads only its module"
+
+            let rest =
+                read (DocumentTreeStore.pageInventory "root" 2 first.Continuation snapshot)
+
+            Expect.equal
+                (moduleIds rest)
+                [
+                    "pkg/acme/orders/domain/module", BoundedTreeRole.Definition
+                    "deps/morphir/_sdk/@/basics/module", BoundedTreeRole.Specification
+                ]
+                "Continue through declared packages"
+
+            Expect.isNone rest.Continuation "The root listing is exhausted"
+
+            let domain = "pkg/acme/orders/domain/module"
+            let members = read (DocumentTreeStore.pageInventory domain 2 None snapshot)
+
+            Expect.equal
+                (memberIds members)
+                [
+                    "pkg/acme/orders/domain/order.type", BoundedTreeRole.Definition
+                    "pkg/acme/orders/domain/order.value", BoundedTreeRole.Definition
+                ]
+                "Type and value have distinct identities"
+
+            let tail =
+                read (DocumentTreeStore.pageInventory domain 2 members.Continuation snapshot)
+
+            Expect.equal
+                (memberIds tail)
+                [ "pkg/acme/orders/domain/total-in-_usd.value", BoundedTreeRole.Definition ]
+                "The final page preserves the escaped logical ID"
+
+            let sdk =
+                read (
+                    DocumentTreeStore.pageInventory
+                        "deps/morphir/_sdk/@/basics/module"
+                        2
+                        None
+                        snapshot
+                )
+
+            Expect.equal
+                (memberIds sdk)
+                [
+                    "deps/morphir/_sdk/@/basics/int.type", BoundedTreeRole.Specification
+                    "deps/morphir/_sdk/@/basics/add.value", BoundedTreeRole.Specification
+                ]
+                "The dependency role reaches its members"
+
+            Expect.isTrue
+                (Seq.forall (fun (f: string) -> f.EndsWith("/module.yaml")) opened)
+                "Inventory opens no definition file"
+        }
+
+        test "A continuation is bound to the originating snapshot and selection" {
+            let source, opened = frozenOrders "v4" "plain-json"
+            let snapshot = read (BoundedTreeReader.openTree 8192L source)
+            let other = read (BoundedTreeReader.openTree 8192L source)
+            let id = "pkg/acme/orders/domain/module"
+            let first = read (DocumentTreeStore.pageInventory id 1 None snapshot)
+
+            let token =
+                first.Continuation
+                |> Option.defaultWith (fun () -> failtest "Expected a continuation")
+
+            opened.Clear()
+
+            let expectInvalid selection view cursor =
+                let result = DocumentTreeStore.pageInventory selection 1 (Some cursor) view
+
+                let errors =
+                    result
+                    |> StoreTestKit.refusal
+                    |> StoreTestKit.codesAndFiles
+
+                Expect.equal
+                    errors
+                    [ "tree.invalid_cursor", None ]
+                    "Refuse forged or foreign continuations"
+
+            expectInvalid "root" snapshot token
+            expectInvalid id other token
+
+            expectInvalid
+                id
+                snapshot
+                ("x"
+                 + token)
+
+            Expect.isEmpty opened "Invalid continuations never open a module"
+
+            let resumed = read (DocumentTreeStore.pageInventory id 1 (Some token) snapshot)
+
+            Expect.equal
+                (memberIds resumed)
+                [ "pkg/acme/orders/domain/order.value", BoundedTreeRole.Definition ]
+                "The correct selection can resume"
+        }
+    ]
+
+[<Tests>]
 let providerTests =
     testList "Bounded file provider entry point" [
         for version in [ "v3.1"; "v4" ] do
@@ -1259,5 +1552,456 @@ let providerTests =
                 lookedUp
                 [ manifestLocation; moduleLocation ]
                 "The sidecar body stays unopened"
+        }
+    ]
+
+
+[<Tests>]
+let boundedExportTests =
+    let totalId = "pkg/acme/orders/domain/total-in-_usd.value"
+
+    let openContextual version profile =
+        let source, opened = frozenOrders version profile
+
+        let snapshot =
+            read (
+                BoundedTreeReader.openTreeWithEncoding
+                    BoundedTreeEncoding.ContextualDraft1
+                    8192L
+                    source
+            )
+
+        opened.Clear()
+        snapshot, opened
+
+    let expectPlain version name (bytes: System.ReadOnlyMemory<byte>) =
+        let catalog = Orders.catalogDocuments version "plain-json"
+
+        use expected =
+            JsonDocument.Parse(System.ReadOnlyMemory(FixtureCatalog.ReadBytes(catalog[name])))
+
+        use actual = JsonDocument.Parse bytes
+        Expect.isTrue (JsonElement.DeepEquals(actual.RootElement, expected.RootElement)) name
+
+    testList "Bounded expanded export" [
+        test "Original delivery uses the source cap independently of expanded inventory" {
+            let files, original = Orders.contextualModuleWithSharedInventoryAliases ()
+            let source, _, _ = ordersSource files
+
+            let snapshot =
+                read (
+                    BoundedTreeReader.openTreeWithEncoding
+                        BoundedTreeEncoding.ContextualDraft1
+                        8192L
+                        source
+                )
+
+            let moduleId = "pkg/acme/orders/domain/module"
+            let originalSize = int64 (System.Text.Encoding.UTF8.GetByteCount original)
+            let expanded = read (DocumentTreeStore.readExpandedDocument moduleId 8192L snapshot)
+
+            Expect.isGreaterThan
+                (int64 expanded.Bytes.Length)
+                originalSize
+                "The aliases expand past the delivery budget"
+
+            let delivered = read (DocumentTreeStore.readDocumentWithin moduleId originalSize snapshot)
+
+            Expect.equal
+                (System.Text.Encoding.UTF8.GetString delivered.Span)
+                original
+                "Deliver the original envelope"
+
+            DocumentTreeStore.readDocumentWithin moduleId (originalSize - 1L) snapshot
+            |> expectReadError "tree.file_too_large" moduleLocation
+        }
+
+        test "Exports inventory beyond the source cap and preserves parameter order" {
+            let files, original = Orders.contextualModuleWithSharedInventoryAliases ()
+            let sourceSize = int64 (System.Text.Encoding.UTF8.GetByteCount original)
+
+            let options =
+                { ReadOptions.defaults with
+                    MaxFileBytes = sourceSize
+                }
+
+            let snapshot =
+                DocumentTreeStore.openSnapshotWithEncoding
+                    options
+                    BoundedTreeEncoding.ContextualDraft1
+                    (fun () -> "stable")
+                    (VFileProviders.asFileProvider files)
+                |> read
+            let staged = ResizeArray<BoundedTreeExportDocument>()
+
+            let stage file =
+                staged.Add file
+                Ok()
+
+            let limits = {
+                MaxDocumentBytes = 8192L
+                MaxTotalBytes = 65536L
+                PageSize = 1
+            }
+
+            read (DocumentTreeStore.writeExpandedTree limits stage snapshot)
+            Expect.equal staged.Count 8 "Manifest, module and six split bodies"
+            let moduleFile = staged |> Seq.find (fun file -> file.File = moduleLocation)
+
+            Expect.isGreaterThan
+                (int64 moduleFile.Bytes.Length)
+                sourceSize
+                "The exported module exceeds the source cap"
+
+            let value = staged |> Seq.find (fun file -> file.File.EndsWith ".value.json")
+            use document = JsonDocument.Parse value.Bytes
+
+            let inputs =
+                document.RootElement
+                    .GetProperty("def")
+                    .GetProperty("Public")
+                    .GetProperty("ExpressionBody")
+                    .GetProperty("inputTypes")
+
+            let names = inputs.EnumerateObject() |> Seq.map _.Name |> List.ofSeq
+            Expect.equal names [ "rate"; "amount" ] "Keep source parameter order through expansion"
+        }
+
+        for version in [ "v3.1"; "v4" ] do
+            for profile in [ "contextual-json"; "contextual-yaml" ] do
+                test $"Exports one selected {version} {profile} definition" {
+                    let snapshot, opened = openContextual version profile
+
+                    let exported =
+                        read (DocumentTreeStore.readExpandedDocument totalId 8192L snapshot)
+
+                    Expect.equal
+                        exported.File
+                        (totalId
+                         + ".json")
+                        "The logical identity selects plain JSON output"
+
+                    expectPlain version exported.File exported.Bytes
+
+                    let extension = if profile.EndsWith("-yaml") then ".yaml" else ".json"
+
+                    let bodyReads =
+                        opened
+                        |> Seq.filter (fun name ->
+                            name.EndsWith(
+                                ".value"
+                                + extension
+                            )
+                        )
+
+                    Expect.sequenceEqual
+                        bodyReads
+                        [
+                            totalId
+                            + extension
+                        ]
+                        "Open only the selected body"
+                }
+
+        for version, tree in
+            [ "v3.1", Mother.v3SharedNameOverTheBudget; "v4", Mother.sharedNameOverTheBudget ] do
+            test $"Preserves {version} physical stems recorded in fileNames" {
+                let files = read (Driver.write tree.Tree)
+                let provider = VFileProviders.asFileProvider files
+
+                let snapshot =
+                    read (
+                        DocumentTreeStore.openSnapshot
+                            ReadOptions.defaults
+                            (fun () -> "stable")
+                            provider
+                    )
+
+                let staged = ResizeArray<string * VFile>()
+
+                let stage (file: BoundedTreeExportDocument) =
+                    staged.Add(file.File, VFile.ofBytes file.File file.Bytes)
+                    Ok()
+
+                let limits = {
+                    MaxDocumentBytes = 65536L
+                    MaxTotalBytes = 524288L
+                    PageSize = 1
+                }
+
+                read (DocumentTreeStore.writeExpandedTree limits stage snapshot)
+
+                let expanded =
+                    Map.ofSeq staged
+                    |> VFileTree.fromFileMap
+
+                let paths tree =
+                    VFileTree.toFileMap tree
+                    |> Map.keys
+                    |> Set.ofSeq
+
+                Expect.equal (paths expanded) (paths files) "Keep the admitted shortened sidecars"
+                let reopened, _ = read (Driver.read expanded)
+                let roundTrip = read (Driver.write reopened)
+
+                Expect.equal
+                    (Driver.texts roundTrip)
+                    (Driver.texts files)
+                    "The preserved fileNames resolve both members"
+            }
+
+        test "Uses the export cap when validating the expanded inline module" {
+            let files, sourceBytes = Orders.contextualInlineOrderWithExpandingAliases ()
+
+            let options =
+                { ReadOptions.defaults with
+                    MaxFileBytes = int64 sourceBytes
+                }
+
+            let provider = VFileProviders.asFileProvider files
+
+            let snapshot =
+                DocumentTreeStore.openSnapshotWithEncoding
+                    options
+                    BoundedTreeEncoding.ContextualDraft1
+                    (fun () -> "stable")
+                    provider
+                |> read
+
+            let moduleId = "pkg/acme/orders/domain/module"
+            let expanded = read (DocumentTreeStore.readExpandedDocument moduleId 8192L snapshot)
+
+            Expect.isGreaterThan
+                expanded.Bytes.Length
+                sourceBytes
+                "The expanded module exceeds the source cap"
+
+            let staged = ResizeArray<BoundedTreeExportDocument>()
+
+            let stage file =
+                staged.Add file
+                Ok()
+
+            let limits = {
+                MaxDocumentBytes = 8192L
+                MaxTotalBytes = 65536L
+                PageSize = 1
+            }
+
+            read (DocumentTreeStore.writeExpandedTree limits stage snapshot)
+
+            let emitted =
+                staged
+                |> Seq.find (fun file -> file.File = moduleLocation)
+
+            Expect.sequenceEqual
+                (emitted.Bytes.ToArray())
+                (expanded.Bytes.ToArray())
+                "Stage the validated inline module once"
+        }
+
+        test "Selected module export refuses a malformed inline body" {
+            let source, _, _ = ordersSource (Orders.malformedInlineValue "v4")
+            let snapshot = read (BoundedTreeReader.openTree 8192L source)
+
+            let result =
+                DocumentTreeStore.readExpandedDocument
+                    "pkg/acme/orders/domain/module"
+                    8192L
+                    snapshot
+
+            Expect.isError result "The inline value must decode before the module is returned"
+        }
+
+        test "Rejects the first byte outside the exact expanded limit" {
+            let snapshot, _ = openContextual "v4" "contextual-json"
+            let exported = read (DocumentTreeStore.readExpandedDocument totalId 8192L snapshot)
+            let size = int64 exported.Bytes.Length
+            let exact = read (DocumentTreeStore.readExpandedDocument totalId size snapshot)
+
+            Expect.sequenceEqual
+                (exact.Bytes.ToArray())
+                (exported.Bytes.ToArray())
+                "Exactly at the output limit"
+
+            DocumentTreeStore.readExpandedDocument totalId (size - 1L) snapshot
+            |> expectReadError "tree.file_too_large" totalLocation
+        }
+
+        test
+            "Expansion preserves literal order and exact numbers while original bytes retain optional context" {
+            let files, original = Orders.contextualOrderWithLiteralAndOptionalPrefixes ()
+            let source, _, _ = ordersSource files
+
+            let snapshot =
+                read (
+                    BoundedTreeReader.openTreeWithEncoding
+                        BoundedTreeEncoding.ContextualDraft1
+                        8192L
+                        source
+                )
+
+            let id = "pkg/acme/orders/domain/order.value"
+            let expanded = read (DocumentTreeStore.readExpandedDocument id 8192L snapshot)
+            use parsed = JsonDocument.Parse expanded.Bytes
+
+            let expression =
+                parsed.RootElement
+                    .GetProperty("def")
+                    .GetProperty("Public")
+                    .GetProperty("ExpressionBody")
+
+            let literal =
+                expression
+                    .GetProperty("body")
+                    .GetProperty("Literal")
+                    .GetProperty("DocumentLiteral")
+
+            let fields =
+                literal.EnumerateObject()
+                |> Seq.map (fun entry -> entry.Name, entry.Value.GetRawText())
+                |> List.ofSeq
+
+            Expect.equal
+                fields
+                [ "ratio", "1.0"; "$name", "\"i\""; "id", "9007199254740993" ]
+                "Opaque literal"
+
+            Expect.equal
+                (expression.GetProperty("outputType").GetString())
+                "morphir/SDK:basics#int"
+                "Only the typed alias is expanded"
+
+            let bytes = read (DocumentTreeStore.readDocument id snapshot)
+
+            Expect.equal
+                (System.Text.Encoding.UTF8.GetString bytes.Span)
+                original
+                "Exact opaque pass-through"
+        }
+
+        test "Expanded output has a separate limit from admitted source bytes" {
+            let files, selectedBytes = Orders.contextualOrderWithExpandingAliases ()
+            let source, _, _ = ordersSource files
+
+            let snapshot =
+                read (
+                    BoundedTreeReader.openTreeWithEncoding
+                        BoundedTreeEncoding.ContextualDraft1
+                        (int64 selectedBytes)
+                        source
+                )
+
+            let id = "pkg/acme/orders/domain/order.value"
+            let expanded = read (DocumentTreeStore.readExpandedDocument id 8192L snapshot)
+
+            Expect.isGreaterThan
+                expanded.Bytes.Length
+                selectedBytes
+                "Alias expansion can exceed the input length"
+
+            DocumentTreeStore.readExpandedDocument id (int64 selectedBytes) snapshot
+            |> expectReadError "tree.file_too_large" orderLocation
+        }
+
+        test "A revision change during staging prevents a successful export" {
+            let source, _, advance = ordersSource (Orders.selectedValues "v4")
+            let snapshot = read (BoundedTreeReader.openTree 8192L source)
+            let staged = ResizeArray<string>()
+
+            let stage (file: BoundedTreeExportDocument) =
+                staged.Add file.File
+                advance ()
+                Ok()
+
+            let limits = {
+                MaxDocumentBytes = 8192L
+                MaxTotalBytes = 65536L
+                PageSize = 1
+            }
+
+            let result = DocumentTreeStore.writeExpandedTree limits stage snapshot
+
+            let codes =
+                result
+                |> StoreTestKit.refusal
+                |> StoreTestKit.codesAndFiles
+                |> List.map fst
+
+            Expect.equal codes [ "tree.revision_changed" ] "A changed snapshot is refused"
+            Expect.sequenceEqual staged [ "manifest.json" ] "No further file reaches the stage"
+        }
+
+        test "Pages a complete tree to a private stage without buffering unrelated bodies" {
+            let snapshot, opened = openContextual "v4" "contextual-yaml"
+            let expected = Orders.catalogDocuments "v4" "plain-json"
+            let seen = System.Collections.Generic.HashSet<string>()
+
+            let stage (file: BoundedTreeExportDocument) =
+                if seen.Count = 0 then
+                    Expect.equal file.File "manifest.json" "Manifest is first"
+
+                    Expect.sequenceEqual
+                        opened
+                        [ "manifest.yaml" ]
+                        "No definition read before the first stage write"
+
+                Expect.isTrue (seen.Add file.File) "An artifact is staged once"
+                expectPlain "v4" file.File file.Bytes
+                Ok()
+
+            let limits = {
+                MaxDocumentBytes = 8192L
+                MaxTotalBytes = 65536L
+                PageSize = 1
+            }
+
+            read (DocumentTreeStore.writeExpandedTree limits stage snapshot)
+
+            Expect.equal
+                (Set.ofSeq seen)
+                (expected
+                 |> Map.keys
+                 |> Set.ofSeq)
+                "Stage the admitted tree and dependencies"
+        }
+
+        test "Does not emit the next file after exhausting the total export budget" {
+            let snapshot, opened = openContextual "v4" "contextual-json"
+
+            let manifest =
+                read (DocumentTreeStore.readExpandedDocument "manifest" 8192L snapshot)
+
+            opened.Clear()
+            let names = ResizeArray<string>()
+
+            let stage (file: BoundedTreeExportDocument) =
+                names.Add file.File
+                Ok()
+
+            let limits = {
+                MaxDocumentBytes = 8192L
+                MaxTotalBytes = int64 manifest.Bytes.Length
+                PageSize = 1
+            }
+
+            let result = DocumentTreeStore.writeExpandedTree limits stage snapshot
+
+            let codes =
+                result
+                |> StoreTestKit.refusal
+                |> StoreTestKit.codesAndFiles
+                |> List.map fst
+
+            Expect.equal codes [ "tree.file_too_large" ] "Cumulative budget"
+
+            Expect.sequenceEqual
+                names
+                [ "manifest.json" ]
+                "Only a complete admitted artifact reached the stage"
+
+            Expect.isTrue
+                (Seq.forall (fun (name: string) -> not (name.EndsWith ".value.json")) opened)
+                "No value is opened"
         }
     ]

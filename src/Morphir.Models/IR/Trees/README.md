@@ -52,3 +52,30 @@ Aliases in typed positions resolve through their own table. Literal values,
 documentation and opaque extension data keep their contents. Morphir's
 file-local tables apply to IR documents. Ion symbol tables belong to the
 separate Ion codec.
+
+A bounded session can call `DocumentTreeStore.readDocument` with `manifest`
+or a logical document ID announced by inventory. The reader checks the ID
+against the snapshot before it opens a file. It returns the selected
+document's original bytes, including the full local context when present.
+Inline members use their containing module's ID. A revision change or a
+physical filename in place of a logical ID is refused.
+
+
+## Stage an expanded JSON tree
+
+Use `DocumentTreeStore.readExpandedDocument` to export a logical document
+as plain JSON. The supplied output byte limit is separate from the admitted
+input limit. YAML trees export with JSON filenames. Inline bodies use their
+containing module's logical document ID.
+
+`DocumentTreeStore.writeExpandedTree` calls a private staging writer once
+for each admitted file. It pages the root package and its dependencies, keeps
+only the current documents and pages, and enforces per-document and total
+UTF-8 byte limits. The caller publishes only after the walk succeeds. A late
+read error, failed write or revision change can make the stage incomplete.
+
+Use `readDocument` to keep the exact original bytes, including YAML
+presentation and optional envelope data. `readDocumentWithin` applies an
+additional cap to those bytes while module inventory still uses the
+snapshot's admission budget. During export, the per-document output cap can
+also admit a larger expanded inventory without raising the source-byte cap.
