@@ -9,10 +9,10 @@ Decision ids (REF-1 … PKG-1) refer to [design.html](design.html). Before addin
 
 ## 2. N-Triples (rdf-datasets, RDF-2)
 
-- [ ] 2.1 Write failing TUnit tests in `tests/Morphir.Knowledge.Rdf.Tests` for a default-graph round trip, the fourth-term syntax error, and blank-node identity across inputs
-- [ ] 2.2 Implement `NTriples` `Read`/`TryRead`/`Write`/`TryWrite` by reusing the N-Quads grammar with graph terms disabled, and verify that the tests from 2.1 and the existing N-Quads tests pass
-- [ ] 2.3 Add `NamedGraphHandling` (reject, or default graph only, with the omitted graphs reported) and its tests for N-Triples, and verify the "Named graph to N-Triples" and "Explicit omission" scenarios
-- [ ] 2.4 Document N-Triples and named-graph handling, in F# and C#, in `src/Morphir.Knowledge.Rdf/README.md`, and verify that the samples compile in a test
+- [x] 2.1 Write failing TUnit tests in `tests/Morphir.Knowledge.Rdf.Tests` for a default-graph round trip, the fourth-term syntax error, and blank-node identity across inputs
+- [x] 2.2 Implement `NTriples` `Read`/`TryRead`/`Write`/`TryWrite` by reusing the N-Quads grammar with graph terms disabled, and verify that the tests from 2.1 and the existing N-Quads tests pass
+- [x] 2.3 Add `NamedGraphHandling` (reject, or default graph only, with the omitted graphs reported) and its tests for N-Triples, and verify the "Named graph to N-Triples" and "Explicit omission" scenarios
+- [x] 2.4 Document N-Triples and named-graph handling, in F# and C#, in `src/Morphir.Knowledge.Rdf/README.md`, and verify that the samples compile in a test
 
 ## 3. Canonicalization (rdf-datasets, RDF-2)
 

@@ -73,6 +73,63 @@ if (!NQuads.TryWrite(dataset, EmptyGraphHandling.Reject, out var output, out var
 Console.Write(Encoding.UTF8.GetString(output.Bytes));
 ```
 
+## N-Triples
+
+N-Triples holds the default graph only. `NTriples.Read` puts every triple in
+the default graph, with the same blank-node identity and diagnostics as an
+N-Quads read. A statement with a fourth term is a syntax error with the code
+`ntriples.graph-label`, and its span starts at that term.
+
+A format without named graphs reports them before it writes anything. By
+default, writing a dataset with named graphs as N-Triples fails with
+`RdfWriteError.NamedGraphs`, which names every named graph. To write the
+default graph alone, pass `NamedGraphHandling.DropNamedGraphs` and read the
+names of the omitted graphs from `RdfOutput.OmittedGraphs`. The same policy
+applies to RDF/XML.
+
+### F#
+
+```fsharp
+open System
+open System.Text
+open Morphir.Knowledge.Rdf
+
+let bytes = Encoding.UTF8.GetBytes("<urn:item> <urn:status> \"approved\" .\n")
+let dataset =
+    match NTriples.Read(ReadOnlyMemory bytes) with
+    | Ok dataset -> dataset
+    | Error error -> failwith (error.ToString())
+
+match NTriples.Write(dataset, NamedGraphHandling.DropNamedGraphs) with
+| Ok output ->
+    for graph in output.OmittedGraphs do
+        eprintfn "Omitted %O" graph
+    printf "%s" (Encoding.UTF8.GetString output.Bytes.Span)
+| Error error -> failwith (error.ToString())
+```
+
+### C#
+
+```csharp
+using System;
+using System.Text;
+using Morphir.Knowledge.Rdf;
+
+var bytes = Encoding.UTF8.GetBytes("<urn:item> <urn:status> \"approved\" .\n");
+if (!NTriples.TryRead(bytes, out var dataset, out var readError))
+    throw new InvalidOperationException(readError.ToString());
+
+if (!NTriples.TryWrite(dataset, NamedGraphHandling.Reject, out var output, out var writeError))
+{
+    var graphs = writeError.Match(
+        namedGraphs: names => names.Length,
+        predicateWithoutLocalName: _ => 0);
+    throw new InvalidOperationException($"{graphs} named graph(s): {writeError}");
+}
+
+Console.Write(Encoding.UTF8.GetString(output.Bytes.Span));
+```
+
 The pinned [RDF 1.1 N-Quads syntax cases](../../tests/Fixtures/RdfNQuads/PROVENANCE.md)
 exercise the reader, including the blank-node grammar. The applicable references
 are [RDF 1.1 Concepts](https://www.w3.org/TR/rdf11-concepts/),

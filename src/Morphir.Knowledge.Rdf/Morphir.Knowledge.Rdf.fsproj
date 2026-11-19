@@ -16,6 +16,8 @@
     </ItemGroup>
     <ItemGroup>
         <Compile Include="Dataset.fs" />
+        <Compile Include="Formats.fs" />
         <Compile Include="NQuads.fs" />
+        <Compile Include="NTriples.fs" />
     </ItemGroup>
 </Project>

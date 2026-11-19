@@ -9,6 +9,7 @@
     <ItemGroup>
         <PackageReference Include="Expecto" />
         <PackageReference Include="FSharp.Core" />
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
         <PackageReference Include="Microsoft.NET.Test.Sdk" />
         <PackageReference Include="YoloDev.Expecto.TestSdk" />
     </ItemGroup>
@@ -17,8 +18,14 @@
         <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
     </ItemGroup>
     <ItemGroup>
+        <EmbeddedResource Include="../../src/Morphir.Knowledge.Rdf/README.md" LogicalName="Morphir.Knowledge.Rdf.README.md" />
+    </ItemGroup>
+    <ItemGroup>
+        <Compile Include="Isomorphism.fs" />
         <Compile Include="DatasetTests.fs" />
         <Compile Include="NQuadsTests.fs" />
+        <Compile Include="NTriplesTests.fs" />
+        <Compile Include="ReadmeTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 </Project>

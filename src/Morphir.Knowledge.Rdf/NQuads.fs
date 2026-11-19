@@ -25,6 +25,8 @@ type NQuadsReadErrorKind =
     | InvalidEscape
     | MissingTerminator
     | UnexpectedContent
+    /// An N-Triples statement has a fourth term.
+    | GraphLabelNotAllowed
 
     /// A stable diagnostic code.
     member this.Code =
@@ -40,10 +42,11 @@ type NQuadsReadErrorKind =
         | NQuadsReadErrorKind.InvalidEscape -> "nquads.invalid-escape"
         | NQuadsReadErrorKind.MissingTerminator -> "nquads.missing-terminator"
         | NQuadsReadErrorKind.UnexpectedContent -> "nquads.unexpected-content"
+        | NQuadsReadErrorKind.GraphLabelNotAllowed -> "ntriples.graph-label"
 
     override this.ToString() = this.Code
 
-/// An N-Quads diagnostic and its UTF-16 source range when decoding succeeded.
+/// An N-Quads or N-Triples diagnostic and its UTF-16 source range when decoding succeeded.
 type NQuadsReadError =
     { /// The kind of problem.
       Kind: NQuadsReadErrorKind
@@ -96,9 +99,9 @@ type NQuadsOutput =
 
     override this.ToString() = $"N-Quads document ({this.Bytes.Length} bytes)"
 
-exception private ParseError of NQuadsReadError
+exception internal ParseError of NQuadsReadError
 
-module private NQuadsGrammar =
+module internal NQuadsGrammar =
     let whitespace ch = ch = ' ' || ch = '\t'
 
     let notIriCharacter ch =
@@ -134,7 +137,7 @@ module private NQuadsGrammar =
     let strictUtf8 = UTF8Encoding(false, true)
 
 /// The parser owns positions within one line and shares a blank-node table over the whole import.
-type private NQuadsLine(text: string, start: int, finish: int, blankNodes: Dictionary<string, BlankNodeId>) =
+type internal NQuadsLine(text: string, start: int, finish: int, blankNodes: Dictionary<string, BlankNodeId>, allowGraph: bool) =
     let mutable offset = start
 
     let fail kind message first last =
@@ -310,6 +313,11 @@ type private NQuadsLine(text: string, start: int, finish: int, blankNodes: Dicti
             skipWhitespace ()
             let graph =
                 if offset = finish || text[offset] = '.' || text[offset] = '#' then GraphLocation.DefaultGraph
+                elif not allowGraph then
+                    let first = offset
+                    while offset < finish && not (NQuadsGrammar.whitespace text[offset]) do
+                        offset <- offset + 1
+                    fail NQuadsReadErrorKind.GraphLabelNotAllowed "N-Triples statements have no graph label." first offset
                 else
                     readTerm NQuadsReadErrorKind.InvalidGraph "Expected an IRI or a blank node graph label." GraphName.IriName GraphName.BlankNodeName
                     |> GraphLocation.NamedGraph
@@ -324,7 +332,7 @@ type private NQuadsLine(text: string, start: int, finish: int, blankNodes: Dicti
 
             ValueSome { Subject = subject; Predicate = predicate; Object = objectValue; Graph = graph }
 
-module private NQuadsWriter =
+module internal NQuadsWriter =
     let write (dataset: RdfDataset) =
         let output = StringBuilder()
         let labels = Dictionary<BlankNodeId, string>()
@@ -392,11 +400,9 @@ module private NQuadsWriter =
 
         NQuadsGrammar.strictUtf8.GetBytes(output.ToString())
 
-/// A UTF-8 RDF 1.1 N-Quads reader and writer.
-[<AbstractClass; Sealed>]
-type NQuads private () =
-    /// Reads UTF-8 bytes, with fresh blank-node identities for this input. For F# callers.
-    static member Read(source: ReadOnlyMemory<byte>) =
+module internal NQuadsReading =
+    /// Reads statements line by line with one blank-node table for the whole input.
+    let read allowGraph (source: ReadOnlyMemory<byte>) =
         try
             let text = NQuadsGrammar.strictUtf8.GetString source.Span
             let blankNodes = Dictionary<string, BlankNodeId>(StringComparer.Ordinal)
@@ -408,7 +414,7 @@ type NQuads private () =
                 while finish < text.Length && text[finish] <> '\n' && text[finish] <> '\r' do
                     finish <- finish + 1
 
-                match NQuadsLine(text, start, finish, blankNodes).Read() with
+                match NQuadsLine(text, start, finish, blankNodes, allowGraph).Read() with
                 | ValueSome quad -> dataset <- dataset.Add quad
                 | ValueNone -> ()
 
@@ -421,6 +427,12 @@ type NQuads private () =
         | ParseError error -> Error error
         | :? DecoderFallbackException ->
             Error { Kind = NQuadsReadErrorKind.InvalidUtf8; Message = "The input is not valid UTF-8."; Span = ValueNone }
+
+/// A UTF-8 RDF 1.1 N-Quads reader and writer.
+[<AbstractClass; Sealed>]
+type NQuads private () =
+    /// Reads UTF-8 bytes, with fresh blank-node identities for this input. For F# callers.
+    static member Read(source: ReadOnlyMemory<byte>) = NQuadsReading.read true source
 
     /// Reads UTF-8 bytes, with fresh blank-node identities for this input. For C# callers.
     static member TryRead(
