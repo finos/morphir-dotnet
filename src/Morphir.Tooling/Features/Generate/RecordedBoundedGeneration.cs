@@ -161,7 +161,8 @@ internal static class RecordedBoundedGeneration
                     settings.Publication.OutputDirectory, producer.Ir.Version.Text, ModelLabels.Family(family), snapshot.KindName,
                     "DocumentTree", receipt, staged.Diagnostics)
                 {
-                    BackendTransport = guest.Transport, BackendVersion = label.Version,
+                    BackendTransport = guest.Transport,
+                    BackendVersion = label.Version,
                     BoundedAccess = settings.BoundedProfile == BoundedGenerationProfile.OrdersScale
                         ? AccessObservation(readerLimits, negotiated.Capabilities.ModelAccessOrNull()!.Limits) : null,
                 });
