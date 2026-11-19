@@ -308,6 +308,21 @@ public sealed class BoundedArtifactStageTests
         Directory.Exists(stage.Directory).Should().BeFalse();
     }
 
+    [Test]
+    [Arguments(0L, true)]
+    [Arguments(1L, false)]
+    public void SharesTheExactCacheCapWithReservedDiscoveryPaths(long excess, bool accepted)
+    {
+        using var sandbox = TestSandbox.Create();
+        var limits = Limits();
+        // A closed a.txt retains 512 + 2 * 5 bytes in the stage.
+        var reservation = limits.MaxHostCacheBytes - 522L + excess;
+        using var stage = new BoundedArtifactStage(sandbox.Work, limits,
+            new GenerationSessionDiskBudget(limits.MaxSessionDiskBytes), reservation);
+        var result = stage.Apply(Complete(Chunk("a.txt", 0, "", true)));
+        if (accepted) Accept(result).Should().NotBeNull();
+        else Refused(result).Should().Be("extension.artifact_limit");
+    }
     private static StagedGenerationOutput? Accept(Outcome<StagedGenerationOutput?> result) =>
         result.Should().BeOfType<Outcome<StagedGenerationOutput?>.Success>().Which.Value;
 
