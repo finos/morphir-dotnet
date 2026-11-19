@@ -105,4 +105,29 @@ public partial class ConnectorTests
             }
         }
     }
+
+    [Test]
+    public void ALaterLinkHopsOverAnEarlierOneThatItCrosses()
+    {
+        var svg = Render(Crossing, SvgRenderOptions.Default.WithBridges(true));
+
+        PathOf(svg, "D", "E").ShouldNotContain("A5 5");
+        PathOf(svg, "A", "G").ShouldContain("A5 5");
+        PathOf(svg, "A", "H").ShouldContain("A5 5");
+    }
+
+    [Test]
+    public void BridgesAreOffByDefault() =>
+        Render(Crossing, SvgRenderOptions.Default).ToString().ShouldNotContain("A5 5");
+
+    [Test]
+    public void PlaybackFollowsTheBridgedPath()
+    {
+        Mermaid.TryParse(Crossing, out var document, out _).ShouldBeTrue();
+
+        var scene = SvgRenderer.BuildScene(document!.Diagram, SvgRenderOptions.Default.WithBridges(true));
+
+        scene.Connectors.Single(connector => connector.Source.Value == "A" && connector.Target.Value == "H")
+            .PathData.ShouldContain("A5 5");
+    }
 }
