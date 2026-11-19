@@ -269,7 +269,7 @@ module internal SequenceSvg =
                     (Theme.stroke family)
             )
 
-    let render (options: SvgRenderOptions) (model: SequenceDiagram) =
+    let render (options: SvgRenderOptions) (metadata: Morphir.Svg.SvgNode list option) (model: SequenceDiagram) =
         let indices = Dictionary<DiagramId, int>()
 
         model.Participants
@@ -330,6 +330,7 @@ module internal SequenceSvg =
             height
             heads
             options
+            metadata
             false
             (fun writer ->
                 layout.Frames

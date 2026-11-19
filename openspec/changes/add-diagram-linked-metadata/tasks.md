@@ -63,10 +63,10 @@ Decision ids (REF-1 … PKG-1) refer to [design.html](design.html). Before addin
 
 ## 10. Sidecar and embedded carriage (diagram-linked-metadata, CAR-1)
 
-- [ ] 10.1 Write failing tests for a sidecar-to-SVG-to-extraction round trip in N-Quads, N-Triples and RDF/XML; no metadata without a dataset; a dataset without a document; named graphs under each embedding; dangling-target warnings; and byte determinism across statement order and blank-node identity
-- [ ] 10.2 Add `WithDocument` and `WithMetadata` to `SvgRenderOptions`, embed the canonical dataset in `<metadata>`, and implement `DiagramMetadata.TryRead` with format detection. Verify that the tests from 10.1 pass
-- [ ] 10.3 Update `tests/Morphir.Diagrams.Smoke` to render with metadata and extract it under Native AOT, and verify that managed and Linux Native AOT outputs are identical
-- [ ] 10.4 Document carriage, the embedding formats and the suggested sidecar naming in the Diagrams README, and verify the samples in a test
+- [x] 10.1 Write failing tests for a sidecar-to-SVG-to-extraction round trip in N-Quads, N-Triples and RDF/XML; no metadata without a dataset; a dataset without a document; named graphs under each embedding; dangling-target warnings; and byte determinism across statement order and blank-node identity
+- [x] 10.2 Add `WithDocument` and `WithMetadata` to `SvgRenderOptions`, embed the canonical dataset in `<metadata>`, and implement `DiagramMetadata.TryRead` with format detection. Verify that the tests from 10.1 pass
+- [x] 10.3 Update `tests/Morphir.Diagrams.Smoke` to render with metadata and extract it under Native AOT, and verify that managed and Linux Native AOT outputs are identical
+- [x] 10.4 Document carriage, the embedding formats and the suggested sidecar naming in the Diagrams README, and verify the samples in a test
 
 ## 11. Player presentation (diagram-linked-metadata, UI-1)
 

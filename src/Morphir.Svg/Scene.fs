@@ -419,8 +419,25 @@ type SvgNode =
         | SvgNode.Text value -> value
 
 type private WriteAction =
-    | WriteNode of SvgNode
+    | WriteNode of node: SvgNode * insideForeign: bool
     | CloseElement
+
+module private Bindings =
+    /// Every prefix binding that qualified names in a subtree use, except the xml prefix.
+    let rec collect (node: SvgNode) (found: Dictionary<string, string>) =
+        match node with
+        | SvgNode.Text _ -> ()
+        | SvgNode.Element(name, attributes, children) ->
+            let add (prefix, _, namespaceUri) =
+                if prefix <> "" && prefix <> "xml" && not (found.ContainsKey prefix) then found.Add(prefix, namespaceUri)
+
+            add name.Parts
+
+            for attribute in attributes do
+                add attribute.Name.Parts
+
+            for child in children do
+                collect child found
 
 /// An SVG document with one SVG root element and an optional metadata element.
 [<Sealed>]
@@ -464,16 +481,28 @@ type SvgDocument private (root: SvgNode, metadata: SvgNode option) =
 
         use writer = XmlWriter.Create(output, settings)
         let remaining = Stack<WriteAction>()
-        remaining.Push(WriteNode this.Root)
+        remaining.Push(WriteNode(this.Root, false))
 
         while remaining.Count > 0 do
             match remaining.Pop() with
             | CloseElement -> writer.WriteEndElement()
-            | WriteNode(SvgNode.Text content) -> writer.WriteString content
-            | WriteNode(SvgNode.Element(name, attributes, children)) ->
+            | WriteNode(SvgNode.Text content, _) -> writer.WriteString content
+            | WriteNode(SvgNode.Element(name, attributes, children) as element, insideForeign) ->
                 match name.Parts with
                 | "", local, _ -> writer.WriteStartElement(local, "http://www.w3.org/2000/svg")
                 | prefix, local, namespaceUri -> writer.WriteStartElement(prefix, local, namespaceUri)
+
+                // The outermost element of foreign content declares every prefix its subtree uses, so
+                // siblings below it share one declaration.
+                let foreign = insideForeign || name.IsQualified
+
+                if name.IsQualified && not insideForeign then
+                    let bindings = Dictionary<string, string>(StringComparer.Ordinal)
+                    Bindings.collect element bindings
+
+                    for pair in bindings |> Seq.sortBy (fun pair -> pair.Key) do
+                        if writer.LookupPrefix pair.Value <> pair.Key then
+                            writer.WriteAttributeString("xmlns", pair.Key, "http://www.w3.org/2000/xmlns/", pair.Value)
 
                 for attribute in attributes do
                     match attribute.Name.Parts with
@@ -494,7 +523,7 @@ type SvgDocument private (root: SvgNode, metadata: SvgNode option) =
                 remaining.Push CloseElement
 
                 for index in children.Length - 1 .. -1 .. 0 do
-                    remaining.Push(WriteNode children[index])
+                    remaining.Push(WriteNode(children[index], foreign))
 
         writer.Flush()
         output.ToString()

@@ -188,5 +188,8 @@ type Mermaid private () =
         ArgumentNullException.ThrowIfNull options
 
         match Mermaid.Parse source with
-        | Ok document -> AnimatedRenderer.Render(SvgRenderer.BuildScene(document.Diagram, options))
+        | Ok document ->
+            match SvgRenderer.TryBuild(document.Diagram, options) with
+            | Ok scene -> AnimatedRenderer.Render scene
+            | Error errors -> RenderedDiagram("text/html", None, errors)
         | Error errors -> RenderedDiagram("text/html", None, errors)

@@ -26,6 +26,18 @@ public class SvgNamespaceTests
     }
 
     [Test]
+    public void SiblingsShareOneDeclarationOnTheOutermostForeignElement()
+    {
+        var markup = SvgNamespaceMother.DocumentWithTwoAnnotatedDescriptions().Render();
+
+        Regex.Count(markup, Regex.Escape($"xmlns:oa=\"{SvgNamespaceMother.WebAnnotation}\"")).ShouldBe(1);
+        Regex.Count(markup, Regex.Escape($"xmlns:rdf=\"{Rdf}\"")).ShouldBe(1);
+        var rdf = XElement.Parse(markup).Element(Svg + "metadata")!.Element(XName.Get("RDF", Rdf)).ShouldNotBeNull();
+        rdf.Attributes().Where(attribute => attribute.IsNamespaceDeclaration).Select(attribute => attribute.Name.LocalName)
+            .ShouldBe(["rdf", "oa"], ignoreOrder: true);
+    }
+
+    [Test]
     [Arguments("xmlns", "x", "https://example.org/ns")]
     [Arguments("xml", "lang", "https://example.org/not-xml")]
     [Arguments("x", "lang", "http://www.w3.org/XML/1998/namespace")]
@@ -123,6 +135,20 @@ public class SvgNamespaceTests
 internal static class SvgNamespaceMother
 {
     private const string Rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+
+    public const string WebAnnotation = "http://www.w3.org/ns/oa#";
+
+    /// <summary>RDF/XML metadata with two descriptions, each with a Web Annotation property.</summary>
+    public static SvgDocument DocumentWithTwoAnnotatedDescriptions()
+    {
+        SvgNode Description(string about) => SvgNode.CreateElement(
+            SvgName.Qualified("rdf", "Description", Rdf),
+            [SvgAttribute.Create(SvgName.Qualified("rdf", "about", Rdf), about)],
+            [SvgNode.CreateElement(SvgName.Qualified("oa", "bodyValue", WebAnnotation), [], [SvgNode.CreateText("note")])]);
+
+        var rdf = SvgNode.CreateElement(SvgName.Qualified("rdf", "RDF", Rdf), [], [Description("urn:a"), Description("urn:b")]);
+        return SvgDocument.Create([], []).WithMetadata([rdf]);
+    }
 
     /// <summary>An SVG with a style sheet, definitions and a rectangle, and RDF/XML metadata.</summary>
     public static SvgDocument DocumentWithRdf()

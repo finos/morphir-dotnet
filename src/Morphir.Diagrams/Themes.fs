@@ -10,6 +10,8 @@ open System.Diagnostics.CodeAnalysis
 open System.Globalization
 open System.Runtime.InteropServices
 open System.Text.RegularExpressions
+open Morphir.Knowledge
+open Morphir.Knowledge.Rdf
 
 /// An sRGB colour with an opacity from 0 to 1.
 [<Sealed>]
@@ -834,10 +836,44 @@ type DiagramThemes private () =
     /// Every built-in theme, Archify first.
     static member All = all
 
-/// Presentation choices for SVG and playback output.
+/// How a rendered SVG embeds a dataset in its metadata element.
+[<RequireQualifiedAccess>]
+type MetadataEmbedding =
+    /// An rdf:RDF element, the form that SVG and RDF tools expect. Holds the default graph only.
+    | RdfXml
+    /// N-Quads text in an md:dataset element. Holds named graphs.
+    | NQuads
+    /// N-Triples text in an md:dataset element. Holds the default graph only.
+    | NTriples
+
+    /// The format's name.
+    member this.WireValue =
+        match this with
+        | MetadataEmbedding.RdfXml -> "RDF/XML"
+        | MetadataEmbedding.NQuads -> "N-Quads"
+        | MetadataEmbedding.NTriples -> "N-Triples"
+
+    /// For C# callers: every case needs a function.
+    member this.Match(rdfXml: Func<'T>, nQuads: Func<'T>, nTriples: Func<'T>) =
+        match this with
+        | MetadataEmbedding.RdfXml -> rdfXml.Invoke()
+        | MetadataEmbedding.NQuads -> nQuads.Invoke()
+        | MetadataEmbedding.NTriples -> nTriples.Invoke()
+
+    override this.ToString() = this.WireValue
+
+/// Presentation choices for SVG and playback output, and the document identity and dataset that the
+/// SVG carries.
 [<Sealed>]
-type SvgRenderOptions internal (theme: DiagramTheme, mode: ThemeMode) =
-    static let defaults = SvgRenderOptions(DiagramThemes.Archify, ThemeMode.Auto)
+type SvgRenderOptions
+    internal
+    (
+        theme: DiagramTheme,
+        mode: ThemeMode,
+        document: DocumentId option,
+        metadata: (RdfDataset * MetadataEmbedding * NamedGraphHandling) option
+    ) =
+    static let defaults = SvgRenderOptions(DiagramThemes.Archify, ThemeMode.Auto, None, None)
 
     /// The colour theme. Archify by default.
     member _.Theme = theme
@@ -845,23 +881,46 @@ type SvgRenderOptions internal (theme: DiagramTheme, mode: ThemeMode) =
     /// Which palette of the theme to use. Auto by default.
     member _.Mode = mode
 
+    /// The diagram's knowledge document, which element IRIs start with, or null.
+    member _.Document: DocumentId | null = Option.toObj document
+
+    /// Whether the SVG will embed a dataset.
+    member _.HasMetadata = metadata.IsSome
+
+    member internal _.MetadataRequest = metadata
+
     /// A copy with another theme.
     member _.WithTheme(theme: DiagramTheme) =
         ArgumentNullException.ThrowIfNull theme
-        SvgRenderOptions(theme, mode)
+        SvgRenderOptions(theme, mode, document, metadata)
 
     /// A copy with another mode.
     member _.WithMode(mode: ThemeMode) =
         ArgumentNullException.ThrowIfNull mode
-        SvgRenderOptions(theme, mode)
+        SvgRenderOptions(theme, mode, document, metadata)
 
-    override _.ToString() = $"{theme.Name} theme, {mode.WireValue} mode"
+    /// A copy with the diagram's knowledge document. Embedded metadata needs it.
+    member _.WithDocument(document: DocumentId) =
+        ArgumentNullException.ThrowIfNull document
+        SvgRenderOptions(theme, mode, Some document, metadata)
 
-    /// Archify in Auto mode.
+    /// A copy that embeds the dataset in the SVG's metadata element, in canonical form. Named graphs
+    /// that the embedding cannot hold are an error unless the caller drops them explicitly.
+    member _.WithMetadata(dataset: RdfDataset, embedding: MetadataEmbedding, namedGraphs: NamedGraphHandling) =
+        ArgumentNullException.ThrowIfNull dataset
+        ArgumentNullException.ThrowIfNull embedding
+        ArgumentNullException.ThrowIfNull namedGraphs
+        SvgRenderOptions(theme, mode, document, Some(dataset, embedding, namedGraphs))
+
+    override _.ToString() =
+        let carried = if metadata.IsSome then ", with metadata" else ""
+        $"{theme.Name} theme, {mode.WireValue} mode{carried}"
+
+    /// Archify in Auto mode, with no document and no metadata.
     static member Default = defaults
 
     /// Options with a theme and a mode.
     static member Create(theme: DiagramTheme, mode: ThemeMode) =
         ArgumentNullException.ThrowIfNull theme
         ArgumentNullException.ThrowIfNull mode
-        SvgRenderOptions(theme, mode)
+        SvgRenderOptions(theme, mode, None, None)

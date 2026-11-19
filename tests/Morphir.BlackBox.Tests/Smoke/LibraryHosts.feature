@@ -37,8 +37,9 @@ Feature: Each host of a shipped library runs as a managed program
     Then the exit code is 0
     And standard output is one JSON document
 
-  Scenario: The diagram library renders an offline player in a C# program
+  Scenario: The diagram library renders an offline player and carries metadata in a C# program
     When I run the program "diagrams-smoke"
     Then the exit code is 0
     And the output contains "<svg"
     And the output contains "Download SVG"
+    And the output contains "metadata round trip: ok"

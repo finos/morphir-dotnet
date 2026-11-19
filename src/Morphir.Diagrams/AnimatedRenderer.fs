@@ -287,7 +287,7 @@ body:has(.diagram-fullscreen[open]) { overflow: hidden; }
                 |]
             )
 
-        RenderedDiagram("text/html", Some html, ImmutableArray<Diagnostic>.Empty)
+        RenderedDiagram("text/html", Some html, scene.Diagnostics)
 
 /// Renders a diagram scene as an offline HTML player.
 [<AbstractClass; Sealed>]

@@ -420,6 +420,62 @@ _:codeSelector <http://www.w3.org/ns/oa#end> "41"^^<http://www.w3.org/2001/XMLSc
 <https://example.org/diagrams/checkout#node=Ledger> <https://example.org/vocab/owner> "payments-team" .
 ```
 
+## Metadata in the SVG
+
+A rendered SVG can carry a dataset, so that one file holds the drawing and its
+comments, links and other statements. Read the dataset from a sidecar file in any
+format of `Morphir.Knowledge.Rdf`, then render with the diagram's document and the
+dataset:
+
+```csharp
+using System;
+using System.Text;
+using Morphir.Diagrams;
+using Morphir.Knowledge;
+using Morphir.Knowledge.Rdf;
+
+const string sidecar = "<https://example.org/diagrams/checkout#node=Ledger> <https://example.org/vocab/owner> \"payments-team\" .\n";
+if (!NQuads.TryRead(Encoding.UTF8.GetBytes(sidecar), out var dataset, out var readError))
+    throw new InvalidOperationException(readError.ToString());
+
+var options = SvgRenderOptions.Default
+    .WithDocument(DocumentId.Create(Iri.Create("https://example.org/diagrams/checkout")))
+    .WithMetadata(dataset, MetadataEmbedding.RdfXml, NamedGraphHandling.Reject);
+var rendered = Mermaid.RenderSvg("flowchart LR\n  Cart --> Billing --> Ledger", options);
+foreach (var diagnostic in rendered.Diagnostics)
+    Console.Error.WriteLine(diagnostic);
+
+var svg = rendered.Output ?? throw new InvalidOperationException("The diagram did not render.");
+if (!DiagramMetadata.TryRead(Encoding.UTF8.GetBytes(svg), out var extracted, out var metadataError))
+    throw new InvalidOperationException(metadataError.ToString());
+
+Console.WriteLine($"{extracted.Quads.Length} statement(s) came back from the SVG");
+```
+
+The SVG's `metadata` element is its first child. `MetadataEmbedding.RdfXml`, the
+default choice, writes an `rdf:RDF` element, the form that SVG and RDF tools
+expect. `MetadataEmbedding.NQuads` and `NTriples` write the statements as text in
+an `md:dataset` element with a `media-type` attribute. Choose N-Quads when named
+graphs matter: RDF/XML and N-Triples hold the default graph only, so a dataset
+with named graphs is the error `metadata/named-graphs`, and no output, unless you
+pass `NamedGraphHandling.DropNamedGraphs`; each dropped graph is then a
+`metadata/dropped-graph` warning.
+
+The renderer writes the dataset canonically (RDFC-1.0), so the same source,
+document, dataset and options give identical bytes whatever the blank-node
+identities and statement order. A dataset without `WithDocument` is the error
+`metadata/missing-document`. A statement or comment about an element IRI of the
+document that names no element of this revision, such as a renamed node, is a
+`metadata/unknown-element` warning, and the statement is still embedded, so it is
+not lost. Without a dataset, the SVG has element references and no `metadata`
+element.
+
+`DiagramMetadata.TryRead` finds whichever form is present and returns the
+dataset; an SVG without metadata gives an empty dataset. It reads the SVG with
+DTDs prohibited and no resolver. The library does not look for sidecar files; a
+suggested name is the diagram's file name with `.nq`, `.nt` or `.rdf` appended,
+such as `checkout.mmd.nq`.
+
 ## Migration coverage
 
 | Mermaid family | Supported syntax |

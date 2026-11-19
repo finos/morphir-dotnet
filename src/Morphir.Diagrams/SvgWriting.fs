@@ -3,6 +3,7 @@
 
 namespace Morphir.Diagrams
 
+open System.Collections.Immutable
 open System.Globalization
 open Morphir.Svg
 
@@ -39,8 +40,15 @@ module internal SvgWriting =
         member _.BindConnector source target data reversed =
             connectors.Add(DiagramConnector(connectors.Count, source, target, data, reversed))
 
-        member _.Build pairs =
-            DiagramScene(SvgDocument.Create(attributes pairs, root), Reading.immutable connectors, options)
+        member _.Build(pairs, metadata: SvgNode list option) =
+            let document = SvgDocument.Create(attributes pairs, root)
+
+            let document =
+                match metadata with
+                | Some content -> document.WithMetadata(List.toArray content)
+                | None -> document
+
+            DiagramScene(document, Reading.immutable connectors, options, ImmutableArray.Empty)
 
     let element (writer: SceneBuilder) name pairs body = writer.Element name pairs body
 
@@ -189,6 +197,7 @@ module internal SvgWriting =
         height
         (heads: seq<EdgeHead * string>)
         (options: SvgRenderOptions)
+        (metadata: SvgNode list option)
         onFills
         (render: SceneBuilder -> unit)
         =
@@ -218,7 +227,7 @@ module internal SvgWriting =
             rectangle writer 0 0 width height 0 Theme.bg "none"
             render writer
 
-            writer.Build
+            writer.Build(
                 [
                     "id", id
                     "role", "img"
@@ -227,7 +236,9 @@ module internal SvgWriting =
                     "viewBox", $"0 0 {number width} {number height}"
                     "width", number width
                     "height", number height
-                ]
+                ],
+                metadata
+            )
 
         let provisional = (draw kind).Document.Render()
         draw $"{kind}-{Theme.fingerprint provisional}"

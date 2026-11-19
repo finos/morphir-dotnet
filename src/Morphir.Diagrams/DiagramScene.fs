@@ -31,7 +31,19 @@ type DiagramConnector
 /// An SVG document and its connector occurrences.
 [<Sealed>]
 type DiagramScene
-    internal (document: SvgDocument, connectors: ImmutableArray<DiagramConnector>, options: SvgRenderOptions) =
+    internal
+    (
+        document: SvgDocument,
+        connectors: ImmutableArray<DiagramConnector>,
+        options: SvgRenderOptions,
+        diagnostics: ImmutableArray<Diagnostic>
+    ) =
+    /// Warnings found while building the scene, such as metadata about elements this diagram lacks.
+    member _.Diagnostics = diagnostics
+
+    member internal _.WithDiagnostics(found: Diagnostic seq) =
+        DiagramScene(document, connectors, options, ImmutableArray.CreateRange found)
+
     /// Script-free static document.
     member _.Document = document
 

@@ -251,7 +251,7 @@ module internal FlowchartSvg =
         | FlowShape.Diamond -> max 45 (textWidth + 10), 32
         | _ -> max 40 (textWidth / 2 + 18), 23
 
-    let render (options: SvgRenderOptions) (model: Flowchart) =
+    let render (options: SvgRenderOptions) (metadata: Morphir.Svg.SvgNode list option) (model: Flowchart) =
         let indices = Dictionary<DiagramId, int>()
 
         let sizes = model.Nodes |> Seq.map dimensions |> Seq.toArray
@@ -340,6 +340,7 @@ module internal FlowchartSvg =
             height
             heads
             options
+            metadata
             true
             (fun writer ->
                 for group, box in groups do
