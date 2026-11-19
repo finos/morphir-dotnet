@@ -50,7 +50,11 @@ The reader SHALL accept `swimlane-beta` using the shared flowchart grammar, with
 - **THEN** the first gives lanes and the second gives groups
 
 ### Requirement: ZenUML grammar
-The reader SHALL accept `zenuml` source: participants, aliases, annotators, synchronous and asynchronous messages, nested calls with bodies, creation, assignments, `return` and `@return`/`@reply`, comments, `while`/`for`/`forEach`/`loop`, `if`/`else`, `opt`, `par` and `try`/`catch`/`finally`. It SHALL convert to the shared sequence model, keeping try, catch and finally as distinct ordered sections. Annotators that name a participant kind choose it; other annotators give a plain participant and a warning. A ZenUML printer writes calls without bodies.
+The reader SHALL accept `zenuml` source as ZenUML core 3.47.9 does: participants, annotators, messages, calls with bodies, creation, assignments, returns and replies, comments, loops, `if`/`else`, `opt`, `par` and `try`/`catch`/`finally`. It SHALL convert to the shared sequence model, keeping try, catch and finally as distinct ordered sections.
+
+#### Scenario: Unknown annotator
+- **WHEN** a participant is declared `@EC2 Worker`
+- **THEN** it is a plain participant and a warning names the annotator
 
 #### Scenario: Exception fragment
 - **WHEN** a ZenUML body has `try { A.save() } catch (e) { A.log() } finally { A.close() }`
