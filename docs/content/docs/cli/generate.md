@@ -195,6 +195,12 @@ under the workspace root. `generate` then reads the compile record
 that IR file as `input` and the recorded IR version as `sourceVersion`. An
 explicit `--input` never reads a record.
 
+When the explicit input is a directory, `generate` captures its files under
+the model-read limits and verifies their paths and bytes in a second pass.
+If a captured file changes or disappears between those passes, generation
+stops before it starts the backend. After verification, the backend uses
+the captured bytes even if the original files are edited.
+
 If there is no compile record, or the most recent compile failed and left a
 tombstone, `generate` fails with `compile.record_missing` and exit code 2, tells
 you to run `morphir compile` first, and publishes nothing. If the IR file does
