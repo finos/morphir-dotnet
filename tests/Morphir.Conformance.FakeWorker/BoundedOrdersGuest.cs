@@ -423,7 +423,13 @@ internal sealed class BoundedOrdersGuest(string mode)
     internal static int RunPipeDescendant()
     {
         using var self = Process.GetCurrentProcess();
-        var identity = FormattableString.Invariant($"{self.Id}|{self.StartTime.ToUniversalTime().Ticks}");
+        var start = self.StartTime.ToUniversalTime().Ticks;
+        if (OperatingSystem.IsLinux())
+        {
+            var stat = File.ReadAllText($"/proc/{self.Id}/stat");
+            start = long.Parse(stat[(stat.LastIndexOf(')') + 2)..].Split(' ', StringSplitOptions.RemoveEmptyEntries)[19], CultureInfo.InvariantCulture);
+        }
+        var identity = FormattableString.Invariant($"{self.Id}|{start}");
         File.WriteAllText("bounded-orders.descendant.tmp", identity);
         File.Move("bounded-orders.descendant.tmp", "bounded-orders.descendant");
         // Keep the inherited output handles open until the owner terminates the job.

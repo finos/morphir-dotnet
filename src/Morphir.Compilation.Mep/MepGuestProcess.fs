@@ -13,9 +13,10 @@ open System.Threading.Tasks
 open Morphir.Mep
 open Morphir.Toolchain.IO
 
-// Absolute installed executables on Windows and Darwin arm64 have creation-time ownership.
+// Absolute installed executables on Windows, Darwin arm64 and Linux glibc x64/arm64 have creation-time ownership.
 type private GuestChild =
     | OwnedWindows of WindowsChild * Stream * StreamReader
+    | OwnedLinux of LinuxChild
     | OwnedDarwin of DarwinChild
     | Legacy of Process
 
@@ -24,18 +25,21 @@ type private GuestChild =
     member this.Input =
         match this with
         | OwnedWindows(_, input, _) -> input
+        | OwnedLinux child -> child.StandardInput.BaseStream
         | OwnedDarwin child -> child.StandardInput.BaseStream
         | Legacy child -> child.StandardInput.BaseStream
 
     member this.Output =
         match this with
         | OwnedWindows(child, _, _) -> child.StandardOutput
+        | OwnedLinux child -> child.StandardOutput.BaseStream
         | OwnedDarwin child -> child.StandardOutput.BaseStream
         | Legacy child -> child.StandardOutput.BaseStream
 
     member this.StandardError =
         match this with
         | OwnedWindows(_, _, errors) -> errors
+        | OwnedLinux child -> child.StandardError
         | OwnedDarwin child -> child.StandardError
         | Legacy child -> child.StandardError
 
@@ -47,17 +51,20 @@ type private GuestChild =
     member this.HasExited =
         match this with
         | OwnedWindows(child, _, _) -> child.WaitForExitAsync().IsCompleted
+        | OwnedLinux child -> child.HasExited
         | OwnedDarwin child -> child.HasExited
         | Legacy child -> child.HasExited
 
     member this.WaitForExitAsync(ct: CancellationToken) : Task =
         match this with
         | OwnedWindows(child, _, _) -> child.WaitForExitAsync().WaitAsync(ct) :> Task
+        | OwnedLinux child -> child.WaitForExitAsync(ct)
         | OwnedDarwin child -> child.WaitForExitAsync(ct)
         | Legacy child -> child.WaitForExitAsync(ct)
 
     member this.GracefulDeadline(configured: TimeSpan) =
         match this with
+        | OwnedLinux child when configured = Timeout.InfiniteTimeSpan -> child.SettlementBound
         | OwnedDarwin child when configured = Timeout.InfiniteTimeSpan -> child.SettlementBound
         | _ -> configured
 
@@ -66,6 +73,7 @@ type private GuestChild =
         | OwnedWindows(child, _, _) ->
             if terminate then child.RequestTermination()
             do! child.SettleAsync()
+        | OwnedLinux child -> do! child.SettleAsync()
         | OwnedDarwin child -> do! child.SettleAsync()
         | Legacy child when terminate && not child.HasExited -> child.Kill(true)
         | Legacy _ -> ()
@@ -81,6 +89,13 @@ type private GuestChild =
     member this.DrainAsync(operations: Task) : Task =
         match this with
         | OwnedDarwin child -> task {
+            try do! operations.WaitAsync(child.SettlementBound)
+            with :? TimeoutException as error when not operations.IsCompleted ->
+                child.ClosePipes()
+                try do! operations.WaitAsync(child.SettlementBound) with _ -> ()
+                return raise error
+          }
+        | OwnedLinux child -> task {
             try do! operations.WaitAsync(child.SettlementBound)
             with :? TimeoutException as error when not operations.IsCompleted ->
                 child.ClosePipes()
@@ -114,6 +129,7 @@ type private GuestChild =
 
     member this.DrainAfterShutdownAsync(pump: Task, connection: Task) : Task =
         match this with
+        | OwnedLinux _ -> this.DrainAsync(Task.WhenAll(pump, connection))
         | OwnedDarwin _ -> this.DrainAsync(Task.WhenAll(pump, connection))
         | _ -> pump
 
@@ -123,6 +139,7 @@ type private GuestChild =
             do! AsyncOwnership.runAsync (child :> IAsyncDisposable) (fun () -> task {
                 errors.Dispose()
             })
+        | OwnedLinux child -> do! (child :> IAsyncDisposable).DisposeAsync()
         | OwnedDarwin child -> do! (child :> IAsyncDisposable).DisposeAsync()
         | Legacy child -> child.Dispose()
     }
@@ -139,9 +156,13 @@ type private GuestChild =
             with error ->
                 do! (child :> IAsyncDisposable).DisposeAsync().AsTask()
                 return raise error
+        elif LinuxChild.IsSupported && Path.IsPathFullyQualified start.FileName then
+            return OwnedLinux(LinuxChild.Start(start, deadline, ct))
         elif DarwinChild.IsSupported && Path.IsPathFullyQualified start.FileName then
             return OwnedDarwin(DarwinChild.Start(start, deadline, ct))
         else
+            // Relative commands and other native architectures retain the explicit legacy path.
+            // A supported native launch that fails its prerequisites never falls back here.
             match Process.Start(start) with
             | null -> return raise (IOException "Guest did not start")
             | child -> return Legacy child

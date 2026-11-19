@@ -20,6 +20,7 @@
     <ProjectReference Include="../Morphir.TestSupport/Morphir.TestSupport.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ProcessIdentity.fs" />
     <Compile Include="FakeGuests.fs" />
     <Compile Include="MepFrontendTests.fs" />
     <Compile Include="PlantedContention.fs" />

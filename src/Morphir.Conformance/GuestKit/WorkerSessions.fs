@@ -129,6 +129,12 @@ type internal WorkerInput(inner: Stream, purpose: KitSessionPurpose, processId: 
         if not closed && hasExited () then
             raise (ended (IOException $"The worker process {processId} has exited."))
 
+    interface ITransportWriteAvailability with
+        member _.EnsureWriteAvailable() =
+            if closed then
+                raise (ended (ObjectDisposedException(nameof WorkerInput)))
+            ensureRunning ()
+
     override _.CanRead = false
     override _.CanSeek = false
     override _.CanWrite = true

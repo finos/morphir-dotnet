@@ -79,6 +79,10 @@ type internal RequestIdStartPolicy =
         | Product -> -1L
         | Conformance -> 0L
 
+/// An owned output can explain why it stopped accepting writes without sending bytes to the peer.
+type internal ITransportWriteAvailability =
+    abstract member EnsureWriteAvailable: unit -> unit
+
 /// A JSON-RPC connection on a framed stream pair (design RPC-1): it dispatches inbound requests, matches inbound
 /// responses to the pending-request table, and sends and receives $/cancelRequest.
 [<Sealed>]
@@ -165,6 +169,18 @@ type Connection
         }
 
     let write message = writeWithOperation None message
+
+    let notifyCancellation id =
+        task {
+            let parameters = JsonSerializer.SerializeToElement({ Id = id }, MepJson.Default.CancelParams)
+            try
+                do! write (JsonRpcMessage.Notification(Method.CancelRequest.WireValue, Some parameters))
+            with
+            | :? IOException
+            | :? ObjectDisposedException ->
+                // Cancellation is advisory. Teardown may have already closed the output.
+                ()
+        }
 
     let report diagnostic = diagnostics.Enqueue diagnostic
 
@@ -255,14 +271,14 @@ type Connection
                             Ok(id, waiter))
                 match registered with
                 | Error reason ->
+                    match box output with
+                    | :? ITransportWriteAvailability as owner -> owner.EnsureWriteAvailable()
+                    | _ -> ()
                     return { Result = Error(RpcErrors.withMessage ErrorCode.InternalError reason); Exchange = None; Submitted = false }
                 | Ok(id, waiter) ->
                     try
                         do! write (JsonRpcMessage.Request(id, method, parameters))
-                        use _ =
-                            cancellation.Register(fun () ->
-                                let cancel = JsonSerializer.SerializeToElement({ Id = id }, MepJson.Default.CancelParams)
-                                write (JsonRpcMessage.Notification(Method.CancelRequest.WireValue, Some cancel)) |> ignore)
+                        use _ = cancellation.Register(fun () -> notifyCancellation id |> ignore)
                         return! waiter.Task
                     finally
                         pending.TryRemove id |> ignore
