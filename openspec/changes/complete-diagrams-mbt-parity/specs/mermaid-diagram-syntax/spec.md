@@ -50,7 +50,7 @@ The reader SHALL accept `swimlane-beta` using the shared flowchart grammar, with
 - **THEN** the first gives lanes and the second gives groups
 
 ### Requirement: ZenUML grammar
-The reader SHALL accept `zenuml` source: participants, aliases, annotators, synchronous and asynchronous messages, nested calls with bodies, creation, assignments, `return` and `@return`/`@reply`, comments, `loop`, `alt`, `opt`, `par` and `try`/`catch`/`finally`. It SHALL convert to the shared sequence model, keeping try, catch and finally as distinct ordered sections.
+The reader SHALL accept `zenuml` source: participants, aliases, annotators, synchronous and asynchronous messages, nested calls with bodies, creation, assignments, `return` and `@return`/`@reply`, comments, `while`/`for`/`forEach`/`loop`, `if`/`else`, `opt`, `par` and `try`/`catch`/`finally`. It SHALL convert to the shared sequence model, keeping try, catch and finally as distinct ordered sections. Annotators that name a participant kind choose it; other annotators give a plain participant and a warning. A ZenUML printer writes calls without bodies.
 
 #### Scenario: Exception fragment
 - **WHEN** a ZenUML body has `try { A.save() } catch (e) { A.log() } finally { A.close() }`

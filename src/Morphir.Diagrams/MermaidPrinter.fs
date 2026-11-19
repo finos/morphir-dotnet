@@ -291,6 +291,96 @@ module internal MermaidPrinter =
 
         if errors.Count > 0 then Error(List.ofSeq errors) else Ok(String.Join("\n", lines) + "\n")
 
+    /// Canonical ZenUML text for a sequence. Calls print without bodies, so activations are not written; reading the
+    /// text and printing it again gives the same text.
+    let zenuml (model: SequenceDiagram) =
+        let lines = ResizeArray<string>()
+        let errors = ResizeArray<string>()
+        let creations = Collections.Generic.Dictionary<int, Participant>()
+        let starter = "_STARTER_"
+
+        lines.Add "zenuml"
+
+        for participant in model.Participants do
+            if participant.CreatedBy.HasValue then creations[participant.CreatedBy.Value] <- participant
+
+            if participant.Id.Value <> starter then
+                let annotator =
+                    match participant.Kind with
+                    | ParticipantKind.Participant -> ""
+                    | kind ->
+                        let text = kind.ToString()
+                        "@" + string (Char.ToUpperInvariant text[0]) + text.Substring 1 + " "
+
+                let alias = if participant.Label = participant.Id.Value then "" else $" as {participant.Label}"
+                lines.Add $"  {annotator}{participant.Id.Value}{alias}"
+
+        let mutable messageIndex = 0
+        let stack = Collections.Generic.Stack<Choice<Collections.Immutable.ImmutableArray<SequenceEvent> * int * int, string>>()
+        stack.Push(Choice1Of2(model.Events, 0, 1))
+
+        while stack.Count > 0 do
+            match stack.Pop() with
+            | Choice2Of2 line -> lines.Add line
+            | Choice1Of2(events, position, indent) when position < events.Length ->
+                stack.Push(Choice1Of2(events, position + 1, indent))
+                let pad = String(' ', 2 * indent)
+
+                match events[position] with
+                | SequenceEvent.Message message ->
+                    let from, target = message.Sender.Value, message.Receiver.Value
+
+                    match creations.TryGetValue messageIndex with
+                    | true, created when created.Id = message.Receiver ->
+                        let text = message.Text
+
+                        if text = "«create»" then lines.Add $"{pad}new {target}"
+                        elif text.StartsWith('«') && text.EndsWith('»') then lines.Add $"{pad}new {target}({text.Substring(1, text.Length - 2)})"
+                        else errors.Add $"The creation of {target} has a label that ZenUML cannot write."
+                    | _ when message.IsDashed ->
+                        lines.Add $"{pad}@return"
+                        lines.Add $"{pad}{from}->{target}: {message.Text}"
+                    | _ when message.ReceiverHead = EdgeHead.Arrow && from = starter -> lines.Add $"{pad}{target}.{message.Text}"
+                    | _ when message.ReceiverHead = EdgeHead.Arrow -> lines.Add $"{pad}{from}->{target}.{message.Text}"
+                    | _ -> lines.Add $"{pad}{from}->{target}: {message.Text}"
+
+                    messageIndex <- messageIndex + 1
+                | SequenceEvent.Activation _ -> ()
+                | SequenceEvent.Note _ -> errors.Add "ZenUML has no notes."
+                | SequenceEvent.Frame frame ->
+                    let opening (label: string | null) =
+                        match frame.Kind, label with
+                        | SequenceFrameKind.Loop, null -> Ok "loop {"
+                        | SequenceFrameKind.Loop, label -> Ok $"loop({label}) {{"
+                        | SequenceFrameKind.Alternative, label -> Ok $"if({label}) {{"
+                        | SequenceFrameKind.Optional, _ -> Ok "opt {"
+                        | SequenceFrameKind.Parallel, _ -> Ok "par {"
+                        | SequenceFrameKind.Try, _ -> Ok "try {"
+                        | kind, _ -> Error $"ZenUML has no {kind} fragment."
+
+                    let continuing (label: string | null) =
+                        match label with
+                        | null
+                        | "else" -> "} else {"
+                        | label when frame.Kind = SequenceFrameKind.Try -> $"}} {label} {{"
+                        | label -> $"}} else if({label}) {{"
+
+                    match opening frame.Sections[0].Label with
+                    | Error error -> errors.Add error
+                    | Ok first ->
+                        stack.Push(Choice2Of2 $"{pad}}}")
+
+                        for index in frame.Sections.Length - 1 .. -1 .. 0 do
+                            let section = frame.Sections[index]
+                            stack.Push(Choice1Of2(section.Events, 0, indent + 1))
+                            stack.Push(Choice2Of2(pad + (if index = 0 then first else continuing section.Label)))
+            | Choice1Of2 _ -> ()
+
+        if errors.Count > 0 then
+            Error(errors |> List.ofSeq |> List.map (fun message -> Reading.error "zenuml/unprintable" message None))
+        else
+            Ok(String.Join("\n", lines) + "\n")
+
     /// Canonical Mermaid text for a flowchart or sequence diagram.
     let print (diagram: Diagram) =
         let result =

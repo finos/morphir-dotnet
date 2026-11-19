@@ -192,6 +192,32 @@ type Mermaid private () =
             diagnostics <- errors
             false
 
+    /// Writes a sequence diagram as canonical ZenUML text, with calls printed without bodies. Returns a Result for
+    /// F# callers.
+    static member PrintZenUml(diagram: Diagram) : Result<string, ImmutableArray<Diagnostic>> =
+        ArgumentNullException.ThrowIfNull diagram
+
+        match diagram with
+        | Diagram.Sequence model -> MermaidPrinter.zenuml model |> Result.mapError ImmutableArray.CreateRange
+        | other -> Error(ImmutableArray.Create(Reading.error "zenuml/unprintable" $"{other} is not a sequence diagram." None))
+
+    /// Writes a sequence diagram as canonical ZenUML text for C# callers. Diagnostics is empty on success.
+    static member TryPrintZenUml
+        (
+            diagram: Diagram,
+            [<Out; MaybeNullWhen(false)>] text: byref<string>,
+            [<Out>] diagnostics: byref<ImmutableArray<Diagnostic>>
+        ) =
+        match Mermaid.PrintZenUml diagram with
+        | Ok printed ->
+            text <- printed
+            diagnostics <- ImmutableArray<Diagnostic>.Empty
+            true
+        | Error errors ->
+            text <- Unchecked.defaultof<_>
+            diagnostics <- errors
+            false
+
     /// Parses a Mermaid diagram for C# callers. Diagnostics is empty on success.
     static member TryParse
         (
