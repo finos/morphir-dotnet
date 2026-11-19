@@ -14,6 +14,7 @@ This file provides Claude Code-specific guidance for the morphir-dotnet reposito
 - `@skill vulnerability-resolver` - CVE scanning, fix/suppress decisions, security documentation
 - `test-manager` - The class, the place and the form of each test. Use it before you add, move, rename or delete a test, a feature file, a step, a driver or a test project; subagent `test-manager-reviewer` reviews the diff. Canonical copy: [.agents/skills/test-manager/](./.agents/skills/test-manager/SKILL.md) (edit there, then run `dotnet fsi scripts/sync-agent-skills.fsx`)
 - `fsharp-csharp-interop` - Rules for F# code that C# calls; subagent `fsharp-csharp-interop-reviewer` reviews the diff. Canonical copy: `.agents/skills/fsharp-csharp-interop/` (edit there, then run `dotnet fsi scripts/sync-agent-skills.fsx`)
+- `frontend-design` - Visual design direction for new or reshaped UI, vendored unchanged from [anthropics/skills](https://github.com/anthropics/skills/tree/main/skills/frontend-design). Canonical copy: `.agents/skills/frontend-design/` (replace it from upstream, then run `dotnet fsi scripts/sync-agent-skills.fsx`)
 - `dotnet-msbuild`, `dotnet11`, `dotnet-upgrade`, `dotnet-nuget`, `dotnet-diag` - .NET team plugins from the `dotnet-agent-skills` marketplace ([dotnet/skills](https://github.com/dotnet/skills)), enabled in `.claude/settings.json`. Skill names have the plugin prefix, for example `dotnet-msbuild:build-perf-diagnostics`
 
 See [.agents/skills-reference.md](./.agents/skills-reference.md) for complete skill documentation.

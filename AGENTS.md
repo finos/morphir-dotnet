@@ -11,6 +11,7 @@ changes aligned with Morphir IR and tooling.
   - [Skills Reference](./.agents/skills-reference.md) - QA Tester, AOT Guru, Release Manager, Technical Writer
   - [F# and C# interop skill](./.agents/skills/fsharp-csharp-interop/SKILL.md) - Rules for F# code that C# calls; reviewer agent `fsharp-csharp-interop-reviewer`
   - [Test manager skill](./.agents/skills/test-manager/SKILL.md) - The class, the place and the form of each test; reviewer agent `test-manager-reviewer`
+  - [Frontend design skill](./.agents/skills/frontend-design/SKILL.md) - Visual design direction for new or reshaped UI; vendored unchanged from [anthropics/skills](https://github.com/anthropics/skills/tree/main/skills/frontend-design) (Apache-2.0)
   - [Capabilities Matrix](./.agents/capabilities-matrix.md) - Cross-agent feature availability
   - [QA Testing](./.agents/qa-testing.md) - Test plans, playbooks, scripts
   - [AOT Optimization](./.agents/aot-optimization.md) - Trimming, AOT guidance
