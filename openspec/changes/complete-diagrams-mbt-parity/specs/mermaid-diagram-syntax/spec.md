@@ -7,7 +7,7 @@ Defines the Mermaid 12.2.0 syntax that `Morphir.Diagrams` reads beyond its first
 ## ADDED Requirements
 
 ### Requirement: Complete flowchart grammar
-The flowchart reader SHALL accept the Mermaid 12.2.0 flowchart grammar, including the pinned shape catalogue (each shape drawn as the nearest built-in shape), shape data (`@{ shape: ... }`) on one or several lines, Markdown and entity-coded labels, invisible links, edge identifiers, open labelled links, grouped endpoints, links to subgraphs, repeated subgraphs, subgraph `direction`, `classDef`, `class`, `:::`, `style`, `linkStyle`, `click`, `accTitle`, `accDescr` and `title`. It SHALL accept or refuse every fixture of the pinned reference as Mermaid 12.2.0 does, with the same node identifiers and edge count.
+The flowchart reader SHALL accept the Mermaid 12.2.0 flowchart grammar: the shape catalogue (each shape drawn as the nearest built-in shape), shape data, Markdown and entity-coded labels, edge identifiers, open labelled links, links to subgraphs, repeated subgraphs and the presentation statements. It SHALL accept or refuse every fixture of the pinned reference as Mermaid 12.2.0 does.
 
 #### Scenario: Classes and a click callback
 - **WHEN** a flowchart declares `classDef hot fill:#f00`, `class A hot` and `click A callback`
