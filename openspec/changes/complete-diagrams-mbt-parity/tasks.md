@@ -78,9 +78,9 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 
 ## 12. Data trees
 
-- [ ] 12.1 Add the data-tree model and read and print PlantUML JSON and YAML with highlights; verify the pinned corpora, including exact numbers and duplicate members.
-- [ ] 12.2 Lay out and paint data trees with safe highlights; verify SVG tests.
-- [ ] 12.3 Add data-tree references, colour families, carriage and player node visits; verify in Chromium.
+- [x] 12.1 Add the data-tree model and read and print PlantUML JSON and YAML with highlights; verify the pinned corpora, including exact numbers and duplicate members.
+- [x] 12.2 Lay out and paint data trees with safe highlights; verify SVG tests.
+- [x] 12.3 Add data-tree references, colour families, carriage and player node visits; verify in Chromium.
 
 ## 13. BPMN documents
 

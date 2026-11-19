@@ -725,6 +725,38 @@ trace with nothing to draw gives the same bytes as no trace. A trace made for an
 gives `railroad/stale-trace` and one that names a missing box gives `railroad/trace-occurrence`;
 neither is drawn.
 
+## JSON and YAML data trees
+
+PlantUML `@startjson` and `@startyaml` blocks read into a `DataTreeDiagram`: a root `DataValue`
+whose objects keep their members in source order, arrays, strings, numbers as their exact
+lexeme, booleans and null. JSON keeps repeated keys as separate members, and `"true"` stays text
+while `true` is a boolean. YAML follows PlantUML's profile: every scalar is text (`enabled: true`
+is the text `true`), aliases and tags stay as written, a repeated key replaces the earlier value
+in its first place, and nothing is loaded or constructed. A scalar or empty root is kept as it
+is, where PlantUML shows it in a one-item list, and an empty flow list `[]` is an empty array.
+`title` on the first line, `#highlight` selectors and style blocks are kept apart from the data.
+All 144 JSON, YAML and envelope fixtures of the pinned PlantUML reference give PlantUML's data,
+highlights and title, apart from the deliberate refusals (preprocessor calls such as
+`%version()`, a second block, a mismatched end and trailing text), and `PlantUml.Print`
+round-trips each accepted tree.
+
+Every value has an identifier: `$` for the root, then `$` and the value's JSON pointer, such as
+`$/server/port` or `$/items/0`. A repeated key's later members add `~2`, `~3` and so on.
+`#highlight` paths select by key, array position, `*` (any one member) and `**` (any depth); a
+quoted segment keeps a `/` inside it. `HighlightedIds` lists the selected values, and a selector
+that selects nothing gives a `plantuml/unresolved-highlight` warning.
+
+| Element | Reference | Drawn as | Colour family |
+| --- | --- | --- | --- |
+| Object | `node=$/server` | Table of key and value rows | frontend |
+| Array | `node=$/items` | Table of value rows | database |
+| Member or item | `node=$/server/port` | Row; a row that holds a container links to its table | text |
+| Hierarchy link | `edge=$/$/server/0` | Line from the row to the table | arrow |
+
+References escape `/` as `%2F` when written as text. Long keys and values wrap; nothing is cut
+off. A highlighted row changes only its fill and outline, in the theme's cloud family; no row
+moves. The player visits the values in member order and plays no connector paths.
+
 ## Exploring routes and scenarios
 
 Players of diagrams with connections have an *Explore routes* disclosure under the
