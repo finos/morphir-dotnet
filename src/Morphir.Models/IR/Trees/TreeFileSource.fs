@@ -29,6 +29,8 @@ module internal TreeFileSource =
     /// the source changes and must never identify more than one set of files.
     type SnapshotSource = {
         Revision: unit -> string
+        /// Read the lifetime peak charge of constructed discovery indexes without triggering discovery.
+        DiscoveryIndexPeakBytes: unit -> int64
         ContainsFile: string -> bool
         FindFile: string -> Morphir.Files.VFile option
         /// The first logical module path in a package after the optional cursor, in ordinal order.
@@ -151,9 +153,19 @@ module internal TreeFileSource =
                     let _, entries = directories.Pop()
                     entries.Dispose()
 
-        // One active package. Charge for UTF-16 paths, sorted-set nodes and
-        // the final array concurrently. Never publish a partial walk.
+        // One active package. The existing charge is 128 bytes of fixed index
+        // overhead plus 160 + 4 * path.Length per distinct logical module path.
+        // It models UTF-16 paths, sorted-set nodes and the final reference array
+        // concurrently, including a builder that is later refused. It remains
+        // the charge after publication, rather than discounting the released set.
+        // This is logical storage accounting, not a measurement of CLR allocation.
+        // It excludes provider metadata, the traversal stack and enumerators,
+        // temporary directory/logical path strings (including duplicate physical
+        // spellings), cursor/lookup data and revision/prefix strings held by the
+        // source. It does not account for objects awaiting garbage collection.
+        // Never publish a partial walk.
         let mutable cached: (string * int * string array) option = None
+        let mutable peakIndexBytes = 0L
         let originalRevision = if cacheBytes = 0L then "" else revision ()
         let cacheGate = obj ()
         let nextModule work pathBudget (prefix: string) after =
@@ -181,6 +193,8 @@ module internal TreeFileSource =
                         cached <- None
                         let paths = SortedSet<string>(StringComparer.Ordinal)
                         let mutable retained = 128L
+                        // The builder exists even if its fixed overhead is refused.
+                        peakIndexBytes <- max peakIndexBytes retained
                         let mutable workRefused = false
                         let retain (path: string) =
                             let cost = 1L + int64 (Math.Ceiling(Math.Log(float (paths.Count + 2), 2.0)))
@@ -194,6 +208,7 @@ module internal TreeFileSource =
                                 else
                                     retained <- retained + bytes
                                     paths.Add path |> ignore
+                                    peakIndexBytes <- max peakIndexBytes retained
                                     true
                         let result =
                             if cacheBytes < retained then
@@ -205,12 +220,16 @@ module internal TreeFileSource =
                             match result with
                             | Error problem -> Error problem
                             | Ok _ ->
-                                let ordered = Seq.toArray paths
+                                // Copy directly into the charged final array. Do not
+                                // introduce an intermediate sequence conversion buffer.
+                                let ordered = Array.zeroCreate<string> paths.Count
+                                paths.CopyTo ordered
                                 cached <- Some(prefix, pathBudget, ordered)
                                 lookup ordered)
 
         {
             Revision = revision
+            DiscoveryIndexPeakBytes = fun () -> lock cacheGate (fun () -> peakIndexBytes)
             ContainsFile =
                 fileAt
                 >> Option.isSome

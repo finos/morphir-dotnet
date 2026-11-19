@@ -52,6 +52,21 @@ public sealed class BoundedGenerationSessionTests
     }
 
     [Test]
+    [Arguments(false, 257L)]
+    [Arguments(true, 503L)]
+    public async Task ObservesAdmittedDocumentBatchesAndArtifactBytesIncludingLf(bool twoDocuments, long expected)
+    {
+        using var sandbox = TestSandbox.Create();
+        await using var fixture = new OrdersFixture(sandbox, 73, omitOrder: false, twoDocuments: twoDocuments);
+        await fixture.InitializeAsync();
+        var result = await fixture.RunAsync();
+
+        var output = result.Should().BeOfType<Outcome<StagedGenerationOutput>.Success>().Which.Value;
+        output.MaxInputBatchBytes.Should().Be(expected);
+        fixture.MaxOutputBatchBytes.Should().Be(3L);
+    }
+
+    [Test]
     [Arguments(5, false)]
     [Arguments(6, true)]
     public async Task EnforcesTheAgreedDocumentDepthBeforeDelivery(int maxDepth, bool accepted)
@@ -326,6 +341,7 @@ public sealed class BoundedGenerationSessionTests
         public bool Cancelled { get; private set; }
         public bool TransportStopped { get; private set; }
         public string StageDirectory => _stage.Directory;
+        public long MaxOutputBatchBytes => _stage.MaxOutputBatchBytes;
         public IEnumerable<string> DefinitionsOpened => _provider.Reads.Where(path =>
             path.EndsWith(".value.json", StringComparison.Ordinal) || path.EndsWith(".type.json", StringComparison.Ordinal));
 

@@ -13,6 +13,7 @@ using Morphir.Extensions.Wasm;
 using Morphir.IR.Model;
 using Morphir.IR.Trees;
 using Morphir.Mep;
+using Morphir.Tooling.Features.Extensions;
 using Morphir.Tooling.Features.TaskRecords;
 using Morphir.Tooling.Infrastructure;
 
@@ -71,9 +72,10 @@ internal static class RecordedBoundedGeneration
                 SemanticVersion.Create(snapshot.IrVersion), "morphir-ir",
                 json ? ModelAccessCodec.MorphirJson : ModelAccessCodec.MorphirYaml, "document-tree", ModelAccessEncoding.Plain);
             var connected = await connector.ConnectModelAccessAsync(request, new ModelAccessSupport([tuple], limits), ct);
-            if (connected is Outcome<IModelAccessGuest>.Failure refusedGuest)
+            if (connected is Outcome<ModelAccessConnection>.Failure refusedGuest)
                 return new Outcome<GenerationSuccess>.Failure(refusedGuest.Error);
-            var guest = ((Outcome<IModelAccessGuest>.Success)connected).Value;
+            var connection = ((Outcome<ModelAccessConnection>.Success)connected).Value;
+            var guest = connection.Guest;
             var negotiated = guest.Session;
             var label = negotiated.Extension;
 
@@ -166,7 +168,10 @@ internal static class RecordedBoundedGeneration
                     BackendTransport = guest.Transport,
                     BackendVersion = label.Version,
                     BoundedAccess = settings.BoundedProfile == BoundedGenerationProfile.OrdersScale
-                        ? AccessObservation(readerLimits, negotiated.Capabilities.ModelAccessOrNull()!.Limits) : null,
+                        ? AccessObservation(readerLimits, negotiated.Capabilities.ModelAccessOrNull()!.Limits,
+                            ConfiguredWasmModule.ClosedLinearMemory(connection.WasmChannel),
+                            staged.MaxInputBatchBytes, stage.MaxOutputBatchBytes,
+                            snapshot.PeakDiscoveryIndexChargedBytes) : null,
                 });
             }
             finally
@@ -208,7 +213,8 @@ internal static class RecordedBoundedGeneration
                 : failure);
     }
 
-    private static JsonElement AccessObservation(ModelReadLimits reader, ModelAccessLimits selected)
+    private static JsonElement AccessObservation(ModelReadLimits reader, ModelAccessLimits selected, MemoryUse? memory,
+        long maxInputBatchBytes, long maxOutputBatchBytes, long peakDiscoveryIndexChargedBytes)
     {
         var wasm = RecordedGenerationAdmission.WasmLimits(BoundedGenerationProfile.OrdersScale, selected);
         var bytes = new ArrayBufferWriter<byte>();
@@ -219,8 +225,22 @@ internal static class RecordedBoundedGeneration
             writer.WriteNumber("maxDocumentBytes", RecordedGenerationAdmission.DocumentByteLimit(reader, selected));
             writer.WriteNumber("maxRequestFrameBytes", wasm.RequestFrameBytes);
             writer.WriteNumber("maxResponseFrameBytes", wasm.ResponseFrameBytes);
+            writer.WriteNumber("maxInputBatchBytes", maxInputBatchBytes);
+            writer.WriteNumber("maxOutputBatchBytes", maxOutputBatchBytes);
+            writer.WriteNumber("peakDiscoveryIndexChargedBytes", peakDiscoveryIndexChargedBytes);
             writer.WritePropertyName("limits");
             JsonSerializer.Serialize(writer, selected, MepJson.Default.ModelAccessLimits);
+            if (memory is not null)
+            {
+                writer.WriteStartObject("linearMemory");
+                if (memory.GuestBytes is { } guestBytes)
+                    writer.WriteNumber("peakGuestLinearMemoryBytes", guestBytes);
+                else
+                    writer.WriteNull("peakGuestLinearMemoryBytes");
+                writer.WriteNumber("peakKernelLinearMemoryBytes", memory.KernelBytes);
+                writer.WriteNumber("perMemoryCeilingBytes", memory.CeilingBytes);
+                writer.WriteEndObject();
+            }
             writer.WriteEndObject();
         }
         using var document = JsonDocument.Parse(bytes.WrittenMemory);

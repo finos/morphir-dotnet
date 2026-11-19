@@ -180,9 +180,10 @@ let snapshotTests =
                 |> requireOk
 
             let document = "pkg/acme/orders/domain/total-in-_usd.value"
+            let mutable decodedBytes = -1L
 
             let advance =
-                view.PrepareAdvance(
+                view.PrepareHostAdvance(
                     4,
                     [|
                         ModelAccessRequest.Inventory(
@@ -192,9 +193,12 @@ let snapshotTests =
                             None
                         )
                         ModelAccessRequest.Document("final-value", document)
-                    |]
+                    |],
+                    &decodedBytes
                 )
                 |> requireOk
+
+            Expect.equal decodedBytes 257L "Only the original document bytes count, excluding inventory"
 
             Expect.equal
                 (advance.SessionId, advance.Round)
@@ -247,10 +251,13 @@ let snapshotTests =
                 MepGenerationSnapshot.Bind(snapshot, start)
                 |> requireOk
 
+            let mutable decodedBytes = -1L
+
             let advance =
-                view.PrepareAdvance(
+                view.PrepareHostAdvance(
                     1,
-                    [| ModelAccessRequest.Inventory("inventory", "root", 257, None) |]
+                    [| ModelAccessRequest.Inventory("inventory", "root", 257, None) |],
+                    &decodedBytes
                 )
                 |> requireOk
 
@@ -260,6 +267,7 @@ let snapshotTests =
             with
             | [ ModelAccessDelivery.Inventory("inventory", "orders-snapshot", entries, None) ] ->
                 Expect.equal entries.Count 3 "Return both own modules and the dependency module"
+                Expect.equal decodedBytes 0L "Inventory contains no decoded document bytes"
             | other -> failtestf "Wrong deliveries: %A" other
         }
 
@@ -308,6 +316,8 @@ let snapshotTests =
                 ModelAccessRequest.Document("order", "pkg/acme/orders/domain/order.value")
             |]
 
-            Expect.isError (view.PrepareAdvance(4, requests)) "The batch requires 672 encoded bytes"
+            let mutable decodedBytes = -1L
+            Expect.isError (view.PrepareHostAdvance(4, requests, &decodedBytes)) "The batch requires 672 encoded bytes"
+            Expect.equal decodedBytes 0L "A refused batch exposes no partial document count"
         }
     ]

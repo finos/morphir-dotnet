@@ -22,6 +22,7 @@ public sealed class BoundedGenerationSteps(IBoundedGenerationDriver bounded, ISc
         result.ShouldExitWith(0);
         var report = GenerationReport.Of(result).Document;
         report.GetProperty("input").GetString().Should().Be(ir.Path);
+        report.TryGetProperty("boundedAccess", out _).Should().BeFalse();
         report.GetProperty("artifacts").EnumerateArray().Select(item => item.GetString()).Should().Equal("order.txt");
         report.GetProperty("diagnostics").EnumerateArray()
             .Select(note => (note.GetProperty("severity").GetString(), note.GetProperty("code").GetString()))
@@ -133,10 +134,23 @@ public sealed class BoundedGenerationSteps(IBoundedGenerationDriver bounded, ISc
         Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant().Should().Be(OrdersScaleProductionMother.ArtifactSha256);
         var access = report.GetProperty("boundedAccess");
         access.GetProperty("maxDocumentBytes").GetInt64().Should().Be(32_768);
+        // Original JSON bytes include their LF; emitted payload bytes include the guest's LF.
+        access.GetProperty("maxInputBatchBytes").GetInt64().Should().Be(16_560);
+        access.GetProperty("maxOutputBatchBytes").GetInt64().Should().Be(16_385);
         var limits = access.GetProperty("limits");
         limits.GetProperty("maxDecodedBytesPerExchange").GetInt32().Should().Be(65_536);
         limits.GetProperty("maxFrameBytes").GetInt32().Should().Be(65_536);
         limits.GetProperty("maxArtifactChunkBytes").GetInt32().Should().Be(32_768);
+        access.GetProperty("peakDiscoveryIndexChargedBytes").GetInt64().Should().BeInRange(
+            1, limits.GetProperty("maxHostCacheBytes").GetInt64() / 4);
+
+        var measured = access.GetProperty("linearMemory");
+        measured.GetProperty("peakGuestLinearMemoryBytes").GetInt64().Should().Be(1_048_576);
+        var ceiling = measured.GetProperty("perMemoryCeilingBytes").GetInt64();
+        ceiling.Should().Be(limits.GetProperty("maxGuestStateBytes").GetInt64());
+        var kernelBytes = measured.GetProperty("peakKernelLinearMemoryBytes").GetInt64();
+        kernelBytes.Should().BeInRange(65_536L, ceiling);
+        (kernelBytes % 65_536).Should().Be(0);
     }
 
     [Then("the Orders scale profile refuses a document one byte over")]

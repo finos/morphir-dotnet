@@ -157,6 +157,16 @@ type BoundedTreeSnapshot =
     /// The revision fixed at admission.
     member snapshot.RevisionId = snapshot.Revision
 
+    /// Lifetime peak discovery-index charge in bytes, shared by copies of this snapshot.
+    /// Reading this C#-safe property never starts discovery. A disabled index reports zero.
+    /// The charge is 128 plus 160 + 4 * UTF-16 path length per distinct admitted module path.
+    /// It covers the builder and final array concurrently, including refused partial builders,
+    /// and retains that charge after publication. Fixed-overhead refusal can report 128 even
+    /// below that reservation because the builder was constructed. Traversal/provider state,
+    /// temporary path strings, cursors, revision/prefix strings and pending GC are excluded.
+    /// This is logical index accounting, not CLR heap, context or process resident memory.
+    member snapshot.PeakDiscoveryIndexChargedBytes = snapshot.Source.DiscoveryIndexPeakBytes ()
+
     /// The exact tree IR version, after manifest validation.
     member snapshot.IrVersion =
         match snapshot.Manifest with
