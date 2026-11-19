@@ -234,7 +234,7 @@ internal static class BoundedGenerationRun
                             || FileDigest(selection.Executable) != binding["executableSha256"]!.GetValue<string>())
                             reason = "adapter.input_or_binary_changed";
                     }
-                    catch (TimeoutException)
+                    catch (Exception error) when (AdapterCapture.SettlementTimedOut(error))
                     { reason = "adapter.cleanup_timeout"; }
                     catch (Exception error) when (error is JsonException or KeyNotFoundException or InvalidOperationException or IOException or InvalidDataException or System.ComponentModel.Win32Exception or PlatformNotSupportedException)
                     { reason = error is InvalidDataException ? error.Message : "adapter.invalid_observation"; }

@@ -40,6 +40,24 @@ type internal AdapterCapture =
             return raise error
     }
 
+    /// Recognizes owner timeouts retained alongside a capture error.
+    static member SettlementTimedOut(error: Exception) =
+        match error with
+        | :? OperationCanceledException -> false
+        | :? TimeoutException -> true
+        | _ ->
+            let disposalTimedOut = error.Data["Morphir.Launch.DisposalFailure"] :? TimeoutException
+
+            let cleanupTimedOut =
+                match error with
+                | :? IOException as capture ->
+                    match capture.InnerException with
+                    | NonNull primary -> primary.Data["AdapterCleanup"] :? TimeoutException
+                    | Null -> false
+                | _ -> false
+
+            disposalTimedOut || cleanupTimedOut
+
     static member RunAsync(program: string, arguments: IReadOnlyList<string>, directory: string,
                            request: byte array, deadline: TimeSpan, maxBytes: int, cancellation: CancellationToken) = task {
         if not (Path.IsPathFullyQualified program) || request.Length > 16384 || maxBytes < 1 || maxBytes > 65536

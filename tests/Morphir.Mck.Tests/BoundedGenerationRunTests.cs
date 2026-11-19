@@ -147,6 +147,35 @@ public sealed class BoundedGenerationRunTests
     }
 
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task CaptureFailureWithSettlementTimeoutPreventsFurtherLaunches(bool finalDisposal)
+    {
+        using var inputs = new Inputs();
+        var outputLimit = new InvalidDataException("adapter.output_limit");
+        var captureFailure = new IOException("adapter.capture_failed_or_deadline", outputLimit);
+        var timeout = new TimeoutException("Adapter descendants did not settle.");
+        if (finalDisposal)
+            captureFailure.Data["Morphir.Launch.DisposalFailure"] = timeout;
+        else
+            outputLimit.Data["AdapterCleanup"] = timeout;
+
+        var launches = 0;
+        var result = await BoundedGenerationRun.RunAsync(inputs.Selection, (_, _) =>
+        {
+            launches++;
+            return Task.FromException<byte[]>(captureFailure);
+        }, CancellationToken.None);
+
+        launches.Should().Be(1);
+        result.ExitCode.Should().Be(1);
+        using var report = JsonDocument.Parse(result.Output);
+        var cases = report.RootElement.GetProperty("cases").EnumerateArray().ToArray();
+        cases.Should().ContainSingle();
+        cases[0].GetProperty("reason").GetString().Should().Be("adapter.cleanup_timeout");
+    }
+
+    [Test]
     public async Task ProductionDotNetObserverMatchesTheIndependentCorpusInAllEightCases()
     {
         using var inputs = new Inputs();
