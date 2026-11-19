@@ -2005,3 +2005,145 @@ let boundedExportTests =
                 "No value is opened"
         }
     ]
+
+// Counting metadata providers exercise discovery without a scale fixture or body reads.
+let private countedProvider () =
+    let source, opened, files = frozenOrdersFiles "v4" "plain-json"
+    let inner =
+        files |> Seq.map (fun path -> path, source.FindFile path |> Option.get)
+        |> Map.ofSeq |> VFileTree.fromFileMap |> VFileProviders.asFileProvider
+    opened.Clear()
+    let mutable entries = 0
+    let mutable directories = 0
+    let provider =
+        { new Microsoft.Extensions.FileProviders.IFileProvider with
+            member _.GetFileInfo path = inner.GetFileInfo path
+            member _.Watch filter = inner.Watch filter
+            member _.GetDirectoryContents path =
+                directories <- directories + 1
+                let contents = inner.GetDirectoryContents path
+                let items () = seq {
+                    for item in contents do
+                        entries <- entries + 1
+                        yield item
+                }
+                { new Microsoft.Extensions.FileProviders.IDirectoryContents with
+                    member _.Exists = contents.Exists
+                    member _.GetEnumerator() = (items ()).GetEnumerator()
+                  interface System.Collections.IEnumerable with
+                    member _.GetEnumerator() = (items ()).GetEnumerator() :> System.Collections.IEnumerator } }
+    provider, opened, (fun () -> entries, directories)
+
+[<Tests>]
+let discoveryCacheTests =
+    testList "Metered module discovery" [
+        test "Reuses one ordinal metadata walk across pages and refuses stale snapshots" {
+            let provider, opened, counts = countedProvider ()
+            let mutable revision = "one"
+            let snapshot =
+                DocumentTreeStore.openSnapshotWithDiscoveryCache ReadOptions.defaults 65536L
+                    (System.Func<string>(fun () -> revision)) provider |> read
+            let first = DocumentTreeStore.pageModules 1 None snapshot.Package snapshot |> read
+            let scanned = counts ()
+            let second = DocumentTreeStore.pageModules 1 first.Next snapshot.Package snapshot |> read
+            Expect.equal (counts ()) scanned "Continuation and lookahead reuse the walk"
+            Expect.equal first.Items.Head.DocumentId "pkg/acme/orders/audit/module" "Ordinal first"
+            Expect.equal second.Items.Head.DocumentId "pkg/acme/orders/domain/module" "Ordinal second"
+            Expect.isNone second.Next "Exact final page"
+            Expect.isFalse (opened |> Seq.exists (fun path -> path.Contains(".value.") || path.Contains(".type."))) "Bodies remain lazy"
+            revision <- "two"
+            DocumentTreeStore.pageModules 1 first.Next snapshot.Package snapshot
+            |> StoreTestKit.refusal |> StoreTestKit.codesAndFiles
+            |> fun errors -> Expect.equal errors [ "tree.revision_changed", None ] "Stale cache is refused"
+            Expect.equal (counts ()) scanned "Stale read does not enumerate"
+        }
+        test "Exact retained-path cap succeeds and one byte less refuses" {
+            let paths = [ "pkg/acme/orders/audit/module"; "pkg/acme/orders/domain/module" ]
+            let cap = 128L + (paths |> List.sumBy (fun path -> 160L + 4L * int64 path.Length))
+            for budget in [ cap; cap - 1L ] do
+                let provider, opened, _ = countedProvider ()
+                let source = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 budget (fun () -> "stable") provider
+                let result = source.NextModule None 240 "pkg/acme/orders/" None
+                if budget = cap then
+                    Expect.equal (read (result |> Result.mapError List.singleton)) (Some paths.Head) "Exact cap"
+                else
+                    result |> Result.mapError List.singleton
+                    |> expectReadError "tree.discovery_cache_limit" "pkg/acme/orders/"
+                Expect.isEmpty opened "Only metadata is indexed"
+        }
+        test "Exact entry cap and uncached fallback preserve admission" {
+            let provider, _, counts = countedProvider ()
+            let baseline = TreeFileSource.fromFileProvider 1000 (fun () -> "stable") provider
+            baseline.NextModule None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read |> ignore
+            let total, _ = counts ()
+            for cap in [ total; total - 1 ] do
+                let cached = TreeFileSource.fromFileProviderWithDiscoveryCache cap 65536L (fun () -> "stable") provider
+                let result = cached.NextModule None 240 "pkg/acme/orders/" None
+                if cap = total then Expect.isOk result "Exact entry cap"
+                else result |> Result.mapError List.singleton |> expectReadError "tree.too_many_files" "pkg/acme/orders/"
+            let fallback = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 0L (fun () -> "stable") provider
+            let first = fallback.NextModule None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read
+            let before = counts ()
+            fallback.NextModule None 240 "pkg/acme/orders/" first |> Result.mapError List.singleton |> read |> ignore
+            Expect.isGreaterThan (fst (counts ())) (fst before) "Zero reservation uses the public streaming fallback"
+        }
+        test "Switching packages evicts paths and a mid-walk revision never publishes them" {
+            let provider, _, counts = countedProvider ()
+            let mutable revision = "one"
+            let source = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 65536L (fun () -> revision) provider
+            let next prefix = source.NextModule None 240 prefix None |> Result.mapError List.singleton |> read
+            next "pkg/acme/orders/" |> ignore
+            let ownCount = counts ()
+            next "deps/morphir/_sdk/@/" |> ignore
+            let dependencyCount = counts ()
+            Expect.isGreaterThan (fst dependencyCount) (fst ownCount) "New package walks once"
+            next "pkg/acme/orders/" |> ignore
+            Expect.isGreaterThan (fst (counts ())) (fst dependencyCount) "Evicted package walks again"
+            let mutable calls = 0
+            let changing () =
+                calls <- calls + 1
+                if calls < 3 then "one" else "two"
+            let unstable = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 65536L changing provider
+            unstable.NextModule None 240 "pkg/acme/orders/" None
+            |> Result.mapError List.singleton |> StoreTestKit.refusal |> StoreTestKit.codesAndFiles
+            |> fun errors -> Expect.equal errors [ "tree.revision_changed", None ] "Revision changed during walk"
+            let scanned = counts ()
+            unstable.NextModule None 240 "pkg/acme/orders/" None |> ignore
+            Expect.equal (counts ()) scanned "Rejected revision never reuses partial paths"
+        }
+        test "Cached metadata preserves physical profile ambiguity" {
+            let provider = Orders.ambiguousModuleProfile "v4" |> VFileProviders.asFileProvider
+            let snapshot = DocumentTreeStore.openSnapshotWithDiscoveryCache ReadOptions.defaults 65536L (System.Func<string>(fun () -> "one")) provider |> read
+            DocumentTreeStore.pageModules 1 None snapshot.Package snapshot
+            |> expectReadError "tree.ambiguous_profile" "pkg/acme/orders/audit/module"
+        }
+        test "C# cached admission retains lazy discovery and read-only refusal errors" {
+            let provider, opened, counts = countedProvider ()
+            let snapshot =
+                DocumentTreeStore.openPlainSnapshotWithDiscoveryCache(
+                    ReadOptions.defaults, 65536L, System.Func<string>(fun () -> "stable"), provider)
+                |> read
+            Expect.equal (counts ()) (0, 0) "Admission does not walk metadata"
+            Expect.sequenceEqual opened [ "manifest.json" ] "Only the manifest opens"
+            let first = DocumentTreeStore.pageModules 1 None snapshot.Package snapshot |> read
+            let scanned = counts ()
+            DocumentTreeStore.pageModules 1 first.Next snapshot.Package snapshot |> read |> ignore
+            Expect.equal (counts ()) scanned "C# admission uses the same cached discovery"
+            match DocumentTreeStore.openPlainSnapshotWithDiscoveryCache(
+                ReadOptions.defaults, -1L, System.Func<string>(fun () -> "stable"), provider) with
+            | Ok _ -> failtest "A negative reservation cannot be admitted"
+            | Result.Error errors ->
+                let readonlyErrors: System.Collections.Generic.IReadOnlyList<StoreError> = errors
+                Expect.equal readonlyErrors.Count 1 "Read-only error collection"
+                Expect.equal readonlyErrors[0].Code "tree.invalid_limit" "Admission diagnostic"
+        }
+        test "Cache lookup remains metered on reuse" {
+            let provider, _, _ = countedProvider ()
+            let source = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 65536L (fun () -> "stable") provider
+            source.NextModule None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read |> ignore
+            let work = BoundedTreeWorkBudget(1L)
+            work.TryCharge 1L |> ignore
+            source.NextModule (Some work) 240 "pkg/acme/orders/" None
+            |> Result.mapError List.singleton |> expectReadError "extension.bounded_work_limit" "pkg/acme/orders/"
+        }
+    ]

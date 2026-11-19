@@ -92,8 +92,22 @@ internal static class RecordedBoundedGeneration
                     if (GenerationPublisher.LinkedPath(location.Dest) is not null)
                         return Refuse("unsafe-publication-path", $"The task directory {location.Dest} must not be a link.");
                     Directory.CreateDirectory(location.Dest);
+                    // Reserve a bounded quarter of the negotiated cache for the active package's
+                    // paths before any discovery. The stage can use only the remaining bytes.
+                    var discoveryReservation = access.Limits.MaxHostCacheBytes / 4L;
+                    var indexed = DocumentTreeStore.OpenPlainSnapshotWithDiscoveryCache(
+                            new ReadOptions(settings.Limits.MaxEntries, access.Limits.MaxDecodedBytesPerExchange),
+                            discoveryReservation, () => revision, files)
+                        .Match<BoundedTreeSnapshot, IReadOnlyList<StoreError>, Outcome<BoundedTreeSnapshot>>(
+                            value => new Outcome<BoundedTreeSnapshot>.Success(value),
+                            problems => new Outcome<BoundedTreeSnapshot>.Failure(new(GenerationFailureKind.Operational,
+                                problems.Select(problem => new GenerationDiagnostic(
+                                    problem.Code, problem.Message, problem.FileOrNull)).ToImmutableArray())));
+                    if (indexed is Outcome<BoundedTreeSnapshot>.Failure refusedIndex)
+                        return Failed(refusedIndex.Error);
+                    snapshot = ((Outcome<BoundedTreeSnapshot>.Success)indexed).Value;
                     stage = new BoundedArtifactStage(location.Dest, access.Limits,
-                        new GenerationSessionDiskBudget(access.Limits.MaxSessionDiskBytes));
+                        new GenerationSessionDiskBudget(access.Limits.MaxSessionDiskBytes), discoveryReservation);
                     var start = Start(snapshot, tuple, target, settings.Options, access.Limits);
                     using var sessionDeadline = new CancellationTokenSource(access.Limits.MaxSessionMilliseconds);
                     result = await BoundedGenerationSession.RunAsync(guest.HostSession, snapshot, start, stage,

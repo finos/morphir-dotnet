@@ -193,6 +193,36 @@ module DocumentTreeStore =
         openSnapshot options (fun () -> revision.Invoke()) provider
         |> Result.mapError (fun errors -> List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>)
 
+    /// Open a plain snapshot with a retained-path reservation for one active package.
+    /// The caller must subtract this reservation from its other host-cache allowances.
+    /// Zero preserves the scan fallback; a positive exhausted reservation refuses discovery.
+    [<CompiledName("OpenSnapshotWithDiscoveryCache")>]
+    let openSnapshotWithDiscoveryCache
+        (options: ReadOptions)
+        (cacheBytes: int64)
+        (revision: System.Func<string>)
+        (provider: Microsoft.Extensions.FileProviders.IFileProvider) =
+        if options.MaxFiles < 1 then
+            Error [ error "tree.invalid_limit" None "A module lookup limit must be positive." ]
+        elif cacheBytes < 0L then
+            Error [ error "tree.invalid_limit" None "A discovery reservation cannot be negative." ]
+        else
+            TreeFileSource.fromFileProviderWithDiscoveryCache options.MaxFiles cacheBytes (fun () -> revision.Invoke()) provider
+            |> BoundedTreeReader.openTreeWithEncoding BoundedTreeEncoding.Plain options.MaxFileBytes
+
+    /// Open a cached plain snapshot from a host callback with C#-safe admission errors.
+    /// The host must reserve cacheBytes alongside its other retained host-cache data.
+    [<CompiledName("OpenPlainSnapshotWithDiscoveryCache")>]
+    let openPlainSnapshotWithDiscoveryCache
+        (
+            options: ReadOptions,
+            cacheBytes: int64,
+            revision: System.Func<string>,
+            provider: Microsoft.Extensions.FileProviders.IFileProvider
+        ) : Result<BoundedTreeSnapshot, System.Collections.Generic.IReadOnlyList<StoreError>> =
+        openSnapshotWithDiscoveryCache options cacheBytes revision provider
+        |> Result.mapError (fun errors -> List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>)
+
     /// Read the next page of modules in the selected package.
     [<CompiledName("PageModules")>]
     let pageModules limit cursor package snapshot =
