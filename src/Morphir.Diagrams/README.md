@@ -613,6 +613,23 @@ a transition between two concurrent regions of one composite is refused, as Plan
 `Mermaid.Print` and `PlantUml.Print` write canonical text in either language. As Mermaid does, entry and exit points
 and floating notes in Mermaid source are kept in the source but not drawn.
 
+## Swimlane and activity diagrams
+
+Mermaid `swimlane-beta` (the flowchart grammar, `TB` by default) and PlantUML activity
+diagrams read into one `SwimlaneDiagram`: lanes, steps with a role (action, start, stop, end,
+decision, merge, fork, join, note) and connectors with their branch labels. Lanes draw as
+parallel bands of equal length across the flow, each holding its steps; steps outside every
+lane come first. A repeated subgraph adds to the first one, which keeps its title.
+
+| Element | Reference | Colour family |
+| --- | --- | --- |
+| Step | `node=order` | by shape: actions backend, decisions cloud, starts, stops and notes external |
+| Lane | `group=Sales` | frame |
+| Connector | `edge=order/check/0` | arrow |
+
+All 34 fixtures of the pinned Mermaid swimlane reference give the reference steps, lanes and
+connectors, and `Mermaid.Print` writes canonical `swimlane-beta` text.
+
 ## Exploring routes and scenarios
 
 Players of diagrams with connections have an *Explore routes* disclosure under the
@@ -645,6 +662,7 @@ elements in order.
 | Flowcharts | The Mermaid 12.2.0 grammar: every fixture of the pinned reference is accepted or refused as Mermaid does, with the same nodes and edges. The shape catalogue is drawn with the nearest built-in shape. Links to subgraphs end on the subgraph's box |
 | Sequences | All 38 Mermaid 12.2.0 examples: participant kinds (boundary, control, entity, database, collections, queue), aliases, boxes, create and destroy, central connections, every arrow and half-arrow, notes, activations, frames, and `autonumber` with a start and step |
 | States | All 53 fixtures of the pinned Mermaid state reference; see [State diagrams](#state-diagrams) |
+| Swimlanes | All 34 fixtures of the pinned Mermaid swimlane reference; see [Swimlane and activity diagrams](#swimlane-and-activity-diagrams) |
 | ZenUML | All 25 pinned ZenUML core 3.47.9 examples, read into the sequence model: annotators, asynchronous messages, calls with bodies, creation, assignments, returns and replies, loops, `if`/`else`, `opt`, `par` and `try`/`catch`/`finally` |
 
 The sequence model exposes ordered `Events` at the root and in each frame
