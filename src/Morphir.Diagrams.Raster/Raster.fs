@@ -50,8 +50,11 @@ type RasterColor private (r: int, g: int, b: int) =
     /// White.
     static member White = RasterColor(255, 255, 255)
 
+    /// The red channel, 0 to 255.
     member _.Red = r
+    /// The green channel, 0 to 255.
     member _.Green = g
+    /// The blue channel, 0 to 255.
     member _.Blue = b
     member internal _.Rgba = { R = r; G = g; B = b; A = 255 }
     override _.ToString() = $"#{r:x2}{g:x2}{b:x2}"
@@ -101,9 +104,13 @@ type RasterOptions private (format: RasterFormat, size: Choice<int, int, double>
         ArgumentNullException.ThrowIfNull value
         RasterOptions(format, size, quality, background, value)
 
+    /// The image format.
     member _.Format = format
+    /// The JPEG quality, 1 to 100; PNG ignores it.
     member _.Quality = quality
+    /// The opaque background, or null for the image as drawn (JPEG then uses white).
     member _.Background: RasterColor | null = Option.toObj background
+    /// The palette of an adaptive SVG.
     member _.Theme = theme
     member internal _.Size = size
     override _.ToString() = $"{format}, {theme} theme"
@@ -135,12 +142,16 @@ type GifOptions private (duration: int, rate: int, scale: double, background: Ra
         ArgumentNullException.ThrowIfNull value
         GifOptions(duration, rate, scale, background, loop, value)
 
+    /// The interval the frames sample, in milliseconds.
     member _.DurationMilliseconds = duration
+    /// Frames per second of logical time.
     member _.FramesPerSecond = rate
+    /// Whether the GIF loops forever.
     member _.Loop = loop
     member internal _.Scale = scale
     member internal _.BackgroundColor = background
     member internal _.ThemeValue = theme
+    override _.ToString() = $"GIF over {duration} ms at {rate} frames a second"
 
 /// An encoded image, or the diagnostics that stopped it.
 [<Sealed>]

@@ -82,6 +82,28 @@ type QueryMatch internal (pattern: int, captures: ImmutableArray<QueryCapture>) 
     member _.Captures = captures
     override _.ToString() = $"match {pattern}: " + String.Join(" ", captures)
 
+/// The evaluation bound that stopped a cursor.
+[<RequireQualifiedAccess>]
+type QueryBound =
+    /// Node tests.
+    | Work
+    /// Child assignments in progress at once.
+    | Pending
+    /// Captures in one match.
+    | Captures
+    /// Matches.
+    | Results
+
+    /// The bound as documentation writes it.
+    member this.WireValue =
+        match this with
+        | QueryBound.Work -> "work"
+        | QueryBound.Pending -> "pending"
+        | QueryBound.Captures -> "captures"
+        | QueryBound.Results -> "results"
+
+    override this.ToString() = this.WireValue
+
 /// Whether a cursor has more matches.
 [<RequireQualifiedAccess>]
 type QueryStatus =
@@ -89,8 +111,15 @@ type QueryStatus =
     | More
     /// Every match has been read.
     | Complete
-    /// Evaluation stopped at a bound: `work`, `pending`, `captures` or `results`.
-    | LimitReached of bound: string
+    /// Evaluation stopped at a bound.
+    | LimitReached of bound: QueryBound
+
+    /// Calls the function for the case, for C# callers.
+    member this.Match<'T>(more: Func<'T>, complete: Func<'T>, limitReached: Func<QueryBound, 'T>) =
+        match this with
+        | QueryStatus.More -> more.Invoke()
+        | QueryStatus.Complete -> complete.Invoke()
+        | QueryStatus.LimitReached bound -> limitReached.Invoke bound
 
     override this.ToString() =
         match this with
@@ -105,6 +134,8 @@ type QueryBatch internal (matches: ImmutableArray<QueryMatch>, status: QueryStat
     member _.Matches = matches
     /// The status after this batch.
     member _.Status = status
+
+    override _.ToString() = $"{matches.Length} matches, {status}"
 
 type internal Kind =
     | Any
@@ -130,7 +161,7 @@ type internal Predicate =
 
 exception private QueryError of code: string * message: string * start: int * finish: int
 
-exception internal QueryExhausted of bound: string
+exception internal QueryExhausted of bound: QueryBound
 
 /// A compiled query of language version 1.
 [<Sealed>]
@@ -535,7 +566,7 @@ and [<Sealed>] QueryCursor internal (root: QueryNode, patterns: (Pattern * Predi
 
     let step () =
         work <- work + 1L
-        if work > limits.Work then raise (QueryExhausted "work")
+        if work > limits.Work then raise (QueryExhausted QueryBound.Work)
 
     let kindMatches kind (node: QueryNode) =
         match kind with
@@ -579,7 +610,7 @@ and [<Sealed>] QueryCursor internal (root: QueryNode, patterns: (Pattern * Predi
                     | [] -> [ [] ]
                     | child :: tail ->
                         pending <- pending + 1
-                        if pending > limits.Pending then raise (QueryExhausted "pending")
+                        if pending > limits.Pending then raise (QueryExhausted QueryBound.Pending)
 
                         let found =
                             [
@@ -632,9 +663,9 @@ and [<Sealed>] QueryCursor internal (root: QueryNode, patterns: (Pattern * Predi
                 for pattern, predicates in patterns do
                     for captured in matches pattern candidate do
                         if predicates |> List.forall (holds captured) then
-                            if captured.Length > limits.Captures then raise (QueryExhausted "captures")
+                            if captured.Length > limits.Captures then raise (QueryExhausted QueryBound.Captures)
                             results <- results + 1
-                            if results > limits.Results then raise (QueryExhausted "results")
+                            if results > limits.Results then raise (QueryExhausted QueryBound.Results)
                             yield QueryMatch(index, captured |> List.map (fun (name, node) -> QueryCapture(name, node)) |> ImmutableArray.CreateRange)
 
                     index <- index + 1
@@ -656,3 +687,5 @@ and [<Sealed>] QueryCursor internal (root: QueryNode, patterns: (Pattern * Predi
 
     /// The status after the last read.
     member _.Status = status
+
+    override _.ToString() = $"Query cursor, {status}"

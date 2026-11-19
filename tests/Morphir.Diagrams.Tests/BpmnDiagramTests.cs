@@ -25,6 +25,12 @@ public class BpmnDiagramTests
             .GetProperty("text").GetString()!;
     }
 
+    private static BpmnDocument Read(string source)
+    {
+        BpmnDocument.TryRead(source, out var document, out var diagnostics).ShouldBeTrue(string.Join(", ", diagnostics));
+        return document;
+    }
+
     private static BpmnDocument Document(string body)
     {
         BpmnDocument.TryRead(Head + body + "</bpmn:definitions>", out var document, out var diagnostics).ShouldBeTrue(string.Join(", ", diagnostics));
@@ -55,7 +61,7 @@ public class BpmnDiagramTests
     [Test]
     public void AChoreographyIsAnUnsupportedView()
     {
-        BpmnDiagram.TryCreate(BpmnDocument.Read(Corpus("traversal-corpus/fixtures/choreography.bpmn")).ResultValue, null, BpmnGeometry.Automatic, out _, out var diagnostics)
+        BpmnDiagram.TryCreate(Read(Corpus("traversal-corpus/fixtures/choreography.bpmn")), null, BpmnGeometry.Automatic, out _, out var diagnostics)
             .ShouldBeFalse();
 
         diagnostics.ShouldHaveSingleItem().Code.ShouldBe("bpmn/unsupported-view");
@@ -143,7 +149,7 @@ public class BpmnDiagramTests
     [Arguments("traversal-corpus/fixtures/process.bpmn")]
     public void EveryGraphicalElementOfACorpusViewIsDrawnWithItsReference(string path)
     {
-        var document = BpmnDocument.Read(Corpus(path)).ResultValue;
+        var document = Read(Corpus(path));
         var diagram = Create(document, BpmnGeometry.Automatic);
         var references = Render(diagram).Descendants().Select(element => (string?)element.Attribute("data-ref")).OfType<string>().ToHashSet(StringComparer.Ordinal);
         string[] drawn = ["task", "userTask", "serviceTask", "sendTask", "receiveTask", "manualTask", "businessRuleTask", "scriptTask", "callActivity", "startEvent", "endEvent",
@@ -159,9 +165,11 @@ public class BpmnDiagramTests
     }
 
     [Test]
-    public void AProhibitedDeclarationIsRefusedThroughTheSourceEntryPoint() =>
-        DiagramSource.Parse("<?xml version=\"1.0\"?><!DOCTYPE d [<!ENTITY e \"x\">]><d>&e;</d>").ErrorValue.ShouldHaveSingleItem().Code
-            .ShouldBe("bpmn/xml-prohibited-declaration");
+    public void AProhibitedDeclarationIsRefusedThroughTheSourceEntryPoint()
+    {
+        DiagramSource.TryParse("<?xml version=\"1.0\"?><!DOCTYPE d [<!ENTITY e \"x\">]><d>&e;</d>", out _, out var diagnostics).ShouldBeFalse();
+        diagnostics.ShouldHaveSingleItem().Code.ShouldBe("bpmn/xml-prohibited-declaration");
+    }
 
     [Test]
     public void ThePlayerPlaysSequenceFlows()

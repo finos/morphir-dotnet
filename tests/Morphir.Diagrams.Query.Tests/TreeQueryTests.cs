@@ -43,9 +43,11 @@ public partial class TreeQueryTests
             var read = cursor.Next(batch);
             rows.AddRange(read.Matches.Select(match => $"match {match.PatternIndex}: " + string.Join(" ", match.Captures.Select(capture => $"{capture.Name}=#{capture.Node.Ordinal}"))));
 
-            if (!read.Status.Equals(QueryStatus.More))
+            var end = read.Status.Match<string?>(() => null, () => "end complete", bound => $"end failed limit {bound.WireValue}");
+
+            if (end is not null)
             {
-                rows.Add(read.Status.Equals(QueryStatus.Complete) ? "end complete" : $"end failed {read.Status}");
+                rows.Add(end);
                 return rows;
             }
         }

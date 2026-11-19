@@ -17,6 +17,15 @@ type BpmnTraversalControl =
     /// End the traversal.
     | Stop
 
+    /// The control as documentation writes it.
+    member this.WireValue =
+        match this with
+        | BpmnTraversalControl.Continue -> "continue"
+        | BpmnTraversalControl.SkipChildren -> "skip-children"
+        | BpmnTraversalControl.Stop -> "stop"
+
+    override this.ToString() = this.WireValue
+
 /// The kinds of connection a graph query follows.
 [<Flags>]
 type BpmnEdgeKinds =
@@ -45,6 +54,15 @@ type BpmnDirection =
     /// Both ways.
     | Both
 
+    /// The direction as documentation writes it.
+    member this.WireValue =
+        match this with
+        | BpmnDirection.Forward -> "forward"
+        | BpmnDirection.Reverse -> "reverse"
+        | BpmnDirection.Both -> "both"
+
+    override this.ToString() = this.WireValue
+
 /// The answer of a graph query.
 [<RequireQualifiedAccess>]
 type BpmnGraphResult =
@@ -60,6 +78,24 @@ type BpmnGraphResult =
     | Ambiguous of string * ImmutableArray<BpmnElement>
     /// The query visited more elements than its limit allows.
     | LimitReached
+
+    /// Calls the function for the case, for C# callers.
+    member this.Match<'T>
+        (
+            route: Func<ImmutableArray<BpmnElement>, 'T>,
+            reachable: Func<ImmutableArray<BpmnElement>, 'T>,
+            unreachable: Func<'T>,
+            missing: Func<string, 'T>,
+            ambiguous: Func<string, ImmutableArray<BpmnElement>, 'T>,
+            limitReached: Func<'T>
+        ) =
+        match this with
+        | BpmnGraphResult.Route elements -> route.Invoke elements
+        | BpmnGraphResult.Reachable elements -> reachable.Invoke elements
+        | BpmnGraphResult.Unreachable -> unreachable.Invoke()
+        | BpmnGraphResult.Missing id -> missing.Invoke id
+        | BpmnGraphResult.Ambiguous(id, elements) -> ambiguous.Invoke(id, elements)
+        | BpmnGraphResult.LimitReached -> limitReached.Invoke()
 
     override this.ToString() =
         let ids (elements: ImmutableArray<BpmnElement>) =
@@ -151,10 +187,14 @@ type BpmnTraversal private () =
 
         edges, ambiguous
 
-    static member private Search(document: BpmnDocument, start: string, target: string option, kinds, direction: BpmnDirection, limit: int) =
+    static member private Search(document: BpmnDocument, start: string, target: string option, kinds: BpmnEdgeKinds, direction: BpmnDirection, limit: int) =
         ArgumentNullException.ThrowIfNull document
         ArgumentNullException.ThrowIfNull direction
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero limit
+
+        // Undefined bits or no kind at all would quietly find nothing.
+        if kinds = BpmnEdgeKinds.None || (kinds &&& ~~~BpmnEdgeKinds.All) <> BpmnEdgeKinds.None then
+            raise (ArgumentOutOfRangeException(nameof kinds, "Select at least one defined edge kind."))
 
         let find id =
             match document.Find id with
@@ -246,12 +286,16 @@ type BpmnTraversal private () =
                     else BpmnGraphResult.Reachable(ImmutableArray.CreateRange order)
 
     /// Every element reachable from the start over the selected connections, visiting at most `limit` elements.
-    static member Reachable(document: BpmnDocument, start: string, kinds: BpmnEdgeKinds, direction: BpmnDirection, limit: int) =
-        ArgumentNullException.ThrowIfNull start
-        BpmnTraversal.Search(document, start, None, kinds, direction, limit)
+    /// A null start is Missing.
+    static member Reachable(document: BpmnDocument, start: string | null, kinds: BpmnEdgeKinds, direction: BpmnDirection, limit: int) =
+        match start with
+        | null -> BpmnGraphResult.Missing ""
+        | start -> BpmnTraversal.Search(document, start, None, kinds, direction, limit)
 
     /// One shortest route from the start to the end over the selected connections, visiting at most `limit` elements.
-    static member Route(document: BpmnDocument, start: string, finish: string, kinds: BpmnEdgeKinds, direction: BpmnDirection, limit: int) =
-        ArgumentNullException.ThrowIfNull start
-        ArgumentNullException.ThrowIfNull finish
-        BpmnTraversal.Search(document, start, Some finish, kinds, direction, limit)
+    /// A null start or end is Missing.
+    static member Route(document: BpmnDocument, start: string | null, finish: string | null, kinds: BpmnEdgeKinds, direction: BpmnDirection, limit: int) =
+        match start, finish with
+        | null, _
+        | _, null -> BpmnGraphResult.Missing ""
+        | start, finish -> BpmnTraversal.Search(document, start, Some finish, kinds, direction, limit)

@@ -176,14 +176,14 @@ public partial class BpmnDocumentTests
         var document = Read(Corpus()["traversal-corpus/fixtures/duplicates.bpmn"]);
 
         document.Validate().Select(finding => finding.Code).ShouldBe(["bpmn/duplicate-id", "bpmn/ambiguous-reference"]);
-        document.Find("A").ShouldBeOfType<BpmnLookup.Ambiguous>().Item.Length.ShouldBe(2);
+        document.Find("A").Match(_ => 1, () => 0, elements => elements.Length).ShouldBe(2);
     }
 
     [Test]
     public void AnUnresolvedReferenceKeepsItsValueAndAWrongTargetIsReported()
     {
         var document = Read(Process("""<bpmn:dataObject id="D"/><bpmn:task id="T"/><bpmn:sequenceFlow id="F" sourceRef="Gone" targetRef="D"/>"""));
-        var flow = document.Find("F").ShouldBeOfType<BpmnLookup.Found>().Item;
+        var flow = document.Find("F").Match<BpmnElement?>(found => found, () => null, _ => null)!;
 
         flow.Field("sourceRef").ShouldBe("Gone");
         document.Validate().Select(finding => (finding.Code, finding.Kind)).ShouldBe([
@@ -235,14 +235,13 @@ public partial class BpmnDocumentTests
                 : BpmnTraversal.Reachable(document, query.Groups["from"].Value, kinds, direction, 10_000);
             var expected = lines[index + 1].Trim();
 
-            var ours = result switch
-            {
-                BpmnGraphResult.Route route => "Found " + string.Join(" ", route.Item.Select(element => element.Id)),
-                BpmnGraphResult.Reachable reachable => "Complete " + string.Join(" ", reachable.Item.Select(element => element.Id).OfType<string>().Order(StringComparer.Ordinal)),
-                BpmnGraphResult.Ambiguous => "Ambiguous",
-                BpmnGraphResult.Missing => "InvalidReference",
-                _ => result.ToString(),
-            };
+            var ours = result.Match(
+                route => "Found " + string.Join(" ", route.Select(element => element.Id)),
+                reachable => "Complete " + string.Join(" ", reachable.Select(element => element.Id).OfType<string>().Order(StringComparer.Ordinal)),
+                () => "Unreachable",
+                _ => "InvalidReference",
+                (_, _) => "Ambiguous",
+                () => "LimitReached");
             var theirs = expected switch
             {
                 _ when expected.StartsWith("Found", StringComparison.Ordinal) => "Found " + string.Join(" ", Ids(expected.Split(" edges=")[0])),
@@ -294,7 +293,7 @@ public partial class BpmnDocumentTests
 
         (visited, deepest).ShouldBe((10_001, 10_000));
         document.Write(BpmnWriteFormat.Pretty).Length.ShouldBeGreaterThan(source.Length);
-        BpmnTraversal.Reachable(document, "D", BpmnEdgeKinds.Containment, BpmnDirection.Forward, 20_000).ShouldBeOfType<BpmnGraphResult.Reachable>().Item.Length.ShouldBe(10_001);
+        BpmnTraversal.Reachable(document, "D", BpmnEdgeKinds.Containment, BpmnDirection.Forward, 20_000).Match(_ => 0, reachable => reachable.Length, () => 0, _ => 0, (_, _) => 0, () => 0).ShouldBe(10_001);
     }
 
     [Test]
