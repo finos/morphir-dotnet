@@ -70,6 +70,7 @@ public sealed class ModelValidationTests
         Validation(analyzers, configuration).RunAsync(new ValidateOverrides(input, format), new InvocationContext(Path.GetTempPath()), ct);
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task AClassicModelWithATypeMismatchGivesExitOneAndOneTypeMismatchError()
     {
         var report = await Run(Fixture("daily-rate-mismatch-v3.json"));
@@ -87,6 +88,7 @@ public sealed class ModelValidationTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ACleanModelGivesExitZero()
     {
         var report = await Run(Fixture("daily-rate-v3.json"));
@@ -96,6 +98,7 @@ public sealed class ModelValidationTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task AMissingInputGivesExitTwoNamesThePathAndRunsNoAnalyzer()
     {
         var analyzer = new FakeAnalyzer("acme.lint", () => []);
@@ -110,6 +113,7 @@ public sealed class ModelValidationTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task AV4ModelGivesOneInfoDiagnosticThatNamesTheFamilyAndExitZero()
     {
         var report = await Run(Fixture("daily-rate-v4.json"));
@@ -134,6 +138,7 @@ public sealed class ModelValidationTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task WarningsOnlyGiveExitZeroAndAreInTheResult()
     {
         var report = await Run(Fixture("daily-rate-v3.json"), new AnalyzerRegistry([new FakeAnalyzer("acme.lint", () => [Warning("w")])]));
@@ -142,6 +147,7 @@ public sealed class ModelValidationTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task AFailingAnalyzerGivesExitTwoNamesItAndKeepsTheOtherDiagnostics()
     {
         var failing = new FakeAnalyzer("acme.broken", () => throw new InvalidOperationException("boom"));
@@ -154,6 +160,7 @@ public sealed class ModelValidationTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ACancelledRunGivesExit130()
     {
         using var source = new CancellationTokenSource();
@@ -163,6 +170,7 @@ public sealed class ModelValidationTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ATurnedOffAnalyzerDoesNotRunAndIsListedAsTurnedOff()
     {
         var report = await Run(Fixture("daily-rate-mismatch-v3.json"), configuration: new FixedConfiguration("morphir.type-validator"));
@@ -172,6 +180,7 @@ public sealed class ModelValidationTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task AConfigurationThatCannotBeReadGivesExitTwoAndRunsNoAnalyzer()
     {
         var analyzer = new FakeAnalyzer("acme.lint", () => []);
@@ -182,6 +191,7 @@ public sealed class ModelValidationTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TheJsonReportHasTheSpecifiedMembers()
     {
         var report = await Run(Fixture("daily-rate-mismatch-v3.json"));
@@ -205,6 +215,7 @@ public sealed class ModelValidationTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TheTextOutputIsAPlainTableAndASummaryLine()
     {
         var report = await Run(Fixture("daily-rate-mismatch-v3.json"));
@@ -217,6 +228,7 @@ public sealed class ModelValidationTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TheTextOutputNamesAnAnalyzerThatDidNotRun()
     {
         var report = await Run(Fixture("daily-rate-mismatch-v3.json"), configuration: new FixedConfiguration("morphir.type-validator"));
@@ -226,6 +238,7 @@ public sealed class ModelValidationTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ARunLeavesTheModelFileAndTheWorkingDirectoryUnchanged()
     {
         await using var sandbox = Morphir.TestSupport.TestSandbox.Create("morphir-validate-");

@@ -49,6 +49,16 @@ module V4Json =
             }
         )
 
+    /// <summary>
+    /// For C# callers that check a document and need no model: the error of <see cref="readDistribution"/>, or null
+    /// when the document reads. C# calls this <c>ReadDistributionError</c>.
+    /// </summary>
+    [<CompiledName("ReadDistributionError")>]
+    let readDistributionError (root: JsonElement) : V4JsonError | null =
+        match readDistribution root with
+        | Result.Ok _ -> null
+        | Result.Error error -> error
+
     /// <summary>Reads a type expression.</summary>
     let readType (element: JsonElement) : Result<Type, V4JsonError> =
         readNode V4JsonValues.typ element

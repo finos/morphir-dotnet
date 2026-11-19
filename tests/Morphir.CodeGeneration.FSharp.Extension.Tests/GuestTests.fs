@@ -49,8 +49,11 @@ let tests =
 
               Expect.equal
                   (capabilities |> Seq.map _.Key |> Set.ofSeq)
-                  (set [ "backend"; "modelTransport" ])
-                  "Only the backend and model-transport claims"
+                  (set [ "backend"; "modelTransport"; "streaming"; "incremental"; "cancellation"; "progress" ])
+                  "Backend, model transport and the explicit session flags"
+
+              for flag in [ "streaming"; "incremental"; "cancellation"; "progress" ] do
+                  Expect.equal (text capabilities[flag]) "false" $"describe declares the actual initialized {flag} value"
 
               let backend = capabilities["backend"]
 
@@ -147,6 +150,7 @@ let tests =
                       Expect.isTrue (artifact.Path.EndsWith ".fs") $"{artifact.Path} is an F# file"
                       Expect.isFalse (Path.IsPathRooted artifact.Path) $"{artifact.Path} is relative"
                       Expect.isFalse artifact.Binary $"{artifact.Path} is text"
+          |> testLabel "PlatformSpecific"
 
           testCase "The Boolean option optimize is accepted"
           <| fun _ ->
@@ -158,6 +162,7 @@ let tests =
 
                   let reply = dispatch guest (generateMessage 2 request) |> Option.get
                   Expect.isTrue (resultOf reply).Success $"optimize={value}"
+          |> testLabel "PlatformSpecific"
 
           testCase "A request in a tuple that the session did not agree is refused with -32602 unsupported_tuple, is not served, and the session stays usable"
           <| fun _ ->
@@ -187,6 +192,7 @@ let tests =
 
               let served = dispatch guest (generateMessage 4 (generateRequest "4.0.0")) |> Option.get
               Expect.isTrue (resultOf served).Success "A valid request in the same session is served"
+          |> testLabel "PlatformSpecific"
 
           testCase "Without an agreed generateModel tuple, generateModel is -32013; the legacy generate is -32013; before initialize it is -32014"
           <| fun _ ->
@@ -206,6 +212,7 @@ let tests =
                   |> Option.get
 
               Expect.equal (codeOf legacy) (Some -32013) "The legacy generate is not claimed"
+          |> testLabel "PlatformSpecific"
 
           testCase "A target other than fsharp, an unknown option, a non-Boolean optimize and a required guarantee are refused with -32602"
           <| fun _ ->
@@ -236,6 +243,7 @@ let tests =
                   |> Option.get
 
               Expect.equal (messageOf guarantee) "Model admission refused: unsupported_guarantee" "The guarantee code"
+          |> testLabel "PlatformSpecific"
 
           testCase "A payload that is not IR of the input tuple, or whose digest does not match, is refused with -32602 before generation"
           <| fun _ ->
@@ -263,6 +271,7 @@ let tests =
               let digest = dispatch guest (generateMessage 9 tampered) |> Option.get
               Expect.equal (codeOf digest) (Some -32602) "digest mismatch"
               Expect.equal (messageOf digest) "Model admission refused: digest_mismatch" "The admission code"
+          |> testLabel "PlatformSpecific"
 
           testCase "A model that the generator rejects is a failed result with error diagnostics and no artifacts"
           <| fun _ ->
@@ -278,6 +287,7 @@ let tests =
                   result.Diagnostics
                   (fun item -> item.Severity = DiagnosticSeverity.Error && item.Code.IsSome)
                   "An error diagnostic with its rule code"
+          |> testLabel "PlatformSpecific"
 
           testCase "A Specs model in a claimed tuple is a failed result with unsupported-distribution and no artifacts"
           <| fun _ ->
@@ -287,7 +297,8 @@ let tests =
               let result = resultOf reply
               Expect.isFalse result.Success "success is false"
               Expect.isEmpty result.Artifacts "No artifacts"
-              Expect.exists result.Diagnostics (fun item -> item.Code = Some "unsupported-distribution") "The distribution is named" ]
+              Expect.exists result.Diagnostics (fun item -> item.Code = Some "unsupported-distribution") "The distribution is named"
+          |> testLabel "PlatformSpecific" ]
 
 /// The guest's own check of artifact paths, and malformed params of generateModel.
 [<Tests>]
@@ -316,8 +327,8 @@ let edgeTests =
           testCase "A generated tree with an unsafe path is -32603, not artifacts"
           <| fun _ ->
               let tree =
-                  Morphir.IR.Pipeline.VFileTree.fromFileMap (
-                      Map.ofList [ "Car:Inventory.fs", Morphir.IR.Pipeline.VFile.ofText "Car:Inventory.fs" "module X" ]
+                  Morphir.Files.VFileTree.fromFileMap (
+                      Map.ofList [ "Car:Inventory.fs", Morphir.Files.VFile.ofText "Car:Inventory.fs" "module X" ]
                   )
 
               match FSharpGuest.artifacts tree with
@@ -356,4 +367,5 @@ let edgeTests =
               Expect.equal (codeOf invalid) (Some -32600) "params a string: -32600"
 
               let served = dispatch guest (generateMessage 2 (generateRequest "4.0.0")) |> Option.get
-              Expect.isTrue (resultOf served).Success "A valid request after the malformed ones is served" ]
+              Expect.isTrue (resultOf served).Success "A valid request after the malformed ones is served"
+          |> testLabel "PlatformSpecific" ]

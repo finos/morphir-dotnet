@@ -6,6 +6,7 @@ open System
 open System.IO
 open System.Text.Json
 open Expecto
+open Morphir.Files
 open Morphir.IR.Pipeline
 open Morphir.Json.Classic
 open Morphir.Ion
@@ -13,6 +14,7 @@ open Morphir.Ion.Tests
 
 module Sample =
     // README-SAMPLE-START
+    open Morphir.Files
     open Morphir.IR.Pipeline
     open Morphir.Ion
 
@@ -468,6 +470,7 @@ let tests =
         testList "The README sample" [
             testCase "The sample in the README is the sample compiled here"
             <| fun () -> Expect.equal (sampleFromReadme ()) (sampleFromSource ()) "The same text"
+            |> testLabel "PlatformSpecific"
 
             testCase "describeTree reads a tree from disk"
             <| fun () ->
@@ -506,6 +509,7 @@ let tests =
                 finally
                     if Directory.Exists directory then
                         Directory.Delete(directory, true)
+            |> testLabel "PlatformSpecific"
 
             testCase "withIon puts the Ion parser first"
             <| fun () ->

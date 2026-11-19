@@ -172,7 +172,8 @@ public static class ChildProcess
     /// stdin closes; the result holds the stdout that the conversation did not read, and all of stderr. The gate,
     /// the timeout and the process-tree cleanup are the same as for <see cref="RunAsync"/>. <paramref name="started"/>
     /// gets the process id of the child as soon as it starts (on Linux the setsid wrapper keeps the same id), so a
-    /// test can observe that exact process.
+    /// test can observe that exact process. <paramref name="standardErrorLine"/>, when given, gets each line of stderr
+    /// as the child writes it; the result still holds all of stderr.
     /// </summary>
     public static async Task<ChildProcessResult> ConverseAsync(
         ProcessStartInfo startInfo,
@@ -180,7 +181,8 @@ public static class ChildProcess
         Func<Stream, Stream, CancellationToken, Task> converse,
         CancellationToken cancellationToken = default,
         ProcessGate? gate = null,
-        Action<int>? started = null)
+        Action<int>? started = null,
+        Action<string>? standardErrorLine = null)
     {
         startInfo.UseShellExecute = false;
         startInfo.CreateNoWindow = true;
@@ -197,7 +199,9 @@ public static class ChildProcess
 
         process.Start();
         var startedAt = DateTimeOffset.UtcNow;
-        var stderr = process.StandardError.ReadToEndAsync(CancellationToken.None);
+        var stderr = standardErrorLine is null
+            ? process.StandardError.ReadToEndAsync(CancellationToken.None)
+            : ReadLinesAsync(process.StandardError, standardErrorLine);
         Task<string>? stdout = null;
 
         try
@@ -224,6 +228,19 @@ public static class ChildProcess
             if (!process.HasExited) await KillTreeAsync(process, ownGroup).ConfigureAwait(false);
             throw;
         }
+    }
+
+    /// <summary>Reads <paramref name="reader"/> to its end, gives each line to <paramref name="line"/>, and returns all of it.</summary>
+    private static async Task<string> ReadLinesAsync(StreamReader reader, Action<string> line)
+    {
+        var text = new System.Text.StringBuilder();
+        while (await reader.ReadLineAsync(CancellationToken.None).ConfigureAwait(false) is { } next)
+        {
+            line(next);
+            text.Append(next).Append('\n');
+        }
+
+        return text.ToString();
     }
 
     /// <summary>On Linux, runs the command through setsid so it leads its own process group, with the same PID.</summary>

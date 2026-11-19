@@ -77,6 +77,7 @@ public class NameTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments<string[]>(["value", "in", "u", "s", "d"])]
     public async Task Should_Serialize_As_Expected_Json(string[] input)
     {

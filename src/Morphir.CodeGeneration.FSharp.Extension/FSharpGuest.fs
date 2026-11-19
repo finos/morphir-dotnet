@@ -12,9 +12,9 @@ open Morphir.CodeGeneration.FSharp
 open Morphir.IR.Model
 open Morphir.Mep
 
-type private Pipeline = Morphir.IR.Pipeline.MessageSeverity
-type private VMessage = Morphir.IR.Pipeline.VMessage
-type private VFileTree = Morphir.IR.Pipeline.VFileTree
+type private Pipeline = Morphir.Files.MessageSeverity
+type private VMessage = Morphir.Files.VMessage
+type private VFileTree = Morphir.Files.VFileTree
 
 /// The F# generator as a MEP 0.2.0-draft.1 backend guest, independent of the host's built-in morphir.fsharp. It
 /// serves morphir.backend.generateModel for the target fsharp, with JSON model tuples for IR versions 4.0.0 and
@@ -85,6 +85,7 @@ module FSharpGuest =
           Backend = Some backend
           Workspace = None
           ModelTransport = Some support
+          ModelAccess = None
           Streaming = false
           Incremental = false
           Cancellation = false
@@ -93,13 +94,16 @@ module FSharpGuest =
 
     /// The claim set that morphir.extension.describe returns.
     let claims: CapabilityClaimSet =
+        let session = JsonSerializer.SerializeToElement(capabilities, MepJson.Default.ExtensionCapabilities)
         { ClaimsVersion = SemanticVersion.Create "0.1.0-draft.2"
           ProtocolVersions = Lifecycle.protocolVersions
           Extension = extension
           Capabilities =
             readOnlyDict
                 [ "backend", JsonSerializer.SerializeToElement(backend, MepJson.Default.BackendCapability)
-                  "modelTransport", JsonSerializer.SerializeToElement(support, MepJson.Default.ModelTransportSupport) ]
+                  "modelTransport", JsonSerializer.SerializeToElement(support, MepJson.Default.ModelTransportSupport)
+                  for name in [ "streaming"; "incremental"; "cancellation"; "progress" ] do
+                      name, session.GetProperty(name).Clone() ]
           Requires = None
           Critical = [||] }
 
@@ -225,17 +229,17 @@ module FSharpGuest =
 
     /// The files of a generated tree, in the generator's declared order, then any others by path. Every file is text.
     let artifacts (tree: VFileTree) : Result<IReadOnlyList<Artifact>, RpcError> =
-        let files = Morphir.IR.Pipeline.VFileTree.toFileMap tree
+        let files = Morphir.Files.VFileTree.toFileMap tree
 
         let declared =
-            Morphir.IR.Pipeline.VFileTree.tryGet Morphir.IR.Pipeline.VFileTree.declaredOrder tree
+            Morphir.Files.VFileTree.tryGet Morphir.Files.VFileTree.declaredOrder tree
             |> Option.defaultValue []
             |> List.filter files.ContainsKey
 
         let order = declared @ (files |> Map.keys |> Seq.filter (fun key -> not (List.contains key declared)) |> List.ofSeq)
 
         let artifact (location: string) : Result<Artifact, RpcError> =
-            match checkArtifactPath location, Morphir.IR.Pipeline.VFile.readText files[location] with
+            match checkArtifactPath location, Morphir.Files.VFile.readText files[location] with
             | Error reason, _ -> Error(RpcErrors.withMessage ErrorCode.InternalError reason)
             | Ok(), Error failure ->
                 Error(RpcErrors.withMessage ErrorCode.InternalError $"The generated file {location} cannot be read: {failure}")
@@ -281,14 +285,14 @@ module FSharpGuest =
                              Data = None } |]
                 )
             | Ok(generation, model) ->
-                let tree = Transpiler.generateModelWith generation model Morphir.IR.Pipeline.VFile.empty
+                let tree = Transpiler.generateModelWith generation model Morphir.Files.VFile.empty
                 let diagnostics: IReadOnlyList<Diagnostic> = [| for message in tree.Messages -> diagnostic message |]
 
                 // The generator cannot stop part way, so the token is checked before and after it, as the built-in
                 // backend does.
                 if cancellation.IsCancellationRequested then
                     Error cancelled
-                elif Morphir.IR.Pipeline.VFileTree.hasErrors tree then
+                elif Morphir.Files.VFileTree.hasErrors tree then
                     Ok(failed diagnostics)
                 else
                     artifacts tree

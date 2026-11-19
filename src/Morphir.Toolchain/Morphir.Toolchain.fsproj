@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
         <RootNamespace>Morphir.Toolchain</RootNamespace>
         <Description>Readers and writers for the morphirup toolchain acquisition contracts (toolset recipe, project request, portable lock, installation receipt and manager result 0.1.0-draft.1), and the pure resolution and planning over them</Description>
         <PackageTags>$(PackageTags);morphir;fsharp;toolchain;morphirup</PackageTags>
@@ -24,6 +24,8 @@
     <ItemGroup>
         <InternalsVisibleTo Include="Morphir.Toolchain.Tests" />
         <InternalsVisibleTo Include="Morphir.Toolchain.IO" />
+        <InternalsVisibleTo Include="Morphir.Extensions.Installation" />
+        <InternalsVisibleTo Include="morphirup" />
     </ItemGroup>
 
     <ItemGroup>
@@ -49,6 +51,7 @@
         <Compile Include="TufClient.fs" />
         <Compile Include="Resolution.fs" />
         <Compile Include="Planning.fs" />
+        <Compile Include="ComposedGeneration.fs" />
         <Compile Include="Diagnostics.fs" />
         <Compile Include="Discovery.fs" />
     </ItemGroup>

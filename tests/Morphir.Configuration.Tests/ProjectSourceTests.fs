@@ -43,6 +43,21 @@ let available path role format =
 [<Tests>]
 let tests =
     testList "Project sources" [
+        // A Windows path as a command line gives it, with backslashes, is absolute: join does not put it below the root.
+        test "join keeps an absolute path with backslashes" {
+            Expect.equal
+                (ProjectPath.join "C:/work" @"C:\work\classic project")
+                "C:/work/classic project"
+                "a drive path with backslashes"
+
+            Expect.equal
+                (ProjectPath.join "C:/work" @"classic project\morphir.json")
+                "C:/work/classic project/morphir.json"
+                "a relative path with backslashes"
+
+            Expect.equal (ProjectPath.join "/repo" "../other") "/other" "a relative path that goes up"
+        }
+
         test "Linux platform sources retain separate platform and Morphir home alternatives" {
             let input = {
                 Platform = MachinePlatform.Linux

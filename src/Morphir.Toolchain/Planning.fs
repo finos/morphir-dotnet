@@ -223,45 +223,52 @@ module LocalCandidatePlanning =
         files
         |> List.forall (fun file -> seen.Add file.Artifact.Target.Text)
 
-    /// One validation route for setup apply and dry-run. It performs no I/O,
-    /// staging, lock admission or execution and chooses no fallback offering.
-    let plan currentPlatform consent maximumArchiveBytes (candidate: LocalHostCandidate) =
+    let private validate supported currentPlatform maximumArchiveBytes (candidate: LocalHostCandidate) =
+        if
+            candidate.Platform
+            <> currentPlatform
+        then
+            Error LocalCandidateRefusal.PlatformMismatch
+        elif
+            not (supported candidate.Platform)
+            || candidate.Host.Implementation.Text
+               <> "dotnet"
+            || candidate.Host.Deployment.Text
+               <> "self-contained"
+        then
+            Error LocalCandidateRefusal.UnsupportedOffering
+        elif
+            candidate.ArchiveBytes = 0UL
+            || candidate.ArchiveBytes > maximumArchiveBytes
+        then
+            Error LocalCandidateRefusal.ArchiveBound
+        elif
+            candidate.Files.IsEmpty
+            || candidate.Files.Length > 8192
+            || candidate.Files
+               |> List.filter (fun file -> file.Artifact = candidate.EntryPoint)
+               |> List.length
+               <> 1
+            || candidate.Files
+               |> List.exists (fun file -> file.Bytes > maximumArchiveBytes)
+            || not (uniqueFiles candidate.Files)
+        then
+            Error LocalCandidateRefusal.ClosureMismatch
+        else
+            Ok ()
+
+    /// One validation route for historical local setup apply and dry-run. It performs no I/O.
+    let plan currentPlatform consent maximumArchiveBytes candidate =
         match consent with
         | None -> Error LocalCandidateRefusal.ExplicitConsentRequired
         | Some LocalConsent.LocalDeveloper ->
-            if
-                candidate.Platform
-                <> currentPlatform
-            then
-                Error LocalCandidateRefusal.PlatformMismatch
-            elif
-                candidate.Platform
-                <> Platform.WinX64
-                || candidate.Host.Implementation.Text
-                   <> "dotnet"
-                || candidate.Host.Deployment.Text
-                   <> "self-contained"
-            then
-                Error LocalCandidateRefusal.UnsupportedOffering
-            elif
-                candidate.ArchiveBytes = 0UL
-                || candidate.ArchiveBytes > maximumArchiveBytes
-            then
-                Error LocalCandidateRefusal.ArchiveBound
-            elif
-                candidate.Files.IsEmpty
-                || candidate.Files.Length > 8192
-                || candidate.Files
-                   |> List.filter (fun file -> file.Artifact = candidate.EntryPoint)
-                   |> List.length
-                   <> 1
-                || candidate.Files
-                   |> List.exists (fun file -> file.Bytes > maximumArchiveBytes)
-                || not (uniqueFiles candidate.Files)
-            then
-                Error LocalCandidateRefusal.ClosureMismatch
-            else
-                Ok(LocalCandidatePlan(LocalConsent.LocalDeveloper, candidate))
+            validate ((=) Platform.WinX64) currentPlatform maximumArchiveBytes candidate
+            |> Result.map (fun () -> LocalCandidatePlan(LocalConsent.LocalDeveloper, candidate))
+
+    // Preview.5 accepts the two Windows process platforms and macOS ARM64. Acquisition or
+    // explicit developer consent is checked by its caller, never granted by this plan.
+    let internal planRelease currentPlatform maximumArchiveBytes candidate =
+        validate Platform.isLocalToolchain currentPlatform maximumArchiveBytes candidate
 
 /// The explicit local pointer binds immutable receipt bytes, not a repository or a recipe.
 type LocalCandidateSelection = {
@@ -276,6 +283,13 @@ module LocalCandidateDocument =
 
     let schema name =
         $"https://morphir.finos.org/schemas/local-toolchains/0.1.0-preview.1/{name}.schema.json"
+
+    /// The one composed release family that morphirup writes and reads (LocalComposedDocument.releaseFamily).
+    let internal releaseFamily = "0.1.0-preview.5"
+
+    /// The archive format of a host archive: ZIP on Windows, tar with gzip elsewhere, as the release archives are.
+    let archiveFormat platform =
+        if Platform.isWindows platform then "zip" else "tar-gzip"
 
     let installationPath (candidate: LocalHostCandidate) =
         $"store/tools/sha256/{candidate.ArchiveSha256.Text}"
@@ -297,7 +311,7 @@ module LocalCandidateDocument =
         | Some(name, _) -> refuse ReaderCode.InvalidDocument (o.Path.Child name)
         | None -> Ok o
 
-    let private envelope kind names bytes = result {
+    let private envelopeFor family kind names bytes = result {
         let! value = Syntax.parseJson bytes
         let! o = asObject (node value DocumentPath.root)
 
@@ -309,7 +323,7 @@ module LocalCandidateDocument =
 
         if
             identity
-            <> schema kind
+            <> $"https://morphir.finos.org/schemas/local-toolchains/{family}/{kind}.schema.json"
         then
             return! refuse ReaderCode.UnsupportedContractVersion (o.Path.Child "$schema")
 
@@ -319,6 +333,8 @@ module LocalCandidateDocument =
                  :: names)
                 o
     }
+
+    let private envelope kind names bytes = envelopeFor "0.1.0-preview.1" kind names bytes
 
     let private constant name expected o = result {
         let! actual = required name text o
@@ -332,11 +348,13 @@ module LocalCandidateDocument =
         return ()
     }
 
-    let private identity o = result {
-        do! constant "origin" "local-developer" o
+    let private identityFor releaseFamily o = result {
+        do! if releaseFamily then required "origin" (tag ["local-developer",();"release-checksum",()]) o
+            else constant "origin" "local-developer" o
         do! constant "implementation" "dotnet" o
         do! constant "deployment" "self-contained" o
-        do! constant "platform" "win-x64" o
+        do! if releaseFamily then Ok () else constant "platform" "win-x64" o
+        let! platform = required "platform" (if releaseFamily then tag ["win-x64",Platform.WinX64;"win-arm64",Platform.WinArm64;"osx-arm64",Platform.OsxArm64] else platform) o
         let! version = required "version" version o
         let! source = required "sourceCommit" text o
 
@@ -362,8 +380,10 @@ module LocalCandidateDocument =
             })
 
         let! buildIdentity = required "buildIdentity" (validated NonBlankText.tryParse) o
-        return version, sourceCommit, buildIdentity
+        return version, sourceCommit, buildIdentity, platform
     }
+
+    let private identity o = identityFor false o |> Result.map(fun (version,source,build,_) -> version,source,build)
 
     let private portablePath n = result {
         let! path = targetPath n
@@ -393,11 +413,11 @@ module LocalCandidateDocument =
         return { Target = path; Sha256 = digest }
     }
 
-    let readCandidate (bytes: byte array) : Result<LocalHostCandidate, ReaderRefusal> = result {
+    let internal readCandidateFor family extraNames (bytes: byte array) : Result<LocalHostCandidate, ReaderRefusal> = result {
         let! o =
-            envelope
+            envelopeFor family
                 "candidate"
-                [
+                ([
                     "origin"
                     "implementation"
                     "deployment"
@@ -409,17 +429,17 @@ module LocalCandidateDocument =
                     "archive"
                     "entryPoint"
                     "files"
-                ]
+                ] @ extraNames)
                 bytes
 
-        let! version, sourceCommit, buildIdentity = identity o
+        let! version, sourceCommit, buildIdentity, platform = identityFor (family = releaseFamily) o
         do! constant "sourceRepository" "https://github.com/finos/morphir-dotnet" o
 
         let! archive =
             objectMember "archive" o
             |> Result.bind (closed [ "format"; "sha256"; "bytes" ])
 
-        do! constant "format" "zip" archive
+        do! constant "format" (archiveFormat platform) archive
         let! digest = required "sha256" sha256 archive
         let! length = required "bytes" integer archive
 
@@ -483,7 +503,7 @@ module LocalCandidateDocument =
                 Deployment = deployment
                 Version = version
             }
-            Platform = Platform.WinX64
+            Platform = platform
             SourceCommit = sourceCommit
             BuildIdentity = buildIdentity
             ArchiveSha256 = digest
@@ -492,6 +512,8 @@ module LocalCandidateDocument =
             Files = files
         }
     }
+
+    let readCandidate bytes = readCandidateFor "0.1.0-preview.1" [] bytes
 
     let private entryValue (entry: TargetBinding) =
         Value.Object [

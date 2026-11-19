@@ -6,6 +6,7 @@ using Microsoft.FSharp.Collections;
 
 namespace Morphir.Configuration.IO.Tests;
 
+[Category("PlatformSpecific")]
 public sealed class FixtureReaderTests
 {
     private static string Fixture(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", "Configuration", name);

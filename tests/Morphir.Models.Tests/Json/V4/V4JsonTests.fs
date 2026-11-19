@@ -268,6 +268,7 @@ let tests =
                                }
                    } -> Expect.equal (OrderedMap.count constructors) 6 "The constructors"
             | other -> failtestf "Unexpected deal-event: %A" other
+        |> testLabel "PlatformSpecific"
 
         testCase "Incomplete nodes"
         <| fun () ->
@@ -1146,6 +1147,7 @@ let tests =
                     "One level past the limit"
 
                 Expect.equal (rule (deeplyNested 20000)) "depth_limit_exceeded" "Far past the limit"
+            |> testLabel "PlatformSpecific"
 
             testCase "A null where a node belongs"
             <| fun () ->

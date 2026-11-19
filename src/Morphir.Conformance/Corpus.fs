@@ -57,7 +57,7 @@ module Corpus =
         |> System.Convert.ToHexStringLower
 
     let private stepPatterns = [
-        "^the F# package \"([^\"]+)\" exposing \"([^\"]+)\"$"
+        "^the (?:F#|C#) package \"([^\"]+)\" exposing \"([^\"]+)\"$"
         "^the source \"([^\"]+)\":$"
         "^it is compiled from <input> with IR version <version>$"
         "^compilation fails with diagnostics:$"
@@ -67,8 +67,14 @@ module Corpus =
         "^calls use value codec (.*)$"
     ]
 
-    /// The vocabulary versions that this runner reads. Version 1.1 adds the call step.
-    let private vocabularies = [ "1.0"; "1.1" ]
+    /// The vocabulary versions that this runner reads. Version 1.1 adds the call step. Version 1.4 is version 1.1
+    /// for the suite <c>frontend-csharp</c>: its package step says "the C# package" and its sources are
+    /// <c>csharp</c> docstrings. The two languages are read with their own vocabulary versions and share no case.
+    let private vocabularies = [ "1.0"; "1.1"; "1.4" ]
+
+    /// The language that a suite reads: the word of its package step and the content type of its source docstrings.
+    let private suiteLanguage (suite: string) =
+        if suite = "frontend-csharp" then "C#", "csharp" else "F#", "fsharp"
 
     /// The value codec that a feature or scenario tag declares, or None.
     let private taggedCodec (values: Tag seq) =
@@ -328,6 +334,8 @@ module Corpus =
                             scenario.Location.Line
                             "A variant has one complete model expectation"
 
+                    let languageName, docstringType = suiteLanguage options.Suite
+
                     if
                         steps.IsEmpty
                         || not (Regex.IsMatch(steps.Head.Text, stepPatterns[0]))
@@ -337,6 +345,10 @@ module Corpus =
                         invalid
                             scenario.Location.Line
                             "A case starts with exactly one package declaration"
+                    elif not (steps.Head.Text.StartsWith("the " + languageName + " package ", System.StringComparison.Ordinal)) then
+                        invalid
+                            steps.Head.Location.Line
+                            ("The suite " + options.Suite + " reads " + languageName + " packages")
 
                     let sources = matching stepPatterns[1]
 
@@ -355,8 +367,8 @@ module Corpus =
                                 "Source URI must be root-relative and portable"
 
                         match step.Argument with
-                        | :? DocString as text when text.ContentType = "fsharp" -> ()
-                        | _ -> invalid step.Location.Line "A source needs a fsharp docstring"
+                        | :? DocString as text when text.ContentType = docstringType -> ()
+                        | _ -> invalid step.Location.Line ("A source needs a " + docstringType + " docstring")
 
                     if
                         (Seq.distinct uris

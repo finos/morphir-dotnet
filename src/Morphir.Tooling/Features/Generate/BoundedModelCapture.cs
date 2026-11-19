@@ -42,6 +42,7 @@ public sealed class BoundedModelCapture
             CaptureFailureKind.Limit => (GenerationFailureKind.Semantic, "input-limit"),
             CaptureFailureKind.UnsupportedEntry => (GenerationFailureKind.Semantic, "unsupported-input-entry"),
             CaptureFailureKind.Read => (GenerationFailureKind.Operational, "input-read"),
+            CaptureFailureKind.Changed => (GenerationFailureKind.Operational, "input-changed"),
             CaptureFailureKind.InvalidPath => (GenerationFailureKind.Invocation, "invalid-input-path"),
             CaptureFailureKind.Cancelled => (GenerationFailureKind.Cancelled, "cancelled"),
             _ => throw new System.Diagnostics.UnreachableException(),

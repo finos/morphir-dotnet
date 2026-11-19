@@ -87,6 +87,12 @@ let private validator =
         ValidatorClaim.Create(formatVersion "1", formatVersion "2", formatVersion "3")
     )
 
+let private transformEntry =
+    ExtensionEntry.BuiltInTransform(
+        ExtensionIdentity.Create(ExtensionId.Create "morphir.csharp.pass", ExtensionName.Create "C# pass", host, null),
+        TransformClaim.Create(TransformStage.BeforeBackend(TargetId.Create "csharp"))
+    )
+
 let private infoJson (entry: ExtensionEntry) =
     JsonSerializer.Serialize(entry.ToMep(), Morphir.Mep.MepJson.Default.ExtensionInfo)
 
@@ -131,17 +137,29 @@ let tests =
             Expect.equal info.Description (Some "Generates C#.") "description"
             Expect.equal (List.ofSeq info.Types) [ Morphir.Mep.ExtensionType.Backend ] "types"
         }
+        |> testLabel "PlatformSpecific"
 
         test "an entry with no description has no description member" {
             contractValid validator
             Expect.isFalse ((objectOf (infoJson validator)).ContainsKey "description") "no description"
         }
+        |> testLabel "PlatformSpecific"
 
         test "a validator entry has validator in types and no validator claim" {
             let types = (objectOf (infoJson validator))["types"] |> nonNull
             Expect.equal (types.ToJsonString()) """["validator"]""" "types"
             let capabilities = objectOf (capabilitiesJson validator)
             Expect.isFalse (capabilities.ContainsKey "validator") "no invented validator claim"
+            Expect.isFalse (capabilities.ContainsKey "backend") "no backend claim"
+        }
+
+        test "a transform entry has transform in types and no stage member" {
+            let info = objectOf (infoJson transformEntry)
+            Expect.equal ((info["types"] |> nonNull).ToJsonString()) """["transform"]""" "types"
+            Expect.isFalse (info.ContainsKey "stage") "no stage member"
+            Expect.isFalse (info.ContainsKey "transform") "no transform member"
+            let capabilities = objectOf (capabilitiesJson transformEntry)
+            Expect.isFalse (capabilities.ContainsKey "transform") "no invented transform claim"
             Expect.isFalse (capabilities.ContainsKey "backend") "no backend claim"
         }
 
@@ -163,6 +181,7 @@ let tests =
             for name in capabilities |> Seq.map _.Key do
                 Expect.isTrue (pinned.Contains name) $"{name} is a contract member"
         }
+        |> testLabel "PlatformSpecific"
 
         test "C# callers read the MEP extension record without options" {
             let info = backend.ToMep()

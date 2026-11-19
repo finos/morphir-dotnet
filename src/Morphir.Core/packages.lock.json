@@ -66,6 +66,72 @@
         "resolved": "1.1.1",
         "contentHash": "MalY0Y/uM/LjXtHfX/26l2VtN4LDNZ2OE3aumNOHDLsT4fNYy2hiHXI4CXCqKpNUNm7iJ2brrc4J89UdaL56FA=="
       }
+    },
+    "net11.0": {
+      "Dunet": {
+        "type": "Direct",
+        "requested": "[1.16.2, )",
+        "resolved": "1.16.2",
+        "contentHash": "R4PEZo50RK76wRW1kq4xiQqX/hnrx8Gn+8T1XIEYuigyjVh3Guhtt3+b4GG2j3h+E3VadLINtbV+Id79nsFy/Q=="
+      },
+      "Funcky.DiscriminatedUnion": {
+        "type": "Direct",
+        "requested": "[1.2.2, )",
+        "resolved": "1.2.2",
+        "contentHash": "ZElOIakQTCoGQ8kGiNdHPMEN1uSLf5FdYwqGPfuaUfo7U3gWWiA9B407WfYtLPF6c87dOPqIxSdRmC7o/9XWVA=="
+      },
+      "Generator.Equals": {
+        "type": "Direct",
+        "requested": "[3.3.0, )",
+        "resolved": "3.3.0",
+        "contentHash": "e9FfoO5R6+EYhH5l4iPsYykE7/hie+ZOegQUEnuG/QqT84Gv0XZXoSnvDDC0dlI6XvA5HVmVYqZkKGRvqJgU9A==",
+        "dependencies": {
+          "Generator.Equals.Runtime": "3.3.0"
+        }
+      },
+      "InlineComposition": {
+        "type": "Direct",
+        "requested": "[1.5.3, )",
+        "resolved": "1.5.3",
+        "contentHash": "xnMGrgF3FjY1hHK0q4V3YYS1LJLWT03r2v2q4eM/T2VJgiIqlg+tXmNDRHGWI8P0N7pY46G0Q+0Yrgq9QgVoow=="
+      },
+      "Ionide.KeepAChangelog.Tasks": {
+        "type": "Direct",
+        "requested": "[0.4.0, )",
+        "resolved": "0.4.0",
+        "contentHash": "uMqvbhnXYIbsn8zsFaBpNskl7A5gKP0EFRyEzGicmJiOSn/au5FWhi8P1/tBFbbyfrPap9d+N3scboVk/VQ6ZQ=="
+      },
+      "LanguageExt.Core": {
+        "type": "Direct",
+        "requested": "[5.0.0-beta-77, )",
+        "resolved": "5.0.0-beta-77",
+        "contentHash": "zVBqn2alHIDTOSjgWDUo31irEg59ZfM6T8e24UcUn6o/F+5Qr0jRjGPp2LzME7PHyKh+crK+boBmdCAFguwqjw=="
+      },
+      "StaticCS": {
+        "type": "Direct",
+        "requested": "[0.3.1, )",
+        "resolved": "0.3.1",
+        "contentHash": "cMtObvG5PFQ6+3Bdoc7+PeoyiE2wk/tV8htaKuA8DUQOMGx//yF7mUsKi5acwggDZXVusrDvqIYb2If0k4X4xA=="
+      },
+      "Vogen": {
+        "type": "Direct",
+        "requested": "[8.0.7, )",
+        "resolved": "8.0.7",
+        "contentHash": "0DrJ2ZPEGoJlzwqhum2LaZJ2FzJzgy5HP0km+XYL2MC/hS4Sn5/C35oRyob146Yjlf5xit2tmPx5xhI2BXkhLw=="
+      },
+      "Generator.Equals.Runtime": {
+        "type": "Transitive",
+        "resolved": "3.3.0",
+        "contentHash": "Y4WVz3VrRJTA/eivTDVZ7b6GHh+RiUuDoKca11WnNinKV54jsCL1QSiiGZ0WGkMAwHfFwmXlwU6bvStRhNxoHg==",
+        "dependencies": {
+          "Microsoft.Bcl.HashCode": "1.1.1"
+        }
+      },
+      "Microsoft.Bcl.HashCode": {
+        "type": "Transitive",
+        "resolved": "1.1.1",
+        "contentHash": "MalY0Y/uM/LjXtHfX/26l2VtN4LDNZ2OE3aumNOHDLsT4fNYy2hiHXI4CXCqKpNUNm7iJ2brrc4J89UdaL56FA=="
+      }
     }
   }
 }

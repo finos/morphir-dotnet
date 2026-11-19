@@ -187,3 +187,4 @@ let tests =
                 "The report is deterministic"
         }
     ]
+    |> testLabel "PlatformSpecific"

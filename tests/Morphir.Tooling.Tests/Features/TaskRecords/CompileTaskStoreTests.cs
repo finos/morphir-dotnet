@@ -12,6 +12,7 @@ namespace Morphir.Tooling.Tests.Features.TaskRecords;
 /// Spec: compile-task-records, the out root, record, tombstone and generate-input requirements. The tests
 /// play the part of the compile handler: they write the IR into <c>.dest</c> themselves.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class CompileTaskStoreTests : IDisposable
 {
     private const string Ir = """{"formatVersion": 4, "distribution": []}""";

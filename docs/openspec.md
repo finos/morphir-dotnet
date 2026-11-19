@@ -9,9 +9,9 @@ recorded schema. Follow this repository's contribution and approval rules.
 ## Bootstrap
 
 Install [mise](https://mise.jdx.dev/), then run `mise install`. OpenSpec is pinned
-to 1.14.3. mise also installs the pinned
+to 1.17.0. mise also installs the pinned
 [`mission-control-tools`](https://github.com/moonrockz/mission-control/tree/main/apps/tools)
-0.1.1 binary, which checks the shared bundle and generates the agent skills. mise
+0.1.2 binary, which checks the shared bundle and generates the agent skills. mise
 checks each download against its GitHub asset digest and its artifact
 attestation. Existing project runtime pins remain in place.
 
@@ -43,7 +43,7 @@ Existing skills outside the generated OpenSpec set are preserved.
 
 ## Update the shared bundle
 
-`openspec/extensions.lock.json` (format 2) records `mission-control-tools` 0.1.1
+`openspec/extensions.lock.json` (format 2) records `mission-control-tools` 0.1.2
 and SHA-256 hashes for the seven managed files. Git attributes preserve LF line
 endings so Windows checkouts keep those hashes. Keep the schema, templates and
 notices identical to the bundle in the binary. Do not patch them locally.

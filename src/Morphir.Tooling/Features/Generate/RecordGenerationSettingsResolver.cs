@@ -12,8 +12,9 @@ namespace Morphir.Tooling.Features.Generate;
 /// The generation settings resolver in front of the CLI resolver (REC-1). An explicit <c>--input</c> goes to
 /// the CLI resolver and never reads a record. Without <c>--input</c>, it finds the project and the out root in
 /// the same way as <c>morphir compile</c>, opens the most recent successful compile record with the shared lock,
-/// and gives the record's IR as the input. The lock is held until model loading ends, so a compile cannot clear
-/// <c>.dest</c> while the IR is read. A missing record or a tombstone fails with exit code 2 and tells the user
+/// and gives the record's IR as the input. The lock is held until model loading ends, or through guest settlement
+/// and publication on the bounded tree route, so a compile cannot clear <c>.dest</c> while the IR is read.
+/// A missing record or a tombstone fails with exit code 2 and tells the user
 /// to run <c>morphir compile</c> first.
 /// <para>
 /// In both modes, when <c>--extension</c> is absent, it loads the project configuration as compile does and
@@ -44,12 +45,14 @@ public sealed class RecordGenerationSettingsResolver(
         if (!string.IsNullOrWhiteSpace(overrides.Input))
         {
             var explicitSettings = await inner.ResolveAsync(overrides, context, ct);
-            // --extension wins; without it, the project configuration may select a backend extension.
-            if (explicitSettings is not Outcome<GenerationSettings>.Success { Value: var settings } || settings.Extension is not null)
+            // Installed identity is exclusive. A legacy --extension may name a configured WASM alias.
+            if (explicitSettings is not Outcome<GenerationSettings>.Success { Value: var settings } || settings.InstalledExtensionId is not null)
                 return explicitSettings;
             var configuration = Load(overrides, compileContext);
             if (configuration is Outcome<LoadedCompileConfiguration>.Failure loadFailure)
             {
+                // An explicit process extension previously needed no project configuration.
+                if (settings.Extension is not null) return explicitSettings;
                 // Only --input, --target and --output were given: nothing asked for the configuration, so a broken or
                 // unrelated discovered one does not fail the command. It is a warning on stderr, never on stdout.
                 if (overrides.Project is null && overrides.Config is null)
@@ -61,7 +64,7 @@ public sealed class RecordGenerationSettingsResolver(
                 }
                 return Fail(loadFailure.Error);
             }
-            return WithConfiguredExtension(settings, ((Outcome<LoadedCompileConfiguration>.Success)configuration).Value);
+            return WithConfiguredExtension(settings, ((Outcome<LoadedCompileConfiguration>.Success)configuration).Value, compileContext.WorkingDirectory);
         }
 
         var loadedOutcome = Load(overrides, compileContext);
@@ -69,7 +72,9 @@ public sealed class RecordGenerationSettingsResolver(
         var loaded = ((Outcome<LoadedCompileConfiguration>.Success)loadedOutcome).Value;
         var located = CompileTaskLocator.Locate(loaded, compileContext, overrides.OutDir);
         if (located is Outcome<CompileTaskPlace>.Failure notLocated) return Fail(notLocated.Error);
-        var store = ((Outcome<CompileTaskPlace>.Success)located).Value.Store(_options);
+        var place = ((Outcome<CompileTaskPlace>.Success)located).Value;
+        var taskOptions = _options with { MorphirHome = _options.MorphirHome ?? place.MorphirHome };
+        var store = place.Store(taskOptions);
 
         // Check the other values before the record is read. The input path is a placeholder until then.
         var validated = await inner.ResolveAsync(overrides with { Input = store.Location.Record }, context, ct);
@@ -81,6 +86,7 @@ public sealed class RecordGenerationSettingsResolver(
         var format = output.Ir.Format switch
         {
             IrStorageFormat.Json => InputFormat.Json,
+            IrStorageFormat.Yaml when output.Ir.Layout == IrLayout.DocumentTree => InputFormat.Auto,
             IrStorageFormat.Ion => InputFormat.Ion,
             _ => (InputFormat?)null,
         };
@@ -100,10 +106,9 @@ public sealed class RecordGenerationSettingsResolver(
         var fromRecord = valid.Value with
         {
             Input = new ModelInput(output.IrPath, format!.Value),
-            InputLease = new RecordLease(output),
+            InputLease = new RecordLease(output, taskOptions),
         };
-        if (fromRecord.Extension is not null) return new Outcome<GenerationSettings>.Success(fromRecord);
-        var withExtension = WithConfiguredExtension(fromRecord, loaded);
+        var withExtension = WithConfiguredExtension(fromRecord, loaded, compileContext.WorkingDirectory);
         if (withExtension is Outcome<GenerationSettings>.Failure) output.Dispose();
         return withExtension;
     }
@@ -125,22 +130,35 @@ public sealed class RecordGenerationSettingsResolver(
     /// sets it for the requested target, as compile reads <c>[frontend.&lt;language&gt;].extension</c>. An empty
     /// value is an invocation failure that names the file.
     /// </summary>
-    private static Outcome<GenerationSettings> WithConfiguredExtension(GenerationSettings settings, LoadedCompileConfiguration loaded)
+    private static Outcome<GenerationSettings> WithConfiguredExtension(GenerationSettings settings, LoadedCompileConfiguration loaded, string workingDirectory)
     {
+        if (settings.InstalledExtensionId is not null) return new Outcome<GenerationSettings>.Success(settings);
         if (settings.Target is not RequestedTarget.Valid target) return new Outcome<GenerationSettings>.Success(settings);
-        var configured = new ProjectCompileSettingsResolver.ConfigurationView(loaded).String("codegen", target.Id.Value, "extension");
+        var config = new ProjectCompileSettingsResolver.ConfigurationView(loaded);
+        // The other keys of [codegen.<target>] are configured backend options. They stay apart from --option, because a
+        // backend can put its own carriers between the two (OPT-1).
+        settings = settings with { Options = settings.Options.WithConfigured(BackendOptions.ConfiguredOf(config.ScalarMembers("codegen", target.Id.Value))) };
+        var configured = settings.Extension ?? config.String("codegen", target.Id.Value, "extension");
+        if (configured is null && config.String("extensions", target.Id.Value, "path") is { } path)
+            configured = new(target.Id.Value, path.Origin);
         if (configured is null) return new Outcome<GenerationSettings>.Success(settings);
         if (string.IsNullOrWhiteSpace(configured.Value))
             return Fail(GenerationFailure.One(GenerationFailureKind.Invocation, "invalid-extension",
                 $"The backend extension from {ProjectCompileSettingsResolver.Describe(configured.Origin)} is empty."));
-        return new Outcome<GenerationSettings>.Success(settings with { Extension = configured });
+        if (!Morphir.Tooling.Features.Extensions.ConfiguredWasmModule.TryRead(config, configured.Value,
+                loaded.ProjectRoot ?? workingDirectory, out var module, out var error))
+            return Fail(GenerationFailure.One(GenerationFailureKind.Invocation, "invalid-extension", error!));
+        return new Outcome<GenerationSettings>.Success(settings with { Extension = configured, WasmModule = module });
     }
 
     private static Outcome<GenerationSettings> Fail(GenerationFailure failure) => new Outcome<GenerationSettings>.Failure(failure);
 
     /// <summary>Holds the shared lock of the record, and keeps the format version that the record names.</summary>
-    private sealed class RecordLease(CompileTaskOutput output) : ModelInputLease
+    internal sealed class RecordLease(CompileTaskOutput output, TaskStoreOptions options) : ModelInputLease
     {
+        public CompileTaskOutput Output => output;
+        public TaskStoreOptions Options => options;
+
         public override Outcome<LoadedModel> Admit(LoadedModel model)
         {
             var recorded = output.Ir.Version;

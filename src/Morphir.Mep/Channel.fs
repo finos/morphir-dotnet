@@ -30,6 +30,11 @@ type ISingleMessageChannel =
     abstract NotifyAsync:
         method: string * message: ReadOnlyMemory<byte> * cancellation: CancellationToken -> Task<byte array | null>
 
+[<Interface>]
+type internal IModelAccessLimitAdmission =
+    /// Applies the verified limits before initialized. A non-null message refuses the selection.
+    abstract ApplyModelAccessLimits: ModelAccessLimits -> string | null
+
 /// Why a host session on a single-message channel ended before morphir.exit (design CHAN-1). After it, the session
 /// passes no message to the guest and refuses every request.
 [<RequireQualifiedAccess>]
@@ -109,10 +114,14 @@ type SessionFailure =
 /// How a host session reaches its guest (design CHAN-1): send a request and get its reply, and send a notification.
 /// HostSession applies the lifecycle rules before it uses the channel, so both channels refuse the same requests.
 type internal IHostChannel =
+    abstract ApplyModelAccessLimits: ModelAccessLimits -> string option
+    abstract RestrictFrameBytes: int -> unit
     /// Read-only projection of this transport's own recorder; absent on ordinary channels.
     abstract ConformanceSnapshot: ConformanceSnapshot option
     abstract ConformanceToken: CancellationToken
     abstract ConformanceEnd: ConformanceTransportEnd option
+    /// Why the transport's owned output no longer accepts writes, when it can say so.
+    abstract OwnedTransportUnavailable: unit -> string option
     abstract AdmitOperation: unit -> ConformanceOperationId option
     abstract LocalRefused: RpcError -> unit
     abstract OperationCancelled: ConformanceOperationId -> unit
@@ -142,9 +151,12 @@ type internal IHostChannel =
 [<Sealed>]
 type internal StreamChannel(connection: Connection) =
     interface IHostChannel with
+        member _.ApplyModelAccessLimits _ = None
+        member _.RestrictFrameBytes limit = connection.RestrictFrameBytes limit
         member _.ConformanceSnapshot = connection.ConformanceSnapshot
         member _.ConformanceToken = connection.ConformanceToken
         member _.ConformanceEnd = connection.ConformanceEnd
+        member _.OwnedTransportUnavailable() = connection.OwnedTransportUnavailable()
         member _.AdmitOperation() = connection.AdmitOperation()
         member _.LocalRefused cause = connection.LocalRefused cause
         member _.OperationCancelled operation = connection.OperationCancelled operation
@@ -176,6 +188,7 @@ type internal SingleMessageChannel private
     let gate = obj ()
     let mutable failure: SessionFailure option = None
     let mutable nextId = idStart.InitialCounter
+    let frameBudget = FrameBodyBudget()
     let lifetimeRegistration =
         capture |> Option.map (fun owned -> owned.Token.Register(fun () -> ended.TrySetResult ConnectionEnd.Stopped |> ignore))
 
@@ -202,9 +215,7 @@ type internal SingleMessageChannel private
     let encode (message: JsonRpcMessage) =
         let bytes = JsonRpc.Write message
 
-        if bytes.Length > ContentLengthFraming.MaxBodyBytes then
-            invalidArg (nameof message) (FramingFailure.BodyTooLarge.ToString())
-
+        frameBudget.CheckWrite bytes.Length
         bytes
 
     /// Waits until no other call is inside the guest. False when the caller cancelled while waiting; the guest was
@@ -231,9 +242,19 @@ type internal SingleMessageChannel private
             try
                 let! reply = call transportCancellation
                 match capture, operation with Some owned, Some key -> owned.AdapterCompleted key | _ -> ()
+                let negotiatedRefusal =
+                    match reply with
+                    | null -> None
+                    | bytes ->
+                        match frameBudget.Refusal(int64 bytes.Length) with
+                        | Some(FramingFailure.NegotiatedBodyTooLarge _ as refusal) -> Some(bytes.Length, refusal)
+                        | _ -> None
                 let observed =
-                    match capture, operation with
-                    | Some owned, Some key ->
+                    match negotiatedRefusal, capture, operation with
+                    | Some(length, refusal), _, _ ->
+                        capture |> Option.iter (fun owned -> owned.Incomplete(ConformanceCaptureFailure.BodyTooLarge length))
+                        Error(SessionFailure.ChannelFailed(method, IOException(refusal.ToString())))
+                    | None, Some owned, Some key ->
                         match reply with
                         | null ->
                             match owned.AdapterReturned(key, null) with
@@ -370,9 +391,15 @@ type internal SingleMessageChannel private
         SingleMessageChannel(guest, RequestIdStartPolicy.Conformance, Some(ConformanceCapture.Create(limits, lifetime)))
 
     interface IHostChannel with
+        member _.ApplyModelAccessLimits limits =
+            match guest with
+            | :? IModelAccessLimitAdmission as adapter -> adapter.ApplyModelAccessLimits limits |> Option.ofObj
+            | _ -> None
+        member _.RestrictFrameBytes limit = frameBudget.Restrict limit
         member _.ConformanceSnapshot = capture |> Option.map (fun owned -> owned.Snapshot())
         member _.ConformanceToken = capture |> Option.map _.Token |> Option.defaultValue CancellationToken.None
         member _.ConformanceEnd = capture |> Option.bind _.EndReason
+        member _.OwnedTransportUnavailable() = None
         member _.AdmitOperation() = capture |> Option.bind (fun owned -> owned.AdmitOperation())
         member _.LocalRefused cause = capture |> Option.iter (fun owned -> owned.LocalRefused cause)
         member _.OperationCancelled operation = capture |> Option.iter (fun owned -> owned.OperationCancelled operation)

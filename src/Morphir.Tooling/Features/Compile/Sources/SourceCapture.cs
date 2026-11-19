@@ -159,7 +159,7 @@ public sealed class SourceCapture : ISourceCapture
     private static DiagnosticCode CodeOf(CaptureFailureKind kind) => kind switch
     {
         CaptureFailureKind.UnsupportedEntry => SourceCaptureCodes.UnsupportedEntry,
-        CaptureFailureKind.Read => SourceCaptureCodes.Unreadable,
+        CaptureFailureKind.Read or CaptureFailureKind.Changed => SourceCaptureCodes.Unreadable,
         CaptureFailureKind.InvalidPath => SourceCaptureCodes.InvalidPath,
         CaptureFailureKind.InvalidLimits => SourceCaptureCodes.InvalidLimits,
         CaptureFailureKind.Limit => SourceCaptureCodes.LimitExceeded,

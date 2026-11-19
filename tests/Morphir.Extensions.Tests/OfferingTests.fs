@@ -68,13 +68,13 @@ let tests =
 
             let runtime = Deployment.FrameworkDependent.Prerequisites
             Expect.equal [ for r in runtime.Runtime -> r.Name ] [ "Microsoft.NETCore.App" ] "framework-dependent runtime"
-            Expect.sequenceEqual runtime.Runtime[0].Versions [ ">=10.0.0"; "<11.0.0" ] "runtime versions"
+            Expect.sequenceEqual runtime.Runtime[0].Versions [ ">=11.0.0"; "<12.0.0" ] "runtime versions"
             Expect.isEmpty runtime.Sdk "no SDK to run a framework-dependent morphir"
 
             let tool = Deployment.DotnetTool.Prerequisites
             Expect.equal [ for r in tool.Runtime -> r.Name ] [ "Microsoft.NETCore.App" ] "tool runtime"
             Expect.equal [ for s in tool.Sdk -> s.Name, s.Phase ] [ "Microsoft.NET.Sdk", SdkPhase.Install ] "the SDK installs the tool"
-            Expect.sequenceEqual tool.Sdk[0].Versions [ ">=10.0.100" ] "SDK versions"
+            Expect.sequenceEqual tool.Sdk[0].Versions [ ">=11.0.100" ] "SDK versions"
             Expect.equal SdkPhase.Install.WireValue "install" "install phase"
         }
 

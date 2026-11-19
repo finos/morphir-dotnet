@@ -54,8 +54,9 @@ tests/Fixtures/MepGuestKit/** -text
 # Toolchain acquisition contract fixtures are checked by SHA-256 against finos/morphir; the plan digest fixture
 # holds exact canonical bytes, and request identity is the SHA-256 of the exact TOML bytes.
 tests/Fixtures/Toolchain/** -text
+tests/Fixtures/LocalToolchains/** -text
 # Published extension contract blobs are verified offline against their parent Git bytes.
-tests/Fixtures/ExtensionAcquisition/parent-0439c4c0/** -text
+tests/Fixtures/ExtensionAcquisition/parent-65bbbc96/** -text
 # The morphirup AOT probe's plan digest covers the SHA-256 of its recipe bytes.
 tests/Morphir.Toolchain.Tests/AotProbe/** -text
 
@@ -76,3 +77,43 @@ tests/Fixtures/Configuration/** -text
 tests/Fixtures/Configuration/json5-tests/new-lines/*.json5 -whitespace
 # Unicode conformance data is checked by SHA-256, so its bytes must not change
 tests/Fixtures/Unicode/** -text
+src/Morphir.Extensions.Installation/TrustedRoots/*.pem -text
+# Third-party license texts that the release notices insert: LF on every checkout.
+build/notices/*.txt text eol=lf
+build/notices/native/*.txt text eol=lf
+# Their bytes must equal the release notices' copies in build/notices: LF on every checkout.
+src/Morphir.Extensions.Wasm/Kernel/LICENSE text eol=lf
+src/Morphir.Extensions.Wasm/Kernel/NOTICE text eol=lf
+# Document-tree kit data from finos/morphir, checked by SHA-256 (tests/Fixtures/MorphirTrees/PROVENANCE.md).
+tests/Fixtures/MorphirTrees/** -text
+tests/Fixtures/MorphirBoundedOrders/** -text
+tests/Fixtures/BoundedWasmLimits/** -text
+# Bounded-generation receipts, schema and controls use the exact finos/morphir Git blobs.
+tests/Fixtures/MorphirBoundedGenerationReceipts/** -text
+# The IR fixtures that FixtureCatalog serves are checked by SHA-256, so their bytes are the same on every checkout.
+tests/Fixtures/MorphirIR/greeting-example-v3.json -text
+tests/Fixtures/MorphirIR/constant-folding-v3.json text eol=lf
+tests/Fixtures/MorphirIR/constant-folding-v4.json text eol=lf
+tests/Fixtures/MorphirIR/daily-rate-mismatch-v3.json text eol=lf
+tests/Fixtures/MorphirIR/malformed-model.txt text eol=lf
+tests/Fixtures/MorphirIR/empty-library-v1.json text eol=lf
+tests/Fixtures/MorphirIR/empty-library-v2.json text eol=lf
+tests/Fixtures/MorphirIR/no-format-version.json text eol=lf
+tests/Fixtures/MorphirIR/string-format-version.json text eol=lf
+tests/Fixtures/MorphirIR/daily-rate-unknown-type-tag-v4.json text eol=lf
+tests/Fixtures/MorphirIR/specs-v3.json -text
+tests/Fixtures/MorphirIR/specs-unknown-member-v3.json -text
+
+# The IR v4 schemas and the IR 3.1.0 schema of finos/morphir, pinned byte for byte (src/Morphir.Tooling/Infrastructure/Schemas/PROVENANCE.md).
+src/Morphir.Tooling/Infrastructure/Schemas/morphir-ir-v4.json -text
+src/Morphir.Tooling/Infrastructure/Schemas/morphir-ir-v4-document-tree-files.json -text
+src/Morphir.Tooling/Infrastructure/Schemas/morphir-ir-v3.1.0.json -text
+
+# RFC 8785 as the RFC Editor publishes it, the source of the JCS test vectors (tests/Fixtures/Rfc8785/PROVENANCE.md).
+tests/Fixtures/Rfc8785/** -text
+# The catalog verifies the envelope hash. The N-Quads test bytes are base64-encoded inside.
+tests/Fixtures/RdfNQuads/rdf11-syntax.json text eol=lf
+# CommonMark example JSON as published, pinned by the catalog.
+tests/Fixtures/OkfDocuments/commonmark-0.31.2.json -text
+# Morphir file context data from finos/morphir, checked by SHA-256 (tests/Fixtures/MorphirContext/PROVENANCE.md).
+tests/Fixtures/MorphirContext/** -text

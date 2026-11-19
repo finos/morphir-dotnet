@@ -12,6 +12,9 @@ under test. Do not record or regenerate expectations from compiler output.
   alternatives of a case share a condition.
 - [F# frontend suite](suites/frontend-fsharp/) covers four IR versions and three
   source input kinds.
+- [C# frontend suite](suites/frontend-csharp/) covers the current IR (version 4) and three
+  source input kinds, with [vocabulary 1.4](steps/steps-1.4.md). It has one refusal case for each admission rule that
+  the frontend can report, and two semantic cases with hand-written expected IR.
 - [WASM host suite](suites/wasm-host/) holds the crafted cases that qualify a
   WASM extension host, generated from a pinned upstream corpus (see
   [WASM host suite](#wasm-host-suite)).
@@ -34,7 +37,7 @@ order. The adapter has no project-file provider, so a project-file row keeps the
 document order of the case; the `cli` adapter checks real project-file expansion.
 
 The `cli` adapter (`CliAdapter.create`) drives any `morphir` executable, for
-example `dotnet-morphir`, through `compile --json-lines`. It uses only the
+example `dotnet-morphir`, through `compile --json`. It uses only the
 documented command line (`docs/content/docs/cli/compile.md`). For each case it
 writes a new project directory with a `morphir.toml` (`project.name` and
 `project.exposed_modules`) and the documents under `src/`, and it gives the
@@ -60,8 +63,9 @@ dotnet run --project tests/Morphir.Frontend.FSharp.Tests --no-build -- --sequenc
 
 Set `MORPHIR_MCK_REPORT_DIR` to a directory to keep the verdict reports
 (`library.json`, `cli.json`, `cli-target-fsharp.json` and
-`cli-target-csharp.json`). Set `MORPHIR_DOTNET_TOOL_CLI` to qualify a published
-`dotnet-morphir` executable instead of the solution build.
+`cli-target-csharp.json`). To qualify a published `dotnet-morphir` executable instead of the solution build, set
+`MORPHIR_TEST_TARGET=executable`, `MORPHIR_TEST_EXECUTABLE` to its path and `MORPHIR_TEST_HOST=tool` (the target of
+the testing library; see `tests/Morphir.TestSupport/README.md`).
 
 The suite has one refusal case for each code of the F# admission catalog, grouped
 by construct family, and semantic cases. A semantic case has expected IR written
@@ -204,3 +208,21 @@ Kit manifests, profiles, claims planning, additional adapters, provenance review
 records, report checking and literate documentation belong to the full
 compatibility-kit change. The seed keeps those additions on the same reader,
 content model and runner.
+
+## Bounded-generation receipt replay
+
+`Morphir.Conformance.BoundedGeneration.Receipt.check` checks a bounded-generation
+receipt against the exact draft schema and an independent `CaseExpectation`. Load
+the schema and expectation from the selected kit and case. The expectation binds
+the receipt to the kit contract, suite, case ID and expected output digest.
+
+For an admitted receipt, the checker recomputes correctness and resources
+separately. A failed or unrun outcome can be a valid record. A refusal means the
+receipt itself cannot be used as evidence, for example because its schema,
+expectation, critical members or claimed outcomes disagree with the check.
+
+The conformance tests replay the parent kit's 19 frozen controls. They include
+successful replay, missing measurements, exceeded limits and forged claims.
+The controls exercise the checker with synthetic evidence. Generation
+qualification uses receipts from measured host and guest runs. See the
+[parent receipt contract](https://github.com/finos/morphir/blob/177371fa7a6199b7f177a8c1d886f583ee57e813/spec/mck/bounded-generation/receipt.md).

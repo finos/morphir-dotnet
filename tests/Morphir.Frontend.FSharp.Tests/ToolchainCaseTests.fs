@@ -180,3 +180,4 @@ let tests =
             | other -> failtest $"The kit fails a different model: {other}"
         }
     ]
+    |> testLabel "PlatformSpecific"

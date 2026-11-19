@@ -16,47 +16,6 @@ open Morphir.Conformance
 open Morphir.Conformance.WasmHost
 open Morphir.Toolchain.IO
 
-/// How long the sessions of a WorkerSessions factory may take.
-[<Sealed>]
-type WorkerSessionLimits private (sessionLimit: TimeSpan, exitWait: TimeSpan) =
-    /// The longest span Task.Delay takes: 4294967294 ms, about 49.7 days.
-    static let longest = TimeSpan.FromMilliseconds 4294967294.0
-
-    static let defaults =
-        WorkerSessionLimits(TimeSpan.FromMinutes 10.0, TimeSpan.FromSeconds 10.0)
-
-    static let check (name: string) (what: string) (span: TimeSpan) =
-        if span <= TimeSpan.Zero || span > longest then
-            raise (
-                ArgumentOutOfRangeException(
-                    name,
-                    span,
-                    $"The {what} must be positive and at most 4294967294 ms, the longest span Task.Delay takes."
-                )
-            )
-
-    /// The defaults: a worker may run 10 minutes, which is more than one call deadline of extism-kernel-v1 for each
-    /// request of a model-tier session, and EndAsync waits 10 seconds for it to exit, as the model-tier runner waits
-    /// for a session to end after morphir.exit. Every read returns the same instance.
-    static member Default = defaults
-
-    /// Limits with these spans. Each must be positive and at most 4294967294 ms, the longest span Task.Delay takes;
-    /// otherwise this throws ArgumentOutOfRangeException.
-    static member Create(sessionLimit: TimeSpan, exitWait: TimeSpan) =
-        check (nameof sessionLimit) "session limit" sessionLimit
-        check (nameof exitWait) "exit wait" exitWait
-        WorkerSessionLimits(sessionLimit, exitWait)
-
-    /// How long a worker may run from its start. A worker still running then has its process tree stopped, which
-    /// ends its session: every request still waiting gets an error.
-    member _.SessionLimit = sessionLimit
-
-    /// How long EndAsync waits for a worker to exit by itself before it stops the worker's process tree.
-    member _.ExitWait = exitWait
-
-    /// Stable text for diagnostics.
-    override _.ToString() = $"session limit {sessionLimit}, exit wait {exitWait}"
-
 /// What a WorkerSessions factory saw of one worker process: its arguments, how it ended and every line it wrote on
 /// stderr within the capture bounds. Only the factory builds one.
 [<Sealed>]
@@ -128,7 +87,8 @@ type WorkerSessionRecord
 /// A write to the stdin of a worker that has ended: the worker exited or was stopped, or EndAsync or the disposal of
 /// the factory closed its stdin. A HostSession from WorkerSessions.OpenAsync throws it from a request or from
 /// morphir.exit; the write is not retried and no reply is awaited. It derives from IOException, so a catch of
-/// IOException still holds. InnerException is the stream's own exception. Only the factory builds one.
+/// IOException still holds. InnerException is the stream's own exception, or, for a write to an open stdin after the
+/// worker exited, an IOException that says so: the write does not reach the pipe. Only the factory builds one.
 [<Sealed>]
 type WorkerEndedException internal (purpose: KitSessionPurpose, processId: int, inner: exn) =
     inherit
@@ -143,11 +103,14 @@ type WorkerEndedException internal (purpose: KitSessionPurpose, processId: int, 
     /// The id of the worker process.
     member _.ProcessId = processId
 
-/// The stdin of a worker as its HostSession writes it. A write or a flush that fails because the worker has ended, with
-/// an IOException or an ObjectDisposedException from the pipe, throws WorkerEndedException instead. No write is
-/// swallowed: the session would then wait for a reply that never comes.
+/// The stdin of a worker as its HostSession writes it. A write after the worker has exited throws WorkerEndedException
+/// before it reaches the pipe: the pipe can still take the bytes when another process, such as a child of the worker,
+/// holds its other end, and the session would then wait for a reply that no one gives, until the connection closes.
+/// A flush is not checked, because the worker can read a whole message and exit before the flush that follows it. A
+/// write or a flush that fails because the worker has ended, with an IOException or an ObjectDisposedException from
+/// the pipe, also throws WorkerEndedException. No write is swallowed.
 [<Sealed>]
-type internal WorkerInput(inner: Stream, purpose: KitSessionPurpose, processId: int) =
+type internal WorkerInput(inner: Stream, purpose: KitSessionPurpose, processId: int, hasExited: unit -> bool) =
     inherit Stream()
 
     static let isEnded (error: exn) =
@@ -155,6 +118,23 @@ type internal WorkerInput(inner: Stream, purpose: KitSessionPurpose, processId: 
 
     let ended (error: exn) =
         WorkerEndedException(purpose, processId, error)
+
+    // True once Dispose closed the stdin. CanWrite cannot say so: a pipe stream, the stdin on Linux and macOS, keeps
+    // CanWrite true after it is closed.
+    [<VolatileField>]
+    let mutable closed = false
+
+    /// Throws WorkerEndedException when the worker has exited and its stdin is still open; a closed stdin throws its
+    /// own ObjectDisposedException. Call it outside the catch of isEnded, which would wrap the exception again.
+    let ensureRunning () =
+        if not closed && hasExited () then
+            raise (ended (IOException $"The worker process {processId} has exited."))
+
+    interface ITransportWriteAvailability with
+        member _.EnsureWriteAvailable() =
+            if closed then
+                raise (ended (ObjectDisposedException(nameof WorkerInput)))
+            ensureRunning ()
 
     override _.CanRead = false
     override _.CanSeek = false
@@ -170,18 +150,24 @@ type internal WorkerInput(inner: Stream, purpose: KitSessionPurpose, processId: 
     override _.Read(_: byte array, _: int, _: int) : int = raise (NotSupportedException())
 
     override _.Write(buffer: byte array, offset: int, count: int) =
+        ensureRunning ()
+
         try
             inner.Write(buffer, offset, count)
         with error when isEnded error ->
             raise (ended error)
 
     override _.Write(buffer: ReadOnlySpan<byte>) =
+        ensureRunning ()
+
         try
             inner.Write buffer
         with error when isEnded error ->
             raise (ended error)
 
     override _.WriteByte(value: byte) =
+        ensureRunning ()
+
         try
             inner.WriteByte value
         with error when isEnded error ->
@@ -189,6 +175,8 @@ type internal WorkerInput(inner: Stream, purpose: KitSessionPurpose, processId: 
 
     override _.WriteAsync(buffer: byte array, offset: int, count: int, cancellation: CancellationToken) : Task =
         task {
+            ensureRunning ()
+
             try
                 do! inner.WriteAsync(buffer, offset, count, cancellation)
             with error when isEnded error ->
@@ -198,6 +186,8 @@ type internal WorkerInput(inner: Stream, purpose: KitSessionPurpose, processId: 
     override _.WriteAsync(buffer: ReadOnlyMemory<byte>, cancellation: CancellationToken) : ValueTask =
         ValueTask(
             task {
+                ensureRunning ()
+
                 try
                     do! inner.WriteAsync(buffer, cancellation)
                 with error when isEnded error ->
@@ -205,6 +195,14 @@ type internal WorkerInput(inner: Stream, purpose: KitSessionPurpose, processId: 
             }
             :> Task
         )
+
+    /// Closes the worker's stdin. A later write throws WorkerEndedException with the stream's ObjectDisposedException.
+    override _.Dispose(disposing: bool) =
+        if disposing && not closed then
+            closed <- true
+            inner.Dispose()
+
+        base.Dispose disposing
 
     override _.Flush() =
         try
@@ -264,20 +262,24 @@ module internal WorkerSessionCheck =
             yield $"the worker wrote {otherLines} stderr lines that are not morphir/command-event documents"
     ]
 
-/// The existing worker launch edge, with creation-time Windows job ownership supplied by Toolchain.IO.
+/// The existing worker launch edge, with creation-time Windows job ownership supplied by Toolchain.IO. HasExited
+/// polls the process where it can: a write after the worker exited must see the exit at once (WorkerInput).
 [<Sealed>]
 type internal WorkerProcess private
-    (id: int, input: Stream, output: Stream, errors: Stream, exited: Task<int>, stop: unit -> unit,
-     settle: unit -> Task, dispose: unit -> Task) =
+    (id: int, input: Stream, output: Stream, errors: Stream, exited: Task<int>, hasExited: unit -> bool,
+     stop: unit -> unit, settle: unit -> Task, dispose: unit -> Task) =
     let stderr = new StreamReader(errors, UTF8Encoding(false), false, 4096, true)
     member _.Id = id
     member _.StandardInput = input
     member _.StandardOutput = output
     member _.StandardError = stderr
-    member _.HasExited = exited.IsCompletedSuccessfully
+    member _.HasExited = hasExited ()
     member _.ExitCode = exited.GetAwaiter().GetResult()
     member _.WaitForExitAsync() = exited
     member _.RequestTermination() = stop ()
+
+    /// On Windows, ends the owned job and waits until no process of it remains, even when the root exited before a
+    /// surviving descendant. Elsewhere there is no job to settle: LiveWorker's bounded waits cover the exit.
     member _.SettleAsync() = settle ()
     member _.DisposeAsync() = task {
         try do! dispose ()
@@ -287,8 +289,10 @@ type internal WorkerProcess private
         if OperatingSystem.IsWindows() then
             let! child = WindowsChild.StartAsync(start, cancellation)
             let input = child.StandardInput |> Option.defaultWith (fun () -> invalidOp "Worker stdin was not redirected.")
-            return WorkerProcess(child.Id, input, child.StandardOutput, child.StandardError, child.WaitForExitAsync(),
-                child.RequestTermination, child.SettleAsync, fun () -> (child :> IAsyncDisposable).DisposeAsync().AsTask())
+            let exited = child.WaitForExitAsync()
+            return WorkerProcess(child.Id, input, child.StandardOutput, child.StandardError, exited,
+                (fun () -> child.HasExited), child.RequestTermination, child.SettleAsync,
+                fun () -> (child :> IAsyncDisposable).DisposeAsync().AsTask())
         else
             let proc = new Process(StartInfo = start)
             try
@@ -296,18 +300,37 @@ type internal WorkerProcess private
                 let exited = task {
                     do! proc.WaitForExitAsync()
                     return proc.ExitCode }
+                let hasExited () =
+                    try
+                        proc.HasExited
+                    with
+                    | :? InvalidOperationException
+                    | :? Win32Exception -> true
                 let stop () =
-                    if not proc.HasExited then CliAdapter.stopProcessTree proc TimeSpan.Zero |> ignore
+                    if not (hasExited ()) then CliAdapter.stopProcessTree proc TimeSpan.Zero |> ignore
                 return WorkerProcess(proc.Id, proc.StandardInput.BaseStream, proc.StandardOutput.BaseStream, proc.StandardError.BaseStream,
-                    exited, stop, (fun () -> task { let! _ = exited in return () }),
+                    exited, hasExited, stop, (fun () -> Task.CompletedTask),
                     (fun () -> proc.Dispose(); Task.CompletedTask))
             with error ->
                 proc.Dispose()
                 return raise error }
 
+/// The fixed waits of a live worker. Module values, not class `static let` values: F# initialises the class
+/// `static let` values of a file in one initialiser, which starts the type initialiser of each class whose fields it
+/// writes. With two such classes in a file, two threads that use them for the first time could wait for each other;
+/// the CLR breaks that deadlock by letting one thread see a class before its fields are set (FailStaticInit).
+module private LiveWorkerWaits =
+    let killWait = TimeSpan.FromSeconds 10.0
+
+    /// How long the factory keeps reading stderr after the worker ended. A descendant that holds the pipe open is not
+    /// waited for longer.
+    let drainWait = TimeSpan.FromSeconds 2.0
+
 /// One running worker process and what it wrote on stderr.
 [<Sealed>]
-type internal LiveWorker(purpose: KitSessionPurpose, proc: WorkerProcess, arguments: IReadOnlyList<string>, limits: WorkerSessionLimits) =
+type internal LiveWorker
+    (purpose: KitSessionPurpose, proc: WorkerProcess, input: WorkerInput, arguments: IReadOnlyList<string>, limits: WorkerSessionLimits)
+    =
     let id = proc.Id
     let clock = Stopwatch.StartNew()
     let gate = obj ()
@@ -366,10 +389,11 @@ type internal LiveWorker(purpose: KitSessionPurpose, proc: WorkerProcess, argume
     }
 
     /// Stops the worker's process tree when it has not exited. It does not wait for the tree to end: the caller
-    /// awaits the exit.
+    /// awaits the exit. HasExited reads the process itself: the exit task completes a little after the exit, and a
+    /// worker that exited by itself is not recorded as stopped.
     let stop () =
         lock gate (fun () ->
-            if not disposed && not exited.IsCompleted then
+            if not disposed && not exited.IsCompleted && not proc.HasExited then
                 stopped <- true
 
                 proc.RequestTermination()
@@ -391,14 +415,15 @@ type internal LiveWorker(purpose: KitSessionPurpose, proc: WorkerProcess, argume
         let! _ = Task.WhenAny(exited, exitWait ())
         stop ()
         watchdogCancel.Cancel()
-        // Settle the owned job even if the root exited before a surviving descendant.
+        // Settle the owned job even if the root exited before a surviving descendant. Where there is no job, a
+        // descendant that holds stderr open is not waited for longer than drainWait.
         do! proc.SettleAsync()
-        do! readStderr
-        do! exited
+        let! _ = Task.WhenAny(readStderr, Task.Delay LiveWorkerWaits.drainWait)
+        let! _ = Task.WhenAny(exited, Task.Delay LiveWorkerWaits.killWait)
         let! _ = watchdog
 
         try
-            proc.StandardInput.Close()
+            input.Dispose()
         with
         | :? IOException
         | :? ObjectDisposedException
@@ -483,7 +508,7 @@ type internal LiveWorker(purpose: KitSessionPurpose, proc: WorkerProcess, argume
 /// A session factory for ModelTierRunner.RunAsync that runs each session the runner asks for in a new worker
 /// process: `<host> [host arguments] extension worker --abi extism-kernel-v1 --module <module> --build-identity
 /// <identity> --json`, the arguments of the wasm-host corpus's worker convention, with the build identity that the
-/// host's `extension worker --help --json` reports. The session is a HostSession over the worker's stdout and stdin;
+/// host's `extension worker --help --json` reports in its one morphir/command-result. The session is a HostSession over the worker's stdout and stdin;
 /// the factory reads the worker's stderr events. EndAsync waits for each worker to exit, stops the process tree of one
 /// that does not, and reports each worker's end and events. Disposing the factory stops every worker still running and
 /// releases each worker's process.
@@ -652,10 +677,27 @@ type WorkerSessions
             start.RedirectStandardOutput <- true
             start.RedirectStandardError <- true
             start.StandardErrorEncoding <- UTF8Encoding(false)
-            let! proc = WorkerProcess.StartAsync(start, cancellation)
+            let notStarted (error: exn) =
+                error :? Win32Exception
+                || error :? FileNotFoundException
+                || error :? DirectoryNotFoundException
+                || error :? UnauthorizedAccessException
+
+            let! proc =
+                task {
+                    try
+                        return! WorkerProcess.StartAsync(start, cancellation)
+                    with error when notStarted error ->
+                        let message = $"The worker {host.Executable} did not start: {error.Message}"
+                        return raise (InvalidOperationException(message, error))
+                }
+
             let output = proc.StandardOutput
-            let input = new WorkerInput(proc.StandardInput, request.Purpose, proc.Id)
-            let worker = LiveWorker(request.Purpose, proc, workerArguments, limits)
+
+            let input =
+                new WorkerInput(proc.StandardInput, request.Purpose, proc.Id, fun () -> proc.HasExited)
+
+            let worker = LiveWorker(request.Purpose, proc, input, workerArguments, limits)
 
             let added =
                 lock gate (fun () ->

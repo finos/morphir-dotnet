@@ -204,6 +204,94 @@ public static class PackageValidator
         return errors.Any() ? ValidationResult.Failure(errors.ToArray()) : ValidationResult.Success();
     }
 
+    /// <summary>The entries that the Morphir.Lang.CSharp package must have (design.html, BLD-1).</summary>
+    public static readonly string[] CSharpLanguageEntries =
+    [
+        "lib/net10.0/Morphir.Lang.CSharp.dll",
+        "lib/net11.0/Morphir.Lang.CSharp.dll",
+        "lib/netstandard2.0/Morphir.Lang.CSharp.dll",
+        "build/Morphir.Lang.CSharp.props",
+        "build/Morphir.Lang.CSharp.targets",
+        "analyzers/dotnet/cs/Morphir.Lang.CSharp.Generator.dll",
+        "analyzers/dotnet/cs/Morphir.Lang.CSharp.Analyzers.dll",
+        "analyzers/dotnet/cs/Morphir.Lang.CSharp.CodeFixes.dll",
+        "analyzers/dotnet/cs/Morphir.Lang.CSharp.dll",
+        "analyzers/dotnet/cs/Morphir.Models.dll",
+        "analyzers/dotnet/cs/Morphir.Files.dll",
+        "analyzers/dotnet/cs/Microsoft.Extensions.FileProviders.Abstractions.dll",
+        "analyzers/dotnet/cs/Microsoft.Extensions.Primitives.dll",
+        "analyzers/dotnet/cs/Morphir.Compilation.dll",
+        "analyzers/dotnet/cs/Morphir.MiddleEnd.dll",
+        "analyzers/dotnet/cs/FSharp.Core.dll",
+        "analyzers/dotnet/cs/System.Text.Json.dll",
+        "tasks/netstandard2.0/Morphir.Lang.CSharp.Build.dll",
+        "tasks/netstandard2.0/Morphir.Lang.CSharp.dll",
+        "tasks/netstandard2.0/Microsoft.CodeAnalysis.dll",
+        "tasks/netstandard2.0/Microsoft.CodeAnalysis.CSharp.dll",
+        "tasks/netstandard2.0/FSharp.Core.dll",
+    ];
+
+    /// <summary>The assemblies of the compiler: each compiler host has them, so the analyzer folder must not.</summary>
+    private static readonly string[] CompilerAssemblies =
+        ["Microsoft.CodeAnalysis", "System.Collections.Immutable", "System.Reflection.Metadata", "System.Text.Encoding.CodePages"];
+
+    /// <summary>
+    /// Validates the Morphir.Lang.CSharp package: the library for each target framework, the build props and targets, the
+    /// source generator and the analyzers with their closure in analyzers/dotnet/cs, and the MSBuild task with its closure
+    /// in tasks/netstandard2.0. analyzers/dotnet/cs has no assembly of the compiler (Microsoft.CodeAnalysis*, and the
+    /// assemblies that it loads), and tasks/ has no assembly of MSBuild. The code fix assembly
+    /// (analyzers/dotnet/cs/Morphir.Lang.CSharp.CodeFixes.dll, tasks.md 7.4) is required, and no Workspaces assembly is
+    /// in the package: an IDE gives them.
+    /// </summary>
+    /// <param name="packagePath">Full path to the .nupkg file</param>
+    /// <returns>ValidationResult with success status and any error messages</returns>
+    /// <exception cref="FileNotFoundException">Thrown when package file does not exist</exception>
+    public static ValidationResult ValidateCSharpLanguagePackage(string packagePath)
+    {
+        if (!File.Exists(packagePath))
+        {
+            throw new FileNotFoundException($"Package file not found: {packagePath}", packagePath);
+        }
+
+        var errors = new List<string>();
+
+        try
+        {
+            using var archive = ZipFile.OpenRead(packagePath);
+            var entries = archive.Entries.Select(e => e.FullName).ToHashSet();
+
+            foreach (var entry in CSharpLanguageEntries.Where(entry => !entries.Contains(entry)))
+            {
+                errors.Add($"Morphir.Lang.CSharp package must contain '{entry}'");
+            }
+
+            foreach (var entry in entries.Where(e => e.StartsWith("analyzers/", StringComparison.Ordinal)).Order(StringComparer.Ordinal))
+            {
+                var name = Path.GetFileNameWithoutExtension(entry);
+                if (!entry.StartsWith("analyzers/dotnet/cs/", StringComparison.Ordinal))
+                    errors.Add($"Morphir.Lang.CSharp package has '{entry}': the analyzer assemblies are only for C#, in 'analyzers/dotnet/cs/'");
+                else if (CompilerAssemblies.Any(prefix => name.StartsWith(prefix, StringComparison.Ordinal)))
+                    errors.Add($"Morphir.Lang.CSharp package has '{entry}': the compiler host has this assembly");
+            }
+
+            foreach (var entry in entries.Where(e => e.StartsWith("tasks/", StringComparison.Ordinal) && Path.GetFileName(e).StartsWith("Microsoft.Build", StringComparison.Ordinal)))
+            {
+                errors.Add($"Morphir.Lang.CSharp package has '{entry}': MSBuild has this assembly");
+            }
+
+            if (entries.Any(e => e.EndsWith(".pdb", StringComparison.Ordinal)))
+            {
+                errors.Add("Morphir.Lang.CSharp package should not contain .pdb files");
+            }
+        }
+        catch (Exception ex)
+        {
+            errors.Add($"Failed to read package: {ex.Message}");
+        }
+
+        return errors.Any() ? ValidationResult.Failure(errors.ToArray()) : ValidationResult.Success();
+    }
+
     /// <summary>
     /// Validates the DotnetToolSettings.xml content
     /// Checks for required Command element with Name and EntryPoint attributes

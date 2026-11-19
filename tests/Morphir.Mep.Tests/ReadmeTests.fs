@@ -44,6 +44,14 @@ let runSession (claims: CapabilityClaimSet) (capabilities: ExtensionCapabilities
     }
 // README example end
 
+// README bounded example start
+let advanceEmpty (host: HostSession) (step: ModelAccessStep) cancellation =
+    match step with
+    | ModelAccessStep.Continue(id, round, requests, _, _) when requests.Count = 0 ->
+        Some(host.AdvanceGenerationAsync({ SessionId = id; Round = round; Deliveries = [||] }, cancellation))
+    | _ -> None
+// README bounded example end
+
 let private block (text: string) (start: string) (finish: string) =
     let first = text.IndexOf(start, StringComparison.Ordinal) + start.Length
     text.Substring(first, text.IndexOf(finish, first, StringComparison.Ordinal) - first).Trim()
@@ -66,6 +74,14 @@ let tests =
                   (block readme "```fsharp" "```")
                   (block source "// README example start" "// README example end")
                   "Same code"
+
+              let firstBlock = readme.IndexOf("```fsharp", StringComparison.Ordinal)
+              let later = readme.Substring(firstBlock + "```fsharp".Length)
+              Expect.equal
+                  (block later "```fsharp" "```")
+                  (block source "// README bounded example start" "// README bounded example end")
+                  "Same bounded-generation example"
+          |> testLabel "PlatformSpecific"
 
           testCase "the README example runs a session"
           <| fun _ ->

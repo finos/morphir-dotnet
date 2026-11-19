@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-US">
+  <id>tag:github.com,2008:https://github.com/finos/morphir/releases</id>
+  <link type="text/html" rel="alternate" href="https://github.com/finos/morphir/releases"/>
+  <link type="application/atom+xml" rel="self" href="https://github.com/finos/morphir/releases.atom"/>
+  <title>Release notes from morphir</title>
+  <entry>
+    <id>tag:github.com,2008:Repository/1/v0.4.0-beta.12</id>
+    <updated>2026-11-13T00:00:00Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/finos/morphir/releases/tag/v0.4.0-beta.12"/>
+    <title>v0.4.0-beta.12</title>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/1/v0.4.0-beta.11</id>
+    <updated>2026-11-13T00:00:00Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/finos/morphir/releases/tag/v0.4.0-beta.11"/>
+    <title>v0.4.0-beta.11</title>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/1/v0.5.0-alpha.2</id>
+    <updated>2026-11-13T00:00:00Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/finos/morphir/releases/tag/v0.5.0-alpha.2"/>
+    <title>v0.5.0-alpha.2</title>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Repository/1/v0.5.0-alpha.1</id>
+    <updated>2026-11-13T00:00:00Z</updated>
+    <link rel="alternate" type="text/html" href="https://github.com/finos/morphir/releases/tag/v0.5.0-alpha.1"/>
+    <title>v0.5.0-alpha.1</title>
+  </entry>
+</feed>

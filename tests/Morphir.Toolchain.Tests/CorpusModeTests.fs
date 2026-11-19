@@ -130,3 +130,4 @@ let tests =
             Expect.equal child.Exit 0 $"exit code; stderr: {child.Stderr}"
             Expect.isFalse (child.Stdout.Contains "External toolchain corpus:") "no marker")
     ]
+    |> testLabel "PlatformSpecific"

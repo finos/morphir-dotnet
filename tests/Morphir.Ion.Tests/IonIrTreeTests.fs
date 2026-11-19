@@ -7,7 +7,7 @@ open System.IO
 open Expecto
 open Morphir.IR
 open Morphir.IR.V4
-open Morphir.IR.Pipeline
+open Morphir.Files
 open Morphir.Ion
 open Morphir.Ion.Tests
 
@@ -1196,6 +1196,7 @@ let tests =
                 | _, Result.Error error ->
                     failtestf "The tree was refused: %s %s" error.Code error.Message
                 | Result.Error error, _ -> failtestf "The single file was refused: %s" error.Code
+            |> testLabel "PlatformSpecific"
 
             testCase "Limit across files"
             <| fun () ->

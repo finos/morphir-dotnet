@@ -1,0 +1,12 @@
+<Project>
+  <!--
+    Stops the walk to the repository Directory.Build.props, so the probes build in the
+    repository as they build outside it. Renovate restores each project in the repository;
+    with the central package management of the repository, the probes fail with NU1008.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <ImportDirectoryPackagesProps>false</ImportDirectoryPackagesProps>
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+  </PropertyGroup>
+</Project>

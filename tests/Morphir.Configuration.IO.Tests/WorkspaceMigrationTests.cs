@@ -124,6 +124,7 @@ public sealed class WorkspaceMigrationPlanningTests
 public sealed class WorkspaceMigrationApplicationTests
 {
     [Test]
+    [Category("PlatformSpecific")]
     public void BatchPreservesSourcesAndEquivalentRepeatBytesTimestampsAndInventory()
     {
         using var fixture = new WorkspaceFixture();
@@ -143,6 +144,7 @@ public sealed class WorkspaceMigrationApplicationTests
         foreach (var source in sources) File.ReadAllBytes(source.Key).Should().Equal(source.Value);
     }
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("source")]
     [Arguments("target")]
     [Arguments("listing")]
@@ -165,6 +167,7 @@ public sealed class WorkspaceMigrationApplicationTests
         File.Exists(fixture.Root + "/b/morphir.toml").Should().BeFalse();
     }
     [Test]
+    [Category("PlatformSpecific")]
     public void BlockedMemberPreventsEveryWriteAndReadonlyPlansCannotBeTransferred()
     {
         using var fixture = new WorkspaceFixture();
@@ -178,6 +181,7 @@ public sealed class WorkspaceMigrationApplicationTests
         readOnly.Apply(preview).Code.Should().Be("workspace.migrate_unverified"); fixture.Service.Apply(preview).Code.Should().Be("workspace.migrate_unverified");
     }
     [Test]
+    [Category("PlatformSpecific")]
     public void ExistingEmptyVirtualWorkspaceIsUnchangedButUndeclaredEmptyRootCannotAdopt()
     {
         using var fixture = new WorkspaceFixture();
@@ -280,6 +284,7 @@ public sealed class WorkspaceMigrationBoundaryTests
 public sealed class WorkspaceMigrationRecoveryPreviewTests
 {
     [Test]
+    [Category("PlatformSpecific")]
     public void PendingJournalMakesPreviewRecoveryRequiredBeforeAnyNewWrite()
     {
         using var fixture = new WorkspaceFixture();

@@ -12,8 +12,10 @@ namespace Morphir.Tests.Hosts;
 
 /// <summary>
 /// CLI-3: the dotnet tool has its own composition, which adds the in-process F# frontend. The AOT executable
-/// <c>morphir</c> has no F# frontend, and its assembly closure has no F# compiler service.
+/// <c>morphir</c> has no F# frontend, and its assembly closure has no F# compiler service. Both have the in-process C#
+/// frontend, which runs on Roslyn.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class HostFrontendCompositionTests
 {
     [Test]
@@ -29,19 +31,19 @@ public sealed class HostFrontendCompositionTests
     }
 
     [Test]
-    public void TheToolCompositionRegistersTheInProcessFSharpFrontend()
+    public void TheToolCompositionRegistersTheInProcessCSharpAndFSharpFrontends()
     {
         using var app = Morphir.Tool.Program.CreateApp([]);
         var frontends = app.Services.GetServices<IFrontend>().ToArray();
-        frontends.Select(frontend => frontend.Identity.Value).Should().Equal("morphir-dotnet.fsharp");
-        frontends[0].Transport.Should().Be(FrontendTransport.InProcess);
+        frontends.Select(frontend => frontend.Identity.Value).Should().Equal("morphir-dotnet.csharp", "morphir-dotnet.fsharp");
+        frontends.Should().OnlyContain(frontend => frontend.Transport == FrontendTransport.InProcess);
     }
 
     [Test]
-    public void TheNativeCompositionRegistersNoFrontend()
+    public void TheNativeCompositionRegistersTheCSharpFrontendOnly()
     {
         using var app = Morphir.Program.CreateApp([], Morphir.Program.Host, Morphir.Program.NativeComposition);
-        app.Services.GetServices<IFrontend>().Should().BeEmpty();
+        app.Services.GetServices<IFrontend>().Select(frontend => frontend.Identity.Value).Should().Equal("morphir-dotnet.csharp");
     }
 
     [Test]
@@ -64,12 +66,12 @@ public sealed class HostFrontendCompositionTests
     // DEP-1: one shared command layer, and one managed composition that the managed entry points share.
 
     [Test]
-    public void TheManagedCompositionRegistersTheInProcessFSharpFrontend()
+    public void TheManagedCompositionRegistersTheInProcessFSharpFrontendAfterTheCSharpFrontend()
     {
         using var app = MorphirApplication.CreateApp([], Morphir.Tool.Program.Host, ManagedComposition.Compose);
         var frontends = app.Services.GetServices<IFrontend>().ToArray();
-        frontends.Select(frontend => frontend.Identity.Value).Should().Equal("morphir-dotnet.fsharp");
-        frontends[0].Transport.Should().Be(FrontendTransport.InProcess);
+        frontends.Select(frontend => frontend.Identity.Value).Should().Equal("morphir-dotnet.csharp", "morphir-dotnet.fsharp");
+        frontends.Should().OnlyContain(frontend => frontend.Transport == FrontendTransport.InProcess);
     }
 
     // Each entry point's real composition, built with its own host. The AOT-compatible morphir and dotnet-morphir run

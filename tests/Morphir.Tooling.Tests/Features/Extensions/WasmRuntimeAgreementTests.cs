@@ -9,6 +9,7 @@ using Morphir.TestSupport;
 using Morphir.Tooling.Features.Extensions;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Infrastructure;
+using Morphir.Tooling.Cli;
 
 namespace Morphir.Tooling.Tests.Features.Extensions;
 
@@ -17,6 +18,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// (task 4.2 of <c>add-wasm-extension-host</c>; the <c>extension-registry</c> requirement "A WASM entry is available
 /// only where the WASM runtime is"), and only a reader that needs it asks.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class WasmRuntimeAgreementTests
 {
     private static readonly HostIdentity Native = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
@@ -41,6 +43,7 @@ public sealed class WasmRuntimeAgreementTests
         "platform_unsupported" => WasmRuntimeAvailability.UnavailableBecause(WasmRuntimeUnavailableReason.PlatformUnsupported),
         "engine_missing" => WasmRuntimeAvailability.UnavailableBecause(WasmRuntimeUnavailableReason.EngineMissing),
         "engine_load_failed" => WasmRuntimeAvailability.UnavailableBecause(WasmRuntimeUnavailableReason.EngineLoadFailed),
+        "win_x64_trap_unsupported" => WasmRuntimeAvailability.UnavailableBecause(WasmRuntimeUnavailableReason.WinX64TrapUnsupported),
         _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null),
     };
 
@@ -56,9 +59,9 @@ public sealed class WasmRuntimeAgreementTests
 
     private static JsonElement List(ExtensionRegistry registry)
     {
-        var stdout = new List<string>();
-        ExtensionListCommand.Execute(registry, json: true, stdout.Add, new StringWriter(), TerminalProfile.Plain).Should().Be(0);
-        using var document = JsonDocument.Parse(string.Join('\n', stdout));
+        var stdout = new StringWriter();
+        ExtensionListCommand.Execute(registry, JsonOutputMode.Document, stdout, new StringWriter(), TerminalProfile.Plain).Should().Be(0);
+        using var document = JsonDocument.Parse(stdout.ToString());
         return document.RootElement.Clone();
     }
 
@@ -67,9 +70,9 @@ public sealed class WasmRuntimeAgreementTests
 
     private static JsonElement Runtimes(WasmRuntime runtime)
     {
-        var stdout = new List<string>();
-        ExtensionRuntimesCommand.Execute(Native, runtime, json: true, stdout.Add).Should().Be(0);
-        using var document = JsonDocument.Parse(string.Join('\n', stdout));
+        var stdout = new StringWriter();
+        ExtensionRuntimesCommand.Execute(Native, runtime, JsonOutputMode.Document, stdout).Should().Be(0);
+        using var document = JsonDocument.Parse(stdout.ToString());
         return document.RootElement.GetProperty("runtimes")[0].Clone();
     }
 
@@ -77,6 +80,8 @@ public sealed class WasmRuntimeAgreementTests
     [MethodDataSource(nameof(States))]
     public void TheListTheReportAndTheLoaderAgreeWithOneProbe(string? reason)
     {
+        if (reason is null && WasmRuntime.Process.Platform == "win-x64")
+            Skip.Test("win_x64_trap_unsupported: the successful guest load is unavailable; #609.");
         using var sandbox = TestSandbox.Create();
         var module = Path.Combine(sandbox.Work, "python.wasm");
         File.Copy(WorkerHarness.Corpus("extism-echo"), module);
@@ -116,8 +121,7 @@ public sealed class WasmRuntimeAgreementTests
         var registry = new ExtensionRegistry([BuiltIns()], Native, counting.Runtime);
 
         List(registry).GetProperty("extensions").EnumerateArray().Should().OnlyContain(entry => entry.GetProperty("available").GetBoolean());
-        var text = new List<string>();
-        ExtensionListCommand.Execute(registry, json: false, text.Add, new StringWriter(), TerminalProfile.Plain).Should().Be(0);
+        ExtensionListCommand.Execute(registry, JsonOutputMode.None, new StringWriter(), new StringWriter(), TerminalProfile.Plain).Should().Be(0);
 
         counting.Runtime.HasProbed.Should().BeFalse();
         counting.Probes.Should().Be(0);

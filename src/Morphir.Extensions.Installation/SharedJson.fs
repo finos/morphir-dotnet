@@ -87,6 +87,16 @@ module internal SharedJson =
         match value with
         | Value.Number spelling when not (plainInteger spelling) ->
             invalid path "Shared JSON numbers must be integers without a fraction or exponent."
+        | Value.Number spelling ->
+            match Int64.TryParse spelling with
+            | true, value when
+                value
+                >= -9007199254740991L
+                && value
+                   <= 9007199254740991L
+                ->
+                ()
+            | _ -> invalid path "Integer is outside I-JSON's exact interoperable range."
         | Value.Object items ->
             for name, child in items do
                 check $"{path}.{name}" child

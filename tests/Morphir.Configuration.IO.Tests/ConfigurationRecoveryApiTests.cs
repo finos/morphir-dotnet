@@ -20,6 +20,7 @@ public sealed class ConfigurationRecoveryApiTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void UnrelatedDirectoryCannotBePresentedAsAnUncertainCreationReceipt()
     {
         using var fixture = new RecoveryFixture();
@@ -29,6 +30,7 @@ public sealed class ConfigurationRecoveryApiTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void AHostWithoutArtifactEnumerationCanInspectButCannotRecover()
     {
         using var fixture = new RecoveryFixture();
@@ -40,6 +42,7 @@ public sealed class ConfigurationRecoveryApiTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments(ConfigurationTransactionPhase.BeforeRollback, ConfigurationTransactionStatus.RecoveryRequired)]
     [Arguments(ConfigurationTransactionPhase.AfterRollback, ConfigurationTransactionStatus.RolledBack)]
     public void ExplicitRecoveryFaultsReportOnlyProvenRestoration(ConfigurationTransactionPhase phase, ConfigurationTransactionStatus expected)
@@ -57,6 +60,7 @@ public sealed class ConfigurationRecoveryApiTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void RecoveryCoordinationFailureRetainsTheJournalAndCandidate()
     {
         using var fixture = new RecoveryFixture();
@@ -67,6 +71,7 @@ public sealed class ConfigurationRecoveryApiTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void NativeHostRefusesBlockedParentsAndMissingStageDirectoriesWithoutChangingThem()
     {
         var root = ProjectPath.join(Path.GetTempPath(), "native-boundary-" + Guid.NewGuid().ToString("N"));

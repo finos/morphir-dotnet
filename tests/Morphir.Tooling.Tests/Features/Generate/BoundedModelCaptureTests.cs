@@ -6,6 +6,7 @@ using Morphir.TestSupport;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
+[Category("PlatformSpecific")]
 public sealed class BoundedModelCaptureTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "morphir-capture-" + Guid.NewGuid().ToString("N"));
@@ -17,6 +18,12 @@ public sealed class BoundedModelCaptureTests : IDisposable
         File.WriteAllText(path, content);
         return path;
     }
+    private void WriteTwoFileCaptureFixture()
+    {
+        Write("model-a.json", "123");
+        Write("model-b.json", "123");
+    }
+
     private static async Task<Outcome<RetainedInput>> Capture(string path, ModelReadLimits? limits = null, CancellationToken ct = default) =>
         await new BoundedModelCapture().CaptureAsync(new(path), limits ?? ModelReadLimits.Default, ct);
     private static GenerationFailure Error(Outcome<RetainedInput> result, string code)
@@ -46,6 +53,33 @@ public sealed class BoundedModelCaptureTests : IDisposable
         File.WriteAllText(Path.Combine(_root, "a.ion"), "changed");
         tree.Entries[0].CopyBytes().Should().Equal("123"u8.ToArray());
         Error(await Capture(_root, new(MaxBytes: 5)), "input-limit");
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task TreeChangedDuringCaptureCannotReturnTheMixedSnapshot(bool remove)
+    {
+        WriteTwoFileCaptureFixture();
+        string? capturedPath = null;
+        var capture = new BoundedModelCapture(path =>
+        {
+            if (capturedPath is null)
+                capturedPath = path;
+            else if (path != capturedPath)
+            {
+                if (remove)
+                    File.Delete(capturedPath);
+                else
+                    File.WriteAllText(capturedPath, "456");
+            }
+
+            return true;
+        });
+
+        var error = Error(await capture.CaptureAsync(new(_root), ModelReadLimits.Default, default), "input-changed");
+        error.Kind.Should().Be(GenerationFailureKind.Operational);
+        error.Diagnostics[0].Path.Should().Be(capturedPath);
     }
 
     [Test]

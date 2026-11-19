@@ -156,7 +156,7 @@ let private cancelOnDispose (ct: CancellationTokenSource) =
     { new IDisposable with member _.Dispose() = ct.Cancel() }
 
 [<Tests>]
-let exactEnvelopeTests = testList "TUF checkpoint exact accepted envelopes" [
+let exactEnvelopeTests = testLabel "PlatformSpecific" <| testList "TUF checkpoint exact accepted envelopes" [
     testCase "a refused result cannot mutate the keys owned by a retained supply continuation" (fun () ->
         let fixture = fixture ()
         let supply =
@@ -264,7 +264,7 @@ let exactEnvelopeTests = testList "TUF checkpoint exact accepted envelopes" [
 ]
 
 [<Tests>]
-let pausedAcknowledgementTests = testList "TUF checkpoint paused acknowledgement" [
+let pausedAcknowledgementTests = testLabel "PlatformSpecific" <| testList "TUF checkpoint paused acknowledgement" [
     for role in roles do
         testCaseTask $"{role} acknowledgement blocks every subsequent read and refresh completion" (fun () -> task {
             let fixture = fixture ()
@@ -293,7 +293,7 @@ let pausedAcknowledgementTests = testList "TUF checkpoint paused acknowledgement
 ]
 
 [<Tests>]
-let failedAcknowledgementTests = testList "TUF checkpoint refusal and cancellation" [
+let failedAcknowledgementTests = testLabel "PlatformSpecific" <| testList "TUF checkpoint refusal and cancellation" [
     for role in roles do
         testCaseTask $"refusing {role} persistence preserves acknowledged state and stops without completion" (fun () -> task {
             let fixture = fixture ()

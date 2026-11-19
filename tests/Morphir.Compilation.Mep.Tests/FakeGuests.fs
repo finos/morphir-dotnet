@@ -30,6 +30,32 @@ let private onlyV4 () =
           Methods = readOnlyDict [ Method.CompileModel.WireValue, handler ] }
     )
 
+/// A guest that selects only the 4.0.0 compileModel tuple and writes the options member of each compileModel request
+/// to stderr, so a test can see the extra options that the host sent.
+let private echoOptions () =
+    let support =
+        { FSharpGuest.support with
+            Tuples = [| FSharpGuest.tuple "4.0.0" |] }
+
+    let handler =
+        Handlers.raw (fun parameters _ ->
+            match parameters with
+            | Some element ->
+                match element.TryGetProperty "options" with
+                | true, options -> eprintfn "fake-guest: options %s" (options.GetRawText())
+                | false, _ -> eprintfn "fake-guest: no options"
+            | None -> eprintfn "fake-guest: no params"
+
+            Task.FromResult(Error(RpcErrors.create ErrorCode.InternalError)))
+
+    Guest(
+        { Claims = FSharpGuest.claims
+          Capabilities =
+            { FSharpGuest.capabilities with
+                ModelTransport = Some support }
+          Methods = readOnlyDict [ Method.CompileModel.WireValue, handler ] }
+    )
+
 /// A guest that supports only an Ion compileModel tuple, so it selects none of the host's JSON tuples and the
 /// agreement is empty. Its compileModel handler writes a line to stderr, so a test can see whether the host sent a
 /// request.
@@ -125,6 +151,24 @@ let private reservedId () =
     )
 
 /// Runs a scripted guest on stdin and stdout until the session ends.
+let private rootExitsWithChild inheritPipes =
+    let handler = Handlers.raw(fun _ _ ->
+        let start = Diagnostics.ProcessStartInfo(nonNull Environment.ProcessPath)
+        start.UseShellExecute <- false
+        start.CreateNoWindow <- true
+        start.RedirectStandardOutput <- not inheritPipes
+        start.RedirectStandardError <- not inheritPipes
+        if IO.Path.GetFileNameWithoutExtension(start.FileName).Equals("dotnet", StringComparison.OrdinalIgnoreCase) then
+            start.ArgumentList.Add(IO.Path.Combine(AppContext.BaseDirectory, "Morphir.Compilation.Mep.Tests.dll"))
+        start.ArgumentList.Add "--fake-sleeper"
+        use child = Diagnostics.Process.Start(start) |> nonNull
+        let marker = IO.Path.Combine(Environment.CurrentDirectory,"descendant.pid")
+        let clock = Diagnostics.Stopwatch.StartNew()
+        while not (IO.File.Exists marker) && clock.Elapsed < TimeSpan.FromSeconds 5. do Thread.Sleep 10
+        Environment.Exit 0
+        Task.FromResult(Error(RpcErrors.create ErrorCode.InternalError)))
+    Guest({ Claims=FSharpGuest.claims; Capabilities=FSharpGuest.capabilities; Methods=readOnlyDict [Method.CompileModel.WireValue,handler] })
+
 let run (scenario: string) =
     let output = Console.OpenStandardOutput()
     let input = Console.OpenStandardInput()
@@ -133,12 +177,15 @@ let run (scenario: string) =
     let guest =
         match scenario with
         | "only-v4" -> onlyV4 ()
+        | "echo-options" -> echoOptions ()
         | "ion-only" -> ionOnly ()
         | "stdout-log" -> stdoutLog output
         | "never-answers" -> neverAnswers ()
         | "blocks-read-loop" -> blocksReadLoop ()
         | "huge-position" -> hugePosition ()
         | "reserved-id" -> reservedId ()
+        | "root-exits-with-child" -> rootExitsWithChild true
+        | "root-exits-with-closed-pipes" -> rootExitsWithChild false
         | other -> failwith $"Unknown fake guest scenario {other}"
 
     guest.RunAsync(input, output, CancellationToken.None).GetAwaiter().GetResult() |> ignore

@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
     <RootNamespace>Morphir.Toolchain.IO</RootNamespace>
     <Description>Bounded acquisition transport and byte integrity for the standalone toolchain manager</Description>
     <IsPackable>true</IsPackable>
@@ -19,7 +19,14 @@
     <InternalsVisibleTo Include="morphirup" />
     <InternalsVisibleTo Include="Morphir.Tooling" />
     <InternalsVisibleTo Include="Morphir.Conformance" />
+    <InternalsVisibleTo Include="morphir-mck" />
+    <InternalsVisibleTo Include="Morphir.Mck.Tests" />
+    <InternalsVisibleTo Include="Morphir.Compilation.Mep" />
     <Compile Include="WindowsProcess.fs" />
+    <Compile Include="DarwinProcess.fs" />
+    <Compile Include="LinuxProcess.fs" />
+    <Compile Include="InputFileKind.fs" />
+    <Compile Include="AdapterCapture.fs" />
     <Compile Include="Boundary.fs" />
     <Compile Include="Acquisition.fs" />
     <Compile Include="HttpTransport.fs" />

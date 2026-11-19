@@ -1,9 +1,9 @@
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.FSharp.Collections;
+using Morphir.Files;
 using Morphir.IR;
 using Morphir.IR.Model;
-using Morphir.IR.Pipeline;
 using Morphir.Testing;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Extensions;
@@ -50,6 +50,7 @@ public class GenerationContractsTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void FSharpConsumerCompilesAgainstTheSameContracts()
     {
         var references = ListModule.OfSeq(new[] { typeof(BackendOptions).Assembly.Location, typeof(VersionedModel).Assembly.Location, typeof(VFileTree).Assembly.Location, typeof(TargetId).Assembly.Location });

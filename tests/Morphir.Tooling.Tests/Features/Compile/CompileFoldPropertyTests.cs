@@ -13,6 +13,7 @@ namespace Morphir.Tooling.Tests.Features.Compile;
 /// Task 4.6, the fold property (STRM-1): for every case of the MCK F# corpus, folding the runner's events gives
 /// the same outcome and the same diagnostics as the batch path, which composes the same stage results directly.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class CompileFoldPropertyTests
 {
     private static readonly Lazy<CaseSet> Corpus = new(ReadCorpus);

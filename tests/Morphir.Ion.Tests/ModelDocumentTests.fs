@@ -462,6 +462,7 @@ let irView =
             match ModelDocument.decodeIr "3.0.0" model with
             | Ok(ClassicIr("3.0.0", _)) -> ()
             | other -> failtestf "Unexpected %A" other
+        |> testLabel "PlatformSpecific"
 
         testCase "IR that is too deep is refused with the depth code"
         <| fun () ->
@@ -480,6 +481,7 @@ let irView =
                 |> irError
 
             Expect.equal error.Code "depth_limit_exceeded" "code"
+        |> testLabel "PlatformSpecific"
 
         testCase "An annotated ir member is refused by decodeIr"
         <| fun () ->
@@ -604,6 +606,7 @@ let deepJson =
             | Ok _ -> ()
             | Error error -> Expect.equal error.Rule "depth_limit_exceeded" error.Message
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let projection =

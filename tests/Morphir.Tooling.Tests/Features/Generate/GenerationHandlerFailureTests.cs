@@ -6,6 +6,7 @@ using Morphir.Extensions;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
+[Category("PlatformSpecific")]
 public sealed class GenerationHandlerFailureTests
 {
     [Test]

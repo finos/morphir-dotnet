@@ -1,0 +1,9 @@
+{
+  "kind": "embedded-resource",
+  "name": "codesignctl.pem",
+  "version": "11.0.100",
+  "license": "MIT",
+  "licenseFile": "dotnet-sdk-trustedroots.LICENSE.txt",
+  "source": "https://github.com/dotnet/sdk/blob/b8600c8854f5d1ac1442d717211d968f69a53acd/src/Layout/redist/trustedroots/codesignctl.pem",
+  "sha256": "aab671f52e5229906b2100727370007ef4b6d2e360b23f2cf12a6d87773be611"
+}

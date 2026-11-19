@@ -1,8 +1,8 @@
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.FSharp.Collections;
+using Morphir.Files;
 using Morphir.IR.Model;
-using Morphir.IR.Pipeline;
 using Morphir.Testing;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Extensions;
@@ -14,6 +14,7 @@ public class FSharpGenerationBackendTests
     private sealed record OtherOptions : ValidatedBackendOptions;
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("options")]
     [Arguments("target")]
     [Arguments("cancelled")]
@@ -36,6 +37,7 @@ public class FSharpGenerationBackendTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task RegisteredDescriptorGeneratesV4ThroughThePublicTypedApi()
     {
         using var json = JsonDocument.Parse(GenerateSteps.V4Model);

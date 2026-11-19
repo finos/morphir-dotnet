@@ -84,7 +84,7 @@ type MepFrontendOptions =
               Version = hostVersion } }
 
 /// <summary>
-/// A frontend that runs as a MEP 0.2.0-draft.1 guest process. <c>ConnectAsync</c> starts the process and initializes
+/// A frontend over an owned MEP 0.2.0-draft.1 guest session. <c>ConnectAsync</c> starts a process and initializes
 /// the session; the capability then comes from the agreed session, and each compile checks it before dispatch.
 /// Classic versions 1 and 2 have no tuple: the adapter compiles at 3.0.0 and returns the typed classic model, which
 /// the host writes at the requested version (MEP-3). Dispose the frontend to end the session.
@@ -93,10 +93,13 @@ type MepFrontendOptions =
 type MepFrontend
     private
     (
-        guest: MepGuestProcess,
+        guest: IMepGuestSession,
         identity: ComponentId,
-        capability: CompileCapability
+        capability: CompileCapability,
+        transport: FrontendTransport
     ) =
+
+    let mutable lastTuple: ModelTransportTuple option = None
 
     static let jsonTuple (version: string) : ModelTransportTuple =
         { Operation = ModelOperation.CompileModel
@@ -105,8 +108,12 @@ type MepFrontend
           EnvelopeVersion = SemanticVersion.Create "0.1.0-draft.1"
           IrVersion = SemanticVersion.Create version }
 
-    /// The host offer: JSON compileModel tuples, 4.0.0 first, and bounds that fit in one 64 MiB frame.
-    static let offer: ModelTransportSupport =
+    /// The host offer: JSON compileModel tuples, 4.0.0 first, and bounds that fit in one 64 MiB frame. A function,
+    /// not a value: a class `static let` value is a static field behind an F# init check. When two threads start the
+    /// type initialisers of two types that need each other, the CLR breaks the deadlock by letting one thread see this
+    /// type before its initialiser has finished, and the init check then throws (FailStaticInit), as two concurrent
+    /// first compiles did. With no static field the type has no initialiser to meet.
+    static let offer () : ModelTransportSupport =
         { Tuples = [| jsonTuple "4.0.0"; jsonTuple "3.0.0" |]
           Limits =
             { MaxEncodedBytes = 60 * 1024 * 1024
@@ -211,7 +218,7 @@ type MepFrontend
     let read (tuple: ModelTransportTuple) (bytes: ReadOnlyMemory<byte>) : Result<FamilyModel, string> =
         // The envelope was admitted against the agreed depth limit, so the reader uses the same limit, not the
         // JsonDocument default of 64.
-        let limits = agreed |> Option.map _.Limits |> Option.defaultValue offer.Limits
+        let limits = agreed |> Option.map _.Limits |> Option.defaultValue (offer ()).Limits
         use document = JsonDocument.Parse(bytes, JsonDocumentOptions(MaxDepth = limits.MaxDepth))
 
         if tuple.IrVersion.Value = "4.0.0" then
@@ -240,9 +247,11 @@ type MepFrontend
 
     /// <summary>The agreed session.</summary>
     member _.Session = negotiated
+    /// The tuple of the last successful operation, absent before invocation or after a failed new request.
+    member _.LastModelTupleOrNull() : ModelTransportTuple | null = Option.toObj lastTuple
 
-    /// <summary>True when the extension process has exited.</summary>
-    member _.HasExited = guest.HasExited
+    /// <summary>True when the owned extension session has ended.</summary>
+    member _.HasExited = guest.IsClosed
 
     /// <summary>Starts the extension, initializes a session and returns the frontend, or an operational failure.</summary>
     static member ConnectAsync(options: MepFrontendOptions, cancellation: CancellationToken) : Task<Result<MepFrontend, FrontendFailure>> =
@@ -268,7 +277,13 @@ type MepFrontend
                   Host = options.Host
                   Environment = environment }
 
-            match! MepGuestProcess.StartAsync(guestOptions, offer, cancellation) with
+            let! started = MepGuestProcess.StartAsync(guestOptions, offer (), cancellation)
+            return! MepFrontend.FromSessionAsync(options, FrontendTransport.Mep, Result.map (fun guest -> guest :> IMepGuestSession) started)
+        }
+
+    static member private FromSessionAsync(options: MepFrontendOptions, transport: FrontendTransport, started: Result<IMepGuestSession, MepGuestFailure>) =
+        task {
+            match started with
             | Error failed -> return Error(failure (codeOf failed) failed.Message)
             | Ok guest when ReservedExtensionIds.IsReserved guest.Session.Extension.Id ->
                 // A guest must not pass as a built-in frontend: every morphir. id is reserved for built-ins.
@@ -310,7 +325,17 @@ type MepFrontend
                         |> Option.map _.MultiDocument
                         |> Option.defaultValue false }
 
-                return Ok(new MepFrontend(guest, identity, capability))
+                return Ok(new MepFrontend(guest, identity, capability, transport))
+        }
+
+    /// <summary>Initializes an owned WASM channel and reuses the ordinary frontend model validation.</summary>
+    static member ConnectChannelCheckedAsync(options: MepFrontendOptions, channel: ISingleMessageChannel, cancellation: CancellationToken) : Task<Checked<IFrontend>> =
+        task {
+            let! started = MepChannelGuest.StartCheckedAsync(channel, options.Host, offer (), options.Deadline, cancellation)
+            let result = match started with MepChannelStart.Started guest -> Ok guest | MepChannelStart.Failed error -> Error error
+            match! MepFrontend.FromSessionAsync(options, FrontendTransport.Wasm, result) with
+            | Ok frontend -> return Checked.pass (frontend :> IFrontend)
+            | Error failure -> return Checked.fail (List.ofSeq failure.Diagnostics)
         }
     /// <summary>
     /// Starts the extension and initializes a session, for C# callers: a passed result holds the frontend, and a
@@ -323,12 +348,20 @@ type MepFrontend
             | Error failure -> return Checked.fail (List.ofSeq failure.Diagnostics)
         }
 
+    /// Starts with the caller's exact invocation environment, for installed-provider composition.
+    static member ConnectCheckedAsync(options: MepFrontendOptions, environment: Collections.Generic.IReadOnlyDictionary<string,string>, cancellation: CancellationToken) : Task<Checked<IFrontend>> = task {
+        match! MepFrontend.ConnectAsync(options, environment, cancellation) with
+        | Ok frontend -> return Checked.pass (frontend :> IFrontend)
+        | Error failure -> return Checked.fail (List.ofSeq failure.Diagnostics)
+    }
+
     interface IFrontend with
         member _.Identity = identity
-        member _.Transport = FrontendTransport.Mep
+        member _.Transport = transport
         member _.Capability = capability
 
         member _.CompileAsync(request, cancellation) =
+            lastTuple <- None
             let language = request.LanguageId.Value
 
             if not (capability.Languages |> Seq.exists (fun item -> item.Id = request.LanguageId)) then
@@ -369,7 +402,9 @@ type MepFrontend
                           Options =
                             { TypesOnly = false
                               IrVersion = tuple.IrVersion
-                              Extra = Dictionary() }
+                              // The extra options of the request, such as the [frontend.<language>] keys, sit
+                              // beside the named members on the wire.
+                              Extra = request.ExtraOptions }
                           ContextDigest = Sha256Digest.Create(String('0', 64))
                           Output = tuple }
 
@@ -400,7 +435,7 @@ type MepFrontend
 
                                 return FrontendOutcome.Completed(Checked.fail converted)
                             | Ok(CompileModelResult.Compiled(model, diagnostics, modules)) ->
-                                let limits = agreed |> Option.map _.Limits |> Option.defaultValue offer.Limits
+                                let limits = agreed |> Option.map _.Limits |> Option.defaultValue (offer ()).Limits
 
                                 match ModelTransport.admit tuple limits model with
                                 | Error refused -> return protocol $"the model envelope is refused ({refused.Code}): {refused}"
@@ -408,6 +443,7 @@ type MepFrontend
                                     match read tuple admitted.Bytes with
                                     | Error message -> return protocol $"the model does not read as IR {tuple.IrVersion}: {message}"
                                     | Ok family ->
+                                        lastTuple <- Some tuple
                                         let compiled = { Model = family; Modules = modules }
                                         let converted = [ for diagnostic in diagnostics -> toDiagnostic diagnostic ]
                                         return FrontendOutcome.Completed(Checked.Of(compiled, converted))

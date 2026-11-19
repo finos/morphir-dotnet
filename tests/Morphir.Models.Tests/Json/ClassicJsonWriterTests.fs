@@ -10,6 +10,7 @@ open Morphir.IR.Classic.AccessControlled
 open Morphir.IR.Classic.Distribution
 open Morphir.IR.Classic.Documented
 open Morphir.Json.Classic
+open Morphir.Models.TestSupport
 
 /// Maps attributes read from JSON to their minified text, so models from different documents compare by content.
 module private Normalize =
@@ -337,6 +338,7 @@ let tests =
                 let _, rewritten = writeRead written
                 Expect.sequenceEqual rewritten written "writing is deterministic and stable"
             }
+            |> testLabel "PlatformSpecific"
 
         test "the version-spelling scenario" {
             let text profile =
@@ -376,18 +378,101 @@ let tests =
                 Expect.equal (readNormalized indented) (readNormalized compact) "same model"
             | _ -> failtest "write failed"
         }
+        |> testLabel "PlatformSpecific"
 
-        test "a Specs distribution is refused" {
-            let specs: Distribution<unit, Type<unit>> =
-                Specs(
-                    PackageName.packageName (Path.fromList [ Name.fromString "a" ]),
-                    Map.empty,
-                    { Modules = Map.empty }
-                )
+        testList "Unsupported output version" [
+            for profile in [ ClassicWireProfile.v1; ClassicWireProfile.v2; ClassicWireProfile.v3 ] do
+                test $"a Specs distribution at {ClassicWireProfile.label profile} is refused, naming the supported set" {
+                    match ClassicJsonWriter.writeTyped profile false DistributionMother.v3Specs with
+                    | Error error ->
+                        Expect.equal error.Rule "unsupported-distribution" "rule"
+                        Expect.equal error.Location "$.distribution" "location"
 
-            match ClassicJsonWriter.writeTyped ClassicWireProfile.v3 false specs with
-            | Error error -> Expect.equal error.Rule "unsupported-distribution" "rule"
-            | Ok _ -> failtest "Specs written"
+                        Expect.stringContains
+                            error.Message
+                            $"A Specs distribution is not written at format version {ClassicWireProfile.label profile}"
+                            "names the kind and the requested version"
+
+                        Expect.stringContains
+                            error.Message
+                            "a Library at 1, 2 and 3, and a Specs at 3.1.0"
+                            "names the supported set"
+                    | Ok _ -> failtest "Specs written"
+                }
+
+            test "a Library at 3.1.0 is refused, naming the supported set" {
+                match ClassicJsonWriter.writeTyped ClassicWireProfile.v3_1_0 false DistributionMother.v3Library with
+                | Error error ->
+                    Expect.equal error.Rule "unsupported-distribution" "rule"
+
+                    Expect.stringContains
+                        error.Message
+                        "A Library distribution is not written at format version 3.1.0"
+                        "names the kind and the requested version"
+
+                    Expect.stringContains
+                        error.Message
+                        "a Library at 1, 2 and 3, and a Specs at 3.1.0"
+                        "names the supported set"
+                | Ok _ -> failtest "a Library written at 3.1.0"
+            }
+        ]
+
+        test "A classic Specs distribution at 3.1.0" {
+            match ClassicJsonWriter.writeTyped ClassicWireProfile.v3_1_0 false DistributionMother.v3Specs with
+            | Error error -> failtest $"{error.Rule}: {error.Message}"
+            | Ok bytes ->
+                Expect.stringStarts
+                    (Encoding.UTF8.GetString bytes)
+                    "{\"formatVersion\":\"3.1.0\",\"distribution\":[\"Specs\","
+                    "the 3.1.0 label and the Specs tag"
+
+                use document = JsonDocument.Parse(System.ReadOnlyMemory bytes)
+
+                match ClassicJson.readTypedDistribution document.RootElement with
+                | Ok read ->
+                    Expect.equal read.Version 3 "a classic v3 document"
+                    Expect.equal read.Distribution DistributionMother.v3Specs "reads back equal"
+                | Error error -> failtest $"{error.Rule} at {error.Location}: {error.Message}"
+
+                match ClassicJson.readDistribution document.RootElement with
+                | Ok read ->
+                    match ClassicJsonWriter.writeJsonAttributes ClassicWireProfile.v3_1_0 false read.Distribution with
+                    | Ok rewritten -> Expect.sequenceEqual rewritten bytes "attributes read from JSON write the same bytes"
+                    | Error error -> failtest $"{error.Rule}: {error.Message}"
+                | Error error -> failtest $"{error.Rule} at {error.Location}: {error.Message}"
+        }
+
+        // finos/morphir's 3.1.0 schema (morphir-ir-v3.json) requires { "doc", "value" } for each type and value of
+        // a module, with a doc that is a string or null; the integer 3 profile keeps the bare entry of its schema.
+        test "At 3.1.0 a type or value with no documentation is wrapped with a null doc" {
+            match ClassicJsonWriter.writeTyped ClassicWireProfile.v3_1_0 false DistributionMother.v3Specs with
+            | Error error -> failtest $"{error.Rule}: {error.Message}"
+            | Ok bytes ->
+                let root = System.Text.Json.Nodes.JsonNode.Parse(Encoding.UTF8.GetString bytes)
+                let moduleSpecification = root.["distribution"].[3].["modules"].[0].[1]
+
+                for kind in [ "types"; "values" ] do
+                    let entries = moduleSpecification.[kind].AsArray()
+                    Expect.isNonEmpty entries $"the module has {kind}"
+
+                    for entry in entries do
+                        let documented = entry.[1].AsObject()
+                        Expect.sequenceEqual
+                            [ for property in documented -> property.Key ]
+                            [ "doc"; "value" ]
+                            $"each of the {kind} is wrapped"
+                        Expect.isNull documented["doc"] "with a null doc"
+        }
+
+        test "At 3 a type or value with no documentation is the bare entry" {
+            match ClassicJsonWriter.writeTyped ClassicWireProfile.v3 false DistributionMother.v3Library with
+            | Error error -> failtest $"{error.Rule}: {error.Message}"
+            | Ok bytes ->
+                let root = System.Text.Json.Nodes.JsonNode.Parse(Encoding.UTF8.GetString bytes)
+                let moduleDefinition = root.["distribution"].[3].["modules"].[0].[1].["value"]
+                let typeEntry = moduleDefinition.["types"].[0].[1].["value"]
+                Expect.isTrue (typeEntry :? System.Text.Json.Nodes.JsonArray) "the type definition itself"
         }
 
         test "a non-finite float is refused" {

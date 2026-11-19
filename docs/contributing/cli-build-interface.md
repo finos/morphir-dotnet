@@ -46,7 +46,7 @@ definition and the source come from one commit.
 | `ref` | yes | The commit to build. A full SHA. |
 | `deployment` | yes | `native-aot`, `self-contained`, `framework-dependent` or `dotnet-tool`. |
 | `rid` | for all but `dotnet-tool` | `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `linux-x64` or `linux-arm64`. Empty for `dotnet-tool`. |
-| `os` | yes | The runner label. `native-aot` needs a runner of the RID's operating system. |
+| `os` | yes | The runner label: a native runner of the RID's operating system and architecture, for example `windows-11-arm` for `win-arm64`. |
 | `configuration` | no | Default `Release`. |
 
 | Output | Meaning |
@@ -66,10 +66,13 @@ The artifact holds the file, `<file>.build-launch.json`, `<file>.build-contents.
 ### What the workflow checks
 
 1. The inputs: one of the four offerings, and a RID for every offering except `dotnet-tool`.
-2. `./build.sh --target PackRelease --deployment <deployment> [--rid <rid>]` builds and packs the offering. It fails
+2. For an offering with a RID, `./build.sh --target CheckBuildMachine --rid <rid>` fails unless the runner's operating
+   system and architecture are the RID's and the .NET SDK runs natively there, not as x64 under emulation on ARM64. It
+   logs the machine, so the job's log records what built the file. No offering is cross-built for another architecture.
+3. `./build.sh --target PackRelease --deployment <deployment> [--rid <rid>]` builds and packs the offering. It fails
    when the publish folder contradicts the launch metadata, as described in the README.
-3. The file's SHA-256 matches its launch metadata.
-4. The produced executable starts. The archive is extracted into a folder whose path has a space, and its launch path
+4. The file's SHA-256 matches its launch metadata.
+5. The produced executable starts. The archive is extracted into a folder whose path has a space, and its launch path
    (`launchPath` in the launch metadata) runs with `--version`. For `dotnet-tool`,
    `.github/scripts/install-tool-package.ps1` installs the package into a new tool path, and the installed
    `dotnet-morphir` runs. The install reads only a new `nuget.config` that lists a feed holding nothing but the built
@@ -134,8 +137,29 @@ assets of published releases stay as they are.
 
 So the parent builds the `native-aot` offering with `cli-offering.yml` and publishes that executable under the legacy
 names too; it does not run `PublishSingleFile`. The gated `build-executables` job of `deployment.yml` still runs
-`PublishSingleFile`. That is the earlier release path kept unchanged as the rollback, and it is not the decided product
+`PublishSingleFile`. That is the earlier release path kept as the rollback, and it is not the decided product
 build.
+
+`win-arm64` is a released platform (maintainer decision, 12 November 2026). The rollback `build-executables` and
+`build-morphirup` matrices build it on the hosted `windows-11-arm` runner, so a rollback release attaches
+`morphir-win-arm64.exe`, `morphir-win-arm64-v<version>.tar.gz`, `morphirup-win-arm64.exe` and
+`morphirup-win-arm64-v<version>.tar.gz`, and the morphirup checksum file lists the morphirup ones. The pull request
+workflow `morphirup.yml` builds and checks `morphirup` there too. The parent's official release calls `cli-offering.yml`
+with `rid: win-arm64` and `os: windows-11-arm` for each platform offering, and builds `morphirup` for `win-arm64` with
+`PackMorphirup` and `CheckMorphirup` on that runner. Published releases keep the assets they have.
+
+For `win-x64` and `win-arm64`, `morphirup-build.yml` runs `PackWindowsToolchain`, so the same job that builds the
+manager also builds the toolchain that `morphirup setup` downloads, and uploads it as
+`windows-release-toolchain-<rid>`. For `osx-arm64` it does the same, and runs the acquired setup journey on the macOS
+ARM64 runner, only when its caller passes `toolchain: true`. `deployment.yml` passes it; the pull request workflow
+`morphirup.yml` does not, so its macOS job builds and checks the manager only, and its checksum job passes
+`--toolchain-platforms win-x64 win-arm64`. The artifact keeps the name `windows-release-toolchain-osx-arm64`, so one
+download pattern takes every toolchain. A release built here verifies each toolchain's own `SHA256SUMS`, then flattens
+every output once with `FlattenReleaseAssets`, which fails rather than let a second build of a file replace it. It
+attaches one `SHA256SUMS` over the `win-x64`, `win-arm64` and `osx-arm64` toolchains, written by
+`WindowsToolchainChecksums`. A manual run of
+`deployment.yml` with `dry-run` builds every platform and assembles those assets and checksum files, whatever
+`MORPHIR_DOTNET_CLI_PUBLICATION` says. It uploads them as the `dry-run-release-assets` artifact and publishes nothing.
 
 ## The compatibility kit
 

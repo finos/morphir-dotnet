@@ -51,9 +51,9 @@ public sealed class MckCommandProvider : ICommandProvider
     }
 
     /// <summary>The result of an invocation that the parser refused: exit status 2 and the usage error as JSON.</summary>
-    internal static int RenderParseErrors(string command, ParseResult parsed, Action<string> stdout, TextWriter stderr)
+    internal static int RenderParseErrors(string command, IReadOnlyList<string> messages, Action<string> stdout, TextWriter stderr)
     {
-        var message = string.Join(" ", parsed.Errors.Select(error => error.Message));
+        var message = string.Join(" ", messages);
         stderr.WriteLine($"Error: mck.usage: {message}");
         stdout(WasmHostCommands.UsageError(command, message).Output);
         return 2;
@@ -88,7 +88,7 @@ public sealed class WasmHostRunCommand : Command, IMorphirParseErrorHandler
         SetAction(ExecuteAsync);
     }
 
-    public int HandleParseErrors(ParseResult parsed) => MckCommandProvider.RenderParseErrors("mck wasm-host run", parsed, _stdout, _stderr);
+    public int HandleParseErrors(ParseResult parsed, IReadOnlyList<string> messages) => MckCommandProvider.RenderParseErrors("mck wasm-host run", messages, _stdout, _stderr);
 
     private async Task<int> ExecuteAsync(ParseResult parsed, CancellationToken ct)
     {
@@ -120,7 +120,7 @@ public sealed class WasmHostReportCheckCommand : Command, IMorphirParseErrorHand
         SetAction(Execute);
     }
 
-    public int HandleParseErrors(ParseResult parsed) => MckCommandProvider.RenderParseErrors("mck wasm-host report-check", parsed, _stdout, _stderr);
+    public int HandleParseErrors(ParseResult parsed, IReadOnlyList<string> messages) => MckCommandProvider.RenderParseErrors("mck wasm-host report-check", messages, _stdout, _stderr);
 
     private int Execute(ParseResult parsed) => MckCommandProvider.Render(
         WasmHostCommands.CheckReport(parsed.GetValue(_kit), parsed.GetValue(_report), parsed.GetValue(_offering), parsed.GetValue(_platform)),

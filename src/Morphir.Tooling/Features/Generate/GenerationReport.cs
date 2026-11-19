@@ -18,6 +18,12 @@ public sealed record GenerationReport(bool Success, int ExitCode, string? Target
     /// <summary>The version of the selected backend extension, as it gave it. Written only for an extension.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? BackendVersion { get; init; }
+    /// <summary>Effective document, full-frame and negotiated exchange ceilings for an opt-in bounded profile.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? BoundedAccess { get; init; }
+    /// <summary>Actual installed process observation in the existing generation-provider shape.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Provider { get; init; }
 
     /// <summary>
     /// Whether the backend formatted the generated files: <c>applied</c>, <c>off</c> (the backend option turned it off) or
@@ -26,6 +32,13 @@ public sealed record GenerationReport(bool Success, int ExitCode, string? Target
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Formatting { get; init; }
+
+    /// <summary>
+    /// The passes that ran before the backend: their ids, the application list with the node addresses before and after,
+    /// and the reads of other modules. Written only when a pass ran.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Morphir.Tooling.Features.Transform.PassesReport? Passes { get; init; }
 
     public static GenerationReport From(Outcome<GenerationSuccess> outcome, GenerateOverrides invocation) => outcome switch
     {
@@ -36,7 +49,10 @@ public sealed record GenerationReport(bool Success, int ExitCode, string? Target
         {
             BackendTransport = success.Value.BackendTransport,
             BackendVersion = success.Value.BackendVersion,
+            BoundedAccess = success.Value.BoundedAccess,
+            Provider = success.Value.Provider,
             Formatting = success.Value.Formatting,
+            Passes = success.Value.Passes,
         },
         Outcome<GenerationSuccess>.Failure failure => new(false, Exit(failure.Error.Kind), invocation.Target, failure.Error.Backend, invocation.Input, invocation.Output,
             null, null, null, null, [], [], [], [], failure.Error.Diagnostics.ToArray(), failure.Error.Kind.ToString().ToLowerInvariant())
@@ -54,7 +70,10 @@ public sealed record GenerationReport(bool Success, int ExitCode, string? Target
         _ => 2
     };
 
-    public string ToJson() => JsonSerializer.Serialize(this, GenerationJsonContext.Default.GenerationReport);
+    public string ToJson() => JsonSerializer.Serialize(this, JsonInfo);
+
+    /// <summary>The source-generated contract of the report, for the shared JSON output writer.</summary>
+    public static System.Text.Json.Serialization.Metadata.JsonTypeInfo<GenerationReport> JsonInfo => GenerationJsonContext.Default.GenerationReport;
 }
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true)]

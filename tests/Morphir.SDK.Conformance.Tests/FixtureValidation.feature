@@ -1,3 +1,4 @@
+@PlatformSpecific
 Feature: Offline shared SDK evidence
   Both .NET SDK workers need the same independent expectations and strict coverage.
 

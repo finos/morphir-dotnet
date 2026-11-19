@@ -3,7 +3,7 @@ module Morphir.Analyzers.Tests.MessageMappingTests
 open System
 open System.IO
 open Expecto
-open Morphir.IR.Pipeline
+open Morphir.Files
 open Morphir.Analyzers
 
 [<Tests>]
@@ -68,6 +68,7 @@ let tests =
 
             Expect.equal diagnostic.Message "Bad." "a located message has no node prefix"
         }
+        |> testLabel "PlatformSpecific"
 
         test "a path without a position has no location" {
             let diagnostic =

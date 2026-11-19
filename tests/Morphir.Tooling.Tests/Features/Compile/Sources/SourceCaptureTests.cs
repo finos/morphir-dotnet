@@ -6,6 +6,7 @@ using Morphir.Tooling.Features.Compile.Sources;
 
 namespace Morphir.Tooling.Tests.Features.Compile.Sources;
 
+[Category("PlatformSpecific")]
 public sealed class SourceCaptureTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("morphir-sources-").FullName;

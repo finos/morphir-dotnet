@@ -2,7 +2,8 @@ namespace Morphir.Ion
 
 open System
 open Morphir.IR
-open Morphir.IR.Pipeline
+open Morphir.IR.Trees
+open Morphir.Files
 open Morphir.Ion.IonNodes
 
 /// <summary>Why an Ion document tree could not be read.</summary>

@@ -1,8 +1,9 @@
 # Morphir.Mep
 
-One implementation of the Morphir Extension Protocol (MEP) `0.2.0-draft.1` for
-morphir-dotnet hosts and guests: JSON-RPC 2.0 messages, `Content-Length` framing,
-the session lifecycle and the model transport. Work is tracked by
+The Morphir Extension Protocol SDK for morphir-dotnet hosts and guests provides
+JSON-RPC 2.0 messages, `Content-Length` framing, the session lifecycle and model
+transport on MEP `0.2.0-draft.1`. Bounded generation is an explicit opt-in to
+MEP `0.2.0-draft.2`. The core SDK is tracked by
 [#512](https://github.com/finos/morphir-dotnet/issues/512) and
 [`add-mep-core`](../../openspec/changes/archive/2026-11-09-add-mep-core/proposal.md). The roadmap is the
 [Morphir extension model PRD](../../docs/content/contributing/design/prds/morphir-extension-model.md), step 1.
@@ -13,6 +14,7 @@ the session lifecycle and the model transport. Work is tracked by
 | --- | --- | --- |
 | Wire types | `Wire.fs` | Records and unions of the pinned contract, with parsed values (`ProtocolVersion`, `SemanticVersion`, `Sha256Digest`, `RequestId`). `MepJson` is generated from this file at build time by `Morphir.Myriad.SystemTextJson`. There is no reflection serializer. |
 | Model transport | `ModelTransport.fs` | Tuple selection, the host check of a selection, envelope creation and admission. Pure functions. |
+| Bounded generation | `ModelAccess.fs` | Complete tuple selection, start admission and the per-connection operation and round ledger. |
 | Message codec | `Rpc.fs` | Classifies a JSON-RPC message by its members (`JsonRpcMessage`), keeps params raw, and writes messages. This is the only hand-written JSON. |
 | Dispatcher | `Dispatcher.fs` | `DispatchAsync(bytes, ct)` returns the reply bytes, or none for a notification. A method table maps method names to typed handlers; a gate refuses a method before its handler runs. |
 | Framing | `Framing.fs` | `Content-Length` frames on a `Stream`: header blocks up to 8192 bytes, bodies up to 64 MiB, checked before the body is read. A refused frame ends the connection. |
@@ -111,6 +113,58 @@ let runSession (claims: CapabilityClaimSet) (capabilities: ExtensionCapabilities
     }
 ```
 
+## Bounded generation
+
+An extension can generate from a package on disk without receiving the whole
+package at initialization. It asks for the inventory or documents it needs in
+each continuation. The host keeps the snapshot lease and answers from the same
+revision. The same exchange works on a framed process connection and a WASM
+byte-call channel.
+
+```mermaid
+sequenceDiagram
+    participant Host
+    participant Guest
+    Host->>Guest: initialize with modelAccess
+    Guest-->>Host: select draft.2 and complete tuples
+    Host->>Guest: StartGenerationAsync with one tuple and snapshot
+    Guest-->>Host: Continue round 1 with inventory requests
+    Host->>Guest: AdvanceGenerationAsync with deliveries in request order
+    Guest-->>Host: Continue with the next round, Complete, or Failed
+```
+
+Construct the host with `HostSession.CreateWithModelAccess`, supplying
+`ModelAccessSupport` and an optional legacy transport offer. The guest lists
+draft.2 in `Claims.ProtocolVersions` and declares `Capabilities.ModelAccess`,
+its backend targets and its start, advance and cancel handlers. Check the
+selected draft and tuple in `InitializeAsync` before choosing the request's
+input. A draft.1 selection keeps the existing whole-model path.
+
+For example, when a continuation has no requests, the host advances with an
+empty delivery list. This example is compiled by `ReadmeTests.fs`.
+
+```fsharp
+let advanceEmpty (host: HostSession) (step: ModelAccessStep) cancellation =
+    match step with
+    | ModelAccessStep.Continue(id, round, requests, _, _) when requests.Count = 0 ->
+        Some(host.AdvanceGenerationAsync({ SessionId = id; Round = round; Deliveries = [||] }, cancellation))
+    | _ -> None
+```
+
+For a nonempty continuation, supply one delivery per request in order.
+`CancelGenerationAsync` requests release of an open operation and checks the
+acknowledged ID. An invalid round does not consume the outstanding round.
+Completion, failure and an acknowledged cancel retire the operation ID for the
+connection. Both peers check exchange identity and order. Before passing a
+document delivery to the transport or handler, they verify canonical base64,
+decoded length, and SHA-256. They enforce the batch document count and the
+aggregate encoded and decoded byte ceilings before decoding. An invalid
+delivery leaves the pending round available for correction. Snapshot access,
+IR decoding, execution deadlines, artifact staging, and publication belong to
+the host and extension operating the session.
+See the [bounded-generation contract](https://github.com/finos/morphir/blob/177371fa7a6199b7f177a8c1d886f583ee57e813/spec/mep/model-access.md)
+for the complete exchange and resource limits.
+
 ## Add a method
 
 1. Check that the pinned contract has the method and its params and result types. Do not
@@ -141,6 +195,7 @@ and digest. Do not edit the fixtures. To update the pin:
 
 Where a transcript and the contract text disagree, the tests follow the contract text.
 The legacy transcripts initialize with `0.1`; the replays use `0.2.0-draft.1` instead.
+The separately pinned bounded-generation transcript runs on exact draft.2.
 
 ## C# callers
 
@@ -154,11 +209,12 @@ the nullable-flow diagnostics.
 
 ```sh
 dotnet run --project tests/Morphir.Mep.Tests -- --summary
-./build.sh --target TestMepAot --configuration Release
+./build.sh --target TestAot --configuration Release
 ```
 
 The first command runs the wire, contract, JSON-RPC, connection, session, channel and
 model-transport tests in memory. The channel tests use a fake single-message guest built on
-`Dispatcher.DispatchAsync`. The second publishes the probe with Native
-AOT, refuses IL diagnostics other than the FSharp.Core summary baseline, and compares
-the native output with JIT byte for byte. Both run in PR CI.
+`Dispatcher.DispatchAsync`. The second is the Native AOT lane of the black-box tests: it publishes
+the probe (and the other probes and library hosts) with Native AOT, refuses IL diagnostics other
+than the FSharp.Core summary baseline, and compares the native output with the managed output.
+Both run in PR CI.

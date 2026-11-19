@@ -120,6 +120,16 @@ jobs:
                   restore-keys: |
                       ${{ runner.os }}-nuget
 
+            # A platform offering is built and started on a native runner: this fails unless the runner and its .NET SDK
+            # are native for the RID (win-arm64: windows-11-arm with an ARM64 SDK), and logs the machine. The portable
+            # dotnet-tool package has no RID.
+            - name: Check the build machine
+              if: ${{ inputs.rid != '' }}
+              shell: bash
+              env:
+                  RID: ${{ inputs.rid }}
+              run: ./build.sh --target CheckBuildMachine --rid "$RID"
+
             - name: Restore dependencies
               shell: bash
               run: ./build.sh --target Restore

@@ -107,6 +107,7 @@ let tests =
                     "v4-application"
                 ]
                 "Every case of task 6.1"
+        |> testLabel "PlatformSpecific"
 
         testCase "Document numbers read the same under a culture with a different minus sign"
         <| fun () ->
@@ -126,6 +127,7 @@ let tests =
                 expectSameIr (Fixtures.bytes "records/document-numbers.datagram.ion") json
             finally
                 CultureInfo.CurrentCulture <- before
+        |> testLabel "PlatformSpecific"
 
         testList "Hand-written records" [
             for name in recordNames do
@@ -157,6 +159,7 @@ let tests =
             for name in recordNames do
                 for suffix in [ ".datagram.ion"; ".json" ] do
                     Expect.contains Fixtures.names $"records/{name}{suffix}" "The file exists"
+        |> testLabel "PlatformSpecific"
 
         testCase "The vendored pairs and records match their recorded hashes"
         <| fun () ->
@@ -181,4 +184,5 @@ let tests =
 
             for file, _ in Map.toList rows do
                 Expect.contains files file "A row names a file that exists"
+        |> testLabel "PlatformSpecific"
     ]

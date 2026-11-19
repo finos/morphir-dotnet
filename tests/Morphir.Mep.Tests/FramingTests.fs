@@ -84,6 +84,21 @@ let tests =
               Expect.equal result (FrameRead.Refused FramingFailure.BodyTooLarge) "Bound before allocation"
               Expect.equal stream.Position (int64 header.Length) "Body has not been read"
           }
+          testCaseAsync "the negotiated body ceiling is inclusive and applies before reading the body"
+          <| async {
+              let budget = FrameBodyBudget()
+              budget.Restrict 4
+              let body = Encoding.UTF8.GetBytes "éé"
+              let header = Encoding.ASCII.GetBytes "Content-Length: 5\r\n\r\n"
+              use oversized = new MemoryStream(Array.append header body)
+              let! refused = ContentLengthFraming.ReadAsync(oversized, budget, CancellationToken.None) |> Async.AwaitTask
+              Expect.equal refused (FrameRead.Refused(FramingFailure.NegotiatedBodyTooLarge 4)) "Refuse before reading"
+              Expect.equal oversized.Position (int64 header.Length) "Only the header was consumed"
+
+              use exact = new MemoryStream(Array.append (Encoding.ASCII.GetBytes "Content-Length: 4\r\n\r\n") body)
+              let! accepted = ContentLengthFraming.ReadAsync(exact, budget, CancellationToken.None) |> Async.AwaitTask
+              Expect.equal accepted (FrameRead.Message body) "Accept the exact byte ceiling"
+          }
           testCaseAsync "refuses an oversized header without consuming its body"
           <| async {
               use stream =

@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -19,6 +19,7 @@
     <Compile Include="Rpc.fs" />
     <Compile Include="Dispatcher.fs" />
     <Compile Include="ModelTransport.fs" />
+    <Compile Include="ModelAccess.fs" />
     <Compile Include="CompileModel.fs" />
     <Compile Include="GenerateModel.fs" />
     <FSharpJsonContext Include="Wire.fs" Name="MepJson" Namespace="Morphir.Mep" Naming="CamelCase" SkippableOptionFields="Always" UnionEncoding="Default, UnwrapFieldlessTags" UnionTagNaming="CamelCase" />
@@ -30,6 +31,8 @@
     <Compile Include="ConformanceControl.fs" />
     <Compile Include="Peers.fs" />
     <InternalsVisibleTo Include="Morphir.Mep.Tests" />
+    <InternalsVisibleTo Include="Morphir.Compilation.Mep" />
+    <InternalsVisibleTo Include="Morphir.Tooling" />
     <InternalsVisibleTo Include="Morphir.Conformance" />
     <None Remove="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../README.md'))" />
     <None Include="README.md" Pack="true" PackagePath="/" />

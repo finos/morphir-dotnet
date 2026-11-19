@@ -1127,7 +1127,7 @@ module FeatureReader =
                     }
             ]
 
-        let group = nonNull (Path.GetFileNameWithoutExtension path)
+        let group = Path.GetFileNameWithoutExtension path
 
         let parsed =
             try

@@ -17,9 +17,7 @@ Run the following commands from the repository root. The checked-in model is suf
 
 ## Choose the plugin version
 
-`Morphir.Myriad` is published to NuGet.org with each morphir-dotnet release, from 0.4.0-alpha.2. This article uses 0.4.0-alpha.2; use the version of the release you want.
-
-`Morphir.Myriad` includes its backend, build task and the matched Myriad 0.85.0 host. Myriad.Core 0.85.0 and Fantomas.Core 7.0.5 are the matching plugin dependencies. The bundled host uses an aligned FSharp.Core and major-version roll forward to load the .NET 10 plugin, including on the first cold restore.
+`Morphir.Myriad` is on NuGet.org, with a version for each morphir-dotnet release. This article uses 0.4.0-alpha.2; use the version of the release you want. The package brings everything the build needs; the [plugin reference]({{< relref "/docs/guides/myriad-fsharp" >}}) lists the versions it works with.
 
 ## Configure the model input
 
@@ -33,7 +31,7 @@ The example's `examples/car-rental/CarRental.fsproj` references the plugin and d
 </ItemGroup>
 ```
 
-This snippet uses ordinary NuGet version syntax for a standalone project. In this repository the example uses `VersionOverride` with `MorphirMyriadVersion` to work with central package management. Do not add JSON to `Compile` or enumerate generated modules by hand.
+In your own project, write the version as above. In this repository the example takes it from the property `MorphirMyriadVersion`, which is why the commands below pass `-p:MorphirMyriadVersion`. Don't add the JSON file to `Compile`, and don't list the generated modules by hand.
 
 ## Restore and run
 

@@ -183,6 +183,7 @@ public sealed class ProjectLoadingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void NativeLocationCaptureUsesExplicitEnvironmentValues()
     {
         var machine = ProjectSystem.CaptureMachineLocations(new Dictionary<string, string>

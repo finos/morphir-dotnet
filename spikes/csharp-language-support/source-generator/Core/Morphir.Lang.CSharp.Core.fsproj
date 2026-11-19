@@ -1,0 +1,87 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Spike: the Morphir.Models and C# backend sources of the repository, built for netstandard2.0.
+    Run ../prepare.sh first: it copies the sources to obj/src-copy and adds one `open` line to ten files.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <SrcCopy>$(MSBuildThisFileDirectory)obj/src-copy</SrcCopy>
+    <RoslynVersion Condition="'$(RoslynVersion)' == ''">5.12.0</RoslynVersion>
+    <Nullable>enable</Nullable>
+    <DisableImplicitFSharpCoreReference>true</DisableImplicitFSharpCoreReference>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <NoWarn>$(NoWarn);FS3370;NU1701</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="FSharp.Core" Version="10.1.403" />
+    <PackageReference Include="System.Text.Json" Version="10.0.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="$(RoslynVersion)" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Polyfill.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Name.fs" Link="Morphir.Models/IR/Name.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Path.fs" Link="Morphir.Models/IR/Path.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/PackageName.fs" Link="Morphir.Models/IR/PackageName.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/ModulePath.fs" Link="Morphir.Models/IR/ModulePath.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/FQName.fs" Link="Morphir.Models/IR/FQName.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/QName.fs" Link="Morphir.Models/IR/QName.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/CanonicalNames.fs" Link="Morphir.Models/IR/CanonicalNames.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Versioning.fs" Link="Morphir.Models/IR/Versioning.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Classic/AccessControlled.fs" Link="Morphir.Models/IR/Classic/AccessControlled.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Classic/Type.fs" Link="Morphir.Models/IR/Classic/Type.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Classic/Literal.fs" Link="Morphir.Models/IR/Classic/Literal.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Classic/Pattern.fs" Link="Morphir.Models/IR/Classic/Pattern.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Classic/Value.fs" Link="Morphir.Models/IR/Classic/Value.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Classic/Aliases.fs" Link="Morphir.Models/IR/Classic/Aliases.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Classic/Documented.fs" Link="Morphir.Models/IR/Classic/Documented.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Classic/Module.fs" Link="Morphir.Models/IR/Classic/Module.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Classic/Package.fs" Link="Morphir.Models/IR/Classic/Package.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Classic/Distribution.fs" Link="Morphir.Models/IR/Classic/Distribution.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Classic/Attributes.fs" Link="Morphir.Models/IR/Classic/Attributes.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Classic/DSL/Helpers.fs" Link="Morphir.Models/IR/Classic/DSL/Helpers.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Classic/DSL/Types.fs" Link="Morphir.Models/IR/Classic/DSL/Types.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Classic/DSL/Values.fs" Link="Morphir.Models/IR/Classic/DSL/Values.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Classic/DSL/Patterns.fs" Link="Morphir.Models/IR/Classic/DSL/Patterns.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Classic/DSL/Literals.fs" Link="Morphir.Models/IR/Classic/DSL/Literals.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Classic/DSL/Modules.fs" Link="Morphir.Models/IR/Classic/DSL/Modules.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Classic/DSL/Packages.fs" Link="Morphir.Models/IR/Classic/DSL/Packages.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/Classic/DSL/Distributions.fs" Link="Morphir.Models/IR/Classic/DSL/Distributions.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/V4/OrderedMap.fs" Link="Morphir.Models/IR/V4/OrderedMap.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/V4/Common.fs" Link="Morphir.Models/IR/V4/Common.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/V4/Literal.fs" Link="Morphir.Models/IR/V4/Literal.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/V4/Type.fs" Link="Morphir.Models/IR/V4/Type.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/V4/Value.fs" Link="Morphir.Models/IR/V4/Value.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/V4/Module.fs" Link="Morphir.Models/IR/V4/Module.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/V4/Distribution.fs" Link="Morphir.Models/IR/V4/Distribution.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/VersionedModel.fs" Link="Morphir.Models/IR/VersionedModel.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/DSL/Names.fs" Link="Morphir.Models/IR/DSL/Names.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/IR/DSL/DSL.fs" Link="Morphir.Models/IR/DSL/DSL.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/Json/MorphirJsonOptions.fs" Link="Morphir.Models/Json/MorphirJsonOptions.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/Json/Encode.fs" Link="Morphir.Models/Json/Encode.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/Json/Decode.fs" Link="Morphir.Models/Json/Decode.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/Json/Codecs/NameCodec.fs" Link="Morphir.Models/Json/Codecs/NameCodec.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/Json/Codecs/PathCodec.fs" Link="Morphir.Models/Json/Codecs/PathCodec.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/Json/Codecs/FQNameCodec.fs" Link="Morphir.Models/Json/Codecs/FQNameCodec.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/Json/Codecs/LiteralCodec.fs" Link="Morphir.Models/Json/Codecs/LiteralCodec.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/Json/Codecs/TypeCodec.fs" Link="Morphir.Models/Json/Codecs/TypeCodec.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/Json/Codecs/RawTypeCodec.fs" Link="Morphir.Models/Json/Codecs/RawTypeCodec.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/Json/Classic/ClassicJson.fs" Link="Morphir.Models/Json/Classic/ClassicJson.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/Json/Classic/ClassicJsonWriter.fs" Link="Morphir.Models/Json/Classic/ClassicJsonWriter.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/Json/V4/V4JsonDecoding.fs" Link="Morphir.Models/Json/V4/V4JsonDecoding.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/Json/V4/V4JsonValues.fs" Link="Morphir.Models/Json/V4/V4JsonValues.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/Json/V4/V4JsonDistributions.fs" Link="Morphir.Models/Json/V4/V4JsonDistributions.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/Json/V4/V4Json.fs" Link="Morphir.Models/Json/V4/V4Json.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.Models/Json/V4/V4JsonWriter.fs" Link="Morphir.Models/Json/V4/V4JsonWriter.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.CodeGeneration.CSharp/Types.fs" Link="Morphir.CodeGeneration.CSharp/Types.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.CodeGeneration.CSharp/TypeEmission.fs" Link="Morphir.CodeGeneration.CSharp/TypeEmission.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.CodeGeneration.CSharp/LiteralEmission.fs" Link="Morphir.CodeGeneration.CSharp/LiteralEmission.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.CodeGeneration.CSharp/SdkMapping.fs" Link="Morphir.CodeGeneration.CSharp/SdkMapping.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.CodeGeneration.CSharp/ValueLowering.fs" Link="Morphir.CodeGeneration.CSharp/ValueLowering.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.CodeGeneration.CSharp/ValueEmission.fs" Link="Morphir.CodeGeneration.CSharp/ValueEmission.fs" />
+    <Compile Include="$(SrcCopy)/Morphir.CodeGeneration.CSharp/Generator.fs" Link="Morphir.CodeGeneration.CSharp/Generator.fs" />
+    <Compile Include="GeneratorCore.fs" />
+  </ItemGroup>
+</Project>

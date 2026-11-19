@@ -1,0 +1,45 @@
+---
+title: "Build the self-contained F# frontend"
+linkTitle: "Self-contained F# frontend"
+description: "Build the F# frontend as a folder with its own .NET runtime, and compile F# with it on a machine without .NET"
+---
+
+The native `morphir` executable has no built-in F# frontend. It starts the F#
+frontend as a separate process. The frontend has a self-contained delivery: a
+folder with the frontend, the F# compiler service and its own .NET runtime.
+With it, compiling F# needs no .NET SDK, no .NET runtime and no `dotnet`
+command on the machine.
+
+Releases do not publish this folder yet. Build it from a checkout, on a
+machine with the .NET SDK, for the runtime identifier of the target machine:
+
+```powershell
+dotnet publish src/Morphir.Frontend.FSharp.Extension -c Release -r win-arm64 -p:PublishProfile=SelfContainedProcess -p:MorphirRidSpecificPublish=true -o morphir-fsharp-frontend
+```
+
+`MorphirRidSpecificPublish=true` writes the publish's lock files under `obj/`,
+so the committed `packages.lock.json` files do not change. The build target
+`PublishFSharpFrontendProcess --rid <rid>` publishes the same folder, a zip
+(Windows) or `.tar.gz` archive of it with the files at the archive root, and
+the publish's lock file beside the archive. Copy the folder to the
+target machine and name its executable with `--extension`:
+
+```powershell
+morphir compile --language fsharp --input src/Rates.fs --package-name acme/car-rental --extension "C:\Tools\morphir-fsharp-frontend\morphir-fsharp-frontend.exe"
+```
+
+What this supports: compiling supported F# source files (`--input`) of one
+package to Morphir IR. The compiler references are only the .NET framework,
+FSharp.Core and `Morphir.FSharp.Annotations`; there is no NuGet restore and no
+reference to another package or assembly. It is not a build of an arbitrary
+`.fsproj`, and it does not compile the generated code: building an
+application from generated F# or C# still needs the .NET SDK.
+
+Checked on Windows 11 ARM64 (`win-arm64`), on a machine with .NET installed
+but hidden from the frontend: the folder runs from a path with a space, with no
+`dotnet` on `PATH`, no `DOTNET_*` variables, no global install and an empty
+NuGet packages folder. It loads the .NET runtime from its own folder, and at
+the same runtime version it gives the same IR and diagnostics as the
+framework-dependent `Morphir.Frontend.FSharp.Extension` tool. It was not run
+on a machine with no .NET at all. The other platforms are not qualified yet; see
+[Installation]({{< relref "/docs/getting-started/installation" >}}).

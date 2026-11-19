@@ -1,7 +1,7 @@
 using FluentAssertions;
 using Microsoft.FSharp.Collections;
 using Microsoft.FSharp.Core;
-using Morphir.IR.Pipeline;
+using Morphir.Files;
 using Morphir.Tooling.Features.Generate;
 
 using Morphir.TestSupport;
@@ -9,6 +9,7 @@ using Morphir.Extensions;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
+[Category("PlatformSpecific")]
 public sealed class CSharpGenerationPublicationTests : IDisposable
 {
     public void Dispose() => TolerantDirectory.TryDelete(_root);

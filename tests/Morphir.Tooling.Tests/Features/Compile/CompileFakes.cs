@@ -61,10 +61,12 @@ public static class CompileRunners
     /// <summary>A runner over the native file system, with the given frontends, hints and providers.</summary>
     public static CompileRunner Create(IEnumerable<IFrontend> frontends, IEnumerable<FrontendHint>? hints = null,
         IEnumerable<IProjectFileProvider>? providers = null, ICompilePublisher? publisher = null,
-        IFrontendExtensionConnector? extensions = null) =>
+        IFrontendExtensionConnector? extensions = null, Morphir.Tooling.Features.Transform.ModelPasses? passes = null,
+        CompileGenerationStages? generation = null) =>
         new(new ProjectCompileSettingsResolver(), Writers, new FrontendResolver(frontends, hints ?? []),
             new SourceSelector(ProjectFileProviderRegistry.Create(providers ?? [])), new Morphir.Tooling.Features.Compile.Sources.SourceCapture(),
-            publisher ?? new TaskRecordCompilePublisher(new Morphir.Tooling.Features.TaskRecords.TaskStoreOptions { Diagnostics = TextWriter.Null }), extensions ?? new FailingExtensionConnector());
+            publisher ?? new TaskRecordCompilePublisher(new Morphir.Tooling.Features.TaskRecords.TaskStoreOptions { Diagnostics = TextWriter.Null }), extensions ?? new FailingExtensionConnector(),
+            generation, passes: passes);
 
     /// <summary>Every event of one run.</summary>
     public static async Task<List<CompileEvent>> Events(ICompileRunner runner, CompileOverrides overrides, CompileContext context,

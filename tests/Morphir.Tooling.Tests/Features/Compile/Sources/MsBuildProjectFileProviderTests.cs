@@ -12,6 +12,7 @@ namespace Morphir.Tooling.Tests.Features.Compile.Sources;
 /// temporary directory with empty <c>Directory.Build.*</c> files, so that no repository build file applies.
 /// Every real MSBuild run holds a slot of the shared process gate.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class MsBuildProjectFileProviderTests : IDisposable
 {
     private const string FSharpProject = """

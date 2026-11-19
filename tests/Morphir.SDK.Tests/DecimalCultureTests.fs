@@ -79,3 +79,4 @@ let tests =
                                 "Invalid input remains optional"
                     )
     ]
+    |> testLabel "PlatformSpecific"

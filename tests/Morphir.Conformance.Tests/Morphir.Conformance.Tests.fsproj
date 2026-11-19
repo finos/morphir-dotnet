@@ -2,7 +2,7 @@
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
         <RootNamespace>Morphir.Conformance.Tests</RootNamespace>
         <GenerateDocumentationFile>false</GenerateDocumentationFile>
         <GenerateProgramFile>false</GenerateProgramFile>
@@ -35,6 +35,7 @@
         <Compile Include="WorkerTests.fs" />
         <Compile Include="ReportTests.fs" />
         <Compile Include="ReportContractTests.fs" />
+        <Compile Include="BoundedGenerationReceiptTests.fs" />
         <Compile Include="CommandTests.fs" />
         <Compile Include="GuestKitFakeGuest.fs" />
         <Compile Include="GuestKitProvenanceTests.fs" />
@@ -42,6 +43,7 @@
         <Compile Include="GuestKitPlanTests.fs" />
         <Compile Include="GuestKitTests.fs" />
         <Compile Include="GuestKitWorkerTests.fs" />
+        <Compile Include="TypeInitialisationTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

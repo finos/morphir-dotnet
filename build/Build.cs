@@ -52,6 +52,23 @@ partial class Build : FalloutBuild
     [Parameter("Runtime Identifier (e.g., linux-x64, win-x64, osx-arm64)")]
     readonly string? Rid;
 
+    [Parameter("MSBuild nodes for Restore and Compile; 0 uses one node for each processor - Default is 0")]
+    readonly int BuildNodes;
+
+    /// <summary>
+    /// The MSBuild arguments of Restore and Compile. The default is one node for each processor; --build-nodes 1
+    /// keeps a build small when more than one build runs on the machine at the same time. Shared compilation and
+    /// node reuse are off: they keep processes that lock files.
+    /// </summary>
+    string[] BuildProcessArguments
+    {
+        get
+        {
+            if (BuildNodes < 0) throw new Exception($"The build nodes {BuildNodes} is not 0 or more.");
+            return [BuildNodes == 0 ? "-m" : $"-m:{BuildNodes}", "-p:UseSharedCompilation=false", "-nodeReuse:false"];
+        }
+    }
+
     [Parameter("NuGet source URL")]
     readonly string NuGetSource = "https://api.nuget.org/v3/index.json";
 
@@ -64,8 +81,15 @@ partial class Build : FalloutBuild
     [Parameter("Install tool globally (true) or locally (false)")]
     readonly bool Global = false;
 
-    [Parameter("Executable type for E2E tests: aot, trimmed, untrimmed, tool or all (those four); native-aot, self-contained, framework-dependent or dotnet-tool (a packaged release profile); or offerings (all four packaged)")]
+    [Parameter("Target of TestE2E, a value of MORPHIR_TEST_TARGET: dev, aot, trimmed, untrimmed, native-aot, self-contained, framework-dependent, dotnet-tool or executable (with MORPHIR_TEST_EXECUTABLE and MORPHIR_TEST_HOST); or tool (the development build with the tool host), all (aot, trimmed, untrimmed and tool) or offerings (the four packaged offerings)")]
     readonly string ExecutableType = "all";
+
+    /// <summary>The target frameworks from Directory.Build.props. Outputs are below bin/&lt;configuration&gt;/&lt;tfm&gt;/.</summary>
+    static readonly Lazy<Morphir.Build.Helpers.RepositoryTargetFrameworks> RepositoryFrameworks =
+        new(() => Morphir.Build.Helpers.RepositoryTargetFrameworks.Load(RootDirectory / "Directory.Build.props"));
+
+    /// <summary>The target framework of applications, tools and tests.</summary>
+    static string CurrentTargetFramework => RepositoryFrameworks.Value.Current;
 
     AbsolutePath SourceDirectory => RootDirectory / "src";
     AbsolutePath TestsDirectory => RootDirectory / "tests";
@@ -98,7 +122,6 @@ partial class Build : FalloutBuild
     AbsolutePath MorphirSDKFSharpProject => SourceDirectory / "Morphir.SDK.FSharp" / "Morphir.SDK.FSharp.fsproj";
     AbsolutePath MorphirSDKCSharpProject => SourceDirectory / "Morphir.SDK.CSharp" / "Morphir.SDK.CSharp.csproj";
     AbsolutePath MorphirModelsProject => SourceDirectory / "Morphir.Models" / "Morphir.Models.fsproj";
-    AbsolutePath MorphirCodeGenerationCSharpProject => SourceDirectory / "Morphir.CodeGeneration.CSharp" / "Morphir.CodeGeneration.CSharp.fsproj";
 
     /// <summary>
     /// Library packages in publish order: each package follows the Morphir packages it depends on,
@@ -112,8 +135,17 @@ partial class Build : FalloutBuild
         ("Morphir.FSharp.Annotations", SourceDirectory / "Morphir.FSharp.Annotations" / "Morphir.FSharp.Annotations.csproj", true),
         ("Morphir.Configuration", SourceDirectory / "Morphir.Configuration" / "Morphir.Configuration.fsproj", true),
         ("Morphir.Configuration.IO", SourceDirectory / "Morphir.Configuration.IO" / "Morphir.Configuration.IO.csproj", true),
+        // Morphir.Models references Morphir.Files, so Morphir.Files comes first.
+        ("Morphir.Files", SourceDirectory / "Morphir.Files" / "Morphir.Files.fsproj", true),
+        ("Morphir.Knowledge", SourceDirectory / "Morphir.Knowledge" / "Morphir.Knowledge.fsproj", true),
+        ("Morphir.Knowledge.Okf", SourceDirectory / "Morphir.Knowledge.Okf" / "Morphir.Knowledge.Okf.fsproj", true),
+        ("Morphir.Knowledge.Rdf", SourceDirectory / "Morphir.Knowledge.Rdf" / "Morphir.Knowledge.Rdf.fsproj", true),
         ("Morphir.Models", MorphirModelsProject, true),
         ("Morphir.Compilation", SourceDirectory / "Morphir.Compilation" / "Morphir.Compilation.fsproj", true),
+        ("Morphir.MiddleEnd", SourceDirectory / "Morphir.MiddleEnd" / "Morphir.MiddleEnd.fsproj", true),
+        // One package with the frontend, the middle end passes and the backend for C#. It carries its analyzer and
+        // attribute assemblies in lib/, so neither is a package of its own.
+        ("Morphir.Lang.CSharp", SourceDirectory / "Morphir.Lang.CSharp" / "Morphir.Lang.CSharp.fsproj", true),
         ("Morphir.IR.Pipeline", SourceDirectory / "Morphir.IR.Pipeline" / "Morphir.IR.Pipeline.fsproj", true),
         ("Morphir.IR.Pipeline.Plugins", SourceDirectory / "Morphir.IR.Pipeline.Plugins" / "Morphir.IR.Pipeline.Plugins.fsproj", true),
         ("Morphir.Ion", SourceDirectory / "Morphir.Ion" / "Morphir.Ion.fsproj", true),
@@ -123,8 +155,6 @@ partial class Build : FalloutBuild
         ("Morphir.Myriad.SystemTextJson.Annotations", SourceDirectory / "Morphir.Myriad.SystemTextJson.Annotations" / "Morphir.Myriad.SystemTextJson.Annotations.csproj", true),
         ("Morphir.Myriad.SystemTextJson", SourceDirectory / "Morphir.Myriad.SystemTextJson" / "Morphir.Myriad.SystemTextJson.fsproj", false),
         ("Morphir.Mep", SourceDirectory / "Morphir.Mep" / "Morphir.Mep.fsproj", true),
-        ("Morphir.Compilation.Mep", SourceDirectory / "Morphir.Compilation.Mep" / "Morphir.Compilation.Mep.fsproj", true),
-        ("Morphir.CodeGeneration.CSharp", MorphirCodeGenerationCSharpProject, true),
         ("Morphir.Extensions", SourceDirectory / "Morphir.Extensions" / "Morphir.Extensions.fsproj", true),
         ("Morphir.Analyzers", SourceDirectory / "Morphir.Analyzers" / "Morphir.Analyzers.fsproj", true),
         // Product tooling depends on the WASM runtime. Kit runners belong to the separate development entry point.
@@ -132,6 +162,8 @@ partial class Build : FalloutBuild
         // Tooling shares the Windows launch owner in IO, which depends on the pure contracts.
         ("Morphir.Toolchain", SourceDirectory / "Morphir.Toolchain" / "Morphir.Toolchain.fsproj", true),
         ("Morphir.Toolchain.IO", SourceDirectory / "Morphir.Toolchain.IO" / "Morphir.Toolchain.IO.fsproj", true),
+        ("Morphir.Compilation.Mep", SourceDirectory / "Morphir.Compilation.Mep" / "Morphir.Compilation.Mep.fsproj", true),
+        ("Morphir.Extensions.Installation", SourceDirectory / "Morphir.Extensions.Installation" / "Morphir.Extensions.Installation.fsproj", true),
         ("Morphir.Tooling", MorphirToolingProject, true),
         ("Morphir", MorphirProject, true),
         ("Morphir.SDK.FSharp", MorphirSDKFSharpProject, true),
@@ -150,7 +182,7 @@ partial class Build : FalloutBuild
     AbsolutePath MorphirToolingTestsProject => TestsDirectory / "Morphir.Tooling.Tests" / "Morphir.Tooling.Tests.csproj";
     AbsolutePath MorphirModelsTestsProject => TestsDirectory / "Morphir.Models.Tests" / "Morphir.Models.Tests.fsproj";
     AbsolutePath MorphirIRPipelineTestsProject => TestsDirectory / "Morphir.IR.Pipeline.Tests" / "Morphir.IR.Pipeline.Tests.fsproj";
-    AbsolutePath MorphirE2ETestsProject => TestsDirectory / "Morphir.E2E.Tests" / "Morphir.E2E.Tests.csproj";
+    AbsolutePath BlackBoxTestsProject => TestsDirectory / "Morphir.BlackBox.Tests" / "Morphir.BlackBox.Tests.csproj";
     AbsolutePath MorphirBuildTestsProject => TestsDirectory / "Morphir.Build.Tests" / "Morphir.Build.Tests.csproj";
 
     /// <summary>
@@ -179,13 +211,13 @@ partial class Build : FalloutBuild
             // Restore using .slnx solution file
             DotNetRestore(s => s
                 .SetProjectFile(SolutionFile)
-                .AddProcessAdditionalArguments("-m:1", "-p:UseSharedCompilation=false", "-nodeReuse:false"));
+                .AddProcessAdditionalArguments(BuildProcessArguments));
         });
 
     /// <summary>
     /// Compile all projects in the solution
     /// Note: VBCSCompiler processes are cleaned up on Windows before build to prevent file locking issues.
-    /// Builds use one MSBuild node with shared compilation disabled.
+    /// Shared compilation is disabled. <see cref="BuildProcessArguments"/> selects the number of MSBuild nodes.
     /// </summary>
     Target Compile => _ => _
         .DependsOn(Restore)
@@ -218,14 +250,13 @@ partial class Build : FalloutBuild
             }
 
             // Build using .slnx solution file
-            // Bound build resources for concurrent delivery work.
             // Pass no Version: every src project takes it from CHANGELOG.md, and a Version
             // here would win over the changelog and also rebuild the running build project.
             DotNetBuild(s => s
                 .SetProjectFile(SolutionFile)
                 .SetConfiguration(Configuration)
                 .SetNoRestore(true)
-                .AddProcessAdditionalArguments("-m:1", "-p:UseSharedCompilation=false", "-nodeReuse:false"));
+                .AddProcessAdditionalArguments(BuildProcessArguments));
         });
 
     /// <summary>
@@ -281,12 +312,45 @@ partial class Build : FalloutBuild
     /// <summary>
     /// Publish the Native AOT executable (the native-aot profile's settings) for the specified runtime identifier (RID)
     /// Requires: --rid parameter (e.g., linux-x64, win-x64, osx-arm64)
-    /// Output: artifacts/executables/{rid}/ (used by the E2E executable type "aot")
+    /// Output: artifacts/executables/{rid}/ (the black-box target "aot", MORPHIR_TEST_TARGET=aot)
     /// </summary>
     Target PublishExecutable => _ => _
         .Description("Publish the Native AOT executable for a specific platform (requires --rid parameter)")
         .Executes(() => PublishLegacyLayout(Morphir.Build.Helpers.Deployment.NativeAot.Project,
             TargetSettings.PublishExecutable, ExecutablesDir, "Native AOT"));
+
+    /// <summary>
+    /// Publish the Native AOT executable (PublishExecutable, whose publish fails on a trim or AOT error) and check it with
+    /// NativeAotHostGate: no IDE-only assembly in the input of ILC, and a size not above the limit.
+    /// Requires: --rid parameter. The Linux test job of development.yml runs it for linux-x64.
+    /// </summary>
+    Target CheckNativeAotHost => _ => _
+        .DependsOn(PublishExecutable)
+        .Description("Publish the Native AOT executable and check its closure and its size (requires --rid parameter)")
+        .Executes(() =>
+        {
+            var executable = ExecutablesDir / Rid / (Rid.StartsWith("win-", StringComparison.Ordinal) ? "morphir.exe" : "morphir");
+            var response = RootDirectory / "src" / "Morphir" / "obj" / Configuration.ToString() / CurrentTargetFramework / Rid / "native" / "morphir.ilc.rsp";
+            if (!File.Exists(response))
+            {
+                throw new Exception($"The ILC response file of the publish is not at {response}.");
+            }
+
+            var bytes = new FileInfo(executable).Length;
+            var problems = Morphir.Build.Helpers.NativeAotHostGate.Problems(File.ReadAllLines(response), bytes,
+                Morphir.Build.Helpers.NativeAotHostGate.SizeLimitBytes);
+            foreach (var problem in problems)
+            {
+                Serilog.Log.Error(problem);
+            }
+
+            if (problems.Count > 0)
+            {
+                throw new Exception("The Native AOT morphir did not pass its gate. See the errors above.");
+            }
+
+            Serilog.Log.Information($"✓ The Native AOT morphir for {Rid} is {bytes:N0} bytes (limit {Morphir.Build.Helpers.NativeAotHostGate.SizeLimitBytes:N0}) and has no IDE-only assembly");
+        });
 
     /// <summary>
     /// Publish the legacy release asset: a single-file executable without AOT (managed .NET runtime) with trimming.

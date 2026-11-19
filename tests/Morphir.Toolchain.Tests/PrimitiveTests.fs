@@ -183,6 +183,8 @@ let tests =
             let watch = Diagnostics.Stopwatch.StartNew()
             Expect.equal (SemVer.tryParse text |> Result.map ignore) (Error ReaderCode.InvalidValue) "refused"
             Expect.isLessThan watch.Elapsed.TotalSeconds 5.0 $"took {watch.Elapsed.TotalSeconds:F2} s")
+        // A time budget: after the parallel tests of the suite, one at a time, so they do not take its processor time.
+        |> testSequenced
         testCase "credential names match ASCII case-insensitively and nothing else" (fun () ->
             for name in [ "token"; "TOKEN"; "Authorization"; "APIKEY"; "Api_Key"; "cookie" ] do
                 Expect.isTrue (Reading.isCredential name) name

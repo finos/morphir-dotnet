@@ -1,0 +1,68 @@
+{
+  "formatVersion": 4,
+  "distribution": {
+    "Library": {
+      "packageName": "acme/demo",
+      "dependencies": {},
+      "def": {
+        "modules": {
+          "rates/pricing": {
+            "Public": {
+              "types": {},
+              "values": {
+                "rate": {
+                  "Public": {
+                    "ExpressionBody": {
+                      "inputTypes": {},
+                      "outputType": {
+                        "Reference": {
+                          "attributes": {
+                            "source": {
+                              "startLine": 4,
+                              "startColumn": 18,
+                              "endLine": 4,
+                              "endColumn": 21
+                            }
+                          },
+                          "fqname": "morphir/SDK:basics#int"
+                        }
+                      },
+                      "body": {
+                        "Literal": {
+                          "attributes": {
+                            "source": {
+                              "startLine": 4,
+                              "startColumn": 29,
+                              "endLine": 4,
+                              "endColumn": 31
+                            },
+                            "inferredType": {
+                              "Reference": {
+                                "attributes": {
+                                  "source": {
+                                    "startLine": 4,
+                                    "startColumn": 29,
+                                    "endLine": 4,
+                                    "endColumn": 31
+                                  }
+                                },
+                                "fqname": "morphir/SDK:basics#int"
+                              }
+                            }
+                          },
+                          "literal": {
+                            "IntegerLiteral": 40
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

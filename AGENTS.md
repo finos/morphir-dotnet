@@ -1,4 +1,4 @@
-﻿# AGENTS.md
+# AGENTS.md
 
 Guidance for AI coding agents contributing to finos/morphir-dotnet (a .NET
 binding for the Morphir ecosystem). Produce correct, minimal, and well‑tested
@@ -10,6 +10,7 @@ changes aligned with Morphir IR and tooling.
 - **Specialized Topics**: See [.agents/](./.agents/) directory for domain-specific guides
   - [Skills Reference](./.agents/skills-reference.md) - QA Tester, AOT Guru, Release Manager, Technical Writer
   - [F# and C# interop skill](./.agents/skills/fsharp-csharp-interop/SKILL.md) - Rules for F# code that C# calls; reviewer agent `fsharp-csharp-interop-reviewer`
+  - [Test manager skill](./.agents/skills/test-manager/SKILL.md) - The class, the place and the form of each test; reviewer agent `test-manager-reviewer`
   - [Capabilities Matrix](./.agents/capabilities-matrix.md) - Cross-agent feature availability
   - [QA Testing](./.agents/qa-testing.md) - Test plans, playbooks, scripts
   - [AOT Optimization](./.agents/aot-optimization.md) - Trimming, AOT guidance
@@ -42,7 +43,7 @@ Architecture (high-level)
 - tests/: Unit (TUnit), snapshot (Verify), property-based (via generators), and BDD/acceptance (Reqnroll).
 
 Stacks and baselines
-- C# 14, .NET 10 (SDK pinned in global.json).
+- C# 15, .NET 11 SDK (pinned in global.json). Applications, tools and tests target net11.0; packable libraries target net11.0 and net10.0; MSBuild tasks and Myriad plugins target net10.0. Use the target-framework properties in Directory.Build.props, not literal TFMs.
 - F# for ADT-heavy components where appropriate.
   - When C# calls F# code, follow the `fsharp-csharp-interop` skill (`.agents/skills/fsharp-csharp-interop/SKILL.md`) and run the `fsharp-csharp-interop-reviewer` agent on the diff.
 - TypeScript optional for dev tooling/schema checks.
@@ -72,8 +73,8 @@ Avoid or escalate
 Adjust to actual repo layout.
 
 - src/
-    - Morphir: C# CLI/host (.csproj, C# 14)
-    - Morphir.Core: Core domain model and IR definition  (.csproj, C# 14)
+    - Morphir: C# CLI/host (.csproj, C# 15)
+    - Morphir.Core: Core domain model and IR definition  (.csproj, C# 15)
 - docs/spec/: IR specification and JSON/OpenAPI schemas, IR samples/fixtures
 - tests/**.csproj: TUnit, Reqnroll, contract tests
 - scripts/: format/test/contract/codegen utilities
@@ -95,7 +96,7 @@ First-time Setup
 - Install git hooks: `dotnet husky install`
 
 Commands
-- .NET (C# 14 / F#, .NET 10)
+- .NET (C# 15 / F#, .NET 11 SDK)
     - Build: `dotnet build` or `./build.sh`
     - Test (TUnit + Reqnroll): `dotnet test --nologo` or `./build.sh --target Test`
     - Format: `dotnet format` or `./build.sh --target Format`
@@ -127,7 +128,8 @@ Naming
 Formatting
 - `.editorconfig` + `dotnet format`. Prettier/ESLint for TS (if present).
 
-C# 14 / .NET 10 specifics
+C# 15 / .NET 11 specifics
+- Library code also compiles for net10.0. Do not use a .NET 11 API or a C# 15 feature that needs .NET 11 runtime types in a library, unless you guard it for net10.0.
 - Prefer readonly `record struct`/`record` where appropriate.
 - Use file‑scoped namespaces, primary constructors, and newer pattern features.
 - Favor spans and efficient collections only with benchmarks backing changes.
@@ -158,7 +160,7 @@ CLI Tool Logging Requirements
 - Test all commands with `--json` flag to ensure stdout contains only valid JSON
 
 Rationale: CLI tools that write to stdout break scriptability and JSON parsing.
-Users expect to pipe command output (e.g., `morphir ir verify file.json --json | jq`)
+Users expect to pipe command output (e.g., `morphir model verify file.json --json | jq`)
 without log noise contaminating the structured output. Following Unix philosophy:
 stdout = data, stderr = diagnostics.
 
@@ -251,6 +253,7 @@ Project skills and agents
 - Claude Code reads `.claude/skills/` and Grok Build reads `.grok/skills/`. Do not edit those copies of a project skill. Edit `.agents/skills/<name>/`, then run `dotnet fsi scripts/sync-agent-skills.fsx`. `--check` exits 1 when a copy differs. The `lint` job in `.github/workflows/development.yml` runs the check on every pull request, and the Husky.Net pre-commit hook runs it when a staged file is under a skills folder.
 - Reviewer agents use each tool's format: `.claude/agents/*.md` (Claude Code and Cursor), `.codex/agents/*.toml` (Codex), `.github/agents/*.agent.md` (GitHub Copilot) and `.grok/agents/*.md` (Grok Build). Muse Code has no agent files: start a subagent with the prompt in the skill's "Review mode" section.
 - OpenSpec generates the `openspec-*` skills in every folder. The sync script does not touch them.
+- External .NET skills come from the [dotnet/skills](https://github.com/dotnet/skills) plugin marketplace (`dotnet-agent-skills`): `dotnet-msbuild`, `dotnet11`, `dotnet-upgrade`, `dotnet-nuget` and `dotnet-diag`. `.claude/settings.json` is the one list of plugins. Run `dotnet fsi scripts/setup-dotnet-skills.fsx` once on each computer to install them for Claude Code and Codex (`--check` exits 1 when a plugin is missing). Other tools install them from the marketplace. Do not copy them into the skills folders. See [External skills: dotnet/skills](./.agents/skills-reference.md#external-skills-dotnetskills).
 - See [.agents/skills-reference.md](./.agents/skills-reference.md#project-skills-and-agents) for the full table.
 
 Scripts to provide/use:
@@ -299,6 +302,36 @@ chmod +x scripts/format-all scripts/test-all scripts/check-contracts scripts/gen
 ```
 
 ## 9) Testing Strategy
+
+**Use the `test-manager` skill before you add, move, rename or delete a test, a feature file, a step, a driver or a
+test project** ([.agents/skills/test-manager/SKILL.md](./.agents/skills/test-manager/SKILL.md)). It classifies the
+test (unit, property, conformance, build, integration, end-to-end, smoke or journey) and gives its place, its form,
+its tags and its parallel rule. After the change, run the `test-manager-reviewer` agent on the diff.
+
+Where a test goes
+- A test that reaches the product only through a built artifact (the command line of an executable, a package, a
+  published folder) is a black-box test. It goes in `tests/Morphir.BlackBox.Tests`, in the folder of its purpose
+  group (`Integration/`, `EndToEnd/`, `Smoke/`, `Journeys/`), as a Gherkin scenario on the test drivers of
+  `tests/Morphir.TestSupport`. See [tests/Morphir.BlackBox.Tests/README.md](./tests/Morphir.BlackBox.Tests/README.md).
+- A test that needs a product type in the test process is a unit test. It goes in the test project of its library.
+- A test of the build of the repository goes in `tests/Morphir.Build.Tests`. A test of a PowerShell script of the
+  repository is a Pester test in `tests/Scripts`, which the `TestScripts` target runs.
+- The guard tests in `tests/Morphir.Build.Tests/Helpers/BlackBoxRulesTests.cs` check the rules of the black-box
+  project that a program can check.
+
+Where test data comes from
+- Models, trees and files come from object mothers: named cases on a test-data builder, such as
+  `DistributionMother.v3Library` in `tests/Morphir.Models.TestSupport`. Use an existing case, or add a named case to
+  the mother; do not add a JSON file for a model.
+- Files on disk come only through `FixtureCatalog` in `tests/Morphir.TestSupport`, by intent
+  (`FixtureCatalog.Kit.DocumentTree`, `FixtureCatalog.Models.V3Library`). Each file has one owner and a row with its
+  SHA-256 in the `PROVENANCE.md` of its folder. `FixtureOwnershipTests` in `tests/Morphir.Build.Tests/Helpers`
+  fails on a file below `tests/Fixtures` with no owner.
+- A feature file names a case by intent (`Given a v3 Library model with a dependency`), never a path or inline JSON.
+  Exact bytes appear only where a contract (the kit, a policy of finos/morphir) defines them, read from the catalog.
+- Example: a new test that starts the CLI to check `morphir model verify` on a model file is an integration test in
+  `tests/Morphir.BlackBox.Tests/Integration/`. Its scenario names the model by intent, and its step gets the model
+  from a mother case or the catalog.
 
 Unit testing (TUnit)
 - Place unit tests in tests/csharp.unit or equivalent.
@@ -372,30 +405,30 @@ When implementing features:
 
 ```bash
 # 1. RED: Write failing unit tests
-# Example: tests/Morphir.Tooling.Tests/Features/VerifyIR/VerifyIRHandlerTests.cs
+# Example: tests/Morphir.Tooling.Tests/Features/ModelVerify/VerifyModelHandlerTests.cs
 [Test]
 public async Task Handle_ShouldReturnValid_WhenIRIsValid()
 {
     // Arrange
-    var command = new VerifyIR("valid-ir.json");
+    var command = new VerifyModel("valid-ir.json");
 
     // Act
-    var result = await VerifyIRHandler.Handle(command, validator, ct);
+    var result = await VerifyModelHandler.Handle(command, validator, ct);
 
     // Assert
     result.IsValid.Should().BeTrue();
 }
 
 # Run: dotnet test
-# Expect: Test fails because VerifyIRHandler doesn't exist
+# Expect: Test fails because VerifyModelHandler does not exist
 
 # 2. GREEN: Implement minimal code
-public static class VerifyIRHandler
+public static class VerifyModelHandler
 {
-    public static Task<VerifyIRResult> Handle(VerifyIR command, ...)
+    public static Task<VerifyModelResult> Handle(VerifyModel command, ...)
     {
         // Minimal implementation to pass test
-        return Task.FromResult(new VerifyIRResult(IsValid: true, ...));
+        return Task.FromResult(new VerifyModelResult(IsValid: true, ...));
     }
 }
 
@@ -403,17 +436,17 @@ public static class VerifyIRHandler
 # Expect: Test passes (green)
 
 # 3. REFACTOR: Improve implementation
-public static class VerifyIRHandler
+public static class VerifyModelHandler
 {
-    public static async Task<VerifyIRResult> Handle(
-        VerifyIR command,
+    public static async Task<VerifyModelResult> Handle(
+        VerifyModel command,
         SchemaValidator validator,
         CancellationToken ct)
     {
         var jsonContent = await File.ReadAllTextAsync(command.FilePath, ct);
         var validationResult = await validator.ValidateAsync(jsonContent, "3", ct);
 
-        return new VerifyIRResult(
+        return new VerifyModelResult(
             IsValid: validationResult.IsValid,
             SchemaVersion: "3",
             DetectionMethod: "auto",
@@ -433,7 +466,7 @@ public static class VerifyIRHandler
 For new features, write BDD scenarios BEFORE implementation:
 
 ```gherkin
-# tests/Morphir.Tooling.Tests/Features/VerifyIR/VerifyIR.feature
+# tests/Morphir.Tooling.Tests/Features/ModelVerify/VerifyModel.feature
 Feature: IR Schema Verification
   As a Morphir developer
   I want to validate IR JSON files against schemas
@@ -458,7 +491,7 @@ public void GivenAValidIRV3File(string fileName)
 [When(@"I verify the IR file")]
 public async Task WhenIVerifyTheIRFile()
 {
-    var command = new VerifyIR(_context.FilePath);
+    var command = new VerifyModel(_context.FilePath);
     _context.Result = await _handler.Handle(command, _validator, CancellationToken.None);
 }
 
@@ -499,10 +532,10 @@ public void ThenTheValidationShouldSucceed()
 ```
 tests/Morphir.Tooling.Tests/
 ├── Features/
-│   └── VerifyIR/
-│       ├── VerifyIR.feature          # BDD scenarios
-│       ├── VerifyIRSteps.cs          # Step definitions
-│       └── VerifyIRHandlerTests.cs   # Unit tests
+│   └── ModelVerify/
+│       ├── VerifyModel.feature          # BDD scenarios
+│       ├── VerifyModelSteps.cs          # Step definitions
+│       └── VerifyModelHandlerTests.cs   # Unit tests
 ├── Infrastructure/
 │   └── JsonSchema/
 │       ├── SchemaLoaderTests.cs      # Unit tests
@@ -521,6 +554,7 @@ Tests run in parallel and must stay hermetic. Use `tests/Morphir.TestSupport` (s
 - Clean up with `TolerantDirectory.TryDelete`/`TryDeleteAsync`; never let cleanup fail a passing test.
 - Never call `Environment.SetEnvironmentVariable` or `Directory.SetCurrentDirectory` in tests.
 - Process-heavy test projects add the `MachineTripwire` assembly hook, which fails the run if a test escaped its sandbox.
+- A black-box test (`tests/Morphir.BlackBox.Tests`) does not use these types directly. It uses the driver interfaces of `Morphir.TestSupport.Drivers`, which give each test a contained workspace and own its processes ([tests/Morphir.TestSupport/README.md](tests/Morphir.TestSupport/README.md)).
 
 ### TDD Anti-Patterns to Avoid
 
@@ -641,7 +675,7 @@ Example Implementation Notes Section
 - **Decision**: Used WolverineFx's `IMessageBus.InvokeAsync<T>()` instead of `IMessageContext.Send()`
 - **Rationale**: InvokeAsync provides request-response pattern needed for CLI
 - **Impact**: Simpler than setting up reply queues
-- **Files**: `src/Morphir/Program.cs:397-401`, `src/Morphir.Tooling/Features/VerifyIR/VerifyIR.cs`
+- **Files**: `src/Morphir/Program.cs:397-401`, `src/Morphir.Tooling/Features/ModelVerify/VerifyModel.cs`
 
 #### Schema Loading (2025-12-15)
 - **Change**: Used `Assembly.GetManifestResourceStream()` instead of `EmbeddedFileProvider`
@@ -668,18 +702,18 @@ This section documents architectural patterns and conventions established during
 
 **Structure**: Features organized by use case in `src/Morphir.Tooling/Features/{FeatureName}/`
 
-Example: `Features/VerifyIR/`
+Example: `Features/ModelVerify/`
 ```
-Features/VerifyIR/
-├── VerifyIR.cs              # Command, Result, Handler, Validator (all in one file)
+Features/ModelVerify/
+├── VerifyModel.cs              # Command, Result, Handler, Validator (all in one file)
 ├── VersionDetector.cs       # Feature-specific logic
-└── VerifyIR.feature         # BDD scenarios (in test project)
+└── VerifyModel.feature         # BDD scenarios (in test project)
 ```
 
 **Command Pattern**:
 ```csharp
 // Command (immutable record)
-public record VerifyIR(
+public record VerifyModel(
     string FilePath,
     int? SchemaVersion = null,
     bool JsonOutput = false,
@@ -687,7 +721,7 @@ public record VerifyIR(
 );
 
 // Result (immutable record)
-public record VerifyIRResult(
+public record VerifyModelResult(
     bool IsValid,
     string SchemaVersion,
     string DetectionMethod,
@@ -697,10 +731,10 @@ public record VerifyIRResult(
 );
 
 // Handler (static class with pure function)
-public static class VerifyIRHandler
+public static class VerifyModelHandler
 {
-    public static async Task<VerifyIRResult> Handle(
-        VerifyIR command,
+    public static async Task<VerifyModelResult> Handle(
+        VerifyModel command,
         SchemaValidator validator,  // Injected dependency
         CancellationToken ct)
     {
@@ -709,9 +743,9 @@ public static class VerifyIRHandler
 }
 
 // FluentValidation rules
-public class VerifyIRValidator : AbstractValidator<VerifyIR>
+public class VerifyModelValidator : AbstractValidator<VerifyModel>
 {
-    public VerifyIRValidator()
+    public VerifyModelValidator()
     {
         RuleFor(x => x.FilePath)
             .NotEmpty()
@@ -742,7 +776,7 @@ verifyCommand.SetAction(async parseResult =>
     var messageBus = host.Services.GetRequiredService<IMessageBus>();
 
     // Create command
-    var command = new Tooling.Features.VerifyIR.VerifyIR(
+    var command = new Tooling.Features.ModelVerify.VerifyModel(
         FilePath: filePath.FullName,
         SchemaVersion: schemaVersion,
         JsonOutput: jsonOutput,
@@ -750,7 +784,7 @@ verifyCommand.SetAction(async parseResult =>
     );
 
     // Execute via message bus
-    var result = await messageBus.InvokeAsync<VerifyIRResult>(command);
+    var result = await messageBus.InvokeAsync<VerifyModelResult>(command);
 
     // Format output
     FormatOutput(result, jsonOutput, quiet);
@@ -821,12 +855,12 @@ tests/Morphir.Tooling.Tests/
 try
 {
     // Business logic
-    return new VerifyIRResult(IsValid: true, ...);
+    return new VerifyModelResult(IsValid: true, ...);
 }
 catch (JsonException ex)
 {
     // Handle expected errors, return structured result
-    return new VerifyIRResult(
+    return new VerifyModelResult(
         IsValid: false,
         Errors: [new ValidationError(
             Path: "$",
@@ -850,13 +884,13 @@ catch (JsonException ex)
 
 ```csharp
 [JsonSourceGenerationOptions(WriteIndented = true)]
-[JsonSerializable(typeof(VerifyIRResult))]
+[JsonSerializable(typeof(VerifyModelResult))]
 internal partial class MorphirJsonContext : JsonSerializerContext
 {
 }
 
 // Usage
-var json = JsonSerializer.Serialize(result, MorphirJsonContext.Default.VerifyIRResult);
+var json = JsonSerializer.Serialize(result, MorphirJsonContext.Default.VerifyModelResult);
 ```
 
 ### Documentation Requirements

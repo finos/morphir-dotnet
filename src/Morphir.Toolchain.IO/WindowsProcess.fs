@@ -39,6 +39,10 @@ module internal AsyncOwnership =
             return raise primary
     }
 
+    /// The same awaited ownership rule for internal BCL/C# consumers.
+    let RunAsync(owner: IAsyncDisposable, operation: Func<System.Threading.Tasks.Task<'T>>) =
+        runAsync owner (fun () -> operation.Invoke())
+
 // Shared Win32 job declarations. The host's lifetime job and the manager's
 // per-launch job use the same creation, limits and handle ownership rules.
 module private JobNative =
@@ -427,6 +431,11 @@ module private ChildOwnership =
         return firstError
     }
 
+    // Keep the constrained generic operation outside resumable task code.
+    let keep (resources: ResizeArray<IDisposable>) (value: #IDisposable) =
+        resources.Add(value :> IDisposable)
+        value
+
     let disposeAll (resources: ResizeArray<IDisposable>) =
         let errors = ResizeArray<exn>()
 
@@ -504,6 +513,29 @@ type internal WindowsChild
     member _.StandardOutput = output
     member _.StandardError = errors
     member _.WaitForExitAsync() = exitTask
+
+    /// Whether the root process has exited or is exiting, read from its handle at once rather than from
+    /// WaitForExitAsync, whose task completes on another thread after the exit. A process that has an exit code is
+    /// exiting, although its handle is signalled only once it has ended. True once the handle is released.
+    member _.HasExited =
+        if exitTask.IsCompleted then
+            true
+        else
+            let mutable added = false
+
+            try
+                try
+                    root.DangerousAddRef(&added)
+                    let raw = root.DangerousGetHandle()
+                    let mutable code = 0u
+
+                    ChildNative.WaitForSingleObject(raw, 0u) = 0u
+                    || (ChildNative.GetExitCodeProcess(raw, &code) && code <> 259u)
+                with :? ObjectDisposedException ->
+                    true
+            finally
+                if added then
+                    root.DangerousRelease()
 
     member _.RequestTermination() =
         match job.RequestTermination() with
@@ -587,19 +619,15 @@ type internal WindowsChild
 
             let resources = ResizeArray<IDisposable>()
 
-            let keep (value: #IDisposable) =
-                resources.Add(value :> IDisposable)
-                value
-
             let mutable ownedJob: OwnedJob option = None
 
             try
                 ct.ThrowIfCancellationRequested()
-                let job = keep (OwnedJob.Create())
+                let job = ChildOwnership.keep resources (OwnedJob.Create())
                 ownedJob <- Some job
 
                 let output =
-                    keep (
+                    ChildOwnership.keep resources (
                         new System.IO.Pipes.AnonymousPipeServerStream(
                             System.IO.Pipes.PipeDirection.In,
                             System.IO.HandleInheritability.Inheritable
@@ -607,7 +635,7 @@ type internal WindowsChild
                     )
 
                 let errors =
-                    keep (
+                    ChildOwnership.keep resources (
                         new System.IO.Pipes.AnonymousPipeServerStream(
                             System.IO.Pipes.PipeDirection.In,
                             System.IO.HandleInheritability.Inheritable
@@ -617,7 +645,7 @@ type internal WindowsChild
                 let input =
                     if start.RedirectStandardInput then
                         Some(
-                            keep (
+                            ChildOwnership.keep resources (
                                 new System.IO.Pipes.AnonymousPipeServerStream(
                                     System.IO.Pipes.PipeDirection.Out,
                                     System.IO.HandleInheritability.Inheritable
@@ -637,7 +665,7 @@ type internal WindowsChild
                             source = 0n
                             || source = -1n
                         then
-                            let file = keep (System.IO.File.OpenRead("NUL"))
+                            let file = ChildOwnership.keep resources (System.IO.File.OpenRead("NUL"))
                             let mutable duplicate = 0n
 
                             if
@@ -655,7 +683,7 @@ type internal WindowsChild
                             then
                                 raise (JobNative.error "DuplicateHandle input")
 
-                            Some(keep (new JobHandle(duplicate)))
+                            Some(ChildOwnership.keep resources (new JobHandle(duplicate)))
                         else
                             let mutable duplicate = 0n
 
@@ -674,7 +702,7 @@ type internal WindowsChild
                             then
                                 raise (JobNative.error "DuplicateHandle input")
 
-                            Some(keep (new JobHandle(duplicate)))
+                            Some(ChildOwnership.keep resources (new JobHandle(duplicate)))
 
                 let inputHandle =
                     match input, inheritedInput with
@@ -780,7 +808,7 @@ type internal WindowsChild
                 then
                     raise (JobNative.error "CreateProcessW")
 
-                let root = keep (new JobHandle(result.Process))
+                let root = ChildOwnership.keep resources (new JobHandle(result.Process))
                 use thread = new JobHandle(result.Thread)
                 output.DisposeLocalCopyOfClientHandle()
                 errors.DisposeLocalCopyOfClientHandle()

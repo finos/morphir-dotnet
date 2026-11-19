@@ -182,7 +182,7 @@ module internal Reading =
 
     // ---- the document envelope ---------------------------------------------------------------------------------
 
-    let private memberRules (understood: Set<string>) (n: Node) (o: ObjectNode) : Read<ObjectNode> =
+    let memberRules (understood: Set<string>) (n: Node) (o: ObjectNode) : Read<ObjectNode> =
         result {
             match tryMember "critical" o with
             | None -> ()

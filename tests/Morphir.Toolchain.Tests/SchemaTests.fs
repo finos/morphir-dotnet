@@ -222,6 +222,7 @@ let tests =
                     expectValid "request" "the written request" (parsed "request" (Fixtures.bytes "request/approved.toml")))
         ]
     ]
+    |> testLabel "PlatformSpecific"
 
 /// <summary>What the workflow case states about its files and steps that does not hold: each source, expected IR and
 /// expected generated file has the SHA-256 the case states, and each generated file its byte count; and each step's
@@ -299,10 +300,12 @@ let private withMadeUpStep () =
 let workflowCaseTests =
     testList "The readiness workflow case" [
         testCase "case.json validates against the pinned workflow case schema" (fun () -> expectValid "workflow-case" "case.json" (caseValue ()))
+        |> testLabel "PlatformSpecific"
 
         testCase "every file the case states has its stated SHA-256 and byte count, and every step a defined operation" (fun () ->
             use case = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(Fixtures.workflow, "case.json")))
             Expect.isEmpty (workflowProblems case.RootElement) "no problems")
+        |> testLabel "PlatformSpecific"
 
         testCase "a made-up step is refused by the schema and by the case checks" (fun () ->
             let edited = withMadeUpStep ()
@@ -310,10 +313,12 @@ let workflowCaseTests =
             Expect.isFalse valid "the schema refuses the made-up step"
             use case = JsonDocument.Parse(JsonText.toBytes edited)
             Expect.contains (workflowProblems case.RootElement) "step made-up has the operation made-up-operation, which the workflow does not define" "the case check refuses it")
+        |> testLabel "PlatformSpecific"
 
         testCase "a generated file whose stated size is wrong is found" (fun () ->
             use case = JsonDocument.Parse(File.ReadAllText(Path.Combine(Fixtures.workflow, "case.json")).Replace("\"bytes\": 112", "\"bytes\": 113"))
             Expect.contains (workflowProblems case.RootElement) "expected/generated/Pricing.fs does not have its stated byte count" "the size")
+        |> testLabel "PlatformSpecific"
 
         testCase "anchoring a pattern's end refuses a trailing line feed the .NET pattern accepts" (fun () ->
             let schema = """{"type":"string","pattern":"^a$"}"""

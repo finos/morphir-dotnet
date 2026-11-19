@@ -144,22 +144,21 @@ publish-single-file-untrimmed RID:
     #!/usr/bin/env bash
     ./build.sh --target PublishSingleFileUntrimmed --rid "{{RID}}" --configuration "${CONFIGURATION:-Release}" --single-file-untrimmed-dir "${OUTPUT_DIR:-./artifacts/single-file-untrimmed}"
 
-# Build the E2E test project
+# Build the black-box test project (tests/Morphir.BlackBox.Tests), with the hosts of the development build
 # Usage: just build-e2e-tests [CONFIGURATION=Release]
-# This restores and builds the E2E test project
 build-e2e-tests:
     #!/usr/bin/env bash
     CONFIG="${CONFIGURATION:-Release}"
-    dotnet restore tests/Morphir.E2E.Tests/Morphir.E2E.Tests.csproj
-    dotnet build tests/Morphir.E2E.Tests/Morphir.E2E.Tests.csproj \
+    dotnet restore tests/Morphir.BlackBox.Tests/Morphir.BlackBox.Tests.csproj
+    dotnet build tests/Morphir.BlackBox.Tests/Morphir.BlackBox.Tests.csproj \
         --configuration "$CONFIG" \
         --no-restore
 
-# Run end-to-end tests against Morphir executables (BDD/Gherkin)
+# Run each group of the black-box tests against a published or packaged target
 # Usage: just test-e2e [EXECUTABLE_TYPE=all] [CONFIGURATION=Release]
-#   EXECUTABLE_TYPE: aot, trimmed, untrimmed, or all (default)
+#   EXECUTABLE_TYPE: a value of MORPHIR_TEST_TARGET (aot, trimmed, untrimmed, native-aot, ...), tool, all or offerings
 #   CONFIGURATION: Build configuration (default: Release)
-# This builds executables if needed and runs E2E tests
+# This publishes or packs a target that has no artifact, and runs the black-box tests against it
 # Dependencies: build-e2e-tests ensures the test project is built
 test-e2e EXECUTABLE_TYPE="all": build-e2e-tests
     #!/usr/bin/env bash

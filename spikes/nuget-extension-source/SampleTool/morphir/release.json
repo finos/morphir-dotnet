@@ -1,0 +1,25 @@
+{
+  "$schema": "https://morphir.finos.org/schemas/extensions/next/release.schema.json",
+  "extensionId": "com.acme.python-backend",
+  "shortId": "acme-python",
+  "version": "1.2.3",
+  "platformDifferences": "declared",
+  "artifacts": [
+    {
+      "runtime": "process",
+      "platform": "aarch64-apple-darwin",
+      "filename": "acme.morphir.python.osx-arm64.1.2.3.nupkg",
+      "package": { "format": "nupkg", "root": "tools/net11.0/osx-arm64", "entryPoint": "acme-python", "treeSha256": "spike-placeholder" },
+      "claims": {}
+    },
+    {
+      "runtime": "process",
+      "platform": "x86_64-unknown-linux-gnu",
+      "filename": "acme.morphir.python.linux-x64.1.2.3.nupkg",
+      "package": { "format": "nupkg", "root": "tools/net11.0/linux-x64", "entryPoint": "acme-python", "treeSha256": "spike-placeholder" },
+      "claims": {}
+    },
+    { "runtime": "wasm", "filename": "acme-python.wasm", "sha256": "spike-placeholder", "claims": {} }
+  ],
+  "critical": [ "artifacts.package" ]
+}

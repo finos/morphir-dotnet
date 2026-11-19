@@ -45,9 +45,10 @@ module ProjectPath =
             && path.[1] = ':'
             && path.[2] = '/')
 
-    let join (root: string) path =
+    /// path below root, or path itself when it is absolute, with '/' or '\' as its separator.
+    let join (root: string) (path: string) =
         normalize (
-            if isAbsolute path then
+            if isAbsolute (path.Replace('\\', '/')) then
                 path
             else
                 root.TrimEnd('/')

@@ -5,5 +5,7 @@ namespace Morphir.Extensions.Installation
 open System.Runtime.CompilerServices
 
 [<assembly: InternalsVisibleTo("Morphir.Extensions.Installation.Tests")>]
+[<assembly: InternalsVisibleTo("Morphir.Toolchain.Tests")>]
 [<assembly: InternalsVisibleTo("morphirup")>]
+[<assembly: InternalsVisibleTo("Morphir.Tooling")>]
 do ()

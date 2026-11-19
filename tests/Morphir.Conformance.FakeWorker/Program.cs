@@ -4,13 +4,18 @@
 // A scripted fake of `<host> extension worker`. The command line is
 //
 //   [--script <file>] [--log <file>] extension worker <worker arguments>
+//   (no arguments, with bounded-orders.mode)  a native MEP generation fixture
 //   --sleep                           (a child that would outlive its parent; it sleeps until stopped)
+//   --sleep <ms>                      (a child that sleeps this long, then exits)
 //
 // The script is a JSON object:
 //
 //   {
 //     "buildIdentity": "<64 hexadecimal digits>",   // what `--help --json` reports
 //     "helpExit": 0,                                // optional: the exit status of --help
+//     "helpForm": "document",                       // optional: "document" (default) writes the help result alone,
+//                                                   // as the contract states; "completed" wraps it in one
+//                                                   // {"event":"completed","report":...} line, which a runner refuses
 //     "modules": { "<module file name without extension>" | "*": [ <action>, ... ] }
 //   }
 //
@@ -25,6 +30,8 @@
 //   {"echo": <n>}             reads n frames and writes each back as a frame
 //   {"sleepMs": <n>}          sleeps
 //   {"spawn": "<pid file>"}   starts a child (`--sleep`) and writes "<own pid> <child pid>" to the file
+//   {"holdStdio": <ms>}       starts a child (`--sleep <ms>`) that keeps the fake's stdin and stdout open after the
+//                             fake exits, for this long
 //   {"hang": true}            sleeps until stopped
 //   {"exit": <n>}             exits with this status
 //
@@ -44,9 +51,21 @@ internal static class Program
 
     private static int Main(string[] args)
     {
+        if (args.Length == 0 && File.Exists(BoundedOrdersGuest.ModeFile))
+            return BoundedOrdersGuest.Run();
+
+        if (args is ["--bounded-orders-pipe-descendant"])
+            return BoundedOrdersGuest.RunPipeDescendant();
+
         if (args is ["--sleep"])
         {
             Thread.Sleep(Timeout.Infinite);
+            return 0;
+        }
+
+        if (args is ["--sleep", var sleepMs])
+        {
+            Thread.Sleep(int.Parse(sleepMs, System.Globalization.CultureInfo.InvariantCulture));
             return 0;
         }
 
@@ -85,7 +104,9 @@ internal static class Program
                     ["buildIdentity"] = script["buildIdentity"]?.GetValue<string>() ?? new string('a', 64),
                 },
             };
-            WriteStdout(Encoding.UTF8.GetBytes(help.ToJsonString() + "\n"));
+            var form = script["helpForm"]?.GetValue<string>() ?? "document";
+            var output = form == "completed" ? new JsonObject { ["event"] = "completed", ["report"] = help } : help;
+            WriteStdout(Encoding.UTF8.GetBytes(output.ToJsonString() + "\n"));
             return script["helpExit"]?.GetValue<int>() ?? 0;
         }
 
@@ -148,6 +169,9 @@ internal static class Program
                     break;
                 case "spawn":
                     Spawn(value!.GetValue<string>());
+                    break;
+                case "holdStdio":
+                    HoldStdio(value!.GetValue<int>());
                     break;
                 case "hang":
                     Thread.Sleep(Timeout.Infinite);
@@ -214,10 +238,10 @@ internal static class Program
         WriteStderr(Replace(line.ToJsonString(), replacements));
     }
 
-    private static byte[] Frame(byte[] body) =>
+    internal static byte[] Frame(byte[] body) =>
         [.. Encoding.ASCII.GetBytes($"Content-Length: {body.Length}\r\n\r\n"), .. body];
 
-    private static byte[]? ReadFrame(Stream input)
+    internal static byte[]? ReadFrame(Stream input)
     {
         var header = new List<byte>();
         while (!(header.Count >= 4 && header[^4] == '\r' && header[^3] == '\n' && header[^2] == '\r' && header[^1] == '\n'))
@@ -261,7 +285,24 @@ internal static class Program
         File.WriteAllText(pidFile, string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{Environment.ProcessId} {child.Id}"));
     }
 
-    private static void WriteStdout(byte[] bytes)
+    // The child gets this process's own stdin and stdout, so the pipes stay open after this process exits, until the
+    // child exits. Its stderr is a pipe of its own, which no one reads.
+    private static void HoldStdio(int milliseconds)
+    {
+        var start = new ProcessStartInfo(Environment.ProcessPath!)
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardError = true,
+        };
+        start.ArgumentList.Add("exec");
+        start.ArgumentList.Add(typeof(Program).Assembly.Location);
+        start.ArgumentList.Add("--sleep");
+        start.ArgumentList.Add(milliseconds.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Process.Start(start);
+    }
+
+    internal static void WriteStdout(byte[] bytes)
     {
         var stdout = Console.OpenStandardOutput();
         stdout.Write(bytes);

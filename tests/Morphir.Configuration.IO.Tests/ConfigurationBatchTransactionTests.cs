@@ -4,6 +4,7 @@ using Morphir.Configuration.IO;
 
 namespace Morphir.Configuration.IO.Tests;
 
+[Category("PlatformSpecific")]
 public sealed class ConfigurationBatchTransactionTests
 {
     [Test]
@@ -59,6 +60,7 @@ public sealed class ConfigurationBatchTransactionTests
     }
 }
 
+[Category("PlatformSpecific")]
 public sealed class ConfigurationBatchRecoveryBoundaryTests
 {
     [Test]
@@ -145,6 +147,7 @@ public sealed class ConfigurationBatchRecoveryBoundaryTests
     }
 }
 
+[Category("PlatformSpecific")]
 public sealed class ConfigurationFinalPreconditionTests
 {
     [Test]

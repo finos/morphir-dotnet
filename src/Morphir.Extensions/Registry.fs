@@ -158,7 +158,7 @@ type HostAvailability =
     /// <summary>The command names of the hosts.</summary>
     override this.ToString() = String.Join(", ", this.WireValues)
 
-/// <summary>Why the WASM runtime of a host is unavailable: the three reasons of the runtime report. Nothing turns the runtime off, so no reason says it is.</summary>
+/// <summary>Why the WASM runtime of a host is unavailable.</summary>
 [<RequireQualifiedAccess>]
 type WasmRuntimeUnavailableReason =
     /// <summary>The engine has no build for this platform.</summary>
@@ -167,6 +167,8 @@ type WasmRuntimeUnavailableReason =
     | EngineMissing
     /// <summary>The engine library is present but did not load.</summary>
     | EngineLoadFailed
+    /// <summary>Windows x64 trap handling is not compatible with the retained process protections.</summary>
+    | WinX64TrapUnsupported
 
     /// <summary>The text that the runtime report writes.</summary>
     member this.WireValue =
@@ -174,6 +176,7 @@ type WasmRuntimeUnavailableReason =
         | PlatformUnsupported -> "platform_unsupported"
         | EngineMissing -> "engine_missing"
         | EngineLoadFailed -> "engine_load_failed"
+        | WinX64TrapUnsupported -> "win_x64_trap_unsupported"
 
     /// <summary>What the reason means, as a clause the runtime report and its diagnostics write after the wire value.</summary>
     member this.Description =
@@ -181,6 +184,7 @@ type WasmRuntimeUnavailableReason =
         | PlatformUnsupported -> "the engine has no build for this platform"
         | EngineMissing -> "the engine's native library is not in this installation"
         | EngineLoadFailed -> "the engine's native library is present but did not load"
+        | WinX64TrapUnsupported -> "Windows x64 trap handling is unavailable with the required process protections (issue #609)"
 
     /// <summary>The common registry reason; the runtime report keeps the separate wire code.</summary>
     member internal this.CommonReason =
@@ -425,6 +429,54 @@ module ValidatorClaim =
         NonEmptySet.ofSeq "IR versions" versions
         |> Result.map (fun set -> { IrVersions = set })
 
+/// <summary>Where in a command a transform runs.</summary>
+[<RequireQualifiedAccess>]
+type TransformStage =
+    /// <summary>Right after a frontend, on the model that it wrote. Independent of any target.</summary>
+    | AfterFrontend
+    /// <summary>Right before the backend of the target, on the model that the backend reads.</summary>
+    | BeforeBackend of Target: TargetId
+
+    /// <summary>The stage as text: <c>after-frontend</c> or <c>before-backend</c>.</summary>
+    member this.WireValue =
+        match this with
+        | AfterFrontend -> "after-frontend"
+        | BeforeBackend _ -> "before-backend"
+
+    /// <summary>For C# callers: the target id, or null for a stage that has no target.</summary>
+    member this.TargetOrNull : TargetId | null =
+        match this with
+        | AfterFrontend -> null
+        | BeforeBackend target -> target
+
+    /// <summary>For C# code that must branch: one function for each case.</summary>
+    member this.Match<'R>(afterFrontend: Func<'R>, beforeBackend: Func<TargetId, 'R>) : 'R =
+        match this with
+        | AfterFrontend -> afterFrontend.Invoke()
+        | BeforeBackend target -> beforeBackend.Invoke target
+
+    /// <summary>The stage, and for a backend stage the target, for example <c>before-backend csharp</c>.</summary>
+    override this.ToString() =
+        match this with
+        | AfterFrontend -> this.WireValue
+        | BeforeBackend target -> $"{this.WireValue} {target.Value}"
+
+/// <summary>
+/// What a transform claims: the stage in which a command runs it. This is a morphir-dotnet report member; MEP
+/// 0.2.0-draft.1 has no transform capability, so it is never written into MEP messages.
+/// </summary>
+type TransformClaim =
+    {
+        /// <summary>The stage.</summary>
+        Stage: TransformStage
+    }
+
+    /// <summary>For C# callers and literals: a claim of the stage.</summary>
+    static member Create(stage: TransformStage) : TransformClaim = { Stage = stage }
+
+    /// <summary>The stage.</summary>
+    override this.ToString() = string this.Stage
+
 /// <summary>A capability that an extension claims. Each case fixes the extension type it implies.</summary>
 [<RequireQualifiedAccess>]
 type ExtensionCapability =
@@ -434,6 +486,8 @@ type ExtensionCapability =
     | Backend of BackendClaim
     /// <summary>A validator that reads a model and reports diagnostics.</summary>
     | Validator of ValidatorClaim
+    /// <summary>A transform that changes a model in a stage of a command.</summary>
+    | Transform of TransformClaim
 
     /// <summary>The extension type that this capability implies.</summary>
     member this.Type =
@@ -441,6 +495,7 @@ type ExtensionCapability =
         | Frontend _ -> ExtensionType.Frontend
         | Backend _ -> ExtensionType.Backend
         | Validator _ -> ExtensionType.Validator
+        | Transform _ -> ExtensionType.Transform
 
     /// <summary>
     /// The short text for a table cell: the type, and for a validator the IR versions it reads, for example
@@ -453,6 +508,7 @@ type ExtensionCapability =
             $"{ExtensionType.Frontend.WireValue} ({languages})"
         | Backend _ -> ExtensionType.Backend.WireValue
         | Validator claim -> $"{ExtensionType.Validator.WireValue} ({claim})"
+        | Transform claim -> $"{ExtensionType.Transform.WireValue} ({claim})"
 
     /// <summary>The capability and its claim.</summary>
     override this.ToString() =
@@ -460,6 +516,7 @@ type ExtensionCapability =
         | Frontend claim -> $"frontend ({claim})"
         | Backend claim -> $"backend ({claim})"
         | Validator claim -> $"validator ({claim})"
+        | Transform claim -> $"transform ({claim})"
 
 /// <summary>Who an extension is, in the shape of the MEP <c>ExtensionInfo</c> record.</summary>
 type ExtensionIdentity =
@@ -588,6 +645,7 @@ type ExtensionEntry =
             function
             | ExtensionCapability.Frontend claim -> Some claim
             | ExtensionCapability.Backend _
+            | ExtensionCapability.Transform _
             | ExtensionCapability.Validator _ -> None
         )
         |> Option.toObj
@@ -599,6 +657,7 @@ type ExtensionEntry =
             function
             | ExtensionCapability.Backend claim -> Some claim
             | ExtensionCapability.Frontend _
+            | ExtensionCapability.Transform _
             | ExtensionCapability.Validator _ -> None
         )
         |> Option.toObj
@@ -610,7 +669,20 @@ type ExtensionEntry =
             function
             | ExtensionCapability.Validator claim -> Some claim
             | ExtensionCapability.Frontend _
+            | ExtensionCapability.Transform _
             | ExtensionCapability.Backend _ -> None
+        )
+        |> Option.toObj
+
+    /// <summary>For C# callers: the transform claim, or null when the extension is not a transform.</summary>
+    member this.TransformClaimOrNull =
+        this.Capabilities
+        |> Seq.tryPick (
+            function
+            | ExtensionCapability.Transform claim -> Some claim
+            | ExtensionCapability.Frontend _
+            | ExtensionCapability.Backend _
+            | ExtensionCapability.Validator _ -> None
         )
         |> Option.toObj
 
@@ -640,7 +712,7 @@ type ExtensionEntry =
 
     /// <summary>
     /// The MEP capability claims of the entry, with only the claim kinds that the pinned contract defines. A backend
-    /// claim maps to <c>backend</c>. A validator claim stays out: MEP 0.2.0-draft.1 has no validator capability. A
+    /// claim maps to <c>backend</c>. A validator claim stays out: MEP 0.2.0-draft.1 has no validator capability. A transform claim stays out for the same reason. A
     /// built-in frontend claim stays out too: an in-process frontend is not offered to a MEP peer.
     /// </summary>
     member this.ToMepCapabilities() : Morphir.Mep.ExtensionCapabilities =
@@ -663,6 +735,7 @@ type ExtensionEntry =
                         : Morphir.Mep.BackendCapability
                     )
                 | ExtensionCapability.Frontend _
+                | ExtensionCapability.Transform _
                 | ExtensionCapability.Validator _ -> None
             )
 
@@ -671,6 +744,7 @@ type ExtensionEntry =
             Backend = backend
             Workspace = None
             ModelTransport = None
+            ModelAccess = None
             Streaming = false
             Incremental = false
             Cancellation = false
@@ -730,6 +804,20 @@ type ExtensionEntry =
             Hosts = HostAvailability.AllHosts
             Deployments = EntryDeployments.Every
             Capabilities = NonEmptySet.create (ExtensionCapability.Validator claim) []
+        }
+
+    /// <summary>A built-in transform that runs in both hosts and every offering. Its type comes from the claim.</summary>
+    static member BuiltInTransform
+        (
+            identity: ExtensionIdentity,
+            claim: TransformClaim
+        ) : ExtensionEntry =
+        {
+            Identity = identity
+            Delivery = ExtensionDelivery.BuiltIn
+            Hosts = HostAvailability.AllHosts
+            Deployments = EntryDeployments.Every
+            Capabilities = NonEmptySet.create (ExtensionCapability.Transform claim) []
         }
 
     /// <summary>The identity, delivery, hosts and deployments.</summary>

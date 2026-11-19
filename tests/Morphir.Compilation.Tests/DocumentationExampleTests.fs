@@ -152,4 +152,5 @@ let tests =
                 documented
                 "the documentation and the test show the same code"
         }
+        |> testLabel "PlatformSpecific"
     ]

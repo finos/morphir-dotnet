@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
         <RootNamespace>Morphir.Compilation.Mep</RootNamespace>
         <Description>The MEP 0.2.0-draft.1 host side of guest processes: the guest process and session, and the frontend adapter, an IFrontend over a guest that serves morphir.frontend.compileModel. Trim-safe and AOT-safe.</Description>
         <Nullable>enable</Nullable>
@@ -14,15 +14,20 @@
 
     <ItemGroup>
         <PackageReference Include="FSharp.Core" />
+        <InternalsVisibleTo Include="Morphir.Compilation.Mep.Tests" />
+        <InternalsVisibleTo Include="Morphir.Tooling" />
+        <InternalsVisibleTo Include="Morphir.Tooling.Tests" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\Morphir.Compilation\Morphir.Compilation.fsproj" />
         <ProjectReference Include="..\Morphir.Mep\Morphir.Mep.fsproj" />
+        <ProjectReference Include="..\Morphir.Toolchain.IO\Morphir.Toolchain.IO.fsproj" />
     </ItemGroup>
 
     <ItemGroup>
         <Compile Include="MepGuestProcess.fs" />
+        <Compile Include="MepChannelGuest.fs" />
         <Compile Include="MepFrontend.fs" />
         <Compile Include="MepGenerationTransport.fs" />
     </ItemGroup>

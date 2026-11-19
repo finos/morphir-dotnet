@@ -54,4 +54,5 @@ let tests =
                 let bytes = Array.zeroCreate<byte> length
                 random.NextBytes bytes
                 Expect.equal (Digest.ofBytes bytes) (platform bytes) $"{length} bytes")
+        |> testLabel "PlatformSpecific"
     ]

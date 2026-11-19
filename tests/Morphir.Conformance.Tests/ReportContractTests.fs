@@ -130,8 +130,10 @@ let private reportFor (control: JsonNode) =
     report["suite"] <- suiteNode
     Encoding.UTF8.GetBytes(report.ToJsonString())
 
+// PlatformSpecific: these tests read files of the checkout, so the platform scope of the Test target runs them on
+// every operating system (docs/contributing/ci-os-matrix.md).
 [<Tests>]
-let tests = testList "WASM host normative report controls" [
+let tests = testLabel "PlatformSpecific" <| testList "WASM host normative report controls" [
     test "all 22 pinned controls and every rule element remain present" {
         let data = controls.Force()
         Expect.isTrue (inventoryValid (data["controls"].AsArray())) "exact independent inventory"

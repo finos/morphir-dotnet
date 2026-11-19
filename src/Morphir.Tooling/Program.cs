@@ -2,7 +2,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Serilog;
-using Serilog.Events;
 using Foundatio.Mediator;
 
 namespace Morphir.Tooling;
@@ -33,13 +32,7 @@ public static partial class Program
         // This keeps stdout clean for command output (JSON, formatted results, etc.)
         // Write ALL log levels to stderr (not stdout)
         // This is critical for CLI tools: stdout = data, stderr = diagnostics
-        Log.Logger = new LoggerConfiguration()
-            .MinimumLevel.Information()
-            .WriteTo.Console(
-                standardErrorFromLevel: LogEventLevel.Verbose,
-                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}"
-            )
-            .CreateLogger();
+        Log.Logger = Infrastructure.CliLogging.Create();
 
         // Add Serilog to the logging builder (not services)
         builder.Logging.AddSerilog(Log.Logger, dispose: true);

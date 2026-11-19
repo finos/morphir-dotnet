@@ -50,10 +50,10 @@ type CliAdapterOptions = {
 }
 
 /// <summary>
-/// The <c>cli</c> adapter (MCK-1): it drives any <c>morphir</c> executable through <c>compile --json-lines</c>, the
+/// The <c>cli</c> adapter (MCK-1): it drives any <c>morphir</c> executable through <c>compile --json</c>, the
 /// <c>completed</c> record and the written IR. It uses only the documented command line
 /// (<c>docs/content/docs/cli/compile.md</c>): the options <c>--project</c>, <c>--input</c>, <c>--project-file</c>,
-/// <c>--ir-version</c> and <c>--json-lines</c>, the <c>project.name</c> and <c>project.exposed_modules</c> keys of
+/// <c>--ir-version</c> and <c>--json</c> (a bare flag: the stream), the <c>project.name</c> and <c>project.exposed_modules</c> keys of
 /// <c>morphir.toml</c>, the JSON Lines record format, the report members <c>success</c>, <c>exitCode</c>,
 /// <c>sources</c>, <c>output</c> and <c>diagnostics</c>, and the exit codes. It ignores unknown records and members.
 /// </summary>
@@ -96,16 +96,21 @@ module CliAdapter =
         Security.SecurityElement.Escape msbuild
 
     /// <summary>
-    /// The default project file: an SDK-style <c>.fsproj</c> whose <c>Compile</c> items are the case documents in
-    /// case order. Documents of other languages have no default project file.
+    /// An SDK-style project file whose <c>Compile</c> items are the case documents in case order, or an error when a
+    /// document has none of <paramref name="extensions"/>.
     /// </summary>
-    let fsharpProjectFile (input: CompileInput) : Result<CliProjectFile, string> =
+    let private msbuildProjectFile
+        (path: string)
+        (extensions: string list)
+        (properties: string list)
+        (input: CompileInput)
+        : Result<CliProjectFile, string> =
         let other =
             input.Documents
             |> List.filter (fun document ->
                 not (
-                    document.Uri.EndsWith(".fs", StringComparison.Ordinal)
-                    || document.Uri.EndsWith(".fsi", StringComparison.Ordinal)
+                    extensions
+                    |> List.exists (fun extension -> document.Uri.EndsWith(extension, StringComparison.Ordinal))
                 )
             )
 
@@ -121,19 +126,44 @@ module CliAdapter =
                 )
                 |> String.concat ""
 
+            let properties =
+                properties
+                |> List.map (fun property -> $"    {property}\n")
+                |> String.concat ""
+
             Ok
                 {
-                    Path = "Conformance.fsproj"
+                    Path = path
                     Text =
                         "<Project Sdk=\"Microsoft.NET.Sdk\">\n"
                         + "  <PropertyGroup>\n"
                         + "    <TargetFramework>net10.0</TargetFramework>\n"
+                        + properties
                         + "  </PropertyGroup>\n"
                         + "  <ItemGroup>\n"
                         + items
                         + "  </ItemGroup>\n"
                         + "</Project>\n"
                 }
+
+    /// <summary>
+    /// The default project file: an SDK-style <c>.fsproj</c> whose <c>Compile</c> items are the case documents in
+    /// case order. Documents of other languages have no default project file.
+    /// </summary>
+    let fsharpProjectFile (input: CompileInput) : Result<CliProjectFile, string> =
+        msbuildProjectFile "Conformance.fsproj" [ ".fs"; ".fsi" ] [] input
+
+    /// <summary>
+    /// The C# project file: an SDK-style <c>.csproj</c> whose <c>Compile</c> items are the case documents in case
+    /// order. The default compile items are off, so that no glob adds the documents again in another order.
+    /// Documents of other languages have no C# project file.
+    /// </summary>
+    let csharpProjectFile (input: CompileInput) : Result<CliProjectFile, string> =
+        msbuildProjectFile
+            "Conformance.csproj"
+            [ ".cs" ]
+            [ "<EnableDefaultCompileItems>false</EnableDefaultCompileItems>" ]
+            input
 
     /// <summary>
     /// Stops a process and every descendant that it started, and waits a bounded time for the process to end.
@@ -502,7 +532,7 @@ module CliAdapter =
                             caseDirectory
                             "--ir-version"
                             input.IrVersion
-                            "--json-lines"
+                            "--json"
                         ]
                         @ sources
                         @ options.ExtraArguments
@@ -580,7 +610,7 @@ module CliAdapter =
                 |> Option.defaultValue ""
 
             return {
-                Name = nonNull (Path.GetFileNameWithoutExtension implementation)
+                Name = Path.GetFileNameWithoutExtension implementation
                 Version = line
                 Sha256 = Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes implementation))
             }

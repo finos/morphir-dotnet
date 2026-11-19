@@ -1,0 +1,313 @@
+// Copyright 2026 FINOS
+// SPDX-License-Identifier: Apache-2.0
+using FluentAssertions;
+using Morphir.TestSupport.Drivers;
+using Morphir.TestSupport.Fixtures;
+
+namespace Morphir.TestSupport.Tests.Drivers;
+
+/// <summary>
+/// The drivers of the <c>model verify</c> and <c>generate</c> commands and their report types (design DRV-1 and
+/// ASRT-1 of the change consolidate-black-box-tests). The command line tests use a recording CLI driver; the report
+/// tests run the real commands of the development build.
+/// </summary>
+[Category("PlatformSpecific")]
+public class CapabilityDriverTests
+{
+    private static ScenarioWorkspace Workspace() =>
+        ScenarioWorkspace.Create(Path.Combine(AppContext.BaseDirectory, "Fixtures"));
+
+    private static CliDriver Cli(IScenarioWorkspace workspace) =>
+        new(new TestTarget.DevelopmentBuild(), MorphirHost.Native,
+            CliArtifacts.OfDevelopmentBuild(typeof(CapabilityDriverTests).Assembly).PathOf(MorphirHost.Native), workspace);
+
+    private static CommandResult Result(int exitCode, string output) =>
+        new("morphir", exitCode, output, "", TimeSpan.Zero, []);
+
+    private sealed class RecordingCli : ICliDriver
+    {
+        public List<IReadOnlyList<string>> Commands { get; } = [];
+
+        public TestTarget Target { get; } = new TestTarget.DevelopmentBuild();
+
+        public MorphirHost Host => MorphirHost.Native;
+
+        public Task<CommandResult> RunAsync(IReadOnlyList<string> arguments, CliRunOptions? options = null, CancellationToken cancellation = default)
+        {
+            Commands.Add(arguments);
+            return Task.FromResult(Result(0, ""));
+        }
+
+        public Task<CommandResult> RunCommandLineAsync(string commandLine, CliRunOptions? options = null, CancellationToken cancellation = default) =>
+            throw new NotSupportedException("A capability driver gives each argument apart.");
+    }
+
+    [Test]
+    public async Task VerifyBuildsTheCommandLineWithThePathAsOneArgument()
+    {
+        await using var workspace = Workspace();
+        var cli = new RecordingCli();
+        var model = workspace.File("my models", "valid ir.json");
+
+        await new ModelVerificationDriver(cli).VerifyAsync(model);
+        await new ModelVerificationDriver(cli).VerifyAsync(model, new VerificationOptions { SchemaVersion = 3, Json = JsonOutputArgument.Stream });
+        await new ModelVerificationDriver(cli).VerifyAsync(model, new VerificationOptions { Quiet = true });
+        await new ModelVerificationDriver(cli).VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Document });
+        await new ModelVerificationDriver(cli).VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Stream.Then("--no-such-option") });
+
+        cli.Commands[0].Should().Equal("model", "verify", model.Path);
+        // The --json argument comes before the path, so the path is the argument after a bare --json.
+        cli.Commands[1].Should().Equal("model", "verify", "--json", model.Path, "--schema-version", "3");
+        cli.Commands[2].Should().Equal("model", "verify", model.Path, "--quiet");
+        cli.Commands[3].Should().Equal("model", "verify", "--json=document", model.Path);
+        // An unknown option ends the command line, so the parser cannot take it as the path.
+        cli.Commands[4].Should().Equal("model", "verify", "--json", model.Path, "--no-such-option");
+        model.Path.Should().Contain(" ");
+    }
+
+    [Test]
+    public async Task VerifyTakesTheDirectoryOfATreeAsOneArgument()
+    {
+        await using var workspace = Workspace();
+        var cli = new RecordingCli();
+        var tree = workspace.Directory("my models", "a tree");
+
+        await new ModelVerificationDriver(cli).VerifyAsync(tree, new VerificationOptions { Json = JsonOutputArgument.Document });
+
+        cli.Commands[0].Should().Equal("model", "verify", "--json=document", tree.Path);
+    }
+
+    [Test]
+    public async Task ARealVerificationReportOfATreeReadsItsLayoutItsFilesAndTheFileAndCodeOfAnError()
+    {
+        await using var workspace = Workspace();
+        var faulty = FixtureCatalog.Trees.WrittenV4WithAMissingValueFile;
+        var tree = workspace.WriteTree(faulty.Tree, "my models", "a tree");
+
+        var result = await new ModelVerificationDriver(Cli(workspace)).VerifyAsync(tree, new VerificationOptions { Json = JsonOutputArgument.Document });
+        var report = VerificationReport.Of(result);
+
+        result.ShouldExitWith(1);
+        report.ShouldBeInvalid();
+        report.Layout.Should().Be("document-tree");
+        report.FilesChecked.Should().Be(faulty.Tree.Files.Count);
+        report.CompactedFiles.Should().BeEmpty();
+        report.SchemaVersion.Should().Be("4");
+        var error = report.ShouldHaveAnErrorAt(faulty.Fault, "missing_member");
+        error.File.Should().Be(faulty.Fault.File);
+        error.Code.Should().Be("missing_member");
+        ((Action)(() => report.ShouldHaveAnErrorAt(faulty.Fault, "unknown_member"))).Should().Throw<CommandAssertionException>()
+            .WithMessage("*no error unknown_member*").WithMessage("*missing_member*");
+        ((Action)(() => report.ShouldHaveAnErrorAt(faulty.Fault with { File = "manifest.json" }))).Should().Throw<CommandAssertionException>();
+    }
+
+    [Test]
+    public async Task ARealVerificationReportOfASingleFileHasItsLayoutAndNoFileInItsErrors()
+    {
+        await using var workspace = Workspace();
+        var faulty = FixtureCatalog.Models.V4WithAnUnknownTypeTag;
+        var model = workspace.File("my models", "model.json");
+        workspace.WriteBytes(model, FixtureCatalog.ReadBytes(faulty.Entry));
+
+        var report = VerificationReport.Of(await new ModelVerificationDriver(Cli(workspace)).VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Stream }));
+
+        report.Layout.Should().Be("single-file");
+        report.FilesChecked.Should().Be(1);
+        report.SchemaVersion.Should().Be("4");
+        report.Errors.Should().OnlyContain(error => error.File == null, "a single file has no file of a tree");
+        report.ShouldHaveAnErrorAt(faulty.Fault, "unknown_node").Path.Should().Be(faulty.Fault.JsonPointer);
+    }
+
+    [Test]
+    public async Task GenerateBuildsTheCommandLineWithEachPathAndEachOptionAsOneArgument()
+    {
+        await using var workspace = Workspace();
+        var cli = new RecordingCli();
+        var model = workspace.File("my models", "car rental.json");
+        var output = workspace.Directory("generated code");
+
+        await new GenerationDriver(cli).GenerateAsync(model, "csharp", output);
+        await new GenerationDriver(cli).GenerateAsync(model, "csharp", output, new GenerationOptions
+        {
+            Json = null,
+            InputFormat = "json",
+            Options = ["namespace=Pricing.Generated", "language-version=14"],
+        });
+
+        await new GenerationDriver(cli).GenerateAsync(workspace.Directory("my models", "a tree"), "csharp", output);
+
+        cli.Commands[2].Should().Equal("generate", "--input", workspace.Directory("my models", "a tree").Path, "--target", "csharp", "--output", output.Path, "--json");
+        cli.Commands[0].Should().Equal("generate", "--input", model.Path, "--target", "csharp", "--output", output.Path, "--json");
+        cli.Commands[1].Should().Equal(
+            "generate", "--input", model.Path, "--target", "csharp", "--output", output.Path,
+            "--input-format", "json", "--option", "namespace=Pricing.Generated", "--option", "language-version=14");
+    }
+
+    [Test]
+    public async Task ARealVerificationReportOfAValidModelReadsIsValid()
+    {
+        await using var workspace = Workspace();
+        var model = workspace.CopyFixture("Cli/valid-ir-v3.json", "my models/valid ir.json");
+
+        var result = await new ModelVerificationDriver(Cli(workspace)).VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Stream });
+        var report = VerificationReport.Of(result);
+
+        result.ShouldExitWith(0);
+        report.IsValid.Should().BeTrue();
+        report.SchemaVersion.Should().Be("3");
+        report.DetectionMethod.Should().Be("auto");
+        report.FilePath.Should().EndWith("valid ir.json");
+        report.Errors.Should().BeEmpty();
+        report.ExitCode.Should().Be(0);
+        report.ShouldStateTheExitCode(0);
+        report.ShouldBeValid();
+        ((Action)(() => report.ShouldBeInvalid())).Should().Throw<CommandAssertionException>().WithMessage("*IsValid is true*");
+    }
+
+    [Test]
+    public async Task ARealVerificationReportOfAnInvalidModelHasItsErrors()
+    {
+        await using var workspace = Workspace();
+        var model = workspace.CopyFixture("Cli/invalid-missing-formatversion.json");
+
+        var result = await new ModelVerificationDriver(Cli(workspace)).VerifyAsync(model, new VerificationOptions { Json = JsonOutputArgument.Stream });
+        var report = VerificationReport.Of(result);
+
+        result.ShouldExitWith(1);
+        report.IsValid.Should().BeFalse();
+        report.Errors.Should().ContainSingle().Which.Message.Should().Contain("formatVersion");
+        report.ExitCode.Should().Be(1);
+        ((Action)(() => report.ShouldStateTheExitCode(2))).Should().Throw<CommandAssertionException>().WithMessage("*exit code 1, not 2*");
+        report.ShouldBeInvalid();
+        ((Action)(() => report.ShouldBeValid())).Should().Throw<CommandAssertionException>()
+            .WithMessage("*IsValid is false*").WithMessage("*formatVersion*").WithMessage("*command: *");
+    }
+
+    [Test]
+    public void AVerificationReportWithNoIsValidFieldFails()
+    {
+        var read = () => VerificationReport.Of(Result(0, "{ \"success\": true }"));
+
+        read.Should().Throw<CommandAssertionException>().WithMessage("*IsValid*");
+    }
+
+    [Test]
+    public void AVerificationReportThatStatesNoExitCodeFailsTheExitCodeCheck()
+    {
+        var report = VerificationReport.Of(Result(1, "{ \"IsValid\": false }"));
+
+        report.ExitCode.Should().BeNull();
+        ((Action)(() => report.ShouldStateTheExitCode(1))).Should().Throw<CommandAssertionException>().WithMessage("*exit code null, not 1*");
+    }
+
+    [Test]
+    public void AVerificationReportWhoseExitCodeIsNotTheExitCodeOfTheRunFails()
+    {
+        var report = VerificationReport.Of(Result(1, "{ \"IsValid\": false, \"exitCode\": 2 }"));
+
+        ((Action)(() => report.ShouldStateTheExitCode(2))).Should().Throw<CommandAssertionException>().WithMessage("*the run exits with 1*");
+    }
+
+    [Test]
+    public async Task ARealGenerationReportReadsSuccessAndTheFilesOfTheRun()
+    {
+        await using var workspace = Workspace();
+        var model = workspace.CopyFixture("Cli/car-rental-v3.json", "my models/car rental.json");
+        var output = workspace.Directory("generated code");
+
+        var result = await new GenerationDriver(Cli(workspace)).GenerateAsync(model, "csharp", output);
+        var report = GenerationReport.Of(result);
+
+        report.Success.Should().BeTrue();
+        report.Backend.Should().Be("morphir.csharp");
+        report.SourceVersion.Should().Be("3");
+        report.FailureKind.Should().BeNull();
+        report.Artifacts.Should().Contain("p_Car.Rental/m_BillingModule.g.cs");
+        report.Written.Should().Equal(report.Artifacts);
+        report.Unchanged.Should().BeEmpty();
+        report.Removed.Should().BeEmpty();
+        report.Diagnostics.Should().BeEmpty();
+        report.ShouldSucceed();
+        result.ShouldHaveWritten("generated code/p_Car.Rental/m_BillingModule.g.cs");
+        ((Action)(() => report.ShouldFail("semantic"))).Should().Throw<CommandAssertionException>().WithMessage("*success is true*");
+    }
+
+    [Test]
+    public async Task ARealGenerationReportOfAMissingInputHasItsFailureKindAndItsDiagnostics()
+    {
+        await using var workspace = Workspace();
+
+        var result = await new GenerationDriver(Cli(workspace)).GenerateAsync(workspace.File("none.json"), "csharp", workspace.Directory("out"));
+        var report = GenerationReport.Of(result);
+
+        result.ShouldExitWith(2);
+        report.Success.Should().BeFalse();
+        report.FailureKind.Should().Be("operational");
+        report.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("input-read");
+        report.ShouldFail("operational");
+        ((Action)(() => report.ShouldSucceed())).Should().Throw<CommandAssertionException>()
+            .WithMessage("*success is false*").WithMessage("*input-read*");
+        ((Action)(() => report.ShouldFail("semantic"))).Should().Throw<CommandAssertionException>().WithMessage("*operational*");
+    }
+
+    [Test]
+    [Arguments(1, "\"success\": true, \"exitCode\": 0", "success is true, but the exit code is 1")]
+    [Arguments(0, "\"success\": false, \"exitCode\": 0", "success is false, but the exit code is 0")]
+    [Arguments(2, "\"success\": false, \"exitCode\": 1", "exitCode is 1, but the exit code is 2")]
+    public void AGenerationReportThatDisagreesWithTheExitCodeFails(int exitCode, string status, string reason)
+    {
+        var read = () => GenerationReport.Of(Result(exitCode, CompleteReport.Replace("\"success\": true, \"exitCode\": 0", status)));
+
+        read.Should().Throw<CommandAssertionException>().WithMessage($"*{reason}*");
+    }
+
+    private const string CompleteReport =
+        "{ \"success\": true, \"exitCode\": 0, \"artifacts\": [\"A.cs\"], \"written\": [\"A.cs\"], \"unchanged\": [], \"removed\": [], \"diagnostics\": [] }";
+
+    [Test]
+    public void AGenerationReportWithEachListIsRead() =>
+        GenerationReport.Of(Result(0, CompleteReport)).Artifacts.Should().Equal("A.cs");
+
+    [Test]
+    [Arguments("artifacts")]
+    [Arguments("written")]
+    [Arguments("unchanged")]
+    [Arguments("removed")]
+    [Arguments("diagnostics")]
+    public void AGenerationReportWithNoListOfThatNameFails(string field)
+    {
+        var report = CompleteReport.Replace($"\"{field}\"", $"\"no-{field}\"");
+
+        var read = () => GenerationReport.Of(Result(0, report));
+
+        read.Should().Throw<CommandAssertionException>().WithMessage($"*The generation report has no list {field}.*");
+    }
+
+    [Test]
+    [Arguments("\"artifacts\": [\"A.cs\"]", "\"artifacts\": \"A.cs\"", "artifacts")]
+    [Arguments("\"removed\": []", "\"removed\": [7]", "removed")]
+    [Arguments("\"written\": [\"A.cs\"]", "\"written\": [null]", "written")]
+    [Arguments("\"diagnostics\": []", "\"diagnostics\": [\"text\"]", "diagnostics")]
+    public void AGenerationReportWithAListOfTheWrongFormFails(string list, string wrong, string field)
+    {
+        var read = () => GenerationReport.Of(Result(0, CompleteReport.Replace(list, wrong)));
+
+        read.Should().Throw<CommandAssertionException>().WithMessage($"*{field}*");
+    }
+
+    [Test]
+    public void AGenerationReportWithNoSuccessFieldFails()
+    {
+        var read = () => GenerationReport.Of(Result(0, "{ \"IsValid\": true }"));
+
+        read.Should().Throw<CommandAssertionException>().WithMessage("*success*");
+    }
+
+    [Test]
+    public void AReportIsReadOnlyFromOneJsonDocument()
+    {
+        var read = () => GenerationReport.Of(Result(0, "[12:00 INF] log\n" + CompleteReport));
+
+        read.Should().Throw<CommandAssertionException>().WithMessage("*not exactly one JSON document*");
+    }
+}

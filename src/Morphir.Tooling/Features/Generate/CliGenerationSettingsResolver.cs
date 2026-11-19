@@ -16,6 +16,9 @@ public sealed class CliGenerationSettingsResolver : IGenerationSettingsResolver
             if (string.IsNullOrWhiteSpace(value))
                 return ValueTask.FromResult(Fail("missing-" + name, $"Specify --{name}."));
 
+        if (!BoundedGenerationProfile.TryParse(overrides.BoundedProfile, out var boundedProfile))
+            return ValueTask.FromResult(Fail("generate.invalid_bounded_profile", "--bounded-profile accepts only orders-scale; omit it for normal limits."));
+
         var format = overrides.InputFormat switch
         {
             null or "auto" => InputFormat.Auto,
@@ -30,6 +33,14 @@ public sealed class CliGenerationSettingsResolver : IGenerationSettingsResolver
             return ValueTask.FromResult(Fail("invalid-extension", "The backend extension from --extension is empty."));
 
         var options = BackendOptionText.Parse(overrides.Options);
+        if (overrides.Extension is not null && overrides.ExtensionId is not null)
+            return ValueTask.FromResult(Fail("invalid-extension", "Choose --extension or --extension-id, not both."));
+        Morphir.Extensions.ExtensionId? installedId = null;
+        if (overrides.ExtensionId is { } rawId)
+        {
+            if (!Morphir.Extensions.ExtensionId.TryParse(rawId, out installedId, out _))
+                return ValueTask.FromResult(Fail("invalid-extension", "--extension-id must be a valid full extension identity."));
+        }
         if (options is Outcome<BackendOptions>.Failure optionFailure)
             return ValueTask.FromResult<Outcome<GenerationSettings>>(new Outcome<GenerationSettings>.Failure(optionFailure.Error));
 
@@ -43,6 +54,8 @@ public sealed class CliGenerationSettingsResolver : IGenerationSettingsResolver
                     Extension = overrides.Extension is { } selected
                         ? new Morphir.Tooling.Features.Compile.Setting<string>(selected, new Morphir.Tooling.Features.Compile.SettingOrigin.CommandLine("--extension"))
                         : null,
+                    InstalledExtensionId = installedId,
+                    BoundedProfile = boundedProfile,
                 }));
         }
         catch (Exception error) when (error is ArgumentException or NotSupportedException or PathTooLongException)

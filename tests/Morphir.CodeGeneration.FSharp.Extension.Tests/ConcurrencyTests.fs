@@ -217,3 +217,4 @@ let tests =
                           Expect.isTrue result.Success $"The admitted request generates: {result}"
                           Expect.isNonEmpty result.Artifacts "with its files"
                   | Error error -> failtest $"An admitted request is served after shutdown, not refused: {error}") ]
+    |> testLabel "PlatformSpecific"

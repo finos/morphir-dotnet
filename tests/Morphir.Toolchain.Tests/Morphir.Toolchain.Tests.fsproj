@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
     <GenerateProgramFile>false</GenerateProgramFile>
     <IsPackable>false</IsPackable>
     <Nullable>enable</Nullable>
@@ -34,17 +34,20 @@
     <Compile Include="ContractTableTests.fs" />
     <Compile Include="NormalizationTests.fs" />
     <Compile Include="CanonicalJsonTests.fs" />
-    <Compile Include="GlobalizationTests.fs" />
     <Compile Include="Sha256Tests.fs" />
     <Compile Include="PrimitiveTests.fs" />
     <Compile Include="PlanningTests.fs" />
     <Compile Include="WriterTests.fs" />
     <Compile Include="CliTests.fs" />
     <Compile Include="LocalCandidateTests.fs" />
+    <Compile Include="ReleaseSetupTests.fs" />
+    <Compile Include="MacArm64SetupTests.fs" />
     <Compile Include="LocalProcessOwnershipTests.fs" />
     <Compile Include="DryRunTests.fs" />
     <Compile Include="ConfigurationAdapterTests.fs" />
     <Compile Include="SchemaTests.fs" />
+    <Compile Include="RefusalResultTests.fs" />
+    <Compile Include="ReleaseSchemaTests.fs" />
     <Compile Include="SignedCaseTests.fs" />
     <Compile Include="ReleaseDescriptorTests.fs" />
     <Compile Include="BindingReviewTests.fs" />

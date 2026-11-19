@@ -13,6 +13,7 @@ open System.Threading.Tasks
 open Expecto
 open Morphir.Mep
 open Morphir.Mep.Tests.Transcripts
+open Morphir.TestSupport.Fixtures
 
 module CF = Morphir.Mep.Tests.ConnectionTests.ConformanceFixture
 
@@ -94,6 +95,588 @@ let private dispatch (guest: Guest) (text: string) =
 let private code (node: JsonNode) =
     node["error"] |> Option.ofObj |> Option.map (fun error -> (error["code"] |> nonNull).GetValue<int>())
 
+let private modelAccessTranscript = readFixture FixtureCatalog.Mep.BoundedGenerationSession
+let private boundedInitialize = modelAccessTranscript[0].Text
+let private boundedGuestResult = modelAccessTranscript[1].Text
+let private boundedStart = modelAccessTranscript[3].Text
+
+let private boundedGuestWithMethods (reply: JsonNode) methods =
+    let initialized = decode MepJson.Default.InitializeResult (reply["result"] |> nonNull)
+
+    let claims =
+        { ClaimsVersion = SemanticVersion.Create "0.1.0-draft.2"
+          ProtocolVersions = [| ProtocolVersion.Create "0.2.0-draft.2"; ProtocolVersion.Create "0.2.0-draft.1" |]
+          Extension = initialized.Extension
+          Capabilities = readOnlyDict []
+          Requires = None
+          Critical = [||] }
+
+    Guest(
+        { Claims = claims
+          Capabilities = initialized.Capabilities
+          Methods = methods }
+    )
+
+let private boundedGuestFrom reply = boundedGuestWithMethods reply (readOnlyDict [])
+let private invalidDocumentDeliveries (delivery: JsonNode) =
+    let variant (key: string) (value: JsonNode) =
+        let changed = delivery.DeepClone()
+        changed[key] <- value
+        changed
+    let length = (delivery["decodedByteLength"] |> nonNull).GetValue<int>()
+    let content = (delivery["content"] |> nonNull).GetValue<string>()
+    [ "incorrect digest", variant "sha256" (JsonValue.Create(String.replicate 64 "0"))
+      "incorrect length", variant "decodedByteLength" (JsonValue.Create(length + 1))
+      "malformed base64", variant "content" (JsonValue.Create("!" + content.Substring(1))) ]
+
+let private boundedGuest () = boundedGuestFrom (JsonNode.Parse boundedGuestResult |> nonNull)
+
+let private boundedReply guest request =
+    dispatch guest request |> Option.defaultWith (fun () -> failtest "Expected a JSON-RPC response")
+
+let private boundedHostInfo () =
+    let request = JsonNode.Parse boundedInitialize |> nonNull
+    decode MepJson.Default.PeerInfo ((request["params"] |> nonNull)["host"] |> nonNull)
+
+[<Tests>]
+let boundedGenerationNegotiationTests =
+    testList
+        "MEP bounded generation negotiation"
+        [
+            testCase "the live initialize result agrees to the exact transcript tuple and limits" <| fun _ ->
+                let guest = boundedGuest ()
+                let actual = boundedReply guest boundedInitialize
+                let expected = JsonNode.Parse boundedGuestResult |> nonNull
+                let actualResult = actual["result"] |> nonNull
+                let expectedResult = expected["result"] |> nonNull
+
+                Expect.equal
+                    ((actualResult["protocolVersion"] |> nonNull).GetValue<string>())
+                    "0.2.0-draft.2"
+                    "The bounded session uses the exact draft"
+
+                Expect.isTrue
+                    (JsonNode.DeepEquals(
+                        (actualResult["capabilities"] |> nonNull)["modelAccess"],
+                        (expectedResult["capabilities"] |> nonNull)["modelAccess"]
+                    ))
+                    "The live session agrees to the complete tuple and every limit"
+
+            testCase "draft.1 never admits a bounded capability or start" <| fun _ ->
+                let guest = boundedGuest ()
+                let legacy = boundedInitialize.Replace(
+                    """["0.2.0-draft.2","0.2.0-draft.1"]""",
+                    """["0.2.0-draft.1"]"""
+                )
+                let actual = boundedReply guest legacy
+                let result = actual["result"] |> nonNull
+
+                Expect.equal
+                    ((result["protocolVersion"] |> nonNull).GetValue<string>())
+                    "0.2.0-draft.1"
+                    "The guest chose the only offered version"
+
+                Expect.isFalse
+                    ((result["capabilities"] |> nonNull).AsObject().ContainsKey "modelAccess")
+                    "The legacy initialize result omits bounded access"
+
+                let request = """{"jsonrpc":"2.0","id":2,"method":"morphir.backend.generateModel.start","params":{}}"""
+                Expect.equal (code (boundedReply guest request)) (Some -32013) "The session refuses the method"
+
+            testCase "a different codec in the offer cannot authorize a bounded call" <| fun _ ->
+                let guest = boundedGuest ()
+                let differentCodec = boundedInitialize.Replace("\"morphir-json\"", "\"morphir-yaml\"")
+                let initialized = boundedReply guest differentCodec
+                let result = initialized["result"] |> nonNull
+                let capabilities = result["capabilities"] |> nonNull
+                let access = capabilities["modelAccess"] |> Option.ofObj
+
+                let tupleCount = access |> Option.map (fun node -> (node["tuples"] |> nonNull).AsArray().Count)
+                Expect.isTrue (tupleCount.IsNone || tupleCount = Some 0) "No tuple is synthesized across codecs"
+
+                let request = """{"jsonrpc":"2.0","id":2,"method":"morphir.backend.generateModel.start","params":{}}"""
+                Expect.equal (code (boundedReply guest request)) (Some -32013) "The session refuses the method"
+
+            testCase "a legacy host refuses an unsolicited bounded selection" <| fun _ ->
+                let reply = JsonNode.Parse boundedGuestResult |> nonNull
+                let result = reply["result"] |> nonNull
+                result["protocolVersion"] <- JsonValue.Create "0.2.0-draft.1"
+                reply["id"] <- JsonValue.Create 0
+                let mutable notifications = 0
+
+                let channel =
+                    { new ISingleMessageChannel with
+                        member _.RequestAsync(_, _, _) =
+                            Task.FromResult<byte array | null>(Encoding.UTF8.GetBytes(reply.ToJsonString()))
+                        member _.NotifyAsync(_, _, _) =
+                            notifications <- notifications + 1
+                            Task.FromResult<byte array | null> null }
+
+                let host = HostSession(channel, boundedHostInfo ())
+                Expect.isError
+                    (host.InitializeAsync(CancellationToken.None).Result)
+                    "An unsolicited bounded capability cannot become live"
+                Expect.equal notifications 0 "The refused result sends no initialized notification"
+
+            testCase "an opted-in host and guest initialize through the single-message channel" <| fun _ ->
+                let request = JsonNode.Parse boundedInitialize |> nonNull
+                let offer = decode MepJson.Default.InitializeParams (request["params"] |> nonNull)
+                let access = offer.ModelAccess |> Option.defaultWith (fun () -> failtest "Missing fixture offer")
+                let guest = boundedGuest ()
+                let calls = ResizeArray<string>()
+
+                let send method (message: ReadOnlyMemory<byte>) cancellation =
+                    calls.Add method
+                    guest.Dispatcher.DispatchAsync(message, cancellation)
+
+                let channel =
+                    { new ISingleMessageChannel with
+                        member _.RequestAsync(method, message, cancellation) = send method message cancellation
+                        member _.NotifyAsync(method, message, cancellation) = send method message cancellation }
+
+                let host = HostSession.CreateWithModelAccess(channel, offer.Host, access, null)
+                let result = host.InitializeAsync(CancellationToken.None).Result
+
+                match result with
+                | Error failure -> failtestf "Expected successful bounded negotiation, got %A" failure
+                | Ok session ->
+                    Expect.equal session.ProtocolVersion (ProtocolVersion.Create "0.2.0-draft.2") "Exact draft"
+                    let selected =
+                        session.Capabilities.ModelAccess
+                        |> Option.defaultWith (fun () -> failtest "Missing live selection")
+                    Expect.sequenceEqual selected.Tuples access.Tuples "The live session has the offered tuple"
+                    Expect.equal selected.Limits access.Limits "Every recorded limit survived the wire exchange"
+                    match selected.Tuples with
+                    | :? System.Collections.Generic.IList<ModelAccessTuple> as tuples ->
+                        Expect.throwsT<NotSupportedException>
+                            (fun () -> tuples[0] <- { tuples[0] with Codec = ModelAccessCodec.MorphirYaml })
+                            "The negotiated tuple list cannot be changed through a public session view"
+                    | _ -> ()
+
+                    use invalid = JsonDocument.Parse(boundedStart.Replace("\"morphir-json\"", "\"morphir-yaml\""))
+                    let parameters = Nullable(invalid.RootElement.GetProperty "params")
+                    let refused = host.RequestAsync(Method.GenerateModelStart, parameters, CancellationToken.None).Result
+                    Expect.isError refused "The host refuses a tuple outside the live selection"
+                    Expect.sequenceEqual calls ["morphir.initialize"; "morphir.initialized"] "Initialization finishes before dispatch"
+
+            testCase "the guest retains host tuple order and uses the lower limit in each direction" <| fun _ ->
+                let request = JsonNode.Parse boundedInitialize |> nonNull
+                let reply = JsonNode.Parse boundedGuestResult |> nonNull
+                let offered = ((request["params"] |> nonNull)["modelAccess"] |> nonNull)
+                let supported = (((reply["result"] |> nonNull)["capabilities"] |> nonNull)["modelAccess"] |> nonNull)
+                let hostTuples = (offered["tuples"] |> nonNull).AsArray()
+                let guestTuples = (supported["tuples"] |> nonNull).AsArray()
+                let classic = (hostTuples[0] |> nonNull).DeepClone()
+                classic["irVersion"] <- JsonValue.Create "3.1.0"
+                guestTuples.Add(classic.DeepClone())
+                hostTuples.Insert(0, classic)
+                (offered["limits"] |> nonNull)["maxNodes"] <- JsonValue.Create 120
+                (supported["limits"] |> nonNull)["maxDepth"] <- JsonValue.Create 12
+
+                let actual = boundedReply (boundedGuestFrom reply) (request.ToJsonString())
+                let agreed = (((actual["result"] |> nonNull)["capabilities"] |> nonNull)["modelAccess"] |> nonNull)
+                let support = decode MepJson.Default.ModelAccessSupport agreed
+                Expect.sequenceEqual
+                    (support.Tuples |> Seq.map _.IrVersion.Value)
+                    ["3.1.0"; "4.0.0"]
+                    "Guest declaration order cannot change host preference"
+                Expect.equal support.Limits.MaxNodes 120 "The lower host limit"
+                Expect.equal support.Limits.MaxDepth 12 "The lower guest limit"
+
+            testCase "the host refuses selections outside observed guest support or empty agreements" <| fun _ ->
+                let offer =
+                    decode MepJson.Default.InitializeParams ((JsonNode.Parse boundedInitialize |> nonNull)["params"] |> nonNull)
+                let support = offer.ModelAccess |> Option.defaultWith (fun () -> failtest "Missing bounded offer")
+                let accepted = ResizeArray<string>()
+
+                for observe, violation in [ true, "overstated depth"; false, "empty agreement" ] do
+                    let guest =
+                        boundedGuestFrom (JsonNode.Parse(boundedGuestResult.Replace("\"maxDepth\":64", "\"maxDepth\":32")) |> nonNull)
+                    let notifications = ResizeArray<string>()
+                    let channel =
+                        { new ISingleMessageChannel with
+                            member _.RequestAsync(method, message, cancellation) = task {
+                                let! response = guest.Dispatcher.DispatchAsync(message, cancellation)
+                                if method = Method.Initialize.WireValue && response <> null then
+                                    let node = JsonNode.Parse(response) |> nonNull
+                                    let result = node["result"] |> nonNull
+                                    let capabilities = result["capabilities"] |> nonNull
+                                    let access = capabilities["modelAccess"] |> nonNull
+                                    if observe then (access["limits"] |> nonNull)["maxDepth"] <- JsonValue.Create 64
+                                    else access["tuples"] <- JsonArray()
+                                    return (Encoding.UTF8.GetBytes(node.ToJsonString()) : byte array | null)
+                                else return response }
+                            member _.NotifyAsync(method, _, _) =
+                                notifications.Add method
+                                Task.FromResult<byte array | null> null }
+                    let host = HostSession.CreateWithModelAccess(channel, offer.Host, support, null)
+                    if observe then Expect.isOk (host.DescribeAsync(CancellationToken.None).Result) "Guest advertised a lower bound"
+                    match host.InitializeAsync(CancellationToken.None).Result with
+                    | Ok _ -> accepted.Add violation
+                    | Error _ -> Expect.isEmpty notifications "A refused selection sends no initialized notification"
+                Expect.isEmpty accepted "Neither invalid selection can initialize"
+
+            testCase "draft.1 initialization ignores an offer it has no codec for" <| fun _ ->
+                let offer = JsonNode.Parse boundedInitialize |> nonNull
+                let parameters = offer["params"] |> nonNull
+                parameters["protocolVersions"] <- JsonNode.Parse """["0.2.0-draft.1"]"""
+                parameters["modelAccess"] <- JsonNode.Parse """{"futureFormat":true}"""
+                let reply = boundedReply (boundedGuest ()) (offer.ToJsonString())
+                Expect.isNone (code reply) "A draft.1 caller can send an unknown optional future member"
+                let initialized = decode MepJson.Default.InitializeResult (reply["result"] |> nonNull)
+                Expect.equal initialized.ProtocolVersion Lifecycle.protocolVersion "Legacy fallback"
+                Expect.isNone initialized.Capabilities.ModelAccess "There is no bounded negotiation on draft.1"
+
+            testCase "describe reports the configured bounded tuples and limits" <| fun _ ->
+                let request =
+                    """{"jsonrpc":"2.0","id":1,"method":"morphir.extension.describe","params":{"protocolVersions":["0.2.0-draft.2"]}}"""
+                let actual = boundedReply (boundedGuest ()) request
+                let capabilities = ((actual["result"] |> nonNull)["capabilities"] |> nonNull)
+                let expected = JsonNode.Parse boundedGuestResult |> nonNull
+                let advertised = ((expected["result"] |> nonNull)["capabilities"] |> nonNull)["modelAccess"]
+                Expect.isTrue (JsonNode.DeepEquals(capabilities["modelAccess"], advertised)) "Exact bounded claims"
+
+            testCase "bounded start admits the exact tuple, target and limits before calling the generator" <| fun _ ->
+                let mutable calls = 0
+                let handler =
+                    Handlers.raw (fun _ _ ->
+                        calls <- calls + 1
+                        Task.FromResult(Ok(JsonRpc.Constant """{"state":"complete","sessionId":"orders-generation","artifacts":[],"diagnostics":[]}""")))
+                let guest =
+                    boundedGuestWithMethods
+                        (JsonNode.Parse boundedGuestResult |> nonNull)
+                        (readOnlyDict [ "morphir.backend.generateModel.start", handler ])
+
+                boundedReply guest boundedInitialize |> ignore
+
+                for invalid, failure in
+                    [
+                        boundedStart.Replace("\"morphir-json\"", "\"morphir-yaml\""), -32013
+                        boundedStart.Replace("\"target\":\"text\"", "\"target\":\"unknown\""), -32013
+                        boundedStart.Replace("\"maxDepth\":64", "\"maxDepth\":65"), -32602
+                    ] do
+                    Expect.equal (code (boundedReply guest invalid)) (Some failure) "The start must use the admitted inputs"
+
+                let notification = (JsonNode.Parse boundedStart |> nonNull).AsObject()
+                notification.Remove "id" |> ignore
+                Expect.isNone (dispatch guest (notification.ToJsonString())) "A notification receives no reply"
+
+                Expect.equal calls 0 "Refused requests never call the generator"
+                Expect.equal (code (boundedReply guest boundedStart)) None "The admitted start succeeds"
+                Expect.equal calls 1 "Exactly one valid start reached the generator"
+
+            testCase "advance admits only the outstanding round and preserves it on refusal" <| fun _ ->
+                let mutable advances = 0
+                let start = Handlers.constant """{"state":"continue","sessionId":"orders-generation","round":1,"requests":[],"artifacts":[],"diagnostics":[]}"""
+                let advance =
+                    Handlers.raw (fun _ _ ->
+                        advances <- advances + 1
+                        match advances with
+                        | 1 -> Task.FromResult(Error(RpcErrors.create ErrorCode.InvalidParams))
+                        | 2 -> Task.FromException<Result<JsonElement, RpcError>>(RpcException(RpcErrors.create ErrorCode.InvalidParams))
+                        | _ -> Task.FromResult(Ok(JsonRpc.Constant """{"state":"complete","sessionId":"orders-generation","artifacts":[],"diagnostics":[]}""")))
+
+                let guest =
+                    boundedGuestWithMethods
+                        (JsonNode.Parse boundedGuestResult |> nonNull)
+                        (readOnlyDict [ Method.GenerateModelStart.WireValue, start; Method.GenerateModelAdvance.WireValue, advance ])
+                let first = """{"jsonrpc":"2.0","id":3,"method":"morphir.backend.generateModel.advance","params":{"sessionId":"orders-generation","round":1,"deliveries":[]}}"""
+
+                boundedReply guest boundedInitialize |> ignore
+                Expect.equal (code (boundedReply guest first)) (Some -32602) "No operation has started"
+                Expect.equal advances 0 "An unopened operation does not dispatch"
+                Expect.equal (code (boundedReply guest boundedStart)) None "The operation requests round one"
+                Expect.equal (code (boundedReply guest (first.Replace("\"round\":1", "\"round\":2")))) (Some -32602) "The next round is premature"
+                Expect.equal advances 0 "An invalid round does not dispatch"
+                Expect.equal (code (boundedReply guest first)) (Some -32602) "The guest refuses invalid deliveries"
+                Expect.equal (code (boundedReply guest first)) (Some -32602) "A handler can also refuse by throwing RpcException"
+                Expect.equal (code (boundedReply guest first)) None "A corrected delivery may retry the same round"
+                Expect.equal (code (boundedReply guest first)) (Some -32602) "A completed operation cannot advance"
+                Expect.equal (code (boundedReply guest boundedStart)) (Some -32602) "A completed ID cannot be reused"
+                Expect.equal advances 3 "Only three deliveries reached the generator"
+
+            testCase "matched document deliveries obey all aggregate batch ceilings" <| fun _ ->
+                let selectedDocument id =
+                    let request =
+                        modelAccessTranscript
+                        |> List.find (fun entry ->
+                            entry.Direction = HostToExtension
+                            && JsonNode.DeepEquals(entry.Node["id"], JsonValue.Create(id: int)))
+                    let parameters = request.Node["params"] |> nonNull
+                    (parameters["deliveries"] |> nonNull)[0] |> nonNull
+
+                let deliveries = JsonArray((selectedDocument 7).DeepClone(), (selectedDocument 8).DeepClone())
+                let template = JsonNode.Parse """{"jsonrpc":"2.0","id":3,"method":"morphir.backend.generateModel.advance","params":{"sessionId":"orders-generation","round":1}}""" |> nonNull
+                let parameters = template["params"] |> nonNull
+                parameters["deliveries"] <- deliveries
+                let advance = template.ToJsonString()
+
+                for label, documents, encodedBytes, decodedBytes, expected in
+                    [ "exact bounds", 2, 672, 503, None
+                      "document count", 1, 672, 503, Some -32602
+                      "aggregate encoded length", 2, 671, 503, Some -32602
+                      "aggregate decoded length", 2, 672, 502, Some -32602 ] do
+                    let mutable calls = 0
+                    let start =
+                        Handlers.constant """{"state":"continue","sessionId":"orders-generation","round":1,"requests":[{"kind":"document","requestId":"final-value","documentId":"pkg/acme/orders/domain/total-in-_usd.value"},{"kind":"document","requestId":"order-value","documentId":"pkg/acme/orders/domain/order.value"}],"artifacts":[],"diagnostics":[]}"""
+                    let deliver =
+                        Handlers.raw (fun _ _ ->
+                            calls <- calls + 1
+                            Task.FromResult(Ok(JsonRpc.Constant """{"state":"complete","sessionId":"orders-generation","artifacts":[],"diagnostics":[]}""")))
+                    let guest =
+                        boundedGuestWithMethods
+                            (JsonNode.Parse boundedGuestResult |> nonNull)
+                            (readOnlyDict [ Method.GenerateModelStart.WireValue, start; Method.GenerateModelAdvance.WireValue, deliver ])
+
+                    let startRequest = JsonNode.Parse boundedStart |> nonNull
+                    let parameters = startRequest["params"] |> nonNull
+                    let limits = parameters["limits"] |> nonNull
+                    limits["maxDocumentsPerBatch"] <- JsonValue.Create documents
+                    limits["maxEncodedBytesPerExchange"] <- JsonValue.Create encodedBytes
+                    limits["maxDecodedBytesPerExchange"] <- JsonValue.Create decodedBytes
+                    boundedReply guest boundedInitialize |> ignore
+                    Expect.equal (code (boundedReply guest (startRequest.ToJsonString()))) None "Start admits the declared ceilings"
+                    Expect.equal (code (boundedReply guest advance)) expected label
+                    Expect.equal calls (if Option.isNone expected then 1 else 0) "Only a whole admitted batch reaches the generator"
+
+            testCase "a successful cancel releases the operation and malformed continuation cannot advance" <| fun _ ->
+                let valid = Handlers.constant """{"state":"continue","sessionId":"orders-generation","round":1,"requests":[],"artifacts":[],"diagnostics":[]}"""
+                let cancel = Handlers.constant """{"sessionId":"orders-generation"}"""
+                let advance = Handlers.constant """{"state":"complete","sessionId":"orders-generation","artifacts":[],"diagnostics":[]}"""
+                let create start =
+                    boundedGuestWithMethods
+                        (JsonNode.Parse boundedGuestResult |> nonNull)
+                        (readOnlyDict
+                            [ Method.GenerateModelStart.WireValue, start
+                              Method.GenerateModelAdvance.WireValue, advance
+                              Method.GenerateModelCancel.WireValue, cancel ])
+                let next = """{"jsonrpc":"2.0","id":3,"method":"morphir.backend.generateModel.advance","params":{"sessionId":"orders-generation","round":1,"deliveries":[]}}"""
+                let stop = """{"jsonrpc":"2.0","id":4,"method":"morphir.backend.generateModel.cancel","params":{"sessionId":"orders-generation"}}"""
+
+                let guest = create valid
+                boundedReply guest boundedInitialize |> ignore
+                Expect.equal (code (boundedReply guest boundedStart)) None "Start opens the operation"
+                Expect.equal (code (boundedReply guest stop)) None "Cancel acknowledges state release"
+                Expect.equal (code (boundedReply guest next)) (Some -32602) "No advance after cancel"
+
+                let malformed =
+                    create (Handlers.constant """{"state":"continue","sessionId":"orders-generation","round":2,"requests":[],"artifacts":[],"diagnostics":[]}""")
+                boundedReply malformed boundedInitialize |> ignore
+                Expect.equal (code (boundedReply malformed boundedStart)) (Some -32603) "The first continuation must have round one"
+                Expect.equal (code (boundedReply malformed next)) (Some -32602) "A malformed reply did not open a round"
+
+            testCase "shutdown refuses the result of an already running bounded handler" <| fun _ ->
+                let entered = TaskCompletionSource<unit>(TaskCreationOptions.RunContinuationsAsynchronously)
+                let release = TaskCompletionSource<unit>(TaskCreationOptions.RunContinuationsAsynchronously)
+                let delayed =
+                    Handlers.raw (fun _ _ -> task {
+                        entered.SetResult(())
+                        do! release.Task
+                        return Ok(JsonRpc.Constant """{"state":"complete","sessionId":"orders-generation","artifacts":[],"diagnostics":[]}""") })
+                let guest =
+                    boundedGuestWithMethods
+                        (JsonNode.Parse boundedGuestResult |> nonNull)
+                        (readOnlyDict [ Method.GenerateModelStart.WireValue, delayed ])
+                boundedReply guest boundedInitialize |> ignore
+                let pending =
+                    guest.Dispatcher.DispatchAsync(ReadOnlyMemory(Encoding.UTF8.GetBytes boundedStart), CancellationToken.None)
+                try
+                    CF.wait entered.Task
+                    let stop = """{"jsonrpc":"2.0","id":3,"method":"morphir.shutdown"}"""
+                    Expect.isNone (code (boundedReply guest stop)) "Shutdown commits while the generator is held"
+                finally
+                    release.SetResult(())
+                let actual = JsonNode.Parse(CF.wait pending |> nonNull) |> nonNull
+                Expect.equal (code actual) (Some -32014) "Closed generation cannot return a successful step"
+
+            testCase "typed host and guest preserve the orders wire variants and reject a foreign delivery" <| fun _ ->
+                let start = Handlers.constant """{"sessionId":"orders-generation","round":1,"requests":[{"requestId":"domain-first","kind":"inventory","selection":"orders-domain-members","pageSize":2}],"artifacts":[],"diagnostics":[],"state":"continue"}"""
+                let mutable advances = 0
+                let advance =
+                    Handlers.raw (fun _ _ ->
+                        advances <- advances + 1
+                        let result =
+                            if advances = 1 then
+                                """{"state":"continue","sessionId":"orders-generation","round":2,"requests":[{"requestId":"order-value","kind":"document","documentId":"pkg/acme/orders/domain/order.value"}],"artifacts":[],"diagnostics":[]}"""
+                            else
+                                """{"state":"complete","sessionId":"orders-generation","artifacts":[{"path":"order.txt","offset":0,"decodedByteLength":3,"sha256":"c6ebc76be5dc1f8b433f8d6fd9bd85cd9325086038442db8614bb799fec6fd85","content":"NzMK","end":true}],"diagnostics":[]}"""
+                        Task.FromResult(Ok(JsonRpc.Constant result)))
+                let guest =
+                    boundedGuestWithMethods
+                        (JsonNode.Parse boundedGuestResult |> nonNull)
+                        (readOnlyDict [ Method.GenerateModelStart.WireValue, start; Method.GenerateModelAdvance.WireValue, advance ])
+                let delivered = ResizeArray<JsonNode>()
+                let channel =
+                    { new ISingleMessageChannel with
+                        member _.RequestAsync(method, message, cancellation) =
+                            if method = Method.GenerateModelAdvance.WireValue then
+                                delivered.Add((JsonNode.Parse(message.Span) |> nonNull)["params"] |> nonNull)
+                            guest.Dispatcher.DispatchAsync(message, cancellation)
+                        member _.NotifyAsync(_, message, cancellation) =
+                            guest.Dispatcher.DispatchAsync(message, cancellation) }
+                let offer =
+                    decode MepJson.Default.InitializeParams ((JsonNode.Parse boundedInitialize |> nonNull)["params"] |> nonNull)
+                let support = offer.ModelAccess |> Option.defaultWith (fun () -> failtest "Missing fixture support")
+                let host = HostSession.CreateWithModelAccess(channel, offer.Host, support, null)
+                let ct = CancellationToken.None
+                Expect.isOk (host.InitializeAsync(ct).Result) "Both peers agreed model access"
+
+                let startParams = decode MepJson.Default.ModelAccessStart ((JsonNode.Parse boundedStart |> nonNull)["params"] |> nonNull)
+                match host.StartGenerationAsync(startParams, ct).Result with
+                | Ok(ModelAccessStep.Continue("orders-generation", 1, requests, _, _)) ->
+                    Expect.sequenceEqual requests [ModelAccessRequest.Inventory("domain-first", "orders-domain-members", 2, None)] "Typed inventory request"
+                | unexpected -> failtestf "Expected the first inventory request, got %A" unexpected
+
+                let inventory = """{"sessionId":"orders-generation","round":1,"deliveries":[{"requestId":"domain-first","kind":"inventory","snapshotId":"orders-snapshot","entries":[{"type":{"documentId":"pkg/acme/orders/domain/order.type","packageName":"acme/orders","modulePath":"domain","role":"definition","name":"order"}},{"value":{"documentId":"pkg/acme/orders/domain/order.value","packageName":"acme/orders","modulePath":"domain","role":"definition","name":"order"}}],"nextCursor":"domain-page-two"}]}"""
+                let fromJson text = decode MepJson.Default.ModelAccessAdvance (JsonNode.Parse(text: string) |> nonNull)
+                let foreign = fromJson (inventory.Replace("orders-snapshot", "foreign-snapshot"))
+                Expect.isError (host.AdvanceGenerationAsync(foreign, ct).Result) "The host rejects a foreign snapshot"
+                Expect.equal delivered.Count 0 "A locally refused delivery never reaches the guest"
+                match host.AdvanceGenerationAsync(fromJson inventory, ct).Result with
+                | Ok(ModelAccessStep.Continue("orders-generation", 2, requests, _, _)) ->
+                    Expect.sequenceEqual requests [ModelAccessRequest.Document("order-value", "pkg/acme/orders/domain/order.value")] "Typed document request"
+                    Expect.isTrue (JsonNode.DeepEquals(delivered[0], JsonNode.Parse inventory)) "Inventory uses the required single-key variants"
+                | unexpected -> failtestf "Expected the second, document round, got %A" unexpected
+
+                let doc = """{"sessionId":"orders-generation","round":2,"deliveries":[{"requestId":"order-value","kind":"document","snapshotId":"orders-snapshot","documentId":"pkg/acme/orders/domain/order.value","decodedByteLength":246,"sha256":"23b1c85f2ee470a468e335098619d394fd23d7a70ee592d39a28612dc5e98fa0","content":"ewogICJmb3JtYXRWZXJzaW9uIjogNCwKICAibmFtZSI6ICJvcmRlciIsCiAgImRlZiI6IHsKICAgICJQdWJsaWMiOiB7CiAgICAgICJFeHByZXNzaW9uQm9keSI6IHsKICAgICAgICAiaW5wdXRUeXBlcyI6IHt9LAogICAgICAgICJvdXRwdXRUeXBlIjogIm1vcnBoaXIvU0RLOmJhc2ljcyNpbnQiLAogICAgICAgICJib2R5IjogeyAiTGl0ZXJhbCI6IHsgIkludGVnZXJMaXRlcmFsIjogNzMgfSB9CiAgICAgIH0KICAgIH0KICB9Cn0K"}]}"""
+                let docParams = JsonNode.Parse doc |> nonNull
+                let delivery = (docParams["deliveries"] |> nonNull)[0] |> nonNull
+                for label, invalid in invalidDocumentDeliveries delivery do
+                    let changed = docParams.DeepClone()
+                    (changed["deliveries"] |> nonNull)[0] <- invalid
+                    let result = host.AdvanceGenerationAsync(fromJson (changed.ToJsonString()), ct).Result
+                    Expect.isError result $"The host refuses {label}"
+                    Expect.equal delivered.Count 1 "An invalid selected document never reaches the guest"
+                match host.AdvanceGenerationAsync(fromJson doc, ct).Result with
+                | Ok(ModelAccessStep.Complete("orders-generation", chunks, _)) ->
+                    Expect.isTrue (JsonNode.DeepEquals(delivered[1], JsonNode.Parse doc)) "Document wire payload"
+                    Expect.equal chunks[0].Path "order.txt" "Artifact path"
+                    Expect.equal chunks[0].Content "NzMK" "Artifact payload"
+                    Expect.isTrue chunks[0].End "Artifact is closed"
+                | unexpected -> failtestf "Expected completion with the artifact, got %A" unexpected
+                Expect.isError (host.AdvanceGenerationAsync(fromJson doc, ct).Result) "Host rejects a terminal replay"
+                Expect.equal delivered.Count 2 "The replay does not transmit"
+
+            testCase "bounded byte calls refuse oversized messages on both sides of the adapter" <| fun _ ->
+                let offer =
+                    decode MepJson.Default.InitializeParams ((JsonNode.Parse boundedInitialize |> nonNull)["params"] |> nonNull)
+                let supported = offer.ModelAccess |> Option.defaultWith (fun () -> failtest "Missing fixture support")
+                let limits = { supported.Limits with MaxFrameBytes = 4096 }
+                let support = { supported with Limits = limits }
+                let start = decode MepJson.Default.ModelAccessStart ((JsonNode.Parse boundedStart |> nonNull)["params"] |> nonNull)
+                let padding = String('x', 6000)
+                let ct = CancellationToken.None
+
+                for oversizedRequest in [ true; false ] do
+                    let oversizedReply =
+                        """{"state":"complete","sessionId":"orders-generation","artifacts":[],"diagnostics":[{"severity":"warning","message":"%s"}]}"""
+                        |> fun template -> template.Replace("%s", padding)
+                    let guest =
+                        boundedGuestWithMethods
+                            (JsonNode.Parse boundedGuestResult |> nonNull)
+                            (readOnlyDict [ Method.GenerateModelStart.WireValue, Handlers.constant oversizedReply ])
+                    let mutable requests = 0
+                    let channel =
+                        { new ISingleMessageChannel with
+                            member _.RequestAsync(method, message, cancellation) =
+                                if method = Method.GenerateModelStart.WireValue then requests <- requests + 1
+                                guest.Dispatcher.DispatchAsync(message, cancellation)
+                            member _.NotifyAsync(_, message, cancellation) =
+                                guest.Dispatcher.DispatchAsync(message, cancellation) }
+                    let host = HostSession.CreateWithModelAccess(channel, offer.Host, support, null)
+                    Expect.isOk (host.InitializeAsync(ct).GetAwaiter().GetResult()) "Agreement precedes the byte limit"
+                    if oversizedRequest then
+                        let expanded = JsonRpc.Constant("{\"padding\":\"" + padding + "\"}")
+                        let operation = { start with Limits = limits; Options = expanded }
+                        try
+                            host.StartGenerationAsync(operation, ct).GetAwaiter().GetResult() |> ignore
+                            failtest "Expected the encoded request to be refused"
+                        with :? System.IO.IOException as error ->
+                            Expect.stringContains error.Message "maxFrameBytes" "Report the negotiated limit"
+                        Expect.equal requests 0 "An oversized request never reaches the adapter"
+                    else
+                        match host.StartGenerationAsync({ start with Limits = limits }, ct).GetAwaiter().GetResult() with
+                        | Error error -> Expect.stringContains error.Message "maxFrameBytes" "Report the refused reply"
+                        | Ok _ -> failtest "An oversized reply cannot complete the operation"
+                        Expect.equal requests 1 "The request was admitted before the adapter returned the oversized reply"
+
+            testCase "the pinned shared bounded transcript passes through the real guest gate" <| fun _ ->
+                let replies =
+                    modelAccessTranscript
+                    |> Seq.choose (fun entry ->
+                        if entry.Direction = ExtensionToHost then
+                            Some((entry.Node["id"] |> nonNull).GetValue<int>(), entry.Node)
+                        else None)
+                    |> readOnlyDict
+                let answers ids =
+                    let remaining = System.Collections.Generic.Queue<int>(ids: int list)
+                    let handler =
+                        Handlers.raw (fun _ _ ->
+                            Expect.isGreaterThan remaining.Count 0 "Only the scripted calls reach the extension"
+                            let reply = replies[remaining.Dequeue()]["result"] |> nonNull
+                            Task.FromResult(Ok(JsonRpc.Constant(reply.ToJsonString()))))
+                    remaining, handler
+                let starts, start = answers [2; 9; 10]
+                let advances, advance = answers [3; 5; 6; 7; 8]
+                let cancels, cancel = answers [11]
+                let guest =
+                    boundedGuestWithMethods
+                        (JsonNode.Parse boundedGuestResult |> nonNull)
+                        (readOnlyDict
+                            [ Method.GenerateModelStart.WireValue, start
+                              Method.GenerateModelAdvance.WireValue, advance
+                              Method.GenerateModelCancel.WireValue, cancel ])
+
+                for entry in modelAccessTranscript do
+                    if entry.Direction = HostToExtension then
+                        match Option.ofObj entry.Node["id"] with
+                        | None -> Expect.isNone (dispatch guest entry.Text) "Notifications have no reply"
+                        | Some requestId ->
+                            let id = requestId.GetValue<int>()
+                            let expected = replies[id]
+                            if id = 5 then
+                                let invalid = entry.Text.Replace("\"name\":\"order\"", "\"name\":\"order\",\"memberSelection\":\"foreign\"")
+                                Expect.equal
+                                    (code (boundedReply guest invalid))
+                                    (Some -32602)
+                                    "A named entry cannot advertise a member selection"
+                            if id = 7 then
+                                let paramsNode = entry.Node["params"] |> nonNull
+                                let delivery = (paramsNode["deliveries"] |> nonNull)[0] |> nonNull
+                                let invalidDeliveries = invalidDocumentDeliveries delivery
+                                let content = (delivery["content"] |> nonNull).GetValue<string>()
+                                Expect.isTrue (content.EndsWith("o=", StringComparison.Ordinal)) "The fixture contains canonical final padding bits"
+                                let noncanonical = delivery.DeepClone()
+                                noncanonical["content"] <- JsonValue.Create(content.Substring(0, content.Length - 2) + "p=")
+                                for label, invalid in invalidDeliveries @ ["noncanonical padding bits", noncanonical] do
+                                    let invalidRequest = entry.Node.DeepClone()
+                                    let invalidParams = invalidRequest["params"] |> nonNull
+                                    (invalidParams["deliveries"] |> nonNull)[0] <- invalid
+                                    let pending = advances.Count
+                                    Expect.equal
+                                        (code (boundedReply guest (invalidRequest.ToJsonString())))
+                                        (Some -32602)
+                                        $"The guest refuses {label}"
+                                    Expect.equal advances.Count pending "The invalid document never reaches the handler"
+                            let actual = boundedReply guest entry.Text
+                            Expect.isTrue (JsonNode.DeepEquals(actual["id"], requestId)) "The response retains the request ID"
+                            match code expected with
+                            | Some expectedCode -> Expect.equal (code actual) (Some expectedCode) "The stale round is refused"
+                            | None ->
+                                let expectedResult =
+                                    let result = expected["result"] |> nonNull
+                                    if id = 1 then
+                                        // The SDK writes the false defaults of the inherited capability fields.
+                                        let initialized = decode MepJson.Default.InitializeResult result
+                                        JsonSerializer.SerializeToNode(initialized, MepJson.Default.InitializeResult) |> nonNull
+                                    else result
+                                Expect.isTrue
+                                    (JsonNode.DeepEquals(actual["result"], expectedResult))
+                                    $"Transcript result for call {id}: {actual}"
+
+                Expect.equal (starts.Count, advances.Count, cancels.Count) (0, 0, 0) "Every intended handler call was observed"
+        ]
+
 /// Replays the host messages of a transcript into a guest and checks each reply against the transcript reply.
 let private replay (entries: Entry list) (skip: Set<int>) =
     let initialize =
@@ -137,6 +720,7 @@ let private replay (entries: Entry list) (skip: Set<int>) =
 type private Recording(inner: Stream) =
     inherit Stream()
     let recorded = new MemoryStream()
+    member _.BytesWritten = lock recorded (fun () -> recorded.Length)
     member _.Frames =
         let copy = new MemoryStream(recorded.ToArray())
 
@@ -197,6 +781,7 @@ let tests =
               let entries = read "lifecycle-violations.md"
               let guest = replay entries Set.empty
               Expect.equal guest.State SessionState.Exited "Exit ends the session"
+          |> testLabel "PlatformSpecific"
 
           testCase "the capabilities that lifecycle-violations.md did not advertise are refused"
           <| fun _ ->
@@ -208,11 +793,13 @@ let tests =
                   match Lifecycle.admit guest.State method.WireValue method.Kind with
                   | Admission.Refuse error -> Expect.equal error.Code -32013 $"{method} is not advertised"
                   | Admission.Proceed -> failtest $"{method} must be refused"
+          |> testLabel "PlatformSpecific"
 
           testCase "replay of protocol-errors.md"
           <| fun _ ->
               // Entries 5 and 6 need the compile request type, which belongs to add-fsharp-compile, not to the core.
               replay (read "protocol-errors.md") (Set.ofList [ 5 ]) |> ignore
+          |> testLabel "PlatformSpecific"
 
           testCase "replies with a wrong or unknown id are protocol diagnostics of the host connection"
           <| fun _ ->
@@ -254,6 +841,7 @@ let tests =
                   [ ConnectionDiagnostic.UnsolicitedResponse(Some(RequestId.Number 30UL))
                     ConnectionDiagnostic.UnsolicitedResponse(Some(RequestId.Number 99UL)) ]
                   "Entries 8 and 9"
+          |> testLabel "PlatformSpecific"
 
           testCase "a second initialize fails and leaves the session initialized"
           <| fun _ ->
@@ -272,6 +860,7 @@ let tests =
               match guest.State with
               | SessionState.Initialized _ -> ()
               | other -> failtest $"Still initialized, not {other}"
+          |> testLabel "PlatformSpecific"
 
           testCase "a legacy-only host gets -32011, and a later initialize succeeds"
           <| fun _ ->
@@ -287,6 +876,7 @@ let tests =
                   "The versions of both peers, as the Rust guest sends them"
               Expect.equal guest.State SessionState.Created "Still uninitialized"
               Expect.isNone (dispatch guest entries[0].Text |> Option.get |> code) "Then initialize succeeds"
+          |> testLabel "PlatformSpecific"
 
           testCase "the host offers only 0.2.0-draft.1"
           <| fun _ -> Expect.equal (Lifecycle.protocolVersions |> List.ofSeq |> List.map string) [ "0.2.0-draft.1" ] "No 0.1"
@@ -301,14 +891,15 @@ let tests =
               let toHost = Pipe()
               let hostWrites = new Recording(toGuest.Writer.AsStream())
               let guestWrites = new Recording(toHost.Writer.AsStream())
+              let hostReads = new CF.ObservedRead(toHost.Reader.AsStream())
               let guestRun = guest.RunAsync(toGuest.Reader.AsStream(), guestWrites, CancellationToken.None)
               let initialize = decode MepJson.Default.InitializeParams expectedParams
 
               let host =
-                  HostSession(toHost.Reader.AsStream(), hostWrites, initialize.Host, Option.toObj initialize.ModelTransport)
+                  HostSession(hostReads, hostWrites, initialize.Host, Option.toObj initialize.ModelTransport)
 
               let hostRun = host.RunAsync CancellationToken.None
-              let wait (task: Task<'T>) = task.Wait(TimeSpan.FromSeconds 10.) |> ignore; task.Result
+              let wait (operation: Task<'T>) = operation.WaitAsync(TimeSpan.FromSeconds 10.).GetAwaiter().GetResult()
 
               Expect.isOk (wait (host.DescribeAsync CancellationToken.None)) "describe"
               let session = wait (host.InitializeAsync CancellationToken.None)
@@ -322,7 +913,9 @@ let tests =
               | Error error -> Expect.equal error.Code -32014 "The host refuses to send after shutdown"
               | Ok _ -> failtest "Ping after shutdown"
 
-              host.ExitAsync().Wait()
+              // Enter the read after the shutdown response before exit changes the host's local state.
+              wait (hostReads.AfterBytes guestWrites.BytesWritten)
+              host.ExitAsync().WaitAsync(TimeSpan.FromSeconds 10.).GetAwaiter().GetResult()
               Expect.equal (wait guestRun) ConnectionEnd.Stopped "The guest stops at exit"
               toHost.Writer.Complete()
               Expect.equal (wait hostRun) ConnectionEnd.EndOfStream "The host reads to the end"
@@ -351,7 +944,8 @@ let tests =
               Expect.equal ((replies[2]["result"] |> nonNull).ToJsonString()) """{"ok":true}""" "ping result"
               Expect.equal ((replies[5]["result"] |> nonNull).ToJsonString()) "{}" "shutdown result"
               Expect.isTrue (JsonNode.DeepEquals(sent[7], entries[entries.Length - 1].Node)) "exit notification"
-              Expect.equal replies.Length 6 "One reply for each request, none for notifications" ]
+              Expect.equal replies.Length 6 "One reply for each request, none for notifications"
+          |> testLabel "PlatformSpecific" ]
 
 // Tests only. Synthetic adapter messages cannot establish inner-WASM delivery, process exit or stdout EOF.
 [<Tests>]

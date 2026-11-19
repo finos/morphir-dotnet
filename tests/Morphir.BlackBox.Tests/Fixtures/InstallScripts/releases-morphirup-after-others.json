@@ -1,0 +1,301 @@
+[
+  {
+    "tag_name": "v0.5.0-alpha.3",
+    "draft": false,
+    "prerelease": true,
+    "assets": [
+      {
+        "name": "morphir-linux-arm64",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.3/morphir-linux-arm64"
+      },
+      {
+        "name": "morphir-linux-arm64-v0.5.0-alpha.3.tar.gz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.3/morphir-linux-arm64-v0.5.0-alpha.3.tar.gz"
+      },
+      {
+        "name": "morphir-linux-x64",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.3/morphir-linux-x64"
+      },
+      {
+        "name": "morphir-linux-x64-v0.5.0-alpha.3.tar.gz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.3/morphir-linux-x64-v0.5.0-alpha.3.tar.gz"
+      },
+      {
+        "name": "morphir-osx-arm64",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.3/morphir-osx-arm64"
+      },
+      {
+        "name": "morphir-osx-arm64-v0.5.0-alpha.3.tar.gz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.3/morphir-osx-arm64-v0.5.0-alpha.3.tar.gz"
+      },
+      {
+        "name": "morphir-win-arm64.exe",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.3/morphir-win-arm64.exe"
+      },
+      {
+        "name": "morphir-win-arm64-v0.5.0-alpha.3.tar.gz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.3/morphir-win-arm64-v0.5.0-alpha.3.tar.gz"
+      },
+      {
+        "name": "morphir-win-x64.exe",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.3/morphir-win-x64.exe"
+      },
+      {
+        "name": "morphir-win-x64-v0.5.0-alpha.3.tar.gz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.3/morphir-win-x64-v0.5.0-alpha.3.tar.gz"
+      },
+      {
+        "name": "SHA256SUMS",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.3/SHA256SUMS"
+      }
+    ]
+  },
+  {
+    "tag_name": "v0.4.0-beta.12",
+    "draft": false,
+    "prerelease": true,
+    "assets": [
+      {
+        "name": "morphir-0.4.0-beta.12-aarch64-apple-darwin.tgz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.12/morphir-0.4.0-beta.12-aarch64-apple-darwin.tgz"
+      },
+      {
+        "name": "morphir-0.4.0-beta.12-aarch64-apple-darwin.tgz.sha256",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.12/morphir-0.4.0-beta.12-aarch64-apple-darwin.tgz.sha256"
+      },
+      {
+        "name": "morphir-0.4.0-beta.12-aarch64-pc-windows-msvc.zip",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.12/morphir-0.4.0-beta.12-aarch64-pc-windows-msvc.zip"
+      },
+      {
+        "name": "morphir-0.4.0-beta.12-aarch64-pc-windows-msvc.zip.sha256",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.12/morphir-0.4.0-beta.12-aarch64-pc-windows-msvc.zip.sha256"
+      },
+      {
+        "name": "morphir-0.4.0-beta.12-aarch64-unknown-linux-gnu.tgz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.12/morphir-0.4.0-beta.12-aarch64-unknown-linux-gnu.tgz"
+      },
+      {
+        "name": "morphir-0.4.0-beta.12-aarch64-unknown-linux-gnu.tgz.sha256",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.12/morphir-0.4.0-beta.12-aarch64-unknown-linux-gnu.tgz.sha256"
+      },
+      {
+        "name": "morphir-0.4.0-beta.12-x86_64-apple-darwin.tgz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.12/morphir-0.4.0-beta.12-x86_64-apple-darwin.tgz"
+      },
+      {
+        "name": "morphir-0.4.0-beta.12-x86_64-apple-darwin.tgz.sha256",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.12/morphir-0.4.0-beta.12-x86_64-apple-darwin.tgz.sha256"
+      },
+      {
+        "name": "morphir-0.4.0-beta.12-x86_64-pc-windows-msvc.zip",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.12/morphir-0.4.0-beta.12-x86_64-pc-windows-msvc.zip"
+      },
+      {
+        "name": "morphir-0.4.0-beta.12-x86_64-pc-windows-msvc.zip.sha256",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.12/morphir-0.4.0-beta.12-x86_64-pc-windows-msvc.zip.sha256"
+      },
+      {
+        "name": "morphir-0.4.0-beta.12-x86_64-unknown-linux-gnu.tgz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.12/morphir-0.4.0-beta.12-x86_64-unknown-linux-gnu.tgz"
+      },
+      {
+        "name": "morphir-0.4.0-beta.12-x86_64-unknown-linux-gnu.tgz.sha256",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.12/morphir-0.4.0-beta.12-x86_64-unknown-linux-gnu.tgz.sha256"
+      }
+    ]
+  },
+  {
+    "tag_name": "v0.5.0-alpha.2",
+    "draft": false,
+    "prerelease": true,
+    "assets": [
+      {
+        "name": "morphir-linux-arm64",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphir-linux-arm64"
+      },
+      {
+        "name": "morphir-linux-arm64-v0.5.0-alpha.2.tar.gz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphir-linux-arm64-v0.5.0-alpha.2.tar.gz"
+      },
+      {
+        "name": "morphir-linux-x64",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphir-linux-x64"
+      },
+      {
+        "name": "morphir-linux-x64-v0.5.0-alpha.2.tar.gz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphir-linux-x64-v0.5.0-alpha.2.tar.gz"
+      },
+      {
+        "name": "morphir-osx-arm64",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphir-osx-arm64"
+      },
+      {
+        "name": "morphir-osx-arm64-v0.5.0-alpha.2.tar.gz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphir-osx-arm64-v0.5.0-alpha.2.tar.gz"
+      },
+      {
+        "name": "morphir-win-arm64.exe",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphir-win-arm64.exe"
+      },
+      {
+        "name": "morphir-win-arm64-v0.5.0-alpha.2.tar.gz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphir-win-arm64-v0.5.0-alpha.2.tar.gz"
+      },
+      {
+        "name": "morphir-win-x64.exe",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphir-win-x64.exe"
+      },
+      {
+        "name": "morphir-win-x64-v0.5.0-alpha.2.tar.gz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphir-win-x64-v0.5.0-alpha.2.tar.gz"
+      },
+      {
+        "name": "SHA256SUMS",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/SHA256SUMS"
+      },
+      {
+        "name": "morphirup-linux-arm64",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphirup-linux-arm64"
+      },
+      {
+        "name": "morphirup-linux-x64",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphirup-linux-x64"
+      },
+      {
+        "name": "morphirup-osx-arm64",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphirup-osx-arm64"
+      },
+      {
+        "name": "morphirup-win-arm64.exe",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphirup-win-arm64.exe"
+      },
+      {
+        "name": "morphirup-win-x64.exe",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphirup-win-x64.exe"
+      },
+      {
+        "name": "morphirup-v0.5.0-alpha.2.sha256",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphirup-v0.5.0-alpha.2.sha256"
+      },
+      {
+        "name": "morphir-toolchain-osx-arm64.json",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphir-toolchain-osx-arm64.json"
+      },
+      {
+        "name": "morphir-toolchain-win-arm64.json",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphir-toolchain-win-arm64.json"
+      },
+      {
+        "name": "morphir-toolchain-win-x64.json",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.2/morphir-toolchain-win-x64.json"
+      }
+    ]
+  },
+  {
+    "tag_name": "v0.5.0-alpha.1",
+    "draft": false,
+    "prerelease": true,
+    "assets": [
+      {
+        "name": "morphir-linux-arm64",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.1/morphir-linux-arm64"
+      },
+      {
+        "name": "morphir-linux-arm64-v0.5.0-alpha.1.tar.gz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.1/morphir-linux-arm64-v0.5.0-alpha.1.tar.gz"
+      },
+      {
+        "name": "morphir-linux-x64",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.1/morphir-linux-x64"
+      },
+      {
+        "name": "morphir-linux-x64-v0.5.0-alpha.1.tar.gz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.1/morphir-linux-x64-v0.5.0-alpha.1.tar.gz"
+      },
+      {
+        "name": "morphir-osx-arm64",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.1/morphir-osx-arm64"
+      },
+      {
+        "name": "morphir-osx-arm64-v0.5.0-alpha.1.tar.gz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.1/morphir-osx-arm64-v0.5.0-alpha.1.tar.gz"
+      },
+      {
+        "name": "morphir-win-arm64.exe",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.1/morphir-win-arm64.exe"
+      },
+      {
+        "name": "morphir-win-arm64-v0.5.0-alpha.1.tar.gz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.1/morphir-win-arm64-v0.5.0-alpha.1.tar.gz"
+      },
+      {
+        "name": "morphir-win-x64.exe",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.1/morphir-win-x64.exe"
+      },
+      {
+        "name": "morphir-win-x64-v0.5.0-alpha.1.tar.gz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.1/morphir-win-x64-v0.5.0-alpha.1.tar.gz"
+      },
+      {
+        "name": "SHA256SUMS",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.5.0-alpha.1/SHA256SUMS"
+      }
+    ]
+  },
+  {
+    "tag_name": "v0.4.0-beta.11",
+    "draft": false,
+    "prerelease": true,
+    "assets": [
+      {
+        "name": "morphir-0.4.0-beta.11-aarch64-apple-darwin.tgz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.11/morphir-0.4.0-beta.11-aarch64-apple-darwin.tgz"
+      },
+      {
+        "name": "morphir-0.4.0-beta.11-aarch64-apple-darwin.tgz.sha256",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.11/morphir-0.4.0-beta.11-aarch64-apple-darwin.tgz.sha256"
+      },
+      {
+        "name": "morphir-0.4.0-beta.11-aarch64-pc-windows-msvc.zip",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.11/morphir-0.4.0-beta.11-aarch64-pc-windows-msvc.zip"
+      },
+      {
+        "name": "morphir-0.4.0-beta.11-aarch64-pc-windows-msvc.zip.sha256",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.11/morphir-0.4.0-beta.11-aarch64-pc-windows-msvc.zip.sha256"
+      },
+      {
+        "name": "morphir-0.4.0-beta.11-aarch64-unknown-linux-gnu.tgz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.11/morphir-0.4.0-beta.11-aarch64-unknown-linux-gnu.tgz"
+      },
+      {
+        "name": "morphir-0.4.0-beta.11-aarch64-unknown-linux-gnu.tgz.sha256",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.11/morphir-0.4.0-beta.11-aarch64-unknown-linux-gnu.tgz.sha256"
+      },
+      {
+        "name": "morphir-0.4.0-beta.11-x86_64-apple-darwin.tgz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.11/morphir-0.4.0-beta.11-x86_64-apple-darwin.tgz"
+      },
+      {
+        "name": "morphir-0.4.0-beta.11-x86_64-apple-darwin.tgz.sha256",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.11/morphir-0.4.0-beta.11-x86_64-apple-darwin.tgz.sha256"
+      },
+      {
+        "name": "morphir-0.4.0-beta.11-x86_64-pc-windows-msvc.zip",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.11/morphir-0.4.0-beta.11-x86_64-pc-windows-msvc.zip"
+      },
+      {
+        "name": "morphir-0.4.0-beta.11-x86_64-pc-windows-msvc.zip.sha256",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.11/morphir-0.4.0-beta.11-x86_64-pc-windows-msvc.zip.sha256"
+      },
+      {
+        "name": "morphir-0.4.0-beta.11-x86_64-unknown-linux-gnu.tgz",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.11/morphir-0.4.0-beta.11-x86_64-unknown-linux-gnu.tgz"
+      },
+      {
+        "name": "morphir-0.4.0-beta.11-x86_64-unknown-linux-gnu.tgz.sha256",
+        "browser_download_url": "https://github.com/finos/morphir/releases/download/v0.4.0-beta.11/morphir-0.4.0-beta.11-x86_64-unknown-linux-gnu.tgz.sha256"
+      }
+    ]
+  }
+]

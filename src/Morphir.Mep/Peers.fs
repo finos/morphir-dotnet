@@ -3,6 +3,7 @@
 namespace Morphir.Mep
 
 open System
+open System.Buffers
 open System.Collections.Concurrent
 open System.Collections.Generic
 open System.IO
@@ -48,45 +49,161 @@ module private Results =
                 | None -> return Error invalidResult
         }
 
+    let initializeParams version (element: JsonElement) =
+        if version = Lifecycle.protocolVersion && fst (element.TryGetProperty "modelAccess") then
+            // Draft.1 knows only these fields. Its unknown-member behavior includes future bounded offers.
+            let buffer = ArrayBufferWriter<byte>()
+            use writer = new Utf8JsonWriter(buffer)
+            writer.WriteStartObject()
+            for property in element.EnumerateObject() do
+                match property.Name with
+                | "protocolVersions" | "host" | "modelTransport" -> property.WriteTo writer
+                | _ -> ()
+            writer.WriteEndObject()
+            writer.Flush()
+            use legacy = JsonDocument.Parse(buffer.WrittenMemory)
+            decode MepJson.Default.InitializeParams legacy.RootElement
+        else
+            decode MepJson.Default.InitializeParams element
+
+    let private admitBoundedCall (session: NegotiatedSession) method (element: JsonElement) =
+        let invalid = Error(RpcErrors.create ErrorCode.InvalidParams)
+
+        if not (ModelAccess.validObject [] element) then invalid
+        else
+            match method with
+            | Method.GenerateModelStart ->
+                match decode MepJson.Default.ModelAccessStart element with
+                | Some request ->
+                    ModelAccess.admitStart session.Capabilities request |> Result.map (fun () -> Start request)
+                | None -> invalid
+            | Method.GenerateModelAdvance ->
+                match decode MepJson.Default.ModelAccessAdvance element with
+                | Some request when ModelAccess.validDeliveries (element.GetProperty "deliveries") ->
+                    Ok(Advance request)
+                | _ -> invalid
+            | Method.GenerateModelCancel ->
+                match decode MepJson.Default.ModelAccessCancel element with
+                | Some request -> Ok(Cancel request)
+                | None -> invalid
+            | _ -> invalid
+
+    let private boundedStep element =
+        match decode MepJson.Default.ModelAccessStep element with
+        | Some(ModelAccessStep.Continue _) as step when ModelAccess.validObject [] element
+                                                       && ModelAccess.validRequests (element.GetProperty "requests") -> step
+        | Some(ModelAccessStep.Complete _) as step when ModelAccess.validObject [ "round"; "requests" ] element -> step
+        | Some(ModelAccessStep.Failed _) as step when ModelAccess.validObject [ "round"; "requests"; "artifacts" ] element -> step
+        | _ -> None
+
+    let boundedExchange (operations: BoundedGeneration) state method parameters send =
+        match state, parameters with
+        | SessionState.Initialized session, Some element ->
+            match admitBoundedCall session method element with
+            | Ok call ->
+                let cancel element =
+                    if ModelAccess.validObject [] element then decode MepJson.Default.ModelAccessCancel element
+                    else None
+                operations.Exchange(call, send, boundedStep, cancel)
+            | Error error -> Task.FromResult(Error error)
+        | SessionState.Initialized _, None -> Task.FromResult(Error(RpcErrors.create ErrorCode.InvalidParams))
+        | _, _ -> Task.FromResult(Error(RpcErrors.create ErrorCode.NotInitialized))
+
 /// The guest side of a session (design SES-2): the lifecycle methods, the gate and the extension methods.
 [<Sealed>]
 type Guest(definition: GuestDefinition) =
     let mutable state = SessionState.Created
+    let generation = BoundedGeneration()
+    let frameBudget = FrameBodyBudget()
+
+    let bounded = ModelAccess.protocolVersion
+    let boundedSupport =
+        definition.Capabilities.ModelAccess
+        |> Option.filter (fun _ -> definition.Claims.ProtocolVersions |> Seq.contains bounded)
+        |> Option.map ModelAccess.validatedOffer
+
+    let supportedVersions: IReadOnlyList<ProtocolVersion> =
+        match boundedSupport with
+        | Some _ ->
+            [| for version in definition.Claims.ProtocolVersions do
+                   if version = bounded || version = Lifecycle.protocolVersion then
+                       yield version |]
+        | None -> Lifecycle.protocolVersions
+
+    let claims =
+        match boundedSupport with
+        | None -> definition.Claims
+        | Some support ->
+            let value = JsonSerializer.SerializeToElement(support, MepJson.Default.ModelAccessSupport)
+            let capabilities =
+                definition.Claims.Capabilities
+                |> Seq.choose (fun (KeyValue(key, value)) -> if key = "modelAccess" then None else Some(key, value))
+                |> Seq.append (Seq.singleton ("modelAccess", value))
+                |> readOnlyDict
+
+            { definition.Claims with Capabilities = capabilities }
+
+    let initializeSession version (parameters: InitializeParams) =
+        let modelAccess =
+            match parameters.ModelAccess, boundedSupport with
+            | Some offer, Some support when version = bounded ->
+                ModelAccess.select offer support
+                |> Result.map (fun agreed -> if agreed.Tuples.Count = 0 then None else Some agreed)
+            | _ -> Ok None
+
+        modelAccess
+        |> Result.map (fun access ->
+            let transport =
+                match parameters.ModelTransport, definition.Capabilities.ModelTransport with
+                | Some offer, Some support -> Some(ModelTransport.select offer support)
+                | _ -> None
+
+            let capabilities =
+                { definition.Capabilities with
+                    ModelTransport = transport
+                    ModelAccess = access }
+
+            state <-
+                SessionState.Initialized
+                    { ProtocolVersion = version
+                      Host = parameters.Host
+                      Extension = definition.Claims.Extension
+                      Capabilities = capabilities }
+
+            JsonSerializer.SerializeToElement(
+                { ProtocolVersion = version
+                  Extension = definition.Claims.Extension
+                  Capabilities = capabilities },
+                MepJson.Default.InitializeResult))
 
     let initialize =
-        Handlers.request MepJson.Default.InitializeParams MepJson.Default.InitializeResult (fun parameters _ ->
-            match Lifecycle.negotiateVersion parameters.ProtocolVersions with
-            | Error error -> Task.FromResult(Error error)
-            | Ok version ->
-                let transport =
-                    match parameters.ModelTransport, definition.Capabilities.ModelTransport with
-                    | Some offer, Some support -> Some(ModelTransport.select offer support)
-                    | _ -> None
-
-                let capabilities =
-                    { definition.Capabilities with
-                        ModelTransport = transport }
-
-                state <-
-                    SessionState.Initialized
-                        { ProtocolVersion = version
-                          Host = parameters.Host
-                          Extension = definition.Claims.Extension
-                          Capabilities = capabilities }
-
-                Task.FromResult(
-                    Ok
-                        { ProtocolVersion = version
-                          Extension = definition.Claims.Extension
-                          Capabilities = capabilities }
-                ))
+        Handlers.raw (fun parameters _ ->
+            let result =
+                match parameters with
+                | Some element ->
+                    match Results.decode MepJson.Default.DescribeParams element with
+                    | Some offer ->
+                        Lifecycle.negotiateVersionFrom supportedVersions offer.ProtocolVersions
+                        |> Result.bind (fun version ->
+                            match Results.initializeParams version element with
+                            | Some request -> initializeSession version request
+                            | None -> Error(RpcErrors.create ErrorCode.InvalidParams))
+                    | None -> Error(RpcErrors.create ErrorCode.InvalidParams)
+                | None -> Error(RpcErrors.create ErrorCode.InvalidParams)
+            Task.FromResult result)
 
     let lifecycle: (Method * MethodHandler) list =
         [ Method.Initialize, initialize
           Method.Describe,
           Handlers.request MepJson.Default.DescribeParams MepJson.Default.CapabilityClaimSet (fun _ _ ->
-              Task.FromResult(Ok definition.Claims))
-          Method.Initialized, Handlers.notification (fun _ -> Task.CompletedTask)
+              Task.FromResult(Ok claims))
+          Method.Initialized,
+          Handlers.notification (fun _ ->
+              match state with
+              | SessionState.Initialized session ->
+                  session.Capabilities.ModelAccess |> Option.iter (fun access -> frameBudget.Restrict access.Limits.MaxFrameBytes)
+              | _ -> ()
+              Task.CompletedTask)
           Method.Ping, Handlers.constant Lifecycle.pingResult
           Method.Info,
           Handlers.requestWithoutParams MepJson.Default.ExtensionInfo (fun _ -> Task.FromResult(Ok definition.Claims.Extension))
@@ -99,11 +216,13 @@ type Guest(definition: GuestDefinition) =
           Handlers.raw (fun _ _ ->
               match state with
               | SessionState.Initialized session ->
+                  generation.Close()
                   state <- SessionState.ShutDown session
                   Task.FromResult(Ok(JsonRpc.Constant Lifecycle.shutdownResult))
               | _ -> Task.FromResult(Error(RpcErrors.create ErrorCode.NotInitialized)))
           Method.Exit,
           Handlers.notification (fun _ ->
+              generation.Close()
               state <- SessionState.Exited
               Task.CompletedTask) ]
 
@@ -111,7 +230,14 @@ type Guest(definition: GuestDefinition) =
         let methods = Dictionary<string, MethodHandler>(StringComparer.Ordinal)
 
         for KeyValue(name, handler) in definition.Methods do
-            methods[name] <- handler
+            methods[name] <-
+                match Method.Find name with
+                | Some method when ModelAccess.isMethod method ->
+                    Handlers.raw (fun parameters cancellation ->
+                        Results.boundedExchange generation state method parameters (fun () -> task {
+                            try return! handler.Invoke(parameters, cancellation)
+                            with :? RpcException as refusal -> return Error refusal.Error }))
+                | _ -> handler
 
         for method, handler in lifecycle do
             methods[method.WireValue] <- handler
@@ -132,7 +258,7 @@ type Guest(definition: GuestDefinition) =
 
     /// Serves the session on a framed stream pair until exit, the end of the stream or a framing failure.
     member this.RunAsync(input: Stream, output: Stream, cancellation: CancellationToken) : Task<ConnectionEnd> =
-        Connection(input, output, dispatcher, Func<bool>(fun () -> this.IsDone)).RunAsync cancellation
+        Connection.WithFrameBudget(input, output, dispatcher, Func<bool>(fun () -> this.IsDone), frameBudget).RunAsync cancellation
 
 /// Why the host could not initialize a session.
 [<RequireQualifiedAccess>]
@@ -231,12 +357,20 @@ type HostSession
         connect: (unit -> SessionState) -> ConcurrentQueue<ProgressParams> -> IHostChannel,
         host: PeerInfo,
         offer: ModelTransportSupport option,
+        modelAccessOffer: ModelAccessSupport option,
         conformanceOptions: (ConformanceEvidenceLimits * CancellationToken) option
     ) =
     let mutable state = SessionState.Created
+    let generation = BoundedGeneration()
     let mutable initializing: NegotiatedSession option = None
     let progress = ConcurrentQueue<ProgressParams>()
     let channel = connect (fun () -> initializing |> Option.map SessionState.Initialized |> Option.defaultValue state) progress
+    let offeredVersions: IReadOnlyList<ProtocolVersion> =
+        if modelAccessOffer.IsSome then [| ModelAccess.protocolVersion; Lifecycle.protocolVersion |]
+        else Lifecycle.protocolVersions
+    let advertisementGate = obj ()
+    // Outer None means no pre-initialization describe was observed.
+    let mutable describedAccess: ModelAccessSupport option option = None
     let operationGate = new SemaphoreSlim(1, 1)
     let receiptGate = obj ()
     let receiptOwner = obj ()
@@ -257,7 +391,11 @@ type HostSession
         | ConformanceOperationFailure.LocalLifecycleRefusal cause -> cause
         | ConformanceOperationFailure.Cancelled _ -> RpcErrors.create ErrorCode.RequestCancelled
         | ConformanceOperationFailure.ChannelFailed cause -> RpcErrors.withMessage ErrorCode.InternalError $"The session failed: {cause}"
-        | ConformanceOperationFailure.ConnectionEnded cause -> RpcErrors.withMessage ErrorCode.InternalError $"The connection ended: {cause}"
+        | ConformanceOperationFailure.ConnectionEnded cause ->
+            // An owned transport, such as a worker that has exited, keeps its own reason after end of stream.
+            match channel.OwnedTransportUnavailable() with
+            | Some reason -> RpcErrors.withMessage ErrorCode.InternalError $"The connection ended: {cause}: {reason}"
+            | None -> RpcErrors.withMessage ErrorCode.InternalError $"The connection ended: {cause}"
         | ConformanceOperationFailure.ProbeAlreadyReserved -> RpcErrors.withMessage ErrorCode.InvalidRequest "This conformance probe was already reserved."
         | ConformanceOperationFailure.TransportFailed cause -> RpcErrors.withMessage ErrorCode.InternalError cause.Message
         | ConformanceOperationFailure.CaptureFailed _ -> RpcErrors.withMessage ErrorCode.InternalError "Conformance capture is incomplete."
@@ -534,6 +672,9 @@ type HostSession
         | None ->
             match Lifecycle.admit state method.WireValue MethodKind.Request with
             | Admission.Refuse error -> Task.FromResult(Error error)
+            | Admission.Proceed when ModelAccess.isMethod method ->
+                Results.boundedExchange generation state method parameters (fun () ->
+                    channel.RequestAsync(method.WireValue, parameters, cancellation))
             | Admission.Proceed -> channel.RequestAsync(method.WireValue, parameters, cancellation)
         | Some _ -> task {
             let! observed = requestObserved method parameters cancellation
@@ -542,13 +683,24 @@ type HostSession
     let sendTyped (info: JsonTypeInfo<'T>) (method: Method) cancellation =
         Results.typed info (send method None cancellation)
 
+    let agreedAccessFrom (advertisement: ModelAccessSupport option option) offered selected =
+        match advertisement with
+        | None -> ModelAccess.verifySelection offered selected
+        | Some None -> Error "The extension selected model access that it did not advertise."
+        | Some(Some supported) ->
+            ModelAccess.select offered supported
+            |> Result.mapError _.Message
+            |> Result.bind (fun overlap -> ModelAccess.verifySelection overlap selected)
+
     // Encoding and selection verification use this same effective offer on both construction policies.
     let initializeCore (operation: ConformanceOperationId option) (effectiveOffer: ModelTransportSupport option) (cancellation: CancellationToken) =
+        let advertisement = lock advertisementGate (fun () -> describedAccess)
         let parameters =
             JsonSerializer.SerializeToElement(
-                { ProtocolVersions = Lifecycle.protocolVersions
+                { ProtocolVersions = offeredVersions
                   Host = host
-                  ModelTransport = effectiveOffer },
+                  ModelTransport = effectiveOffer
+                  ModelAccess = modelAccessOffer },
                 MepJson.Default.InitializeParams
             )
         task {
@@ -558,10 +710,10 @@ type HostSession
             | Ok element ->
                 match Results.decode MepJson.Default.InitializeResult element with
                 | None -> return Error InitializeFailure.InvalidResult
-                | Some result when result.ProtocolVersion <> Lifecycle.protocolVersion ->
+                | Some result when not (offeredVersions |> Seq.contains result.ProtocolVersion) ->
                     return Error(InitializeFailure.UnexpectedVersion result.ProtocolVersion)
                 | Some result ->
-                    let selection =
+                    let modelSelection =
                         match effectiveOffer, result.Capabilities.ModelTransport with
                         | _, None -> Ok None
                         | Some offered, Some selected ->
@@ -570,14 +722,36 @@ type HostSession
                             |> Result.mapError _.ToString()
                         | None, Some _ ->
                             Error $"The extension {result.Extension} selected model transport, which the host did not offer."
-                    match selection with
+
+                    let selection =
+                        modelSelection
+                        |> Result.bind (fun transport ->
+                            match modelAccessOffer, result.Capabilities.ModelAccess with
+                            | _, None -> Ok(transport, None)
+                            | Some offered, Some access when result.ProtocolVersion = ModelAccess.protocolVersion ->
+                                agreedAccessFrom advertisement offered access
+                                |> Result.map (fun verified -> transport, Some verified)
+                            | _ ->
+                                Error $"The extension {result.Extension} selected model access outside an offered draft.2 session.")
+
+                    let admission =
+                        selection
+                        |> Result.bind (fun (transport, access) ->
+                            match access |> Option.bind (fun agreed -> channel.ApplyModelAccessLimits agreed.Limits) with
+                            | Some refusal -> Error refusal
+                            | None -> Ok(transport, access))
+
+                    match admission with
                     | Error reason -> return Error(InitializeFailure.SelectionRefused reason)
-                    | Ok transport ->
+                    | Ok(transport, access) ->
                         let session =
                             { ProtocolVersion = result.ProtocolVersion
                               Host = host
                               Extension = result.Extension
-                              Capabilities = { result.Capabilities with ModelTransport = transport } }
+                              Capabilities =
+                                  { result.Capabilities with
+                                      ModelTransport = transport
+                                      ModelAccess = access } }
                         match operation with
                         | None -> state <- SessionState.Initialized session
                         | Some _ -> initializing <- Some session
@@ -586,6 +760,7 @@ type HostSession
                             let! notification = notifyIn operation Method.Initialized.WireValue parameters cancellation
                             match notification.Result with
                             | Ok() ->
+                                access |> Option.iter (fun agreed -> channel.RestrictFrameBytes agreed.Limits.MaxFrameBytes)
                                 match operation with
                                 | Some _ ->
                                     match health () with
@@ -608,7 +783,9 @@ type HostSession
             let parameters = if operation.IsSome then canonicalParameters else None
             let! observed = requestIn operation Method.Shutdown.WireValue parameters cancellation
             match observed.Result, state with
-            | Ok _, SessionState.Initialized session -> state <- SessionState.ShutDown session
+            | Ok _, SessionState.Initialized session ->
+                generation.Close()
+                state <- SessionState.ShutDown session
             | _ -> ()
             return observed.Result
         }
@@ -701,23 +878,35 @@ type HostSession
     /// A host session on a framed stream pair: input carries the guest's frames and output the host's. offer is the
     /// model-transport support the host offers, or null for none.
     new(input: Stream, output: Stream, host: PeerInfo, offer: ModelTransportSupport | null) =
-        HostSession(HostChannels.ofStreams input output, host, Option.ofObj offer, None)
+        HostSession(HostChannels.ofStreams input output, host, Option.ofObj offer, None, None)
 
     /// A legacy-only host session on a framed stream pair: it offers no model transport.
     new(input: Stream, output: Stream, host: PeerInfo) =
-        HostSession(HostChannels.ofStreams input output, host, None, None)
+        HostSession(HostChannels.ofStreams input output, host, None, None, None)
 
     /// A host session on a channel to a guest that takes one message per call, such as a WASM guest. offer is the
     /// model-transport support the host offers, or null for none. The session passes one message per call, accepts
     /// at most one message back, never sends $/cancelRequest, and ends at the first violation or cancellation
     /// (see Failure).
     new(channel: ISingleMessageChannel, host: PeerInfo, offer: ModelTransportSupport | null) =
-        HostSession(HostChannels.ofSingleMessage channel, host, Option.ofObj offer, None)
+        HostSession(HostChannels.ofSingleMessage channel, host, Option.ofObj offer, None, None)
 
     /// A legacy-only host session on a channel to a guest that takes one message per call: it offers no model
     /// transport.
     new(channel: ISingleMessageChannel, host: PeerInfo) =
-        HostSession(HostChannels.ofSingleMessage channel, host, None, None)
+        HostSession(HostChannels.ofSingleMessage channel, host, None, None, None)
+
+    /// Opts in to bounded model access on framed streams. Legacy transport can also be offered for fallback.
+    static member CreateWithModelAccess
+        (input: Stream, output: Stream, host: PeerInfo, modelAccess: ModelAccessSupport, legacy: ModelTransportSupport | null) =
+        let access = ModelAccess.validatedOffer modelAccess
+        HostSession(HostChannels.ofStreams input output, host, Option.ofObj legacy, Some access, None)
+
+    /// Opts in to bounded model access on an existing single-message adapter.
+    static member CreateWithModelAccess
+        (channel: ISingleMessageChannel, host: PeerInfo, modelAccess: ModelAccessSupport, legacy: ModelTransportSupport | null) =
+        let access = ModelAccess.validatedOffer modelAccess
+        HostSession(HostChannels.ofSingleMessage channel, host, Option.ofObj legacy, Some access, None)
 
     /// Internal opt-in on the same framed channel, with requests starting at ID1.
     /// Owns bounded actual capture, operation admission and one-shot selected-offer binding on this session only.
@@ -730,6 +919,7 @@ type HostSession
             HostChannels.ofConformanceStreams limits lifetime input output,
             host,
             None,
+            None,
             Some(limits, lifetime)
         )
 
@@ -741,6 +931,7 @@ type HostSession
         HostSession(
             HostChannels.ofConformanceSingleMessage limits lifetime channel,
             host,
+            None,
             None,
             Some(limits, lifetime)
         )
@@ -774,14 +965,26 @@ type HostSession
         match conformanceOptions with
         | None ->
             let parameters = JsonSerializer.SerializeToElement(
-                { ProtocolVersions = Lifecycle.protocolVersions }, MepJson.Default.DescribeParams)
-            Results.typed MepJson.Default.CapabilityClaimSet (send Method.Describe (Some parameters) cancellation)
+                { ProtocolVersions = offeredVersions }, MepJson.Default.DescribeParams)
+            task {
+                let! reply = Results.typed MepJson.Default.CapabilityClaimSet (send Method.Describe (Some parameters) cancellation)
+                match modelAccessOffer, reply with
+                | Some _, Ok claims when state = SessionState.Created ->
+                    let access =
+                        match claims.Capabilities.TryGetValue "modelAccess" with
+                        | true, element when claims.ProtocolVersions |> Seq.contains ModelAccess.protocolVersion ->
+                            Results.decode MepJson.Default.ModelAccessSupport element
+                        | _ -> None
+                    lock advertisementGate (fun () -> describedAccess <- Some access)
+                | _ -> ()
+                return reply
+            }
         | Some _ -> task {
             let! observed = describeObserved cancellation
             return observed.Result }
 
-    /// Initializes the session: offers only 0.2.0-draft.1, checks the guest's choice and selection, and then sends
-    /// morphir.initialized. When the session fails during either message, the result is Refused with the error that
+    /// Initializes the session, checks the guest's choice and selection, and then sends morphir.initialized.
+    /// Draft.2 is offered when the caller configured model access. When a message fails, the result is Refused with the error that
     /// the session gives, and Failure says why.
     member _.InitializeAsync(cancellation: CancellationToken) : Task<Result<NegotiatedSession, InitializeFailure>> =
         match conformanceOptions with
@@ -809,6 +1012,33 @@ type HostSession
     member _.RequestAsync(method: Method, parameters: Nullable<JsonElement>, cancellation: CancellationToken) =
         send method (Option.ofNullable parameters) cancellation
 
+    /// Reserve retained request-ID bytes for this connection's single generation.
+    /// Call after initialization and before start, with bytes reserved alongside
+    /// discovery and staging under the negotiated host cache. Refuses reuse.
+    member _.TryReserveSingleGenerationRequestCache(bytes: int64) =
+        match state with
+        | SessionState.Initialized session ->
+            match session.Capabilities.ModelAccess with
+            | Some access when bytes > 0L && bytes <= int64 access.Limits.MaxHostCacheBytes ->
+                generation.TryReserveSingleOperationRequestCache bytes
+            | _ -> false
+        | _ -> false
+
+    /// Starts a bounded generation operation on the initialized connection.
+    member _.StartGenerationAsync(request: ModelAccessStart, cancellation: CancellationToken) =
+        let parameters = JsonSerializer.SerializeToElement(request, MepJson.Default.ModelAccessStart)
+        Results.typed MepJson.Default.ModelAccessStep (send Method.GenerateModelStart (Some parameters) cancellation)
+
+    /// Supplies the deliveries for the operation's outstanding round.
+    member _.AdvanceGenerationAsync(request: ModelAccessAdvance, cancellation: CancellationToken) =
+        let parameters = JsonSerializer.SerializeToElement(request, MepJson.Default.ModelAccessAdvance)
+        Results.typed MepJson.Default.ModelAccessStep (send Method.GenerateModelAdvance (Some parameters) cancellation)
+
+    /// Requests release of an open generation operation.
+    member _.CancelGenerationAsync(request: ModelAccessCancel, cancellation: CancellationToken) =
+        let parameters = JsonSerializer.SerializeToElement(request, MepJson.Default.ModelAccessCancel)
+        Results.typed MepJson.Default.ModelAccessCancel (send Method.GenerateModelCancel (Some parameters) cancellation)
+
     /// Sends morphir.shutdown. After it, only exit is allowed. The result is the guest's reply object.
     member _.ShutdownAsync(cancellation: CancellationToken) : Task<Result<JsonElement, RpcError>> =
         match conformanceOptions with
@@ -820,13 +1050,22 @@ type HostSession
             let! observed = shutdownObserved cancellation
             return observed.Result }
 
+    /// Sends the product exit notification with an optional deadline and preserves the adapter result.
+    member internal _.SendExitAsync(cancellation: CancellationToken) : Task<Result<unit, RpcError>> =
+        task {
+            generation.Close()
+            let! result = channel.NotifyAsync(Method.Exit.WireValue, None, cancellation)
+            state <- SessionState.Exited
+            return result
+        }
+
     /// Sends morphir.exit and ends the session. A session that failed passes nothing to the guest.
-    member _.ExitAsync() : Task =
+    member this.ExitAsync() : Task =
         match conformanceOptions with
         | None ->
             task {
-                let! _ = channel.NotifyAsync(Method.Exit.WireValue, None, CancellationToken.None)
-                state <- SessionState.Exited
+                let! _ = this.SendExitAsync CancellationToken.None
+                ()
             }
         | Some _ -> task {
             let! _ = exitObserved ()

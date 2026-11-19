@@ -14,6 +14,7 @@ open System.Threading.Tasks
 type FramingFailure =
     | HeaderTooLarge
     | BodyTooLarge
+    | NegotiatedBodyTooLarge of Maximum: int
     | MissingLength
     | InvalidLength
     | NotFramed
@@ -25,6 +26,7 @@ type FramingFailure =
         match this with
         | HeaderTooLarge -> "The Content-Length header block exceeds 8192 bytes."
         | BodyTooLarge -> "The Content-Length body exceeds 64 MiB."
+        | NegotiatedBodyTooLarge maximum -> $"The JSON-RPC frame body exceeds maxFrameBytes ({maximum})."
         | MissingLength -> "The frame has no Content-Length header."
         | InvalidLength -> "The frame has an invalid or repeated Content-Length header."
         | NotFramed -> "The stream is not framed with ASCII Content-Length headers."
@@ -52,6 +54,27 @@ type FrameRead =
         | EndOfStream -> "End of stream"
         | Refused failure -> failure.ToString()
 
+/// The transport starts at its protocol ceiling and can narrow after initialization.
+type internal FrameBodyBudget() =
+    let mutable maximum = 64 * 1024 * 1024
+
+    static member ProtocolMaximum = 64 * 1024 * 1024
+
+    member _.Restrict(limit: int) =
+        Volatile.Write(&maximum, min FrameBodyBudget.ProtocolMaximum limit)
+
+    member _.Refusal(length: int64) =
+        let limit = Volatile.Read(&maximum)
+        if length > int64 FrameBodyBudget.ProtocolMaximum then Some FramingFailure.BodyTooLarge
+        elif length > int64 limit then Some(FramingFailure.NegotiatedBodyTooLarge limit)
+        else None
+
+    member budget.CheckWrite(length: int) =
+        match budget.Refusal(int64 length) with
+        | Some FramingFailure.BodyTooLarge -> invalidArg "body" (FramingFailure.BodyTooLarge.ToString())
+        | Some failure -> raise (IOException(failure.ToString()))
+        | None -> ()
+
 /// The MEP stream framing shared by hosts and guests. Payload sizes count UTF-8 bytes.
 [<AbstractClass; Sealed>]
 type ContentLengthFraming private () =
@@ -59,10 +82,14 @@ type ContentLengthFraming private () =
     static member MaxHeaderBytes = 8192
 
     /// Maximum body allocation admitted by a frame.
-    static member MaxBodyBytes = 64 * 1024 * 1024
+    static member MaxBodyBytes = FrameBodyBudget.ProtocolMaximum
 
     /// Reads one frame, preserving bytes. Cancellation and I/O failures propagate to the caller.
     static member ReadAsync(stream: Stream, ct: CancellationToken) : Task<FrameRead> =
+        ContentLengthFraming.ReadAsync(stream, FrameBodyBudget(), ct)
+
+    /// Checks the current budget after reading the header and before allocating or reading the body.
+    static member internal ReadAsync(stream: Stream, budget: FrameBodyBudget, ct: CancellationToken) : Task<FrameRead> =
         task {
             ct.ThrowIfCancellationRequested()
             let header = ResizeArray<byte>()
@@ -123,12 +150,11 @@ type ContentLengthFraming private () =
                         | true, parsed when length.IsNone -> length <- Some parsed
                         | _ -> invalid <- true
 
-                match length with
+                match length, length |> Option.bind budget.Refusal with
                 | _ when invalid -> return FrameRead.Refused FramingFailure.InvalidLength
-                | None -> return FrameRead.Refused FramingFailure.MissingLength
-                | Some value when value > int64 ContentLengthFraming.MaxBodyBytes ->
-                    return FrameRead.Refused FramingFailure.BodyTooLarge
-                | Some value ->
+                | None, _ -> return FrameRead.Refused FramingFailure.MissingLength
+                | Some _, Some refusal -> return FrameRead.Refused refusal
+                | Some value, None ->
                     let body = Array.zeroCreate<byte> (int value)
                     let mutable offset = 0
                     let mutable truncated = false

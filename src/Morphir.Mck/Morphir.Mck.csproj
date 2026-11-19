@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
     <OutputType>Exe</OutputType>
     <AssemblyName>morphir-mck</AssemblyName>
     <RootNamespace>Morphir.Mck</RootNamespace>
@@ -12,5 +12,8 @@
   <ItemGroup>
     <PackageReference Include="System.CommandLine" />
     <ProjectReference Include="../Morphir.Conformance/Morphir.Conformance.fsproj" />
+    <ProjectReference Include="../Morphir.Models/Morphir.Models.fsproj" />
+    <ProjectReference Include="../Morphir.Toolchain.IO/Morphir.Toolchain.IO.fsproj" />
+    <InternalsVisibleTo Include="Morphir.Mck.Tests" />
   </ItemGroup>
 </Project>

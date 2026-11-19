@@ -2,9 +2,9 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Text.Json;
 using Morphir.Extensions;
+using Morphir.Files;
 using Morphir.IR;
 using Morphir.IR.Model;
-using Morphir.IR.Pipeline;
 
 namespace Morphir.Tooling.Features.Generate;
 
@@ -92,6 +92,10 @@ public sealed record GenerateOverrides(string? Input = null, string? Target = nu
 
     /// <summary><c>--extension</c>: the backend extension; overrides <c>[codegen.&lt;target&gt;].extension</c>.</summary>
     public string? Extension { get; init; }
+    /// <summary>Explicit installed full identity, distinct from a path or command.</summary>
+    public string? ExtensionId { get; init; }
+    /// <summary>Explicit host-only bounded profile; absent preserves normal admission.</summary>
+    public string? BoundedProfile { get; init; }
 }
 public sealed record ModelInput(string Path, InputFormat Format = InputFormat.Auto);
 
@@ -116,12 +120,18 @@ public sealed record GenerationSettings(ModelInput Input, RequestedTarget Target
     /// registered backends of the target are resolved as before.
     /// </summary>
     public Morphir.Tooling.Features.Compile.Setting<string>? Extension { get; init; }
+    /// <summary>Validated installed process identity, with no implicit path lookup.</summary>
+    public ExtensionId? InstalledExtensionId { get; init; }
+    /// <summary>The selected WASM module from the same effective configuration snapshot.</summary>
+    public Morphir.Tooling.Features.Extensions.WasmModuleSource? WasmModule { get; init; }
 
     /// <summary>
     /// A hold on the input, or null. <c>generate</c> releases it when model loading ends, after it admits the
     /// loaded model through it. The input of a prior compile holds the task's shared lock this way (REC-1).
     /// </summary>
     public ModelInputLease? InputLease { get; init; }
+    /// <summary>The explicit host admission profile, applied only on the recorded WASM route.</summary>
+    public BoundedGenerationProfile BoundedProfile { get; init; } = BoundedGenerationProfile.Default;
 }
 
 /// <summary>
@@ -144,14 +154,42 @@ public abstract class ModelInputLease : IDisposable
     protected abstract void Dispose(bool disposing);
 }
 
-/// <summary>Owns JSON values independently of their source document and the caller's dictionary.</summary>
+/// <summary>
+/// Owns JSON values independently of their source document and the caller's dictionary. <see cref="Values"/> are the
+/// options of the command line (<c>--option</c>). <see cref="Configured"/> are the keys of <c>[codegen.&lt;target&gt;]</c>
+/// in the project configuration, which a backend can put below its own carriers, as the C# backend does (OPT-1). A
+/// backend that has no use for them ignores them.
+/// </summary>
 public sealed class BackendOptions
 {
     public static BackendOptions Empty { get; } = new([]);
     public ImmutableDictionary<string, JsonElement> Values { get; }
 
-    public BackendOptions(IEnumerable<KeyValuePair<string, JsonElement>> values) =>
+    /// <summary>The keys of <c>[codegen.&lt;target&gt;]</c> other than <c>extension</c>, with <c>-</c> for <c>_</c>.</summary>
+    public ImmutableDictionary<string, JsonElement> Configured { get; }
+
+    public BackendOptions(IEnumerable<KeyValuePair<string, JsonElement>> values)
+        : this(values, []) { }
+
+    private BackendOptions(IEnumerable<KeyValuePair<string, JsonElement>> values, IEnumerable<KeyValuePair<string, JsonElement>> configured)
+    {
         Values = values.ToImmutableDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
+        Configured = configured.ToImmutableDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
+    }
+
+    /// <summary>The same command-line options with the given configured options.</summary>
+    public BackendOptions WithConfigured(IEnumerable<KeyValuePair<string, JsonElement>> configured) => new(Values, configured);
+
+    /// <summary>
+    /// The configured options of a <c>[codegen.&lt;target&gt;]</c> table: each scalar key except <c>extension</c>, which
+    /// selects the backend, as an option name with <c>-</c> for <c>_</c> (<c>float_equality</c> is <c>float-equality</c>).
+    /// </summary>
+    public static ImmutableArray<KeyValuePair<string, JsonElement>> ConfiguredOf(IEnumerable<KeyValuePair<string, JsonElement>> tableMembers) =>
+    [
+        .. tableMembers
+            .Where(pair => pair.Key != "extension")
+            .Select(pair => new KeyValuePair<string, JsonElement>(pair.Key.Replace('_', '-'), pair.Value))
+    ];
 }
 
 /// <summary>A backend defines its own immutable validated option type.</summary>
@@ -191,7 +229,14 @@ public sealed record ModelDescriptor(SourceFormatVersion Version, ModelFamily Fa
     public static ModelDescriptor From(VersionedModel model) => new(model.SourceVersion, model.Family, model.Kind);
 }
 
-public sealed record LoadedModel(VersionedModel Model, ModelDescriptor Descriptor, ModelRepresentation Representation, RetainedInput Original);
+public sealed record LoadedModel(VersionedModel Model, ModelDescriptor Descriptor, ModelRepresentation Representation, RetainedInput Original)
+{
+    /// <summary>
+    /// What an upgrade that ran on the input left: the pins of the input model and the records of the upgrade. Null when
+    /// the model is the input of the pipeline.
+    /// </summary>
+    public Morphir.Tooling.Features.Transform.ModelLineage? Lineage { get; init; }
+}
 
 public sealed record BackendCapability(ModelFamily Family, NonEmptySet<SourceFormatVersion> Versions, DistributionKind Kind)
 {

@@ -37,6 +37,7 @@ public sealed class ConfigurationCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("--profiles", "INVALID")]
     [Arguments("--profiles", "good,,bad")]
     [Arguments("--profiles", "ci", "--no-profiles")]

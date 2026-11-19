@@ -50,7 +50,7 @@ Parameterless fixture messages use explicit `params: {}` as their canonical send
 
 Required notification silence cannot pass from a worker write, adapter return or policy withholding. Withheld, unknown or otherwise unestablished delivery to the actual guest remains `NotRun` and prevents qualification. Controlled peers and fake workers prove the outer runner path only.
 
-WorkerSessions reuses the existing WindowsChild owner on Windows. The exit case requires the actual settled process status and the session reader's stdout EOF. An exit callback or successfully submitted exit notification is insufficient. Cancellation and timeouts settle the owned tree before returning. Stderr capture is bounded to 65,536 characters per line, 1,048,576 characters total and 4,096 retained lines; capture failure remains explicit.
+WorkerSessions reuses the existing WindowsChild owner on Windows. On other platforms it keeps the bounded stderr drain and exit waits, so a descendant that holds the pipes open is not waited for indefinitely. The exit case requires the actual settled process status and the session reader's stdout EOF. An exit callback or successfully submitted exit notification is insufficient. Cancellation and timeouts settle the owned tree before returning. Stderr capture is bounded to 65,536 characters per line, 1,048,576 characters total and 4,096 retained lines; capture failure remains explicit.
 
 ## Fixed comparisons and negative controls
 
@@ -69,9 +69,9 @@ Independent fixed transcript tables and payload literals live in GuestKitPlanFix
 Use the pinned SDK and run bounded sequential checks with two processors and the shared process gate. After a successful current Release build:
 
 ```powershell
-dotnet exec tests/Morphir.Conformance.Tests/bin/Release/net10.0/Morphir.Conformance.Tests.dll `
+dotnet exec tests/Morphir.Conformance.Tests/bin/Release/net11.0/Morphir.Conformance.Tests.dll `
   --filter-test-list 'Generic guest kit' --sequenced --summary
-dotnet exec tests/Morphir.Conformance.Tests/bin/Release/net10.0/Morphir.Conformance.Tests.dll `
+dotnet exec tests/Morphir.Conformance.Tests/bin/Release/net11.0/Morphir.Conformance.Tests.dll `
   --filter-test-list 'GuestKit worker sessions' --sequenced --summary
 ```
 

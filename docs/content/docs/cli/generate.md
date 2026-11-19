@@ -5,8 +5,10 @@ description: Generate target artifacts from a Morphir model
 
 # Generate
 
-Generate target files from a decoded Morphir library. Targets `fsharp` and
-`csharp` support classic and v4 models. Target and output are explicit. The
+Generate target files from a Morphir model. Targets `fsharp` and
+`csharp` support classic and v4 models. The C# backend reads the current IR
+only, so the command upgrades a classic model before the passes and the
+backend run. Target and output are explicit. The
 input is an explicit `--input`, or else the IR of the most recent
 `morphir compile` of the project.
 
@@ -14,7 +16,7 @@ input is an explicit `--input`, or else the IR of the most recent
 
 ```text
 morphir generate [--input <file-or-directory>] --target <fsharp|csharp> --output <directory>
-  [--input-format auto|json|ion] [--option KEY=VALUE ...] [--json]
+  [--input-format auto|json|ion] [--option KEY=VALUE ...] [--json[=stream|document]]
   [--extension <path-or-command>] [--project <path-or-name>] [--config <file>] [--out-dir <directory>]
 ```
 
@@ -23,19 +25,20 @@ morphir generate [--input <file-or-directory>] --target <fsharp|csharp> --output
 | Option | Meaning |
 | --- | --- |
 | `--input` | JSON/Ion model file or Ion tree directory. Without it, the IR of the most recent compile |
-| `--target` | Required exact registered target ID, `fsharp` or `csharp` |
+| `--target` | Required exact target ID. The built-in targets are `fsharp` and `csharp`. An extension declares its own targets. |
 | `--output` | Required output directory with owned generated files |
 | `--input-format` | `auto` by default; `json` or `ion` constrains the reader |
 | `--option` | Repeatable backend option, described below |
-| `--json` | Write one structured report to stdout |
+| `--json[=stream\|document]` | Write the structured report to stdout: a bare `--json` writes one `completed` record that holds it, `--json=document` the report alone. See [Machine output](_index.md#machine-output) |
 | `--extension` | A backend extension: a command name, a path, or a `.dll`. Overrides `[codegen.<target>].extension`. See [Backend extensions](#backend-extensions). |
 | `--project` | The project directory, workspace member path or project name: its compile record without `--input`, and its configuration |
 | `--config` | An explicit configuration file of the project |
 | `--out-dir` | Without `--input`: the out root. Overrides `MORPHIR_OUT_DIR` and `workspace.out_dir` |
 
 Paths resolve against the invocation directory. With `--input`, no project
-configuration is required. Without `--extension`, `generate` reads the project
-configuration only for `[codegen.<target>].extension`. With `--project` or `--config`, a configuration
+configuration is required. `generate` reads the project configuration only for the
+`[codegen.<target>]` table: `extension` selects a backend extension when `--extension` is absent, and each other key
+is an option of the backend (see the C# options below). With `--project` or `--config`, a configuration
 error fails the command with exit code 2, as it does for `compile`. With neither, a discovered configuration
 that does not load is a warning on stderr, and the built-in backend runs. Repeated option keys use the last value. Values parse
 as JSON first, so `optimize=false` is Boolean while `optimize='"false"'` is a
@@ -61,10 +64,15 @@ The default formatted text follows the platform's line endings (CRLF on Windows,
 reports `formatting: unavailable`. The managed hosts (`dotnet-morphir` and the managed `morphir`) format.
 
 C# accepts numeric JSON
-`language-version=14` or `language-version=15`, default `14`, and optional string
-`namespace=Pricing.Generated`. Plain namespace text becomes a JSON string through
-the shared option parser. Numeric strings, `preview`, `latest`, unsupported
-numbers, unknown keys and wrong JSON kinds are invocation errors.
+`language-version=15`, the default and the only language version that the backend writes, a string
+`profile=imperative` or `profile=functional`, optional string
+`namespace=Pricing.Generated`, and the handling options `traversal=loop|functional`,
+`tail-recursion=loop|local-function` and `float-equality=clr|ieee`. The keys of `[codegen.csharp]` in the project
+configuration give the same options, with `_` for `-` (`float_equality = "ieee"`). `--option` wins over the key. See
+[C# generation]({{< relref "/docs/backends/csharp" >}}) for the table and the attributes in C# source. Plain namespace text becomes a JSON string through
+the shared option parser. Numeric strings, `preview`, `latest`, unknown keys and wrong JSON kinds are
+invocation errors with the code `invalid-backend-option`. Another number, such as `language-version=14`, is an
+invocation error with the code `unsupported-language`, and its diagnostic names 15.
 
 C# namespaces are dotted literal identifiers in Unicode Normalization Form C.
 An identifier can start with a letter or `_` and continue with letters, decimal
@@ -90,8 +98,10 @@ Integers use Int32, floats finite doubles, decimals exact .NET decimal values
 with retained scale up to 28, and characters one BMP scalar. Unsupported or
 lossy representations fail before publication.
 
-YAML model files, JSON/YAML trees and MEP envelopes are unsupported. MEP
-admission is a separate change.
+The whole-model loader accepts neither YAML nor JSON/YAML trees. A recorded
+plain JSON or YAML tree can be served to a compatible backend by
+[bounded generation](#bounded-generation-from-a-compile-record). The CLI
+does not accept a MEP envelope as an input file.
 Generation produces source files and their ownership manifest. It does not
 create an F# project or compile and execute the output.
 
@@ -105,7 +115,7 @@ deferred.
 
 ## Backend extensions
 
-A backend extension is a guest process that speaks the Morphir Extension Protocol (MEP) `0.2.0-draft.1`
+A backend extension is a guest process. For inline generation it speaks the Morphir Extension Protocol (MEP) `0.2.0-draft.1`
 over stdio and serves `morphir.backend.generateModel`. Select one with `--extension`, or with
 `[codegen.<target>].extension` in the project configuration. The option overrides the key. `compile --target`
 does not read the key: it runs the built-in backend and prints a note on stderr when the key is set. Without either,
@@ -185,6 +195,12 @@ under the workspace root. `generate` then reads the compile record
 that IR file as `input` and the recorded IR version as `sourceVersion`. An
 explicit `--input` never reads a record.
 
+When the explicit input is a directory, `generate` captures its files under
+the model-read limits and verifies their paths and bytes in a second pass.
+If a captured file changes or disappears between those passes, generation
+stops before it starts the backend. After verification, the backend uses
+the captured bytes even if the original files are edited.
+
 If there is no compile record, or the most recent compile failed and left a
 tombstone, `generate` fails with `compile.record_missing` and exit code 2, tells
 you to run `morphir compile` first, and publishes nothing. If the IR file does
@@ -193,9 +209,9 @@ not declare the version that the record names, it fails with
 the compiled IR fails with `generate.input_format_conflict`.
 
 `generate` holds the shared lock `compile.lock` from when it reads the record
-until it has loaded the IR. While a compile of the same project runs, `generate`
+until it has loaded a whole model or finished bounded generation. While a compile of the same project runs, `generate`
 writes one waiting line to stderr, waits, and then reads the IR of that compile.
-A compile that starts while `generate` loads the IR waits for `generate`.
+A compile that starts while `generate` holds the lock waits for it to be released.
 
 With this `morphir.toml` in the project directory, and the sources `src/Rates.fs`
 and `src/Totals.fs` of the MCK corpus case `frontend-fsharp-0116`:
@@ -220,6 +236,80 @@ Rates.fs
 Totals.fs
 ```
 
+### Bounded generation from a compile record
+
+Given a completed compile record with a document-tree descriptor, omit `--input`.
+Morphir opens the tree at the path in the record and holds the compile read lease
+until the guest has stopped. The guest pages the module inventory and
+requests definitions by logical identifier. It receives the selected documents
+through MEP without being given the tree's physical path.
+
+```sh
+morphir generate --out-dir build-artifacts --target text --extension ./orders-generator --output generated
+```
+
+Here `orders-generator` is a native guest that advertises the `text` target.
+The host offers MEP `0.2.0-draft.2` and access `0.1.0-draft.1` with operation
+`morphir.backend.generateModel`, profile `morphir-ir`, layout `document-tree`,
+and encoding `plain`. The offer uses the record's exact IR version (`3.1.0`
+or `4.0.0`) and the manifest's codec (`morphir-json` or `morphir-yaml`).
+The guest must agree to that tuple. It never receives an inline copy of the
+recorded tree. For process guests, the host checks the negotiated
+`maxFrameBytes` body ceiling from the header before reading the response. For
+configured WASM guests, the adapter applies the selected limit to the full
+frame, including its Content-Length header, and checks the reply size before
+copying it. It also applies `maxGuestStateBytes` to each linear memory and to
+the Extism variable store. If state already exceeds the selection, the host
+refuses initialization.
+It checks each reply's combined encoded and decoded artifact bytes before
+decoding the chunks. The negotiated session deadline includes guest shutdown
+and exit. If it expires, the host stops the guest and discards staged output.
+
+The `maxSessionWorkUnits` budget is shared by the bounded reader and output
+stage for the entire run. The host charges each advance and request, directory
+access and enumeration step, and file lookup. It also charges each started
+4 KiB block of document input or contextual expansion, and charges separately
+for delivery encoding and hashing. Artifact work includes per-chunk and path
+checks, encoded and decoded blocks, and the final file hash. Each retained
+diagnostic costs one unit. Repeated reads and scans draw from the same budget.
+Exhaustion returns `extension.bounded_work_limit` and discards the stage.
+
+Configure an Extism WASM backend implementing the same tuple under the
+target's extension in `morphir.toml`.
+
+```toml
+[extensions.text]
+path = "orders-generator.wasm"
+abi = "extism-kernel-v1"
+```
+
+The target selects the configured module without an `--extension` flag.
+
+```sh
+morphir generate --out-dir build-artifacts --target text --output generated
+```
+
+For the orders fixture, the guest follows two inventory pages to the final
+value, reads the earlier value it references, and emits `order.txt`. Morphir
+stages the chunks privately until the guest stops. For a root project, it
+then places the completed files in `build-artifacts/generate/text.dest`,
+records their paths in `build-artifacts/generate/text.json`, and installs
+them into `generated`. A workspace member uses its own directory under the
+configured output root. Choose an install directory outside that root.
+The CLI acceptance case compares this v4 JSON tree run with the same guest's
+inline run over the expanded v4 model.
+
+The compile lease stays held until generation and installation finish. If
+generation fails after replacing a previous working result, its record
+becomes a tombstone and the previous install remains in place. Fix the input
+or guest and run the same command with the same `--out-dir` and `--output`.
+If installation is refused or cancelled after the generation record was
+written, the completed working files remain in `text.dest`. Resolve the
+reported target conflict or select a clean install directory and rerun.
+The installer replaces files it owns through the task record's `installed`
+ledger. An older `.morphir-generated.json` manifest does not transfer
+ownership to that ledger.
+
 ## Examples
 
 Run these from a repository checkout, using its shared fixtures:
@@ -235,20 +325,19 @@ For C#:
 
 ```powershell
 morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v3.json --target csharp --output artifacts/generated-csharp --json
-morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target csharp --output artifacts/generated-csharp --option language-version=14 --option namespace=Pricing.Generated --json
+morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target csharp --output artifacts/generated-csharp --option language-version=15 --option namespace=Pricing.Generated --json
 morphir generate --input tests/Fixtures/MorphirIon/pairs/v3-daily-rate.ion --target csharp --output artifacts/generated-csharp --input-format ion --json
 morphir generate --input tests/Fixtures/MorphirIon/trees/v3-daily-rate --target csharp --output artifacts/generated-csharp --json
 ```
 
-`--option language-version=15 --option language-version=14` selects `14`.
-Selecting `15` explicitly generates the C# 15 profile independently of the SDK
-installed on the generation machine. Compile it separately using the matching
-.NET 11 compiler. See [the executable C# walkthrough]({{< relref "/docs/getting-started/morphir-to-csharp" >}}).
+`--option language-version=14 --option language-version=15` selects `15`: the last occurrence of an option wins.
+The backend writes C# 15 independently of the SDK installed on the generation machine. Compile it separately
+using the .NET SDK 11 compiler. See [the executable C# walkthrough]({{< relref "/docs/getting-started/morphir-to-csharp" >}}).
 
 For CI, retain the JSON report and propagate a failure:
 
 ```powershell
-morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target fsharp --output artifacts/generated-fsharp --json |
+morphir generate --input tests/Fixtures/MorphirIR/daily-rate-v4.json --target fsharp --output artifacts/generated-fsharp --json=document |
     Set-Content artifacts/generation-report.json
 if ($LASTEXITCODE -ne 0) { throw "Morphir generation failed" }
 ```
@@ -263,7 +352,13 @@ backend extension `backendTransport` and `backendVersion`, and `formatting` when
 `applied` (formatted), `off` (`format=false`) or `unavailable` (the host cannot run the formatter). Only a
 built-in backend reports it. An external backend (`backendTransport` `mep`) has no `formatting` member, even
 with `format=false`: a MEP generate result does not say whether the guest formatted, and the host does not report
-what it did not observe. Logs and warnings use stderr, never stdout.
+what it did not observe. When a built-in pass ran before the backend, the report has `passes`: the ids that ran, the
+application list with the node addresses before and after, and the reads of other modules. When no pass ran but the upgrade
+of a classic model moved or replaced a node, `passes` has an empty `ran` and the records of the upgrade. A feature that the
+backend cannot take and that remains after the passes, such as an extensible record for `csharp`, stops the command before
+the backend with `transform.feature_remains`. An upgrade error names the node address in its `location`. A pass error stops the
+command before the backend with exit code 1, and nothing is published. See [the middle end](../pipeline/middle-end.md).
+Logs and warnings use stderr, never stdout.
 Failed reports contain no successful artifact list. Parsed JSON-mode invocation
 errors also produce a report.
 
@@ -314,3 +409,71 @@ An unknown target lists registered target IDs. Invalid F# options require the
 Boolean `optimize` or `format`, for example `optimize=false` or `format=false`. Codec diagnostics identify malformed models
 and tree members. Limit diagnostics describe the exceeded byte, node, depth,
 entry or path budget. See [CLI troubleshooting](../troubleshooting/).
+
+
+## Manual Orders scale admission
+
+`--bounded-profile orders-scale` explicitly selects provisional limits on the
+existing recorded-tree path with a configured WASM backend. Omit `--input` so
+the producer record supplies its descriptor and read lease. The profile accepts
+plain JSON v4 trees; explicit inputs, built-in generation and process backends
+cannot use it. Omitting the flag preserves the normal admission policy.
+
+```powershell
+morphir generate --target text --output generated --bounded-profile orders-scale
+```
+
+The configured module must be the streaming Orders scale guest described at
+[finos/morphir commit 3652032a](https://github.com/finos/morphir/blob/3652032a5/spec/mck/bounded-generation/scale-guest.md).
+The profile does not generate an input tree or change independently fixed outputs.
+
+It offers 32 KiB documents and chunks, 64 KiB full WASM frames, one document and
+one outstanding request per exchange, 160,000 discovery entries, 2 MiB per
+artifact, 3 GiB total artifacts, 8 GiB session disk and 200,000 rounds. The
+100,000,000 work units and two-hour session deadline are provisional allowances,
+not measured guarantees. The guest can negotiate smaller limits, including a
+shorter call deadline, and any exceeded selected limit still refuses the run.
+
+Of the selected 64 MiB host-cache offer, one quarter is reserved for active-package
+discovery and one half for retained request IDs. Staging can use only the remainder.
+The fractions are recomputed if negotiation selects a smaller cache. Request IDs
+retain exact ordinal uniqueness for the single generation on this connection.
+Their logical charge is 256 fixed bytes plus 128 bytes and two bytes per UTF-16
+code unit per distinct ID; an over-budget insertion is refused before retention.
+These reservations do not establish a process resident-memory ceiling.
+
+The source recipe has 1,024 or 2,048 generated modules. Its input sizes exceed
+1 GiB or 2 GiB, and the larger expected artifact total is 2,181,171,200 bytes.
+This opt-in profile is an admission prerequisite. Both actual scale runs,
+independent output comparisons, work/time calibration, guest/kernel memory
+observations and external host/descendant memory receipts remain required.
+The existing publication transaction can temporarily copy staged artifacts again.
+The 8 GiB allowance leaves room for both copies of the recipe's outputs, but
+publication disk reservations and cancellation during its synchronous commit
+still require qualification alongside the artifact-stage meter.
+
+The decoded exchange allowance is 64 KiB, independent of the 32 KiB per-document
+reader cap. A production 16,560-byte JSON delivery and its 16,385-byte emitted
+chunk total 32,945 decoded bytes in one exchange. The pinned guest admits that
+combination under the 64 KiB decoded and encoded exchange ceilings; full request
+and response frames remain capped at 64 KiB and individual chunks at 32 KiB.
+For the explicit profile, JSON reports include effective ceilings in
+`boundedAccess`. For a successful Wasmtime session, `boundedAccess.linearMemory`
+gives the guest's and Extism kernel's peak linear-memory sizes and the actual
+ceiling applied to each. The engine samples both memories at `morphir.exit`
+before disposing the instance. Linear memory grows in pages over the instance's
+lifetime, so these final sizes are its logical peaks. Host process residency
+and frame peaks require separate observations.
+The production-sized black-box cases use one original 64-payload module and
+the embedded streaming guest pinned to finos/morphir at `3652032a`.
+
+On a successful `orders-scale` run, `boundedAccess.maxInputBatchBytes` reports
+the largest total of decoded model-document bytes sent in one admitted advance.
+`boundedAccess.maxOutputBatchBytes` reports the largest total of validated
+artifact bytes across all chunks in one staged response. The two maxima are
+independent. They exclude inventory, diagnostics, framing and base64 overhead.
+`boundedAccess.peakDiscoveryIndexChargedBytes` records the peak charged bytes
+for the discovery index. The charge covers the retained paths, sorted builder
+and final index array. It excludes provider state, traversal data, temporary
+paths and objects awaiting garbage collection. Resident working sets, context
+caches and operation-wide I/O require separate measurements.

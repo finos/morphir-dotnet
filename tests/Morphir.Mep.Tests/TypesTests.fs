@@ -114,12 +114,14 @@ let tests =
                   Expect.isNonEmpty entries "The transcript has messages"
                   let ids = initializeIds entries
                   entries |> List.iter (checkMessage ids)
+              |> testLabel "PlatformSpecific"
 
           testCase "the session initialize messages keep every member"
           <| fun _ ->
               let entries = read "session-model-transport.md"
               exact MepJson.Default.InitializeParams (entries[0].Node["params"] |> nonNull)
               exact MepJson.Default.InitializeResult (entries[1].Node["result"] |> nonNull)
+          |> testLabel "PlatformSpecific"
 
           testCase "an absent peer kind reads as unspecified and an unknown kind is unspecified"
           <| fun _ ->

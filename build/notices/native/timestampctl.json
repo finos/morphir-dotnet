@@ -1,0 +1,9 @@
+{
+  "kind": "embedded-resource",
+  "name": "timestampctl.pem",
+  "version": "11.0.100",
+  "license": "MIT",
+  "licenseFile": "dotnet-sdk-trustedroots.LICENSE.txt",
+  "source": "https://github.com/dotnet/sdk/blob/b8600c8854f5d1ac1442d717211d968f69a53acd/src/Layout/redist/trustedroots/timestampctl.pem",
+  "sha256": "5ccb03367b52f047099f07e1653160e8578a83711cb18560c979febb65f8cb5d"
+}

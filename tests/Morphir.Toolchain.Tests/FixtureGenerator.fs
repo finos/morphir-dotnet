@@ -32,7 +32,7 @@ let OfferingMorphirCli = "<0.0.0-0"
 
 // ----- JSON values, built and edited as serde_json's json! values are -------------------------------------------------
 
-let s (text: string) : JsonNode = JsonValue.Create text |> nonNull :> JsonNode
+let s (text: string) : JsonNode = JsonValue.Create text :> JsonNode
 let n (value: int64) : JsonNode = JsonValue.Create value :> JsonNode
 let b (value: bool) : JsonNode = JsonValue.Create value :> JsonNode
 

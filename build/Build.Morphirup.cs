@@ -34,12 +34,21 @@ partial class Build
     [Parameter("The platforms whose morphirup assets MorphirupChecksums requires (default: every platform releases build)")]
     readonly string[] MorphirupPlatforms = [.. MorphirupRelease.Platforms];
 
+    [Parameter("Folders of downloaded platform outputs that FlattenReleaseAssets copies into the release assets folder")]
+    readonly string[] ReleaseAssetSources = [];
+
+    [Parameter("Folders of the downloaded Windows toolchain outputs that WindowsToolchainChecksums lists, one per Windows RID")]
+    readonly string[] WindowsToolchainSources = [];
+
+    [Parameter("The toolchain platforms that WindowsToolchainChecksums requires, for a run that produces only some; by default every one (win-x64, win-arm64, osx-arm64)")]
+    readonly string[] ToolchainPlatforms = [];
+
     AbsolutePath MorphirupPublishDirectory => RootDirectory / "artifacts" / "morphirup" / "publish" / Rid!;
 
     AbsolutePath MorphirupProjectDirectory => RootDirectory / "src" / "Morphirup";
 
     /// <summary>The response file of the Native AOT compiler for the last publish of <c>--rid</c>: what it linked.</summary>
-    AbsolutePath MorphirupIlcResponseFile => MorphirupProjectDirectory / "obj" / Configuration.ToString() / "net10.0" / Rid! / "native" / "morphirup.ilc.rsp";
+    AbsolutePath MorphirupIlcResponseFile => MorphirupProjectDirectory / "obj" / Configuration.ToString() / CurrentTargetFramework / Rid! / "native" / "morphirup.ilc.rsp";
 
     /// <summary>
     /// The packages the last publish of <c>--rid</c> linked, from the compiler's response file. Fails on a linked file
@@ -256,6 +265,7 @@ partial class Build
     /// </summary>
     Target MorphirupChecksums => _ => _
         .Description("Write and verify the checksum file of the morphirup release assets")
+        .After(FlattenReleaseAssets)
         .Executes(() =>
         {
             var version = Version.ToString();
@@ -288,6 +298,41 @@ partial class Build
             if (problems.Count > 0)
                 throw new Exception($"{checksums} does not match the assets:{Environment.NewLine}{string.Join(Environment.NewLine, problems)}");
             Serilog.Log.Information("✓ {File}:{NewLine}{Text}", checksums, Environment.NewLine, File.ReadAllText(checksums));
+        });
+
+    /// <summary>
+    /// Copy each downloaded platform output (<c>--release-asset-sources</c>, one folder per uploaded artifact) into the
+    /// release assets folder, once. Fails when two outputs hold different files under one name, rather than letting the
+    /// later download overwrite the earlier; byte-identical duplicates, such as the shared notices file, are accepted.
+    /// A per-platform SHA256SUMS is not copied.
+    /// </summary>
+    Target FlattenReleaseAssets => _ => _
+        .Description("Flatten the downloaded platform outputs into the release assets folder, refusing differing duplicates")
+        .Executes(() =>
+        {
+            if (ReleaseAssetSources.Length == 0) throw new Exception("--release-asset-sources names no folder.");
+            var result = ReleaseAssets.Flatten(ReleaseAssetSources, ReleaseAssetsDir);
+            if (result.Problems.Count > 0)
+                throw new Exception($"The platform outputs do not flatten into {ReleaseAssetsDir}:{Environment.NewLine}{string.Join(Environment.NewLine, result.Problems)}");
+            Serilog.Log.Information("✓ {Count} release assets from {Sources} outputs in {Folder}", result.Files.Count, ReleaseAssetSources.Length, ReleaseAssetsDir);
+        });
+
+    /// <summary>
+    /// Write the release's one SHA256SUMS over the toolchain outputs of win-x64, win-arm64 and osx-arm64
+    /// (<c>--windows-toolchain-sources</c>), after FlattenReleaseAssets has copied them. Fails, writing nothing, when a
+    /// required RID's bundle or manager is missing or a listed file differs from its output; sha256sum checks it after.
+    /// <c>--toolchain-platforms</c> narrows the required RIDs for a run that does not produce them all.
+    /// </summary>
+    Target WindowsToolchainChecksums => _ => _
+        .Description("Write the release SHA256SUMS over the win-x64, win-arm64 and osx-arm64 toolchain outputs")
+        .After(FlattenReleaseAssets)
+        .Executes(() =>
+        {
+            if (WindowsToolchainSources.Length == 0) throw new Exception("--windows-toolchain-sources names no folder.");
+            var result = ReleaseAssets.WriteWindowsToolchainChecksums(WindowsToolchainSources, ReleaseAssetsDir, ToolchainPlatforms);
+            if (result.Problems.Count > 0)
+                throw new Exception($"No {ReleaseAssets.WindowsToolchainChecksumFileName} is written:{Environment.NewLine}{string.Join(Environment.NewLine, result.Problems)}");
+            Serilog.Log.Information("✓ {File}:{NewLine}{Text}", result.Path, Environment.NewLine, File.ReadAllText(result.Path!));
         });
 
 }

@@ -20,6 +20,7 @@ public class PackagedContentsTests
     private static readonly PackOrigin Origin = new("0123456789abcdef0123456789abcdef01234567", WorkingTreeClean: true, new DateTimeOffset(2026, 11, 9, 20, 0, 0, TimeSpan.Zero));
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments(ArchiveFormat.Zip)]
     [Arguments(ArchiveFormat.TarGz)]
     public async Task TheContentsListEveryPackagedFileWithItsSize(ArchiveFormat format)
@@ -48,6 +49,7 @@ public class PackagedContentsTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task AToolPackageListsEveryPackageEntryAndCountsThePackageMetadata()
     {
         await using var sandbox = TestSandbox.Create("morphir-packaged-");
@@ -71,6 +73,7 @@ public class PackagedContentsTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments(TarEntryType.SymbolicLink)]
     [Arguments(TarEntryType.HardLink)]
     public async Task ATarLinkEntryIsRefusedNotDropped(TarEntryType type)

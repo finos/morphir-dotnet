@@ -139,6 +139,7 @@ let tests =
                 generated
                 $"{pagePath} differs from the catalog. To update it, run the tests with UPDATE_SNAPSHOTS=1."
         }
+        |> testLabel "PlatformSpecific"
 
         test "Every catalog code appears once in the page, with its message and an example" {
             let generated = render AdmissionCatalog.rules

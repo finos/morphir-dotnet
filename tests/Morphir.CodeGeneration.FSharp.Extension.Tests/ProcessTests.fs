@@ -141,14 +141,14 @@ let private builtIn (path: string) (options: (string * string) list) : (string *
     | :? Outcome<GenerationArtifacts>.Success as success ->
         // The order of the published manifest and the generate report: the declared order, else by path.
         let tree = success.Value.Tree
-        let files = Morphir.IR.Pipeline.VFileTree.toFileMap tree
+        let files = Morphir.Files.VFileTree.toFileMap tree
 
         let order =
-            Morphir.IR.Pipeline.VFileTree.tryGet Morphir.IR.Pipeline.VFileTree.declaredOrder tree
+            Morphir.Files.VFileTree.tryGet Morphir.Files.VFileTree.declaredOrder tree
             |> Option.defaultWith (fun () -> files |> Map.keys |> List.ofSeq)
 
         [ for location in order ->
-              match Morphir.IR.Pipeline.VFile.readText files[location] with
+              match Morphir.Files.VFile.readText files[location] with
               | Ok text -> location, text
               | Error failure -> failtest $"{location} reads as text: {failure}" ]
     | failure -> failtest $"The built-in generates {path}: {failure}"
@@ -362,3 +362,4 @@ let tests =
               | Ok element -> failtest $"A model over the depth limit is not served: {element}"
 
               Expect.equal run.ExitCode 0 $"exit code: {run.StandardError}" ]
+    |> testLabel "PlatformSpecific"

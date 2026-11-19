@@ -1,0 +1,33 @@
+<Project>
+
+  <!--
+    The process helper (tests/Fixtures/process-helper/process-helper.cs): a .NET file-based app that the test support
+    library starts as a child (ProcessHelper). The build of Morphir.TestSupport builds it once with `dotnet build`,
+    into its obj folder, so no test compiles it while it runs and the source tree stays clean. Its files go to the
+    folder process-helper of the output of Morphir.TestSupport and of each project that references it.
+  -->
+  <PropertyGroup>
+    <MorphirProcessHelperSource>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)../../Fixtures/process-helper/process-helper.cs'))</MorphirProcessHelperSource>
+    <MorphirProcessHelperRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '$(BaseIntermediateOutputPath)', 'process-helper', '$(Configuration)'))</MorphirProcessHelperRoot>
+    <MorphirProcessHelperOutput>$(MorphirProcessHelperRoot)bin/</MorphirProcessHelperOutput>
+    <MorphirProcessHelperDotnet>$(DOTNET_HOST_PATH)</MorphirProcessHelperDotnet>
+    <MorphirProcessHelperDotnet Condition="'$(MorphirProcessHelperDotnet)' == ''">dotnet</MorphirProcessHelperDotnet>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(MorphirProcessHelperOutput)process-helper.dll;$(MorphirProcessHelperOutput)process-helper.runtimeconfig.json;$(MorphirProcessHelperOutput)process-helper.deps.json"
+          Link="process-helper/%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          Visible="false" />
+  </ItemGroup>
+
+  <Target Name="MorphirBuildProcessHelper"
+          BeforeTargets="BeforeBuild"
+          Inputs="$(MorphirProcessHelperSource);$(MSBuildThisFileFullPath)"
+          Outputs="$(MorphirProcessHelperOutput)process-helper.dll">
+    <Exec Command="&quot;$(MorphirProcessHelperDotnet)&quot; build &quot;$(MorphirProcessHelperSource)&quot; -c $(Configuration) -o &quot;$(MorphirProcessHelperOutput.TrimEnd('\/'))&quot; --artifacts-path &quot;$(MorphirProcessHelperRoot)artifacts&quot; --disable-build-servers -nologo -v q"
+          StandardOutputImportance="low" />
+    <Touch Files="$(MorphirProcessHelperOutput)process-helper.dll" />
+  </Target>
+
+</Project>

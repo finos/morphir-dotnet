@@ -775,6 +775,7 @@ let tests =
                     (run """{"a":1,"b":[2,1]}""").Qualified
                     "Changing array order must fail"
             )
+        |> testLabel "PlatformSpecific"
         testCase
             "Case ids and matrix rows must be unique"
             (fun () ->
@@ -870,6 +871,7 @@ let tests =
                             "mck.artifact_path"
                             "The captured root is explicit"
             )
+        |> testLabel "PlatformSpecific"
         testCase
             "Separate scenarios cannot reuse one stable case id"
             (fun () ->
@@ -1028,6 +1030,7 @@ let tests =
                         "mck.missing_artifact"
                         "The missing oracle file is named"
             )
+        |> testLabel "PlatformSpecific"
         testCase
             "Invalid implementation JSON stays a failed observation in a valid report"
             (fun () ->
@@ -1213,6 +1216,7 @@ let tests =
                         "mck.invalid_artifact"
                         "The invalid expectation is named"
             )
+        |> testLabel "PlatformSpecific"
         testCase
             "Operational failures retain observations already gathered"
             (fun () ->
@@ -1373,4 +1377,5 @@ let tests =
                         issues
                         "Multiple incompatible model expectations fail linting"
             )
+        |> testLabel "PlatformSpecific"
     ]

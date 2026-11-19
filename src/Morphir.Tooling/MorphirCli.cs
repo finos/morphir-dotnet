@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Serilog;
-using Serilog.Events;
 using Foundatio.Mediator;
 
 namespace Morphir.Tooling;
@@ -62,6 +61,8 @@ public sealed class MorphirCliBuilder
 
         Args = args;
         _rootCommand = new RootCommand(description);
+        // An option with an optional value takes it only after '=', and its help says so: --json[=stream|document].
+        Cli.OptionValueRewrite.ShowValuesAfterAnEqualsSignInHelp(_rootCommand);
         // Help must not load appsettings or perform configuration discovery.
         // Ordinary command execution retains the existing host defaults.
         var help = args.Any(arg => arg is "--help" or "-h" or "-?" or "/?");
@@ -234,14 +235,7 @@ public sealed class MorphirCliBuilder
         // Configure Serilog to write ALL logs to stderr only
         // This keeps stdout clean for command output (JSON, formatted results, etc.)
         // This is critical for CLI tools: stdout = data, stderr = diagnostics
-        Log.Logger = new LoggerConfiguration()
-            .MinimumLevel.Information()
-            .MinimumLevel.Override("Microsoft.Hosting.Lifetime", LogEventLevel.Warning)
-            .WriteTo.Console(
-                standardErrorFromLevel: LogEventLevel.Verbose,
-                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}"
-            )
-            .CreateLogger();
+        Log.Logger = Infrastructure.CliLogging.Create();
 
         // Add Serilog to the logging builder (not services)
         _hostBuilder.Logging.AddSerilog(Log.Logger, dispose: true);
@@ -289,10 +283,13 @@ public sealed class MorphirCliApp : IDisposable, IAsyncDisposable
         await _host.StartAsync(cancellationToken);
         try
         {
-            var result = _rootCommand.Parse(_args);
-            return result.Errors.Count > 0 && result.CommandResult.Command is IMorphirParseErrorHandler handler
-                ? handler.HandleParseErrors(result)
-                : await result.InvokeAsync(cancellationToken: cancellationToken);
+            var result = Cli.OptionValueRewrite.Parse(_rootCommand, _args);
+            if (result.Errors.Count == 0) return await result.InvokeAsync(Configuration, cancellationToken);
+            var messages = Cli.OptionValueRewrite.ErrorMessages(result);
+            if (result.CommandResult.Command is IMorphirParseErrorHandler handler) return handler.HandleParseErrors(result, messages);
+            var exitCode = await result.InvokeAsync(Configuration, cancellationToken);
+            WriteHints(result);
+            return exitCode;
         }
         finally
         {
@@ -309,7 +306,13 @@ public sealed class MorphirCliApp : IDisposable, IAsyncDisposable
         _host.Start();
         try
         {
-            return Invoke(_rootCommand.Parse(_args));
+            var result = Cli.OptionValueRewrite.Parse(_rootCommand, _args);
+            if (result.Errors.Count == 0) return result.Invoke(Configuration);
+            var messages = Cli.OptionValueRewrite.ErrorMessages(result);
+            if (result.CommandResult.Command is IMorphirParseErrorHandler handler) return handler.HandleParseErrors(result, messages);
+            var exitCode = result.Invoke(Configuration);
+            WriteHints(result);
+            return exitCode;
         }
         finally
         {
@@ -322,10 +325,20 @@ public sealed class MorphirCliApp : IDisposable, IAsyncDisposable
     /// </summary>
     public void Dispose() => _host.Dispose();
 
-    private static int Invoke(System.CommandLine.ParseResult result) =>
-        result.Errors.Count > 0 && result.CommandResult.Command is IMorphirParseErrorHandler handler
-            ? handler.HandleParseErrors(result)
-            : result.Invoke();
+    /// <summary>The invocation configuration of the application's services, or the default (the console).</summary>
+    private InvocationConfiguration? Configuration => _host.Services.GetService<InvocationConfiguration>();
+
+    /// <summary>
+    /// The parse errors of a command without its own renderer are shown by System.CommandLine, which cannot take the
+    /// host's messages; the hints of <see cref="Cli.OptionValueRewrite.ErrorHints"/> follow them on the same stream.
+    /// </summary>
+    private void WriteHints(ParseResult result)
+    {
+        if (result.Action is not System.CommandLine.Invocation.ParseErrorAction) return;
+        var error = (Configuration ?? result.InvocationConfiguration).Error;
+        foreach (var hint in Cli.OptionValueRewrite.ErrorHints(result))
+            if (hint is not null) error.WriteLine(hint);
+    }
 
     /// <summary>
     /// Asynchronously disposes the application and its underlying host.

@@ -1,5 +1,6 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
+using System.CommandLine;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
@@ -8,11 +9,16 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Morphir.Compilation;
 using Morphir.Frontend.FSharp;
 using Morphir.Tooling.Features.Compile;
+using Morphir.TestSupport.Drivers;
 using Morphir.Tooling.Scenarios;
 
 namespace Morphir.Tooling.Tests.Features.Compile;
 
-/// <summary>Task 4.7: the compile command, its JSON report, JSON Lines (STRM-2), streaming and exit codes.</summary>
+/// <summary>
+/// Task 4.7: the compile command, its JSON output, streaming and exit codes. <c>--json</c> streams the compile events
+/// and ends with the report; <c>--json=document</c> writes the report alone (adopt-streaming-json, task 3.1). Each
+/// test of a spec scenario names it above the test.
+/// </summary>
 [NotInParallel(nameof(CompileCommandTests))]
 public sealed class CompileCommandTests
 {
@@ -71,12 +77,13 @@ public sealed class CompileCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TheOutputOptionInstallsTheIrAndTheReportListsTheInstalledFile()
     {
         var project = Project();
         using var _ = project.Workspace;
         var target = project.Workspace.PathOf("dist");
-        var run = await Compile(project, $"--json -o {target}");
+        var run = await Compile(project, $"--json=document -o {target}");
         run.Exit.Should().Be(0, run.Output.Text);
         using var report = JsonDocument.Parse(run.Output.Text);
         report.RootElement.GetProperty("output").GetString().Should().Be(project.Workspace.PathOf(".morphir/out/compile.dest/morphir-ir.json"));
@@ -87,12 +94,13 @@ public sealed class CompileCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task AnInstallConflictFailsWithExitCodeTwoAndNamesTheForeignFile()
     {
         var project = Project();
         using var _ = project.Workspace;
         project.Workspace.Write("dist/morphir-ir.json", "foreign");
-        var run = await Compile(project, $"--json --output {project.Workspace.PathOf("dist")}");
+        var run = await Compile(project, $"--json=document --output {project.Workspace.PathOf("dist")}");
         run.Exit.Should().Be(2, run.Output.Text);
         using var report = JsonDocument.Parse(run.Output.Text);
         report.RootElement.GetProperty("installed").GetArrayLength().Should().Be(0);
@@ -102,11 +110,12 @@ public sealed class CompileCommandTests
     }
 
     [Test]
-    public async Task JsonModeWritesExactlyOneReportOnStdout()
+    [Category("PlatformSpecific")]
+    public async Task TheDocumentModeWritesExactlyOneReportOnStdout()
     {
         var project = Project();
         using var _ = project.Workspace;
-        var run = await Compile(project, "--json");
+        var run = await Compile(project, "--json=document");
         run.Exit.Should().Be(0, run.Output.Error);
         using var report = JsonDocument.Parse(run.Output.Text);
         report.RootElement.GetProperty("success").GetBoolean().Should().BeTrue();
@@ -119,13 +128,14 @@ public sealed class CompileCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TheReportGivesTheCommandLineAsTheOriginOfAnOverride()
     {
         var project = Project();
         using var _ = project.Workspace;
         project.Workspace.Write("morphir.toml",
             "[project]\nname = \"acme/car-rental\"\n\n[ir]\nformat_version = 3\n\n[frontend]\nlanguage = \"fsharp\"\n\n[frontend.fsharp]\nproject_file = \"src/Acme.CarRental.fsproj\"\n");
-        var run = await Compile(project, "--json --ir-version 4");
+        var run = await Compile(project, "--json=document --ir-version 4");
         using var report = JsonDocument.Parse(run.Output.Text);
         report.RootElement.GetProperty("irVersion").GetString().Should().Be("4");
         var origin = report.RootElement.GetProperty("origins").GetProperty("irVersion");
@@ -133,41 +143,48 @@ public sealed class CompileCommandTests
         origin.GetProperty("flag").GetString().Should().Be("--ir-version");
     }
 
+    // cli-model-compilation, Scenario: Warnings from every stage in a successful report
     [Test]
-    public async Task WarningsFromEveryStageAreInASuccessfulReportInStageAndPositionOrder()
+    [Category("PlatformSpecific")]
+    public async Task WarningsFromEveryStageInASuccessfulReport()
     {
         var project = Project(IncompletePricing);
         using var _ = project.Workspace;
-        var run = await Compile(project, "--json");
+        var run = await Compile(project, "--json=document");
         run.Exit.Should().Be(0, run.Output.Text);
-        using var report = JsonDocument.Parse(run.Output.Text);
-        report.RootElement.GetProperty("success").GetBoolean().Should().BeTrue();
-        report.RootElement.GetProperty("exitCode").GetInt32().Should().Be(0);
-        var diagnostics = report.RootElement.GetProperty("diagnostics").EnumerateArray()
+        var report = run.Result.ReportOfDocument();
+        report.GetProperty("success").GetBoolean().Should().BeTrue();
+        report.GetProperty("exitCode").GetInt32().Should().Be(0);
+        var diagnostics = report.GetProperty("diagnostics").EnumerateArray()
             .Select(d => (d.GetProperty("severity").GetString(), d.GetProperty("code").GetString())).ToArray();
         diagnostics.Should().Equal(("warning", "msbuild.ignored_package_reference"), ("warning", "fsharp.compiler"));
     }
 
+    // cli-model-compilation, Scenario: Unsupported construct in JSON mode
     [Test]
-    public async Task AnUnsupportedConstructGivesOneFailedReportWithItsRange()
+    [Category("PlatformSpecific")]
+    public async Task UnsupportedConstructInJsonMode()
     {
         var project = Project(CompileRunnerTests.MutablePricing);
         using var _ = project.Workspace;
-        var run = await Compile(project, "--json");
+        var run = await Compile(project, "--json=document");
         run.Exit.Should().Be(1);
-        using var report = JsonDocument.Parse(run.Output.Text);
-        report.RootElement.GetProperty("success").GetBoolean().Should().BeFalse();
-        report.RootElement.GetProperty("failureKind").GetString().Should().Be("source");
-        report.RootElement.GetProperty("frontend").GetString().Should().Be("morphir-dotnet.fsharp (in-process)");
-        report.RootElement.GetProperty("sources").GetProperty("documents").GetArrayLength().Should().Be(2);
-        var mutable = report.RootElement.GetProperty("diagnostics").EnumerateArray()
+        var report = run.Result.ReportOfDocument();
+        report.GetProperty("success").GetBoolean().Should().BeFalse();
+        report.GetProperty("failureKind").GetString().Should().Be("source");
+        report.GetProperty("frontend").GetString().Should().Be("morphir-dotnet.fsharp (in-process)");
+        report.GetProperty("sources").GetProperty("documents").GetArrayLength().Should().Be(2);
+        var mutable = report.GetProperty("diagnostics").EnumerateArray()
             .Single(d => d.GetProperty("code").GetString() == "fsharp.unsupported_mutable");
         mutable.GetProperty("location").GetProperty("uri").GetString().Should().Be("Pricing.fs");
         mutable.GetProperty("location").GetProperty("range").GetProperty("start").GetProperty("line").GetInt32().Should().Be(4);
+        run.Output.Error.Should().NotContain("\"success\"", "stderr holds no copy of the report");
         run.Output.Error.Should().NotContain("fsharp.unsupported_mutable", "JSON mode streams nothing to stderr");
     }
 
+    // cli-model-compilation, Scenario: Project-file warning before compilation ends
     [Test]
+    [Category("PlatformSpecific")]
     public async Task HumanModeStreamsAProjectFileWarningBeforeASlowFrontendCompletes()
     {
         var project = Project();
@@ -188,8 +205,58 @@ public sealed class CompileCommandTests
         run.Output.Text.Trim().Should().EndWith("morphir-ir.json", "stdout holds only the published path");
     }
 
+    // cli-model-compilation, Scenario: JSON mode is not streamed
     [Test]
-    public async Task JsonLinesWritesAndFlushesEachRecordAsItsEventOccurs()
+    [Category("PlatformSpecific")]
+    public async Task JsonModeIsNotStreamed()
+    {
+        var project = Project(IncompletePricing);
+        using var _ = project.Workspace;
+        CapturedOutput? output = null;
+        string? stdoutWhileCompiling = null;
+        var slow = new FakeFrontend("morphir-dotnet.fsharp", FakeFrontend.FSharp(), async (request, ct) =>
+        {
+            await Task.Delay(100, ct);
+            stdoutWhileCompiling = output!.Text;
+            return await FSharpFrontend.Registration.CompileAsync(request, ct);
+        });
+        var run = await CompileObserved(project, "--json=document", slow, captured => output = captured);
+        run.Exit.Should().Be(0, run.Output.Error);
+        stdoutWhileCompiling.Should().BeEmpty("the document mode writes nothing before the report");
+        var report = run.Result.ReportOfDocument();
+        report.GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("code").GetString())
+            .Should().Equal("msbuild.ignored_package_reference", "fsharp.compiler");
+    }
+
+    // cli-model-compilation, Scenario: Events in order
+    [Test]
+    [Category("PlatformSpecific")]
+    public async Task EventsInOrder()
+    {
+        var project = Project();
+        using var _ = project.Workspace;
+        var run = await Compile(project, "--json");
+        run.Exit.Should().Be(0, run.Output.Error);
+        var events = run.Result.Events();
+        var records = events.Select(Describe).ToArray();
+        var sources = Array.IndexOf(records, "stageStarted:sources");
+        sources.Should().BeGreaterThan(-1, string.Join(", ", records));
+        records[(sources + 1)..(sources + 3)].Should().Equal("diagnostics:sources", "stageCompleted:sources");
+        records[(sources + 3)..^1].Should().Contain("stageStarted:frontend", "the records of later stages follow");
+        records[^1].Should().Be("completed:");
+        events[sources + 1].GetProperty("document").GetString().Should().Be("Acme.CarRental.fsproj");
+        events[sources + 1].GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("code").GetString())
+            .Should().Equal("msbuild.ignored_package_reference");
+        var report = run.Result.ReportOfStream();
+        report.GetProperty("success").GetBoolean().Should().BeTrue();
+        report.GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("code").GetString())
+            .Should().Equal("msbuild.ignored_package_reference");
+    }
+
+    // cli-json-output, Scenario: An early warning is visible before a slow stage ends
+    [Test]
+    [Category("PlatformSpecific")]
+    public async Task AnEarlyWarningIsVisibleBeforeASlowStageEnds()
     {
         var project = Project();
         using var _ = project.Workspace;
@@ -201,74 +268,126 @@ public sealed class CompileCommandTests
             flushedWhileCompiling = output!.FlushedLines;
             return await FSharpFrontend.Registration.CompileAsync(request, ct);
         });
-        var run = await CompileObserved(project, "--json-lines", slow, captured => output = captured);
+        var run = await CompileObserved(project, "--json", slow, captured => output = captured);
         run.Exit.Should().Be(0, run.Output.Error);
         flushedWhileCompiling.Should().NotBeNull();
         flushedWhileCompiling!.Select(Event).Should().Equal(
             "stageStarted", "stageCompleted", "stageStarted", "diagnostics", "stageCompleted", "stageStarted", "stageCompleted", "stageStarted");
+        flushedWhileCompiling.Should().Contain(line => line.Contains("msbuild.ignored_package_reference"),
+            "the warning's record is on stdout before the frontend completes");
+        run.Result.ReportOfStream().GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("code").GetString())
+            .Should().Equal("msbuild.ignored_package_reference");
+    }
 
-        var lines = run.Output.Lines;
-        lines.Should().OnlyContain(line => Parses(line));
-        lines.Count(line => Event(line) == "completed").Should().Be(1);
-        Event(lines[^1]).Should().Be("completed");
-        using var sources = JsonDocument.Parse(lines.First(line => Event(line) == "diagnostics"));
-        sources.RootElement.GetProperty("stage").GetString().Should().Be("sources");
-        sources.RootElement.GetProperty("document").GetString().Should().Be("Acme.CarRental.fsproj");
-
-        // The completed record holds the report that --json writes, and the diagnostics records add up to it.
-        var json = await Compile(project, "--json");
-        using var completed = JsonDocument.Parse(lines[^1]);
-        using var report = JsonDocument.Parse(json.Output.Text);
-        JsonSerializer.Serialize(completed.RootElement.GetProperty("report")).Should().Be(JsonSerializer.Serialize(report.RootElement));
-        var streamed = lines.Where(line => Event(line) == "diagnostics")
-            .SelectMany(line => JsonDocument.Parse(line).RootElement.GetProperty("diagnostics").EnumerateArray().Select(d => d.GetRawText()))
+    // cli-json-output, Scenario: The two modes carry one report; the records are a lossless stream of the report.
+    [Test]
+    [Category("PlatformSpecific")]
+    public async Task TheStreamCarriesTheReportOfTheDocumentAndItsDiagnostics()
+    {
+        var project = Project(IncompletePricing);
+        using var _ = project.Workspace;
+        var stream = await Compile(project, "--json");
+        var document = await Compile(project, "--json=document");
+        var completed = stream.Result.ReportOfStream();
+        var report = document.Result.ReportOfDocument();
+        JsonSerializer.Serialize(completed).Should().Be(JsonSerializer.Serialize(report));
+        var streamed = stream.Result.Events().Where(record => Describe(record).StartsWith("diagnostics:", StringComparison.Ordinal))
+            .SelectMany(record => record.GetProperty("diagnostics").EnumerateArray().Select(d => JsonSerializer.Serialize(d)))
             .Order(StringComparer.Ordinal);
-        var reported = report.RootElement.GetProperty("diagnostics").EnumerateArray()
+        var reported = report.GetProperty("diagnostics").EnumerateArray()
             .Select(d => JsonSerializer.Serialize(d)).Order(StringComparer.Ordinal);
         streamed.Should().Equal(reported);
     }
 
+    // cli-model-compilation, Scenario: Failure still ends with completed
     [Test]
-    public async Task JsonLinesEndsAFailureWithACompletedRecord()
+    [Category("PlatformSpecific")]
+    public async Task FailureStillEndsWithCompleted()
     {
         var project = Project(CompileRunnerTests.MutablePricing);
         using var _ = project.Workspace;
-        var run = await Compile(project, "--json-lines");
+        var run = await Compile(project, "--json");
         run.Exit.Should().Be(1);
-        run.Output.Lines.Should().OnlyContain(line => Parses(line));
-        using var completed = JsonDocument.Parse(run.Output.Lines[^1]);
-        completed.RootElement.GetProperty("event").GetString().Should().Be("completed");
-        completed.RootElement.GetProperty("report").GetProperty("success").GetBoolean().Should().BeFalse();
-        completed.RootElement.GetProperty("report").GetProperty("exitCode").GetInt32().Should().Be(1);
+        var report = run.Result.ReportOfStream();
+        report.GetProperty("success").GetBoolean().Should().BeFalse();
+        report.GetProperty("exitCode").GetInt32().Should().Be(1);
+        report.GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("code").GetString())
+            .Should().Contain("fsharp.unsupported_mutable");
     }
 
+    // cli-model-compilation, Scenario: Both JSON flags
     [Test]
-    public async Task JsonAndJsonLinesTogetherGiveOneInvocationFailureRecord()
+    [Category("PlatformSpecific")]
+    public async Task BothJsonFlags()
     {
         var project = Project();
         using var _ = project.Workspace;
         var run = await Compile(project, "--json --json-lines");
         run.Exit.Should().Be(2);
         run.Output.Lines.Should().ContainSingle();
-        using var completed = JsonDocument.Parse(run.Output.Lines[0]);
-        completed.RootElement.GetProperty("event").GetString().Should().Be("completed");
-        completed.RootElement.GetProperty("report").GetProperty("failureKind").GetString().Should().Be("invocation");
+        var report = run.Result.ReportOfStream();
+        report.GetProperty("failureKind").GetString().Should().Be("invocation");
+        report.GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("message").GetString())
+            .Should().Contain(message => message!.Contains("'--json-lines'"));
+        project.Provider.Expanded.Should().BeEmpty();
+    }
+
+    // cli-json-output, Scenario: The old flag is unknown
+    [Test]
+    [Category("PlatformSpecific")]
+    public async Task TheOldFlagIsUnknown()
+    {
+        var project = Project();
+        using var _ = project.Workspace;
+        var run = await Compile(project, "--json-lines");
+        run.Exit.Should().Be(2);
+        run.Output.Error.Should().Contain("'--json-lines'");
+        project.Provider.Expanded.Should().BeEmpty();
+    }
+
+    // cli-json-output, Scenario: A usage error still ends with completed
+    [Test]
+    [Category("PlatformSpecific")]
+    public async Task AUsageErrorStillEndsWithCompleted()
+    {
+        var project = Project();
+        using var _ = project.Workspace;
+        var run = await Compile(project, "--json --no-such-option");
+        run.Exit.Should().Be(2);
+        run.Output.Lines.Should().ContainSingle();
+        run.Result.ReportOfStream().GetProperty("failureKind").GetString().Should().Be("invocation");
+    }
+
+    // cli-json-output, Scenario: A separated mode is refused with a hint
+    [Test]
+    [Category("PlatformSpecific")]
+    public async Task ASeparatedModeIsRefusedWithAHint()
+    {
+        var project = Project();
+        using var _ = project.Workspace;
+        var run = await Compile(project, "--json document");
+        run.Exit.Should().Be(2);
+        run.Result.ReportOfStream().GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("message").GetString())
+            .Should().ContainSingle(message => message!.Contains("--json=document"));
         project.Provider.Expanded.Should().BeEmpty();
     }
 
     [Test]
-    public async Task AParseErrorInJsonLinesModeEndsWithACompletedRecord()
+    [Category("PlatformSpecific")]
+    public async Task AnArgumentThatNamesNoModeGetsNoHint()
     {
         var project = Project();
         using var _ = project.Workspace;
-        var run = await Compile(project, "--json-lines --no-such-option");
+        var run = await Compile(project, "--json model.json");
         run.Exit.Should().Be(2);
-        run.Output.Lines.Should().ContainSingle();
-        Event(run.Output.Lines[0]).Should().Be("completed");
+        run.Result.ReportOfStream().GetProperty("diagnostics").EnumerateArray().Select(d => d.GetProperty("message").GetString())
+            .Should().ContainSingle().Which.Should().Contain("'model.json'").And.NotContain("--json=");
     }
 
+    // cli-model-compilation, Scenario: Cancellation
     [Test]
-    public async Task CancellationInJsonLinesModeEndsWithACompletedRecordAndExitCode130()
+    [Category("PlatformSpecific")]
+    public async Task Cancellation()
     {
         var project = Project();
         using var _ = project.Workspace;
@@ -279,15 +398,26 @@ public sealed class CompileCommandTests
             await Task.Delay(Timeout.Infinite, ct);
             throw new InvalidOperationException("unreachable");
         });
-        var run = await Compile(project, "--json-lines", waiting, cancellation);
+        var run = await Compile(project, "--json", waiting, cancellation);
         run.Exit.Should().Be(130);
-        using var completed = JsonDocument.Parse(run.Output.Lines[^1]);
-        completed.RootElement.GetProperty("event").GetString().Should().Be("completed");
-        completed.RootElement.GetProperty("report").GetProperty("failureKind").GetString().Should().Be("cancelled");
+        run.Result.ReportOfStream().GetProperty("failureKind").GetString().Should().Be("cancelled");
         File.Exists(project.Workspace.PathOf(".morphir/out/compile.dest/morphir-ir.json")).Should().BeFalse();
     }
 
     [Test]
+    public async Task TheJsonOptionHelpShowsItsModesAfterAnEqualsSign()
+    {
+        var builder = MorphirCli.CreateBuilder(["compile", "--help"]).AddScenario<CompilationScenario>();
+        await using var app = builder.Build();
+        using var help = new StringWriter();
+
+        builder.RootCommand.Parse(["compile", "--help"]).Invoke(new InvocationConfiguration { Output = help });
+
+        help.ToString().Should().Contain("--json[=stream|document]").And.NotContain("--json <").And.NotContain("--json-lines");
+    }
+
+    [Test]
+    [Category("PlatformSpecific")]
     [Arguments("", 0)]
     [Arguments("--ir-version 4.1.0-draft.1", 2)]
     [Arguments("--types-only", 2)]
@@ -297,18 +427,19 @@ public sealed class CompileCommandTests
     {
         var project = Project();
         using var _ = project.Workspace;
-        var run = await Compile(project, "--json " + arguments);
+        var run = await Compile(project, "--json=document " + arguments);
         run.Exit.Should().Be(exit, run.Output.Text);
         using var report = JsonDocument.Parse(run.Output.Text);
         report.RootElement.GetProperty("exitCode").GetInt32().Should().Be(exit);
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task OutsideAnyProjectInputFilesCompileWithTheDefaults()
     {
         using var workspace = new CompileWorkspace();
         workspace.Write("A.fs", "module Acme.Demo.A\n\nlet answer : int = 42\n");
-        var run = await Compile(workspace, [], FSharpFrontend.Registration, "--json --language fsharp --input A.fs --package-name acme/demo");
+        var run = await Compile(workspace, [], FSharpFrontend.Registration, "--json=document --language fsharp --input A.fs --package-name acme/demo");
         run.Exit.Should().Be(0, run.Output.Text);
         using var report = JsonDocument.Parse(run.Output.Text);
         report.RootElement.GetProperty("irVersion").GetString().Should().Be("4");
@@ -335,19 +466,21 @@ public sealed class CompileCommandTests
         return new Run(await app.RunAsync(), output);
     }
 
-    private static bool Parses(string line)
-    {
-        try { using var _ = JsonDocument.Parse(line); return true; }
-        catch (JsonException) { return false; }
-    }
-
     private static string Event(string line)
     {
         using var record = JsonDocument.Parse(line);
         return record.RootElement.GetProperty("event").GetString()!;
     }
 
-    private sealed record Run(int Exit, CapturedOutput Output);
+    /// <summary>The record of one event: its name and its stage, for example <c>stageStarted:sources</c>.</summary>
+    private static string Describe(JsonElement record) =>
+        $"{record.GetProperty("event").GetString()}:{(record.TryGetProperty("stage", out var stage) ? stage.GetString() : "")}";
+
+    private sealed record Run(int Exit, CapturedOutput Output)
+    {
+        /// <summary>The run as a command result, for the JSON output assertions.</summary>
+        public CommandResult Result => new("morphir compile", Exit, Output.Text, Output.Error, TimeSpan.Zero, []);
+    }
 
     /// <summary>Captured stdout and stderr. Stdout records what was flushed.</summary>
     public sealed class CapturedOutput : ICompileOutput

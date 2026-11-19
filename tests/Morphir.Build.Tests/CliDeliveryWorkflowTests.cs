@@ -11,6 +11,7 @@ namespace Morphir.Build.Tests;
 /// repository. This repository publishes its libraries and extension tools, and publishes the CLI (the morphir-&lt;rid&gt;
 /// executables, morphirup and Morphir.Tool) only when MORPHIR_DOTNET_CLI_PUBLICATION is enabled, as a rollback.
 /// </summary>
+[Category("PlatformSpecific")]
 public class CliDeliveryWorkflowTests
 {
     private const string Enabled = "vars.MORPHIR_DOTNET_CLI_PUBLICATION == 'enabled'";
@@ -101,7 +102,7 @@ public class CliDeliveryWorkflowTests
         var qualify = steps.Single(step => Name(step) == "Start the produced executable");
         var script = qualify["run"].ToString();
         script.Should().Contain("--version").And.Contain("launchPath").And.Contain("dotnet-morphir");
-        // The tool package is installed only from the built bytes (ToolPackageInstallTests), never with --add-source,
+        // The tool package is installed only from the built bytes (tests/Scripts/install-tool-package.Tests.ps1), never with --add-source,
         // which races the configured feeds.
         script.Should().Contain("./.github/scripts/install-tool-package.ps1 -Package $artifact").And.NotContain("--add-source")
             .And.NotContain("dotnet tool install");
@@ -114,9 +115,268 @@ public class CliDeliveryWorkflowTests
         upload["with"]["path"].ToString().Should().Contain(".build-launch.json").And.Contain(".sha256");
     }
 
+    // The runner of each released platform, native for its RID: Native AOT does not cross-compile between operating
+    // systems, and each job runs what it built. win-arm64 builds on the hosted Windows 11 ARM64 runner, not on x64.
+    private static readonly IReadOnlyDictionary<string, string> NativeRunners = new Dictionary<string, string>
+    {
+        ["linux-x64"] = "ubuntu-latest",
+        ["linux-arm64"] = "ubuntu-24.04-arm",
+        ["win-x64"] = "windows-latest",
+        ["win-arm64"] = "windows-11-arm",
+        ["osx-arm64"] = "macos-latest",
+    };
+
+    [Test]
+    [Arguments("deployment.yml", "build-executables")]
+    [Arguments("deployment.yml", "build-morphirup")]
+    [Arguments("morphirup.yml", "build")]
+    public void TheCliReleaseMatricesBuildEveryPlatformOnItsNativeRunner(string workflow, string job)
+    {
+        // A check-only leg uploads nothing, so it is not the producer of its RID (TheReleaseChecksTheMacOsSetupOnMacOs15).
+        var include = (YamlSequenceNode)Job(Read(workflow), job)["strategy"]["matrix"]["include"];
+        var entries = include.Children.Cast<YamlMappingNode>()
+            .Where(entry => Value(entry, "check-only") != "true")
+            .Select(entry => (Rid: entry["rid"].ToString(), Os: entry["os"].ToString())).ToList();
+
+        entries.Select(entry => entry.Rid).Should().Equal(Morphir.Build.Helpers.MorphirupRelease.Platforms);
+        entries.Should().Contain(("win-arm64", "windows-11-arm"), "Windows ARM64 is released, built on the native ARM64 runner");
+        foreach (var (rid, os) in entries)
+            os.Should().Be(NativeRunners[rid], $"{workflow} {job} builds {rid} on a native runner");
+    }
+
+    [Test]
+    [Arguments("deployment.yml", "build-executables", "--target PublishSingleFile")]
+    [Arguments("morphirup-build.yml", "build", "targets=(PackMorphirup CheckMorphirup)")]
+    [Arguments("cli-offering.yml", "build", "--target PackRelease")]
+    public void TheCliBuildsCheckTheMachineIsNativeBeforeTheyBuild(string workflow, string job, string build)
+    {
+        var steps = Steps(Job(Read(workflow), job));
+        var check = steps.FindIndex(step => Run(step).Contains("--target CheckBuildMachine", StringComparison.Ordinal));
+        var publish = steps.FindIndex(step => Run(step).Contains(build, StringComparison.Ordinal));
+
+        check.Should().BeGreaterThanOrEqualTo(0, $"{workflow} checks that the runner and its .NET SDK are native for the RID");
+        publish.Should().BeGreaterThan(check, "the check runs before anything is built");
+    }
+
+    [Test]
+    public void OneReusableJobProducesEachWindowsToolchainAndItsManager()
+    {
+        // One producer per Windows RID: morphirup-build.yml, which build-morphirup and the pull request workflow call.
+        // Its toolchain upload and its manager upload come from the same job, so the release never puts a second build
+        // of a manager over the bytes that its toolchain's SHA256SUMS names.
+        var folder = Path.Combine(TestFixture.GetRepositoryRoot(), ".github", "workflows");
+        Directory.GetFiles(folder, "*.yml").Where(path => File.ReadAllText(path).Contains("PackWindowsToolchain", StringComparison.Ordinal))
+            .Select(Path.GetFileName).Should().Equal("morphirup-build.yml");
+        ((YamlMappingNode)Deployment()["jobs"]).Children.Keys.Select(key => key.ToString()).Should().NotContain("build-windows-toolchain");
+        File.Exists(Path.Combine(folder, "morphirup-preview3-arm64-proof.yml")).Should().BeFalse("its proof lane is part of morphirup.yml");
+
+        var steps = Steps(Job(Read("morphirup-build.yml"), "build"));
+        var toolchain = steps.Single(step => Name(step) == "Upload the complete toolchain proof inputs");
+        toolchain["with"]["name"].ToString().Should().Be("windows-release-toolchain-${{ inputs.rid }}");
+        toolchain["if"].ToString().Should().Contain("win-x64").And.Contain("win-arm64").And.Contain("osx-arm64").And.Contain("inputs.toolchain");
+        steps.Single(step => Name(step) == "Upload the morphirup release assets")["with"]["name"].ToString()
+            .Should().Be("morphirup-${{ inputs.rid }}");
+    }
+
+    [Test]
+    public void OnlyTheReleaseRunsPackTheMacOsToolchain()
+    {
+        // The macOS toolchain and its acquired journey add build work, so the per-PR macOS job does not run them: the
+        // release and its dry run pass toolchain: true to the one producer, and the pull request workflow passes nothing.
+        var input = ((YamlMappingNode)((YamlMappingNode)((YamlMappingNode)Read("morphirup-build.yml")["on"])["workflow_call"])["inputs"])["toolchain"];
+        input["type"].ToString().Should().Be("boolean");
+        input["default"].ToString().Should().Be("false");
+        Job(Deployment(), "build-morphirup")["with"]["toolchain"].ToString().Should().Be("true");
+        ((YamlMappingNode)Job(Read("morphirup.yml"), "build")["with"]).Children.Keys.Select(key => key.ToString())
+            .Should().NotContain("toolchain");
+
+        var steps = Steps(Job(Read("morphirup-build.yml"), "build"));
+        var build = Run(steps.Single(step => Name(step) == "Build and check morphirup for ${{ inputs.rid }}"));
+        build.Should().Contain("osx-arm64").And.Contain("PackWindowsToolchain");
+        var journey = steps.Single(step => Name(step) == "Exercise the setup composition with actual produced archives");
+        journey["if"].ToString().Should().Contain("osx-arm64").And.Contain("inputs.toolchain");
+    }
+
+    [Test]
+    public void TheReleaseChecksTheMacOsSetupOnMacOs15()
+    {
+        // macOS 15 refuses operations that macOS 26 (macos-latest) allows, such as the rename of a directory without
+        // write permission, so the release and its dry run also run the osx-arm64 setup journey on macOS 15. That leg
+        // uploads nothing: the macos-latest leg stays the one producer of the RID. Pull requests do not run it.
+        var input = (YamlMappingNode)MorphirupBuildInputs()["upload"];
+        input["type"].ToString().Should().Be("boolean");
+        input["default"].ToString().Should().Be("true", "finos/morphir and the pull request workflow upload as before");
+
+        var build = Job(Deployment(), "build-morphirup");
+        var include = ((YamlSequenceNode)build["strategy"]["matrix"]["include"]).Children.Cast<YamlMappingNode>().ToList();
+        var checkOnly = include.Where(entry => Value(entry, "check-only") == "true").ToList();
+        checkOnly.Select(entry => (entry["rid"].ToString(), entry["os"].ToString())).Should().Equal(("osx-arm64", "macos-15"));
+        build["with"]["upload"].ToString().Should().Be("${{ !matrix.check-only }}");
+        build["with"]["toolchain"].ToString().Should().Be("true", "the leg runs the setup journey");
+
+        var pullRequest = Job(Read("morphirup.yml"), "build");
+        ((YamlMappingNode)pullRequest["with"]).Children.Keys.Select(key => key.ToString()).Should().NotContain("upload");
+        ((YamlSequenceNode)pullRequest["strategy"]["matrix"]["include"]).Children.Cast<YamlMappingNode>()
+            .Should().NotContain(entry => entry["os"].ToString() == "macos-15", "the per-PR cost is unchanged");
+
+        var steps = Steps(Job(Read("morphirup-build.yml"), "build"));
+        foreach (var name in new[] { "Upload the complete toolchain proof inputs", "Describe the self-contained host offering", "Upload the morphirup release assets" })
+        {
+            var condition = steps.Single(step => Name(step) == name)["if"].ToString();
+            (condition == "inputs.upload" || condition.StartsWith("inputs.upload && ", StringComparison.Ordinal))
+                .Should().BeTrue($"{name} runs only when the job uploads: {condition}");
+        }
+    }
+
+    [Test]
+    public void MorphirupBuildCanBeCalledAtAPinnedCommitOfThisRepository()
+    {
+        // finos/morphir calls morphirup-build.yml at the commit it pins, as it calls cli-offering.yml. With both inputs
+        // empty, the job builds the calling workflow's own commit, as the pull request and release workflows need.
+        var inputs = MorphirupBuildInputs();
+        foreach (var name in new[] { "repository", "ref" })
+        {
+            var input = (YamlMappingNode)inputs[name];
+            input["type"].ToString().Should().Be("string");
+            input["default"].ToString().Should().BeEmpty();
+            Value(input, "required").Should().NotBe("true");
+        }
+
+        var checkout = Steps(Job(Read("morphirup-build.yml"), "build")).Single(step => Uses(step).StartsWith("actions/checkout", StringComparison.Ordinal));
+        checkout["with"]["repository"].ToString().Should().Be("${{ inputs.repository || github.repository }}",
+            "a reusable workflow checks out the caller's repository otherwise");
+        checkout["with"]["ref"].ToString().Should().Be("${{ inputs.ref || github.sha }}");
+        checkout["with"]["fetch-depth"].ToString().Should().Be("0", "the version comes from the CHANGELOG and the history");
+        checkout["with"]["persist-credentials"].ToString().Should().Be("false");
+    }
+
+    [Test]
+    public void TheWindowsSourceCheckComparesTheCheckoutWithTheRequestedCommit()
+    {
+        var step = Steps(Job(Read("morphirup-build.yml"), "build")).Single(step => Name(step) == "Record Windows native toolchain and source");
+        step["env"]["PROOF_SOURCE_SHA"].ToString().Should().Be("${{ inputs.ref || github.sha }}");
+        var script = Run(step);
+        script.Should().Contain("$source = (git rev-parse HEAD).Trim()")
+            .And.Contain("if ($source -ne $env:PROOF_SOURCE_SHA)")
+            .And.NotContain("GITHUB_SHA", "a caller's run commit is not the commit it asks to build");
+        script.Should().NotContain("${{", "inputs reach the script through the environment only");
+    }
+
+    [Test]
+    public void TheToolchainJobUploadsItsSelfContainedHostAsAnOfferingOnlyWhenAsked()
+    {
+        var input = (YamlMappingNode)MorphirupBuildInputs()["upload-host-offering"];
+        input["type"].ToString().Should().Be("boolean");
+        input["default"].ToString().Should().Be("false", "the release downloads morphir-*, which the offering's name matches");
+
+        // The callers in this repository pass none of the new inputs, so their jobs are unchanged.
+        foreach (var (workflow, job) in new[] { ("morphirup.yml", "build"), ("deployment.yml", "build-morphirup") })
+            ((YamlMappingNode)Job(Read(workflow), job)["with"]).Children.Keys.Select(key => key.ToString())
+                .Should().NotContain(["repository", "ref", "upload-host-offering"], $"{workflow} {job} builds its own commit");
+
+        var steps = Steps(Job(Read("morphirup-build.yml"), "build"));
+        var toolchain = steps.Single(step => Name(step) == "Upload the complete toolchain proof inputs")["if"].ToString();
+        var describe = steps.Single(step => Name(step) == "Describe the self-contained host offering");
+        toolchain.Should().StartWith("inputs.upload && (");
+        describe["if"].ToString().Should().Be($"inputs.upload && inputs.upload-host-offering && {toolchain["inputs.upload && ".Length..]}",
+            "only a job that packed a toolchain and uploads has the host");
+        var script = Run(describe);
+        // The metadata is the one PackRelease writes for the self-contained offering, as cli-offering.yml reads it.
+        script.Should().Contain("-Filter '*.build-launch.json'")
+            .And.Contain("$launch.deployment -ne 'self-contained'")
+            .And.Contain("$launch.platform -ne $env:RID")
+            .And.Contain(".build-contents.json")
+            .And.Contain("$sha256 -ne $launch.sha256")
+            .And.Contain("\"$artifact.sha256\"");
+        script.Should().NotContain("${{");
+
+        var upload = steps.Single(step => Name(step) == "Upload the self-contained host offering");
+        upload["if"].ToString().Should().Be("steps.host-offering.outcome == 'success'");
+        upload["with"]["name"].ToString().Should().Be("morphir-dotnet-self-contained-${{ inputs.rid }}",
+            "the name cli-offering.yml gives the self-contained offering of the RID");
+        var archive = "./artifacts/release/${{ steps.host-offering.outputs.artifact }}";
+        upload["with"]["path"].ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Should().Equal(archive, $"{archive}.build-launch.json", $"{archive}.build-contents.json", $"{archive}.sha256");
+        upload["with"]["if-no-files-found"].ToString().Should().Be("error");
+        steps.IndexOf(upload).Should().Be(steps.IndexOf(describe) + 1);
+    }
+
+    [Test]
+    [Arguments("deployment.yml", "create-github-release", "win-x64 win-arm64 osx-arm64", "")]
+    [Arguments("morphirup.yml", "checksums", "win-x64 win-arm64", " --toolchain-platforms win-x64 win-arm64")]
+    public void TheChecksumJobsAssembleTheToolchainsUnderOneChecksumFile(string workflow, string job, string rids, string platforms)
+    {
+        var steps = Steps(Job(Read(workflow), job));
+        var download = steps.Single(step => Uses(step).StartsWith("actions/download-artifact", StringComparison.Ordinal)
+            && Value((YamlMappingNode)step["with"], "pattern") == "windows-release-toolchain-*");
+        download["with"]["merge-multiple"].ToString().Should().Be("false", "each Windows output lands in a folder of its own");
+        download["with"]["path"].ToString().Should().Be("./artifacts/downloads/windows-toolchain");
+
+        var run = Run(steps.Single(step => Run(step).Contains("WindowsToolchainChecksums", StringComparison.Ordinal)));
+        // Each producer's own SHA256SUMS is checked against its own output before anything is copied.
+        run.Should().Contain($"for rid in {rids}; do")
+            .And.Contain("(cd \"./artifacts/downloads/windows-toolchain/windows-release-toolchain-$rid\" && sha256sum -c SHA256SUMS)");
+        // Every output is flattened once: a manager or notices file that two downloads hold must be byte-identical.
+        run.Should().Contain("--target FlattenReleaseAssets MorphirupChecksums WindowsToolchainChecksums")
+            .And.Contain("--release-asset-sources ./artifacts/downloads/morphirup/* ./artifacts/downloads/windows-toolchain/*")
+            .And.Contain($"--windows-toolchain-sources ./artifacts/downloads/windows-toolchain/*{platforms}");
+        if (platforms.Length == 0) run.Should().NotContain("--toolchain-platforms", "the release requires every toolchain");
+        run.IndexOf("sha256sum -c SHA256SUMS)", StringComparison.Ordinal).Should().BeLessThan(run.IndexOf("--target FlattenReleaseAssets", StringComparison.Ordinal));
+        run.TrimEnd().Should().EndWith("sha256sum -c SHA256SUMS", "the one release checksum file is read back the way a user would");
+    }
+
+    [Test]
+    public void TheReleaseAttachesTheOneWindowsChecksumFile() =>
+        Steps(Job(Deployment(), "create-github-release")).Single(step => Uses(step).StartsWith("softprops/action-gh-release", StringComparison.Ordinal))
+            ["with"]["files"].ToString().Should().Contain("./artifacts/release-assets/SHA256SUMS");
+
+    [Test]
+    public void APullRequestVerifiesTheWinArm64OutputOnANativeRunnerAndKeepsIt()
+    {
+        var verify = Job(Read("morphirup.yml"), "verify-win-arm64");
+        verify["runs-on"].ToString().Should().Be("windows-11-arm");
+        ((YamlSequenceNode)verify["needs"]).Children.Select(node => node.ToString()).Should().Equal("build");
+        var steps = Steps(verify);
+        steps.Should().Contain(step => Uses(step).StartsWith("actions/download-artifact", StringComparison.Ordinal)
+            && step["with"]["name"].ToString() == "windows-release-toolchain-win-arm64");
+        Run(steps.Single(step => Name(step) == "Verify retained checksums before running the manager"))
+            .Should().Contain("managerPeMachine").And.Contain("& $manager --version");
+        steps.Should().Contain(step => Uses(step).StartsWith("actions/upload-artifact", StringComparison.Ordinal)
+            && step["with"]["retention-days"].ToString() == "7");
+    }
+
+    [Test]
+    public void ADryRunBuildsAndAssemblesTheReleaseButPublishesNothing()
+    {
+        var deployment = Deployment();
+        var dryRun = (YamlMappingNode)deployment["on"]["workflow_dispatch"]["inputs"]["dry-run"];
+        dryRun["type"].ToString().Should().Be("boolean");
+        dryRun["default"].ToString().Should().Be("false");
+
+        // The CLI jobs run for a dry run whatever the publication variable says ...
+        foreach (var job in new[] { "build-executables", "build-morphirup" })
+            Job(deployment, job)["if"].ToString().Should().Contain(Enabled).And.Contain("inputs.dry-run");
+
+        // ... and nothing publishes: the job that holds every NuGet publish step does not run, and the GitHub release is
+        // not created.
+        Job(deployment, "release")["if"].ToString().Should().Contain("!inputs.dry-run");
+        Steps(Job(deployment, "create-github-release")).Should().NotContain(step => Run(step).Contains("--api-key", StringComparison.Ordinal));
+        var assemble = Job(deployment, "create-github-release");
+        assemble["if"].ToString().Should().Contain("inputs.dry-run");
+        var steps = Steps(assemble);
+        steps.Single(step => Uses(step).StartsWith("softprops/action-gh-release", StringComparison.Ordinal))["if"].ToString()
+            .Should().Contain("!inputs.dry-run");
+        var upload = steps.Single(step => Uses(step).StartsWith("actions/upload-artifact", StringComparison.Ordinal));
+        upload["if"].ToString().Should().Contain("inputs.dry-run").And.NotContain("!inputs.dry-run");
+        upload["with"]["path"].ToString().Should().Be("./artifacts/release-assets/*");
+    }
+
     private static YamlMappingNode Deployment() => Read("deployment.yml");
 
     private static YamlMappingNode Offering() => Read("cli-offering.yml");
+
+    private static YamlMappingNode MorphirupBuildInputs() =>
+        (YamlMappingNode)Read("morphirup-build.yml")["on"]["workflow_call"]["inputs"];
 
     private static YamlMappingNode Read(string name)
     {

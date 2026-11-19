@@ -442,7 +442,10 @@ type ProjectFileProviderRegistry private (providers: IProjectFileProvider list) 
 
     /// <summary>True when the file name of <paramref name="path"/> matches <paramref name="pattern"/>, ignoring case.</summary>
     static member Matches(pattern: string, path: string) =
-        match IO.Path.GetFileName path with
+        // net10.0 declares the result nullable and net11.0 does not; the annotation keeps one check for both targets.
+        let name: string | null = IO.Path.GetFileName path
+
+        match name with
         | null -> false
         | name -> matches pattern name 0 0
 

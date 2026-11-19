@@ -114,15 +114,11 @@ The installer SHALL check the descriptor against its `.sha256` file, and each ar
 - **THEN** the install fails with `extension.digest_mismatch`
 
 ### Requirement: A descriptor is read with the parent descriptor rules
-The installer SHALL read the descriptor only when its `$schema` is the release schema URL at `0.1.0-preview.1` (Decision 15A), refusing others with `extension.unsupported_contract_version` (decision DOC-1), require claims on every artifact, require a platform triple for process artifacts and none for WASM, refuse a descriptor that mixes runtimes, and refuse claims that differ between artifacts unless `platformDifferences` is `declared`.
+The installer SHALL read the descriptor only when its `$schema` is the release schema URL at `0.1.0-preview.1` (Decision 15A), refusing others with `extension.unsupported_contract_version` (decision DOC-1), require claims on every artifact, require a platform triple for process artifacts and none for WASM, accept a descriptor that offers both runtimes (finos/morphir#1176, `packages.md`), and refuse claims that differ between artifacts unless `platformDifferences` is `declared`.
 
 #### Scenario: Undeclared difference
 - **WHEN** two artifacts' claim sets differ and `platformDifferences` is `none`
 - **THEN** the install fails and names the differing members
-
-#### Scenario: Mixed runtimes
-- **WHEN** a descriptor lists a `wasm` and a `process` artifact
-- **THEN** the install fails with `extension.unsupported_package`
 
 ### Requirement: A target archive follows the parent package contract
 Target archives, including one-file archives, SHALL follow merged finos/morphir#1151's package identity, manifest and entry-point rules. The installer SHALL NOT flatten a package to a raw file or refuse it for having multiple files. Readers wait for parent group 1 publication; this change adds no format. Q-ARCHIVE's outer release-assets file-set question remains unresolved.

@@ -5,12 +5,123 @@ description: What the extension installer currently implements and what remains
 
 # Extension installation status
 
-External extension installation is under implementation in
-[#558](https://github.com/finos/morphir-dotnet/issues/558). The `extension install`,
-selection and removal commands remain stubs. The
-[management reference](management.md#extension-commands) describes the current
-command status. These library changes are not a released installer.
+`extension install` installs through source providers. The `github` provider installs
+a package from a GitHub release (`github:<owner>/<repo>[@<version-or-tag>]`). The `nuget`
+provider installs a package from a NuGet feed (`nuget:<package-id>[@<version>]`): nuget.org,
+a private V3 feed or a folder feed, with the sources, package source mapping, credentials and
+signature policy of `nuget.config`. The local provider installs an explicit local-developer
+release declaration and archive from a registered repository name. All need `--no-probe`
+consent and support a mutation-free `--dry-run`. The installer writes and reads only the
+extension family `0.1.0-preview.3`; it does not read or convert preview.2 or preview.1 state.
+The obsolete positional URL/version form is a usage error. Selection and removal commands
+remain stubs. The [management reference](management.md#extension-install) gives the command
+syntax, the GitHub release convention and the NuGet options. Extension authors publish to
+NuGet as [Publish an extension as a NuGet package](../../guides/publish-extension-nuget/) says.
+A digest match is not publisher authentication.
 
+## NuGet sources
+
+The NuGet provider uses the Microsoft NuGet client packages (`NuGet.Protocol`,
+`NuGet.Configuration`, `NuGet.Credentials`, `NuGet.Packaging`, `NuGet.Versioning`), so it
+reads `nuget.config` and talks to feeds as `dotnet tool install` does. The Native AOT
+`morphir` runs them with the `NuGet.UseSystemTextJsonDeserialization` feature switch; its
+publish fails on any trim or AOT warning from `NuGet.*` or `Newtonsoft.Json`.
+
+### Credentials and credential providers
+
+- `packageSourceCredentials` of `nuget.config` apply to their own source. NuGet sends a
+  credential only to that source.
+- A credential provider plugin, such as the
+  [Azure Artifacts Credential Provider](https://github.com/microsoft/artifacts-credprovider),
+  works as with the dotnet CLI. NuGet finds plugins in this order: the paths in
+  `NUGET_PLUGIN_PATHS`, else `nuget-plugin-*` executables on `PATH` and the plugins folder
+  of the NuGet home (`~/.nuget/plugins/netcore`).
+- NuGet starts a plugin in `NUGET_PLUGIN_PATHS` with `dotnet`, so a path there must be a
+  `.dll`, and the machine needs a .NET runtime for it. A native plugin executable in
+  `NUGET_PLUGIN_PATHS` exits with code 1. Put a native plugin on `PATH` with a name that
+  starts with `nuget-plugin-`, and leave `NUGET_PLUGIN_PATHS` unset.
+- The command is non-interactive. With `--interactive`, a plugin can start a device flow
+  sign-in; its prompts go to standard error.
+
+```bash
+# Azure Artifacts with the credential provider, as for dotnet restore
+morphir extension install nuget:Acme.Morphir.Python@1.2.3 --source acme --interactive \
+  --home "$HOME/.morphir" --no-probe
+```
+
+- No credential is written to a log, the lock or the catalog. A feed that refuses the
+  credential fails the command with `extension.nuget_unauthorized`; the message names the
+  source and, without `--interactive`, the ways to give a credential.
+
+### Signatures
+
+| Operating system | Default | `DOTNET_NUGET_SIGNATURE_VERIFICATION` |
+| --- | --- | --- |
+| Windows | verified | ignored, always verified |
+| Linux | verified | `false` turns verification off |
+| macOS | not verified | `true` turns verification on |
+
+`signatureValidationMode` `require` in `nuget.config` verifies on every operating system and
+accepts only packages of its `trustedSigners`. NuGet's trust store is set up as the .NET SDK sets
+it up: the operating system store on Windows; on Linux and macOS a system code signing bundle when
+there is one, else the code signing and timestamping trust lists of the .NET SDK
+(`codesignctl.pem` and `timestampctl.pem`, from dotnet/sdk `v11.0.100`). The Native AOT `morphir`
+is one file, so it carries these lists, writes them to a private folder under `<home>/tmp`
+while NuGet sets up its trust store, and deletes the folder after it. Without them, NuGet on Linux has no trusted
+root: on Ubuntu 24.04, `require` mode with the nuget.org repository as trusted signer refused
+`Newtonsoft.Json 13.0.3` (NU3018, NU3028), and `accept` mode only warned (NU3042). With them, the
+same check passes.
+
+### WASM extensions
+
+A release may carry a WASM module as well as, or instead of, process packages. `extension install`
+selects the `process` artifact for this platform, else a `wasm` artifact, for every provider: a
+local declaration, a GitHub release asset, or the entry `morphir/<filename>` of a NuGet main package.
+The module is checked against its descriptor `sha256` and stored in the single-file store
+(`store/extensions/sha256/<sha256>/<filename>`); the lock records `runtime` `wasm` and the catalog
+`claimCheck` `unchecked`. The guest does not run during installation.
+
+`morphir compile` and `morphir generate` with `--extension-id <id>` rehash the stored module against
+the lock, load it through the host's WASM runtime with the same loader as a configured module, and
+check the session against the installed claims. A changed module fails with
+`extension.digest_mismatch`, and a host without a WASM runtime with `extension.runtime_unavailable`.
+
+`--runtime`, to choose the runtime of a release that offers both, is a follow-up.
+
+## Historical implementation evidence
+
+The following snapshots retain their original source identities and limitations;
+they do not describe the current command surface.
+
+The current library increment on `ad24ce68` can install a release-bound local ZIP
+into its canonical package tree, register it through the published catalog/lock
+transaction, and capture immutable selected records with an owned package lease.
+Local no-probe installation is explicitly named `InstallLocalUncheckedAsync` and
+stays labelled local-developer/unchecked. Supported interrupted journals can be
+recovered with explicit consent; old formats are not converted.
+
+Unpublished snapshots remain expected-current inventory. They cannot authorize a
+new acquisition after current metadata changes. Retained-generation acquisition
+requires a supported published binding, which is not implemented by this increment.
+No new CLI command or generation metadata format is provided here.
+
+The review correction refuses a foreign process-platform activation before it
+returns ownership or registers local metadata. Windows x64 emulation remains
+supported. Malformed compressed ZIP content returns a typed archive refusal.
+Contended state/repository operations return asynchronously and cancellation waits
+for native lock ownership to settle rather than abandoning a waiter.
+
+Fresh Windows installer assembly runs before and after formatting each pass 285
+executed tests, with seven Unix controls ignored and no failures or errors. These
+include transaction interruptions, journal replacement, empty ZIP directories,
+exact current-export refusal, native cancellation and real cross-process leases.
+The existing C# consumer also passes its 27-line JIT run; it does not cover the new
+package APIs or establish AOT support. Tar packages, repair, full corpus checks,
+commands and the actual process-provider journey remain unfinished. Independent
+security/interop re-review, package C# consumer coverage, Unix runtime and Native
+AOT qualification are still gates. Parent composition contracts are merged at
+`d9f309a1`; their runtime binding remains unimplemented here.
+The earlier 194-test snapshot and evidence below keep their original source identities.
 Independent review requested security corrections to installation I/O. The fixes
 now pass 131 executed Windows tests; three Unix-only interleavings were explicitly
 ignored. Independent security/interop re-review of `b6936ba5` found no concrete

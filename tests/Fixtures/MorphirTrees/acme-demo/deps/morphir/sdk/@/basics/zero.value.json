@@ -1,0 +1,5 @@
+{
+  "formatVersion": 4,
+  "name": "zero",
+  "spec": { "output": "morphir/SDK:basics#int" }
+}

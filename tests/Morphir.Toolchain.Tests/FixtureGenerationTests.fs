@@ -86,6 +86,7 @@ let tests =
             for name, value, referenceTuf in cases do
                 let written = FixtureGenerator.referenceTufCanonical (parse name (Encoding.UTF8.GetBytes value))
                 Expect.equal (Encoding.UTF8.GetString written) referenceTuf $"{name}: the reference TUF text")
+        |> testLabel "PlatformSpecific"
 
         testCase "the reference TUF encoder keeps the port's own rules the recorded cases do not reach" (fun () ->
             // No recorded case holds a backslash or a key pair whose UTF-8 and UTF-16 orders differ, so these rules of
@@ -102,6 +103,7 @@ let tests =
         testCase "repository.json is the generated repository, as parsed values" (fun () ->
             let repository, _, _ = generated.Value
             expectSameValue "repository.json" repository)
+        |> testLabel "PlatformSpecific"
 
         testCase "each frozen request is the generated TOML text exactly" (fun () ->
             let _, _, locks = generated.Value
@@ -110,12 +112,14 @@ let tests =
             for name, request, _ in locks do
                 let committed = Encoding.UTF8.GetString(Fixtures.bytesIn Fixtures.signed $"{name}.toml")
                 Expect.equal committed request $"{name}.toml")
+        |> testLabel "PlatformSpecific"
 
         testCase "each frozen lock is the generated lock, as parsed values" (fun () ->
             let _, _, locks = generated.Value
 
             for name, _, lock in locks do
                 expectSameValue $"{name}.lock.json" (FixtureGenerator.toValue lock))
+        |> testLabel "PlatformSpecific"
 
         testCase "each negative lock is the generated variant of the Native AOT lock, as parsed values" (fun () ->
             let _, targets, locks = generated.Value
@@ -127,4 +131,5 @@ let tests =
 
             for name, lock in variants do
                 expectSameValue (Path.Combine("negative", name)) (FixtureGenerator.toValue lock))
+        |> testLabel "PlatformSpecific"
     ]

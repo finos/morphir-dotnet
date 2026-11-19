@@ -99,6 +99,7 @@ public sealed class ProjectMigrationTests
 public sealed class ProjectMigrationApplicationTests
 {
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("morphir.json", "morphir.toml")]
     [Arguments(".morphir/morphir.json", ".morphir/morphir.toml")]
     [Arguments(".config/morphir/config.json", ".config/morphir/config.toml")]
@@ -127,6 +128,7 @@ public sealed class ProjectMigrationApplicationTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("morphir.json")]
     [Arguments("morphir.toml")]
     [Arguments("../morphir.toml")]
@@ -148,6 +150,7 @@ public sealed class ProjectMigrationApplicationTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void BlockedAndReadonlyPlansCannotInvokeWriterAndCannotBeTransferredToAnotherService()
     {
         using var fixture = new Fixture();
@@ -165,6 +168,7 @@ public sealed class ProjectMigrationApplicationTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public void ExistingTargetAddsOnlyMissingEntriesAndRetainsBomAndComments()
     {
         using var fixture = new Fixture();
@@ -224,6 +228,7 @@ public sealed class ProjectMigrationFailureTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments(false)]
     [Arguments(true)]
     public void WriteFaultsReportRollbackOrExplicitOwnedRecovery(bool refuseRollback)
@@ -328,6 +333,7 @@ public sealed class ProjectMigrationHostBoundaryTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments(false)]
     [Arguments(true)]
     public void StorageReadFailureAndUnstableObservationNeverCreateApplicablePlans(bool unstable)

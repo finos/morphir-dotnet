@@ -145,3 +145,4 @@ let tests =
                 | other -> failtestf "the guest is planned as %A" other
             | Error failure -> failtestf "no plan: %A" failure)
     ]
+    |> testLabel "PlatformSpecific"

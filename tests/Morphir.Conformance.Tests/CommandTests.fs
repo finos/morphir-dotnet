@@ -74,7 +74,10 @@ let private document (result: WasmHostCommandResult) =
 
 [<Tests>]
 let tests =
-    testList "WASM host commands: exit codes and output (task 1.5)" [
+    // PlatformSpecific: these tests use the real file system, the checkout or worker processes, so the platform
+    // scope of the Test target runs them on every operating system (docs/contributing/ci-os-matrix.md).
+    testLabel "PlatformSpecific"
+    <| testList "WASM host commands: exit codes and output (task 1.5)" [
         for otherExecutable in [ false; true ] do
             testCase (if otherExecutable then "citation admission is unavailable even for another executable" else "well-shaped citation metadata cannot publish without the generic checker") (fun () ->
                 let sandbox, kit = kitOf [ "extism/echo" ]

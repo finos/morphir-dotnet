@@ -1,5 +1,8 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
+using Morphir.Extensions.Installation;
+using Morphir.Mep;
+using Morphir.Toolchain;
 
 namespace Morphir.Tooling.Features.Management;
 
@@ -9,6 +12,78 @@ namespace Morphir.Tooling.Features.Management;
 /// </summary>
 public static class ExtensionHandlers
 {
+    /// <summary>Registers the stable name using the existing repositories document and cooperative locks.</summary>
+    public static async Task<ExtensionLocalOutcome> RegisterLocalAsync(ExtensionRepositoryAddLocal command, CancellationToken ct)
+    {
+        if (!command.LocalDeveloper) return new(false, "extension.consent_required", "Explicit --local-developer consent is required.");
+        var outcome = await InstalledState.RegisterLocalRepositoryAsync(command.Home, command.Name, command.Directory, command.DryRun, ct);
+        return outcome.Match(path => new ExtensionLocalOutcome(true, "extension.repository_registered",
+            $"{(command.DryRun ? "Planned" : "Registered")} local-developer repository {command.Name}: {path}"),
+            failure => new ExtensionLocalOutcome(false, failure.Code, failure.Message));
+    }
+
+    /// <summary>Validates and installs a local declaration through the one package installer. Dry run performs no effects.</summary>
+    public static async Task<ExtensionLocalOutcome> InstallLocalAsync(ExtensionLocalDeclarationInstall command, CancellationToken ct)
+    {
+        if (!command.LocalDeveloper) return new(false, "extension.consent_required", "Explicit --local-developer consent is required.");
+        if (!command.NoProbe) return new(false, "extension.probe_required", "This local declaration mode requires explicit --no-probe; first-session agreement remains mandatory.");
+        if (!Morphir.Extensions.ExtensionId.TryParse(command.Name, out var id, out _))
+            return new(false, "extension.invalid_id", "The name must be a full extension identity.");
+        var request = ExtensionSourceRequest.Local(command.Home, command.Repository, command.Release, command.Archive, id);
+        return await InstallAsync(new LocalRepositoryProvider(), request, command.Home, command.DryRun, "local-developer ", ct);
+    }
+
+    /// <summary>
+    /// Installs from a provider source, such as <c>github:owner/repo@1.2.3</c> or <c>nuget:Acme.Morphir.Python@1.2.3</c>. Naming the release is the user's
+    /// explicit request, so no <c>--local-developer</c> consent applies; <c>--no-probe</c> keeps its meaning.
+    /// Network access happens here only, never when an installed extension runs.
+    /// </summary>
+    public static async Task<ExtensionLocalOutcome> InstallFromSourceAsync(ExtensionSourceInstall command, HttpClient http,
+        CancellationToken ct, IExtensionSourceProvider? provider = null)
+    {
+        if (!command.NoProbe) return new(false, "extension.probe_required", "Installation requires explicit --no-probe; first-session agreement remains mandatory.");
+        if (!ExtensionSourceRequest.TryParse(command.Source, out var parsed, out var failure))
+            return new(false, failure.Code, failure.Message);
+        ExtensionSourceRequest? request = null;
+        InstallationFailure? refused = null;
+        parsed.WithNuGetOptions(command.NuGetSource, command.ConfigFile, command.Interactive).Match(
+            value => { request = value; return 0; },
+            error => { refused = error; return 0; });
+        if (request is null)
+            return new(false, refused!.Code, refused.Message);
+        if (!Path.IsPathFullyQualified(command.Home)) return new(false, "extension.invalid_home", "--home must be absolute.");
+        return await InstallAsync(provider ?? ExtensionSources.ProviderFor(request, http, command.Home), request, command.Home, command.DryRun, "", ct);
+    }
+
+    private static async Task<ExtensionLocalOutcome> InstallAsync(IExtensionSourceProvider provider, ExtensionSourceRequest request,
+        string home, bool dryRun, string mode, CancellationToken ct)
+    {
+        try
+        {
+            if (!Path.IsPathFullyQualified(home)) return new(false, "extension.invalid_home", "--home must be absolute.");
+            if (dryRun)
+            {
+                var resolved = await ExtensionSources.ResolveAsync(provider, request, ct);
+                return resolved.Match(release => new ExtensionLocalOutcome(true, "extension.planned",
+                        $"Planned {mode}installation of {release.ExtensionId.Value} {release.Version.Text} from {request}; claims remain unchecked. Full package verification is required during apply."),
+                    failure => new ExtensionLocalOutcome(false, failure.Code, failure.Message));
+            }
+            var host = SemVerModule.tryParse(Infrastructure.MepExtensionCommand.HostVersion).Match(value => value,
+                _ => throw new IOException("Host version is not valid SemVer."));
+            var installed = await ExtensionSources.InstallAsync(home, provider, request, Array.AsReadOnly(Array.Empty<string>()), host, ct);
+            return installed.Match(captured =>
+            {
+                using var lifetime = (IDisposable)captured;
+                return new ExtensionLocalOutcome(true, "extension.installed",
+                    $"Installed {mode}{captured.Record.ExtensionId.Value} {captured.Record.Version.Text} from {request}; claims unchecked; no publisher authentication or readiness claimed.");
+            }, failure => new ExtensionLocalOutcome(false, failure.Code, failure.Message));
+        }
+        catch (InstallationException error) { return new(false, error.Data0.Code, error.Data0.Message); }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException)
+        { return new(false, "extension.local_refused", error.Message); }
+    }
+
     public static async Task<ExtensionInstallResult> HandleInstall(
         ExtensionInstall command,
         ArtifactPathResolver resolver,

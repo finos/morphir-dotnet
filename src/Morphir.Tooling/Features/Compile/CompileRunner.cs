@@ -4,7 +4,10 @@ using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.Logging;
 using Morphir.Compilation;
+using Morphir.IR.Model;
+using Morphir.MiddleEnd;
 using Morphir.Tooling.Features.Compile.Sources;
+using Morphir.Tooling.Features.Transform;
 using Severity = Morphir.Compilation.DiagnosticSeverity;
 
 namespace Morphir.Tooling.Features.Compile;
@@ -34,8 +37,11 @@ public sealed class CompileRunner(
     ICompilePublisher publisher,
     IFrontendExtensionConnector extensions,
     CompileGenerationStages? generation = null,
-    ILogger<CompileRunner>? logger = null) : ICompileRunner
+    ILogger<CompileRunner>? logger = null,
+    ModelPasses? passes = null) : ICompileRunner
 {
+    private readonly ModelPasses _passes = passes ?? ModelPasses.BuiltIn;
+
     /// <summary>The writer options of the published IR.</summary>
     public static WriteOptions PublishedLayout { get; } = WriteOptions.Compact.WithIndented(true);
 
@@ -90,6 +96,26 @@ public sealed class CompileRunner(
                 yield break;
             }
 
+            // The passes of the stage after a frontend run on the model that the frontend wrote. Without a pass for the stage the
+            // stage does not start, so the events of a compile stay as they were.
+            PassesReport? passesReport = null;
+            ModelLineage? lineage = null;
+            if (_passes.HasPasses(PassStage.AfterFrontend))
+            {
+                yield return new CompileEvent.StageStarted(CompileStage.Transform);
+                var passRun = await Guard(CompileStage.Transform, () => Task.FromResult(RunPasses(writer, compiled, settings)), ct);
+                foreach (var e in Report(CompileStage.Transform, passRun)) yield return e;
+                if (!passRun.Passed(out var passed))
+                {
+                    yield return Failed(passRun, CompileFailureKind.Source, settings, sources, compiled.Frontend.Label);
+                    yield break;
+                }
+
+                compiled = passed.Compiled;
+                passesReport = passed.Report;
+                lineage = passed.Lineage;
+            }
+
             yield return new CompileEvent.StageStarted(CompileStage.Write);
             var writeRun = await Guard(CompileStage.Write,
                 () => Task.FromResult(writer.Writer.Write(writer.Target, PublishedLayout, compiled.Package.Model)), ct);
@@ -111,7 +137,8 @@ public sealed class CompileRunner(
             }
 
             var success = new CompileSuccess(compiled.Frontend.Language.Value, compiled.Frontend.Label, settings.IrVersion.Value, sources,
-                [.. compiled.Package.Modules], published);
+                [.. compiled.Package.Modules], published)
+            { Provider = (connected as Morphir.Tooling.Infrastructure.IInstalledProviderObservation)?.Provider, Passes = passesReport, Lineage = lineage };
             if (overrides.Target is not { } target)
             {
                 yield return new CompileEvent.Completed(new CompileConclusion.Succeeded(success), settings);
@@ -129,7 +156,7 @@ public sealed class CompileRunner(
                 { Sources = sources, Frontend = success.Frontend, Compiled = success }), settings);
                 yield break;
             }
-            await foreach (var e in generation.RunAsync(target, success, settings, bytes, ct)) yield return e;
+            await foreach (var e in generation.RunAsync(target, success, settings, bytes, _passes, ct)) yield return e;
         }
         finally
         {
@@ -159,10 +186,12 @@ public sealed class CompileRunner(
         if (!writer.TryGetValue(out var resolvedWriter)) return Checked<ResolvedRun>.Fail(diagnostics);
 
         // A configured extension replaces the registered frontends for this run (FE-2).
-        if (value.Extension is { } extension)
+        if (value.Extension is not null || value.InstalledExtensionId is not null)
         {
+            var extension = value.Extension ?? new Setting<string>(value.InstalledExtensionId!.Value.Value, value.InstalledExtensionId.Origin);
             var connection = await extensions.ConnectAsync(
-                new FrontendExtensionRequest(extension, value.Language?.Value, value.WorkingDirectory), ct);
+                new FrontendExtensionRequest(extension, value.Language?.Value, value.WorkingDirectory)
+                { InstalledId = value.InstalledExtensionId?.Value, Environment = context.Environment, Home = value.MorphirHome, WasmModule = value.WasmModule }, ct);
             diagnostics.AddRange(connection.Diagnostics);
             if (!connection.TryGetValue(out var frontend)) return Checked<ResolvedRun>.Fail(diagnostics);
             ICompilePublication? started = null;
@@ -201,6 +230,32 @@ public sealed class CompileRunner(
 
     private sealed record Compiled(ResolvedFrontend Frontend, CompiledPackage Package);
 
+    private sealed record PassedCompiled(Compiled Compiled, PassesReport? Report, ModelLineage? Lineage);
+
+    /// <summary>
+    /// Runs the passes of the stage after the frontend on a current-IR model. The digest of the bytes that the writer gives for
+    /// the model as the frontend wrote it pins the addresses of the application list.
+    /// </summary>
+    private Checked<PassedCompiled> RunPasses(ResolvedWriter writer, Compiled compiled, CompileSettings settings)
+    {
+        if (compiled.Package.Model.V4OrNull is not { } v4)
+        {
+            var note = PassPipeline.SkipNote(PassStage.AfterFrontend, compiled.Package.Model.Family.ToString(), settings.IrVersion.Value.Text);
+            return Checked<PassedCompiled>.Of(new PassedCompiled(compiled, null, null), [note]);
+        }
+
+        var written = writer.Writer.Write(writer.Target, PublishedLayout, compiled.Package.Model);
+        if (!written.TryGetValue(out var bytes)) return Checked<PassedCompiled>.Fail(written.Diagnostics);
+
+        var model = new VersionedModel(settings.IrVersion.Value, DistributionModel.NewV4(v4));
+        var result = _passes.RunAfterFrontend(model, Sha256Digest.OfBytes(System.Security.Cryptography.SHA256.HashData(bytes)));
+        if (!result.TryGetValue(out var passedModel)) return Checked<PassedCompiled>.Fail(result.Diagnostics);
+        if (passedModel.Model.Distribution.Match<Morphir.IR.V4.Distribution?>(_ => null, distribution => distribution) is not { } changed) return Checked<PassedCompiled>.Pass(new PassedCompiled(compiled, passedModel.Report, passedModel.Lineage));
+
+        var package = new CompiledPackage(FamilyModel.OfV4(changed), compiled.Package.Modules);
+        return Checked<PassedCompiled>.Of(new PassedCompiled(compiled with { Package = package }, passedModel.Report, passedModel.Lineage), result.Diagnostics);
+    }
+
     private static async Task<StageResult<Compiled>> CompileAsync(IFrontendResolver resolver, CompileSettings settings, ResolvedWriter writer,
         SelectedSources sources, CapturedSources captured, CancellationToken ct)
     {
@@ -210,7 +265,9 @@ public sealed class CompileRunner(
 
         var request = captured.Documents.Select(document => new SourceDocument(document.Path, frontend.Language, 0UL, document.Text));
         if (!CompileRequest.TryParse(frontend.Language, null, request, settings.Package.Value.Name,
-                settings.ExposedModules?.Value, writer.Target, "", out var compileRequest, out var invalid))
+                settings.ExposedModules?.Value, writer.Target, "", out var parsedRequest, out var invalid)
+            // The [frontend.<language>] keys of the selected language go to the frontend as extra options (OPT-1).
+            || !parsedRequest.TryWithExtraOptions(settings.FrontendOptionsOf(frontend.Language), out var compileRequest, out invalid))
             return new(Checked<Compiled>.Fail([Error(CompileCodes.InvalidSetting, invalid.ToString())]), CompileFailureKind.Invocation, frontend.Label);
 
         var outcome = await frontend.Frontend.CompileAsync(compileRequest, ct);

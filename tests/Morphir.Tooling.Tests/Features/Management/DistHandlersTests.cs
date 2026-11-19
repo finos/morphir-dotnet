@@ -6,6 +6,7 @@ using System.Net.Http;
 
 namespace Morphir.Tooling.Tests.Features.Management;
 
+[Category("PlatformSpecific")]
 public class DistHandlersTests : IDisposable
 {
     private readonly string _tempWorkspace;

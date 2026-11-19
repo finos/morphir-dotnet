@@ -4,6 +4,7 @@ using Morphir.TestSupport;
 
 namespace Morphir.Tooling.Tests.Features.Management;
 
+[Category("PlatformSpecific")]
 public class ArtifactPathResolverTests : IDisposable
 {
     private readonly string _tempWorkspace;

@@ -93,10 +93,12 @@ let private documentedContext (request: CompileModelRequest) =
 
     let context = JsonObject()
     context["languageId"] <- JsonValue.Create request.LanguageId
-    context["sourceRoot"] <-
+    let sourceRoot: JsonNode | null =
         match request.Sources.Root with
         | Some root -> JsonValue.Create root
         | None -> null
+
+    context["sourceRoot"] <- sourceRoot
 
     let documents = JsonArray()
 
@@ -141,6 +143,7 @@ let tests =
                   let written = JsonSerializer.SerializeToNode(requestOf item, MepJson.Default.CompileModelRequest)
                   let id = textAt [ "id" ] item
                   Expect.isTrue (same parameters (written |> nonNull)) $"{id}: {written}"
+          |> testLabel "PlatformSpecific"
 
           testCase "Extra options stay beside the named members, and reserved names are refused"
           <| fun _ ->
@@ -186,6 +189,7 @@ let tests =
                   (CompileModel.checkRequest None (requestOf accepted) |> Result.mapError _.Code)
                   (Error "unsupported_tuple")
                   "A session without model transport admits no compileModel tuple"
+          |> testLabel "PlatformSpecific"
 
           testCase "Pinned compile results read as the result sum, and a written failure has no model member"
           <| fun _ ->
@@ -228,6 +232,7 @@ let tests =
               match CompileModel.readResult (element (nodeOf """{"success":false}""")) with
               | Ok(CompileModelResult.Failed diagnostics) -> Expect.isEmpty diagnostics "Absent diagnostics are empty"
               | other -> failtest $"An absent diagnostics member is read as empty: {other}"
+          |> testLabel "PlatformSpecific"
 
           testCase "canonicalJson follows the RFC 8785 example"
           <| fun _ ->
@@ -310,6 +315,7 @@ let tests =
                       Package = { request.Package with ExposedModules = None } }
 
               Expect.notEqual (CompileModel.contextDigest unexposed) digest "An absent list differs from a list"
+          |> testLabel "PlatformSpecific"
 
           testCase "A compileModel frame round-trips at the 64 MiB body limit, and one byte more is refused"
           <| fun _ ->

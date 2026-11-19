@@ -388,3 +388,4 @@ let tests =
 
               Expect.isNone (codeOf compile) "compileModel"
               Expect.equal exitCode 0 "The guest exited cleanly" ]
+    |> testLabel "PlatformSpecific"

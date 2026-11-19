@@ -4,7 +4,7 @@ open System.Text.Json
 open Expecto
 open Morphir.IR
 open Morphir.IR.Model
-open Morphir.IR.Pipeline
+open Morphir.Files
 open Morphir.Testing
 open Morphir.Testing.GenerationConformance
 open Morphir.CodeGeneration.FSharp
@@ -63,7 +63,7 @@ let tests =
                     []
                     """
 open Morphir.IR.Model
-open Morphir.IR.Pipeline
+open Morphir.Files
 open Morphir.CodeGeneration.FSharp
 let generateLibrary (model: VersionedModel) =
     Transpiler.generateModel model (VFile.fromPath "retained/model.ion")
@@ -73,6 +73,7 @@ printfn "%b" GenerationOptions.Default.Optimize
 """
 
             Expect.equal actual "true" "public usage compiles without internal adapters"
+        |> testLabel "PlatformSpecific"
 
         let required = [
             for version in [ "1"; "2"; "3" ] ->
@@ -104,6 +105,7 @@ printfn "%b" GenerationOptions.Default.Optimize
             <| fun () ->
                 GenerationConformance.run generate case row
                 |> ignore
+            |> testLabel "PlatformSpecific"
 
             testCase $"legacy and typed source and order agree for {row.Representation.Version}"
             <| fun () ->
@@ -146,6 +148,7 @@ printfn "%b" GenerationOptions.Default.Optimize
 
                 GenerationConformance.run generate case row
                 |> ignore
+        |> testLabel "PlatformSpecific"
 
         testCase "typed Specs remain an unsupported distribution"
         <| fun () ->

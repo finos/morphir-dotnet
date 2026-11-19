@@ -210,3 +210,4 @@ let tests =
                 "disposal must prove the owner identity again"
         }
     ]
+    |> testLabel "PlatformSpecific"

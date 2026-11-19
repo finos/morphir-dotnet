@@ -82,3 +82,4 @@ let tests =
                 let actual = Fixtures.bytesIn Fixtures.pinnedWorkflow file |> SHA256.HashData |> Convert.ToHexStringLower
                 Expect.equal actual expected $"{file} has its stated SHA-256")
     ]
+    |> testLabel "PlatformSpecific"

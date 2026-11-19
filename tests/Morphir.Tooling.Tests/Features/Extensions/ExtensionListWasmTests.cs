@@ -4,6 +4,7 @@ using Morphir.Extensions;
 using Morphir.Tooling.Features.Extensions;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Infrastructure;
+using Morphir.Tooling.Cli;
 
 namespace Morphir.Tooling.Tests.Features.Extensions;
 
@@ -11,6 +12,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// A <c>wasm</c> entry in <c>extension list</c>. Nothing registers one from configuration yet (issue #565), so these
 /// tests build the entry, and the WASM runtime availability that the runtime report of the host would state.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class ExtensionListWasmTests
 {
     private static readonly HostIdentity Native = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
@@ -33,9 +35,9 @@ public sealed class ExtensionListWasmTests
 
     private static string Run(ExtensionRegistry registry, bool json)
     {
-        var stdout = new List<string>();
-        ExtensionListCommand.Execute(registry, json, stdout.Add, new StringWriter(), TerminalProfile.Plain).Should().Be(0);
-        return string.Join('\n', stdout).Replace("\r\n", "\n");
+        var stdout = new StringWriter();
+        ExtensionListCommand.Execute(registry, json ? JsonOutputMode.Document : JsonOutputMode.None, stdout, new StringWriter(), TerminalProfile.Plain).Should().Be(0);
+        return stdout.ToString().Replace("\r\n", "\n").TrimEnd('\n');
     }
 
     private static Dictionary<string, (string Delivery, bool Available)> Entries(string json)
@@ -52,6 +54,7 @@ public sealed class ExtensionListWasmTests
         WasmRuntimeUnavailableReason.PlatformUnsupported,
         WasmRuntimeUnavailableReason.EngineMissing,
         WasmRuntimeUnavailableReason.EngineLoadFailed,
+        WasmRuntimeUnavailableReason.WinX64TrapUnsupported,
     ];
 
     [Test]
@@ -154,13 +157,22 @@ public sealed class ExtensionListWasmTests
         entries["morphir.csharp"].Available.Should().BeTrue();
     }
 
-    /// <summary>The registry reads the runtime of its host (task 4.2): this test process carries the engine.</summary>
+    /// <summary>The registry reports the availability and reason of this process, including an unsupported engine.</summary>
     [Test]
     public void ARegistryOfThisProcessListsTheWasmEntryAsTheProcessRuntimeReportsIt()
     {
         var registry = new ExtensionRegistry([new FixedSource(WasmEntry())], Native, WasmRuntime.Process);
-        Entries(Run(registry, json: true))["acme.python"].Available.Should().Be(WasmRuntime.Process.Availability.CanRunModules);
-        WasmRuntime.Process.Availability.Should().Be(WasmRuntimeAvailability.Available);
+        var report = Run(registry, json: true);
+        Entries(report)["acme.python"].Available.Should().Be(WasmRuntime.Process.Availability.CanRunModules);
+        using var document = JsonDocument.Parse(report);
+        var entry = document.RootElement.GetProperty("extensions").EnumerateArray()
+            .Single(value => value.GetProperty("id").GetString() == "acme.python");
+        var expectedReason = WasmRuntime.Process.Availability.Match<string?>(
+            available: () => null, unavailable: reason => $"The WASM runtime is unavailable: {reason.Description}.");
+        if (expectedReason is null)
+            entry.TryGetProperty("reason", out var reason).Should().BeFalse();
+        else
+            entry.GetProperty("reason").GetString().Should().Be(expectedReason);
     }
 
     [Test]

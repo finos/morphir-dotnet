@@ -2,31 +2,155 @@
 title: "morphirup"
 linkTitle: "morphirup"
 weight: 90
-description: "The standalone toolchain manager: plan-only setup and project checks over local files"
+description: "Set up the Morphir toolchain with morphirup and run it, then the command reference"
 ---
 
 # morphirup
 
-`morphirup` is the standalone Morphir toolchain manager of the approved change `add-deployment-and-acquisition` (finos/morphir, decisions UP-1, UP-2 and LOCK-1). It is a Native AOT executable, so it runs on a machine with neither .NET nor Morphir installed.
+`morphirup` installs the Morphir command line, `morphir`, with the F# frontend and backend it uses, and runs them.
+It is one executable and needs no .NET. For a walkthrough with real output, see
+[Your first model with morphirup]({{< relref "/docs/getting-started/first-model" >}}).
 
-**This build does not acquire, install or activate anything.** It reads the toolchain documents, resolves a request against a recipe file you give it, prints the plan, and checks a project's request and lock. Bootstrap, authenticated downloads, generations, activation, `restore`, `show`, `run`, the `morphir` proxy and shell setup are later work.
+## Acquire the Morphir CLI and set up a toolchain
 
-Bounded acquisition I/O is implemented separately from the commands, with 58 isolated tests passing for streamed
-downloads, byte limits, cancellation and private publication. This work does not enable `setup` to apply a plan.
-Publisher authentication still requires security review; matching a checksum does not
-authenticate a publisher. Contributor status and the remaining integration boundaries are tracked in
-[`docs/contributing/morphirup-acquisition.md`](../../../contributing/morphirup-acquisition.md).
+| Platform | Install `morphirup` | `setup`, `show`, `select` and `run` |
+| --- | --- | --- |
+| Windows x64 and ARM64 | Yes | Yes |
+| macOS on Apple silicon | Yes | Yes |
+| Linux x64 and ARM64 | Yes | No: `setup` doesn't support Linux yet |
+
+Intel Macs are not supported.
+
+1. Install `morphirup`, as [Installation]({{< relref "/docs/getting-started/installation" >}}) shows.
+2. In your project folder, see what setup would install, then install it:
+
+   ```shell
+   morphirup setup --dry-run
+   morphirup setup --yes
+   ```
+
+   The dry run checks the release and installs nothing. `setup --yes` downloads the Morphir CLI, the F# frontend and
+   the F# backend from the [Morphir release](https://github.com/finos/morphir/releases) of the same version as
+   `morphirup`, checks them against the release's checksums,
+   tries them out, and selects them. This is the only step that needs the network.
+3. See what is installed:
+
+   ```shell
+   morphirup show
+   ```
+
+   `"status": "shown"` means a toolchain is set up and selected.
+4. Switch to another installed toolchain when you need to:
+
+   ```shell
+   morphirup select --generation <generation-sha256> --dry-run
+   morphirup select --generation <generation-sha256>
+   ```
+
+   Each `setup --yes` installs a new copy, called a generation, and selects it. Older generations stay installed.
+   `setup` and `show` print the `generationSha256` of the one they set up or show. `select` checks every file of the
+   generation you name, then selects it, for example to go back after a newer setup. `use` is the same command.
+5. Run the CLI. Everything after `--` goes to `morphir`:
+
+   ```shell
+   morphirup run -- compile
+   morphirup run -- generate --target fsharp --output generated
+   ```
+
+   `run` uses only what is installed, so it works offline.
+
+`morphirup` keeps everything in one folder, the Home: `MORPHIR_HOME` if it is set, and `.morphir` in your user folder
+otherwise. `setup` also takes `--home <dir>`, and `show`, `select` and `run` take `--home <absolute path>`.
+
+When something goes wrong, see [Troubleshooting]({{< relref "/docs/getting-started/troubleshooting" >}}).
+
+## How release setup works
+
+`morphirup` is the standalone Morphir toolchain manager of the approved change `add-deployment-and-acquisition`
+(finos/morphir, decisions UP-1, UP-2 and LOCK-1). It is a Native AOT executable. Release setup is experimental.
+Historical recipe setup remains plan-only. Explicit local host installation, selection and execution remain
+available through the [local candidate instructions]({{< relref "/docs/contributing/local-morphirup-candidate" >}}).
+Publisher authentication, portable lock restore, proxy installation and shell setup remain unfinished.
+
+Setup uses its own release version unless `.morphir/toolchain.toml` requests an exact version. It downloads from the
+finos/morphir release with the tag `v<version>`: first the release's `SHA256SUMS` and the bundle file of its own platform (`morphir-toolchain-<rid>.json`), then the
+runtime-bundled Morphir host and independent F# frontend and backend that the bundle names. It checks their byte
+counts and SHA-256 values, installs their complete folders, executes the fixed readiness workflow, and selects the
+completed generation last. `--home` is optional and defaults to `MORPHIR_HOME`, then `~/.morphir`. A dry run reads
+only `SHA256SUMS` and the bundle, and creates no Home, locks, staging, receipts or selection and runs no guest.
+Setup refuses before those effects if the final host or provider executable path would exceed the Windows launch
+limit of 259 characters. Choose a shorter `--home` when the diagnostic names this limit.
+
+Setup normally removes its own private staging folders. If the mutation lease stays busy for five seconds,
+cleanup leaves that folder and writes one warning on stderr without changing setup's achieved result.
+A later setup does not sweep deferred or interrupted stages; that follow-up is tracked in
+[#617](https://github.com/finos/morphir-dotnet/issues/617).
+
+This is **release-checksum delivery, not publisher-authenticated**. HTTPS and a matching release checksum do not
+authenticate the publisher. The release transport starts only at the exact `finos/morphir` repository and
+version tag, `https://github.com/finos/morphir/releases/download/v<version>/`. It permits at most three HTTPS redirects to `github.com`, `release-assets.githubusercontent.com` or
+`objects.githubusercontent.com`, without credentials or a downgrade. The generic acquisition transport keeps its
+existing no-redirect policy.
+
+For composed generations, `run` selects the installed F# frontend when `compile --language fsharp` is explicit,
+and the installed backend for `generate --target fsharp`. Without `--language`, the host resolves project
+configuration; the manager does not force F# over another language. Explicit `--extension` or `--extension-id`
+selections are passed through unchanged.
+
+After setup succeeds, the same `run` commands use installed folders and retained selected records without network
+access or the download cache. The existing explicit local candidate commands remain diagnostic entry points.
+This scope does not implement publisher authentication, trust commands, moving release channels or portable lock
+restore. The manual `Windows released morphirup journey` workflow validates the actual published executable after
+assets are available.
+
+Each generation's receipt, `toolchains/generations/<generation-sha256>/receipt.json` in the Home, names the host's
+implementation, deployment, platform, version and entry point. A generation set up from a release records its
+repository, `https://github.com/finos/morphir`, and its tag in `generation.json`. `toolchains/default.json` records the selected
+generation, and `catalog/extensions.json` lists the installed providers. `select`, `show` and `run` read only the
+current local-toolchains family, `0.1.0-preview.5`; in a Home set up by an earlier family, such as the
+`0.1.0-preview.4` of `morphirup` 0.5.0-alpha.1, they refuse with `local.setup_required`, and `setup --yes` installs the
+current family beside the earlier generations.
+
+### On macOS {#set-up-on-macos-arm64-experimental}
+
+On macOS on Apple silicon, the installed host and providers are the `osx-arm64` builds, with the entry points
+`morphir`, `morphir-fsharp-frontend` and `morphir-fsharp-backend`. Intel macOS (`osx-x64`) is not supported: an x64
+manager under Rosetta refuses setup and run. The executables are not notarized.
+
+- Setup keeps the bytes of each executable as the SDK published them. The SDK signs each apphost ad hoc, and
+  ARM64 macOS runs only a signed executable, so the signature stays valid.
+- A host file is installed with mode 0755 when its archive mode is executable, as for the entry point and
+  `createdump`, and 0644 otherwise. A provider file is installed read-only, 0555 or 0444. Setuid, setgid and
+  group or other write bits in an archive are never installed.
+- Setup uses the physical path of the parent folders of Home. On macOS, `$TMPDIR` is below the link `/var`, and the
+  installed host refuses a source file below a link. A Home that is itself a link is refused.
+- `run` starts the host with the same environment as on Windows: `MORPHIR_HOME`, `MORPHIR_ISOLATED=1`, the discovery
+  boundary and `DOTNET_MULTILEVEL_LOOKUP=0`, and no `DOTNET_ROOT`, `DOTNET_ROOT_X64`, `DOTNET_ROOT_ARM64`,
+  `DOTNET_SHARED_STORE`, `DOTNET_ADDITIONAL_DEPS` or `DOTNET_STARTUP_HOOKS`.
+- Process ownership is weaker than on Windows. On Windows the host runs in a kill-on-close job: when the host exits,
+  `morphirup` stops each process that is still in the job, and when `morphirup` dies, the job stops them all. On
+  macOS the host has no process group of its own. When you cancel `run` (Ctrl+C) or its output fails, `morphirup`
+  stops the host and the processes below it that are still its descendants at that time. It does not stop a
+  process that the host started and left running when the host exited normally, and it stops nothing when
+  `morphirup` itself is killed.
+
+To build and install the macOS ARM64 inputs from a checkout, see
+[macOS ARM64 local candidate]({{< relref "/docs/contributing/local-morphirup-candidate#macos-arm64-local-candidate" >}}).
 
 ## Download and verify
 
-Releases of morphir-dotnet attach `morphirup` for four platforms, beside the `morphir` assets on the
-[releases page](https://github.com/finos/morphir-dotnet/releases):
+The Morphir releases attach `morphirup` for five platforms, beside the `morphir` assets on the
+[releases page](https://github.com/finos/morphir/releases), from `0.5.0-alpha.2` on. The earlier releases there have
+no `morphirup`: `0.5.0-alpha.1` has the `morphir` CLI only, and `0.4.0-beta` and older are releases of the earlier Rust
+CLI. `morphirup` releases before `0.5.0-alpha.2` are on the
+[finos/morphir-dotnet releases page](https://github.com/finos/morphir-dotnet/releases):
 
 | Platform | Executable | Archive |
 | --- | --- | --- |
 | Linux glibc x64 | `morphirup-linux-x64` | `morphirup-linux-x64-v<version>.tar.gz` |
 | Linux glibc ARM64 | `morphirup-linux-arm64` | `morphirup-linux-arm64-v<version>.tar.gz` |
 | Windows x64 | `morphirup-win-x64.exe` | `morphirup-win-x64-v<version>.tar.gz` |
+| Windows ARM64 | `morphirup-win-arm64.exe` | `morphirup-win-arm64-v<version>.tar.gz` |
 | macOS ARM64 | `morphirup-osx-arm64` | `morphirup-osx-arm64-v<version>.tar.gz` |
 
 A Linux executable needs glibc 2.35 or later from the machine, which Ubuntu 22.04, Debian 12 and later releases of both
@@ -34,6 +158,10 @@ have, and nothing else: no .NET, no ICU and no OpenSSL. It does not run on musl 
 macOS executable needs macOS 12.0 or later: that is the minimum its `LC_BUILD_VERSION` load command declares, as the
 release job logged for `v0.4.0-alpha.4`. The job checks the executable only on the runner's macOS (macOS 26), not on
 macOS 12.
+
+The Windows ARM64 executable is built and checked on the GitHub-hosted Windows 11 ARM64 runner, natively, not
+cross-built on x64. Releases before the first one that lists it have no `win-arm64` files. The release workflow
+publishes the complete release-setup bundle for Windows x64 and Windows ARM64, with one `SHA256SUMS` over both.
 
 Each archive holds the same executable under `<rid>/`, for example `linux-x64/morphirup`, with the repository's
 `LICENSE` and `NOTICE` and the executable's `THIRD-PARTY-NOTICES.txt` beside it. The release also carries that file as
@@ -46,8 +174,8 @@ verifying signed release metadata is later work.
 On Linux:
 
 ```bash
-version=0.4.0-alpha.4   # the release you want
-base=https://github.com/finos/morphir-dotnet/releases/download/v$version
+version=0.5.0-alpha.2   # the release you want
+base=https://github.com/finos/morphir/releases/download/v$version
 curl -fLO "$base/morphirup-linux-x64"
 curl -fLO "$base/morphirup-v$version.sha256"
 sha256sum -c --ignore-missing "morphirup-v$version.sha256"
@@ -89,8 +217,8 @@ can remove the attribute with `xattr -d com.apple.quarantine morphirup-osx-arm64
 about an unsigned file that a browser downloads. Neither behavior has been checked for these files on a Mac or a
 Windows desktop.
 
-This first release reads documents and plans. It does not download, install, update or activate anything, and it does
-not verify signed metadata.
+The Windows and macOS ARM64 executables also set up and run a toolchain, as
+[above](#acquire-the-morphir-cli-and-set-up-a-toolchain). No release verifies signed metadata yet.
 
 ## Implementation, deployment and toolset
 
@@ -258,11 +386,15 @@ No `morphirup` command uses any of this yet. Nothing downloads anything, and not
 A provider's claims say what its publisher claims the artifact does. Checking that they name the provider's capability, MEP version, language or target and model tuple is not running the artifact. A recipe digest authenticates the bytes; the descriptor's `claimCheck` says whether anyone ran them to read the claims. The two are kept apart, and a recipe never changes `claimCheck`.
 ## Platforms and prerequisites
 
-`morphirup` uses the .NET runtime identifiers `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `linux-x64`, `linux-arm64`, `linux-musl-x64` and `linux-musl-arm64`. A musl machine never gets a glibc closure. These are the platforms it can plan for; releases publish the executable for four of them, listed under [Download and verify](#download-and-verify).
+`morphirup` uses the .NET runtime identifiers `win-x64`, `win-arm64`, `osx-x64`, `osx-arm64`, `linux-x64`, `linux-arm64`, `linux-musl-x64` and `linux-musl-arm64`. A musl machine never gets a glibc closure. These are the platforms it can plan for; releases publish the executable for five of them, listed under [Download and verify](#download-and-verify).
 
 The executable needs no .NET runtime, no ICU and no OpenSSL: it is built in invariant globalization mode, it normalizes strings for the plan digest to NFC with its own Unicode 17.0.0 tables, and it computes SHA-256 with BouncyCastle's managed implementation. So it runs on a Linux machine without the `libicu` or `libssl` packages, and a plan digest is the same whatever Unicode version the machine has.
 
 ## Common errors
+
+For problems with installing, `setup`, `show` and `run`, see
+[Troubleshooting]({{< relref "/docs/getting-started/troubleshooting" >}}). The errors below come from recipe
+planning (`setup --plan`) and `doctor`.
 
 - `this build plans only`: pass `--plan` or `--dry-run`, without `--yes`. Installing is not implemented yet.
 - `document_unavailable`: the named request, lock or recipe does not exist, is over the bound in [Files](#files), or is not a regular file. Without `--request`, check where [discovery](#finding-the-project) looked.

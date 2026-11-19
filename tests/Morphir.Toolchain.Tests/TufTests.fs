@@ -152,6 +152,7 @@ let readerTests =
                 // Not JSON at all: only the size is looked at.
                 Expect.equal (read (Array.create (limit + 1) (byte ' '))) (Error(TufFailure.MetadataTooLarge(role, limit))) $"{role}")
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let signatureTests =
@@ -214,6 +215,7 @@ let signatureTests =
             let twice = Value.Object [ "signatures", Value.Array [ signatureOf timestampKey signed; aliasSignature ]; "signed", signed ]
             Expect.isFalse (TufSignatures.thresholdMet doubled TufRole.Timestamp (TufMetadata.readTimestamp (canonical twice) |> expectOk "timestamp")) "one key, two ids")
     ]
+    |> testLabel "PlatformSpecific"
 /// A root of the given version, with root keys and threshold, signed by the signers.
 let private rootVersion (version: uint64) (rootKeys: TestKey list) (threshold: int) (signers: TestKey list) =
     let base' = memberOf "signed" (metadataSet "metadata").Root
@@ -361,6 +363,7 @@ let workflowTests =
                 Expect.equal (TufClient.metadataName TufRole.Timestamp 7UL) "timestamp.json" "the timestamp"
             | Error _ -> failtest "digest")
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let anchorTests =
@@ -392,6 +395,7 @@ let anchorTests =
             | Error(TrustAnchorRefusal.Unreadable(TufFailure.SignatureInvalid TufRole.Root)) -> ()
             | other -> failtestf "expected the unsigned root to be refused, got %A" other)
     ]
+    |> testLabel "PlatformSpecific"
 [<Tests>]
 let failureCodeTests =
     testCase "each TUF failure maps to its stable code" (fun () ->
@@ -411,6 +415,7 @@ let failureCodeTests =
         Expect.equal (TufFailure.role (TufFailure.Expired TufRole.Snapshot)) (Some TufRole.Snapshot) "the role a diagnostic names"
         Expect.equal (TufFailure.role (TufFailure.NonPortableTarget "x")) (Some TufRole.Targets) "a target path is targets metadata's"
         Expect.equal (TufFailure.role (TufFailure.RootRotationInvalid(2UL, "reason"))) (Some TufRole.Root) "rotation is the root's")
+    |> testLabel "PlatformSpecific"
 [<Tests>]
 let spikeProfileTests =
     // The 16 profile cases of the TUF client evaluation (spike/tuf-client-evaluation, results/conformance-win-arm64.md),
@@ -485,6 +490,7 @@ let spikeProfileTests =
             let target = (Option.get trusted.Targets).Targets[path]
             Expect.equal (TufClient.consistentTargetPath path target.Sha256) $"artifacts/morphir-dotnet-native-aot/1.2.3/{target.Sha256.Text}.win-x64.zip" "the path")
     ]
+    |> testLabel "PlatformSpecific"
 
 /// The first signature object of an envelope.
 let private firstSignatureOf (envelopeValue: Value) =
@@ -540,6 +546,7 @@ let reviewT1Tests =
         testCase "a root's expires" (fun () ->
             invalid TufRole.Root (TufMetadata.readRoot (JsonText.toBytes (setAt [ "signed"; "expires" ] (text "2999-01-01T00:00:00Z\n") (root ())))))
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let reviewAcceptedStateTests =
@@ -580,6 +587,7 @@ let reviewAcceptedStateTests =
             let completed = TufClient.refresh referenceTime (anchor ()) (sourceOf (metadataSet "metadata") [ v2 ])
             Expect.equal completed.Trusted.Root.Version 2UL "a completed refresh")
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let reviewTotalTests =
@@ -611,6 +619,7 @@ let reviewTotalTests =
                 for bytes in [ [||]; Encoding.UTF8.GetBytes "null"; Encoding.UTF8.GetBytes """{"signed":{},"signatures":[{"keyid":"x","sig":"0"}]}""" ] do
                     Expect.isError (read bytes) "refused")
     ]
+    |> testLabel "PlatformSpecific"
 
 /// A metadata entry naming the canonical bytes of a role, as a parent lists it.
 let private entryOf (role: Value) =
@@ -681,6 +690,7 @@ let reviewT2Tests =
 
             Expect.equal (refused (refresh trusted (sourceOf set []))) (TufFailure.Rollback TufRole.Snapshot) "targets v1 after v2")
     ]
+    |> testLabel "PlatformSpecific"
 
 /// A root whose keys are all new TEST-ONLY labels, none of the five fixture keys: root keys and an online key for the
 /// other roles.
@@ -752,6 +762,7 @@ let reviewT3Tests =
             Expect.equal trusted.Root.Version 2UL "v2"
             Expect.equal trusted.Purpose TrustAnchorPurpose.TestOnly "still TEST-ONLY")
     ]
+    |> testLabel "PlatformSpecific"
 
 /// The fixture's targets signed by the targets key with custom.morphir.preset = signedText, then served with the same
 /// signature and preset = servedText, written without normalization; snapshot and timestamp are linked to the served
@@ -811,6 +822,7 @@ let reviewT4Tests =
             let timestamp = resign "timestamp" (setAt [ "signed"; "note" ] (text "x") set.Timestamp)
             refreshed (refresh (anchor ()) { sourceOf set [] with Timestamp = fun () -> Some(canonical timestamp) }) |> ignore)
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let reviewT5Tests =
@@ -842,6 +854,7 @@ let reviewT5Tests =
             | Error(TrustAnchorRefusal.Unreadable(TufFailure.SignatureInvalid TufRole.Root)) -> ()
             | other -> failtestf "expected one of two signatures to be refused, got %A" other)
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let reviewT6Tests =
@@ -880,6 +893,7 @@ let reviewT6Tests =
             | RefreshResult.Refreshed trusted -> Expect.isSome trusted.Targets "the targets are verified"
             | other -> failtestf "expected the refresh to continue, got %A" other)
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let reviewT7Tests =
@@ -908,6 +922,7 @@ let reviewT7Tests =
             let reason = rotationReason (canonical (rootVersion 3UL (keysOf "root") 2 (keysOf "root")))
             Expect.stringContains reason "version" "then the version")
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let reviewT8Tests =
@@ -935,6 +950,7 @@ let reviewT8Tests =
                 TufClient.refresh referenceTime { trusted with Root = { trusted.Root with Version = version } } source |> ignore
                 Expect.isEmpty asked $"no root after {version}")
     ]
+    |> testLabel "PlatformSpecific"
 
 [<Tests>]
 let reviewT11Tests =
@@ -948,3 +964,4 @@ let reviewT11Tests =
             for spec in [ "1.0.0"; "1.0.36" ] do
                 TufMetadata.readRoot (rootWith [ "spec_version" ] (text spec)) |> expectOk spec |> ignore)
     ]
+    |> testLabel "PlatformSpecific"

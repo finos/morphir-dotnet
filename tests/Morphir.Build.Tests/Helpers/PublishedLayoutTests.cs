@@ -15,6 +15,7 @@ namespace Morphir.Build.Tests.Helpers;
 public class PublishedLayoutTests
 {
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ASelfContainedFolderCarriesTheRuntime()
     {
         using var folder = new Folder();
@@ -26,6 +27,7 @@ public class PublishedLayoutTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("linux-x64", "libcoreclr.so")]
     [Arguments("osx-arm64", "libcoreclr.dylib")]
     public async Task TheRuntimeIsNamedForThePlatform(string rid, string coreclr)
@@ -36,6 +38,7 @@ public class PublishedLayoutTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task AFrameworkDependentFolderNamesItsFrameworkAndCarriesNoRuntime()
     {
         using var folder = new Folder();
@@ -48,6 +51,7 @@ public class PublishedLayoutTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task AFrameworkDependentFolderWithoutAFrameworkReferenceIsAContradiction()
     {
         using var folder = new Folder();
@@ -59,6 +63,7 @@ public class PublishedLayoutTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TheFSharpCompilerShipsExactlyWithTheInProcessFrontend()
     {
         using var managed = new Folder();
@@ -71,6 +76,7 @@ public class PublishedLayoutTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ANativeAotFolderShipsNoManagedAssembly()
     {
         using var folder = new Folder();
@@ -110,6 +116,7 @@ public class PublishedLayoutTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TheLaunchPathMustExist()
     {
         using var folder = new Folder();

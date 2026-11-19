@@ -14,7 +14,7 @@ Use it to adopt one classic `morphir.json` project into the newer project system
 ## Synopsis
 
 ```text
-morphir project migrate [<path>] [--output <toml-path>] [--dry-run] [--json]
+morphir project migrate [<path>] [--output <toml-path>] [--dry-run] [--json[=stream|document]]
 ```
 
 `<path>` identifies one project directory or its classic `morphir.json`. When omitted, select the current unambiguous project. A member invocation does not implicitly migrate its siblings or change workspace membership.
@@ -32,7 +32,7 @@ morphir project migrate morphir.json --output .config/morphir/config.toml
 | --- | --- |
 | `--output <path>` | TOML target in a supported primary layout at the same project location; defaults to adjacent `morphir.toml` |
 | `--dry-run` | Return mappings, edits, conflicts, and verification without writing |
-| `--json` | Emit a structured migration plan/result and diagnostics |
+| `--json[=stream\|document]` | Emit a structured migration plan/result and diagnostics: a stream that ends with one `completed` record, or with `=document` one document. See [Machine output](_index.md#machine-output) |
 
 Output selection must preserve the project location and relative-path meaning. An output that introduces same-format primary ambiguity is refused.
 

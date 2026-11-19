@@ -247,3 +247,4 @@ let tests =
                 Expect.isTrue builtInBackend "the built-in morphir.fsharp backend"
             | Error refusal -> failtestf "the receipt does not read: %A" refusal)
     ]
+    |> testLabel "PlatformSpecific"

@@ -24,7 +24,7 @@ This plugin enables proto to install and manage Morphir CLI executables across m
 - **Platform Support**: Automatically detects and installs the correct Morphir executable for:
   - Linux (x64, arm64)
   - macOS (x64, arm64)
-  - Windows (x64)
+  - Windows (x64, arm64)
 - **Version Management**: Install and switch between different Morphir versions
 - **Automatic Updates**: Easy upgrades to new Morphir releases
 - **Integration**: Works seamlessly with proto's tool management
@@ -78,7 +78,7 @@ Once installed via proto, use Morphir as normal:
 morphir --version
 
 # Use Morphir commands
-morphir ir verify my-ir-file.json
+morphir model verify my-ir-file.json
 ```
 
 ## Development
@@ -166,13 +166,14 @@ The plugin should only be updated when:
 
 The plugin downloads from GitHub Releases using this pattern:
 ```
-https://github.com/finos/morphir-dotnet/releases/download/v{version}/morphir-{rid}-v{version}.tar.gz
+https://github.com/finos/morphir/releases/download/v{version}/morphir-{rid}-v{version}.tar.gz
 ```
 
 Where `{rid}` is one of:
 - `linux-x64`
 - `linux-arm64`
 - `win-x64`
+- `win-arm64`
 - `osx-x64`
 - `osx-arm64`
 
@@ -192,13 +193,13 @@ morphir-{rid}-v{version}.tar.gz
 The plugin currently supports:
 - Linux: x64, arm64
 - macOS: x64, arm64 (Apple Silicon)
-- Windows: x64
+- Windows: x64, arm64
 
 If you're on an unsupported platform, you can install Morphir using alternative methods documented in the main Morphir repository.
 
 ### Version not found
 
-Ensure the version exists in the [Morphir releases](https://github.com/finos/morphir-dotnet/releases). The plugin downloads from GitHub Releases, so only released versions are available.
+Ensure the version exists in the [Morphir releases](https://github.com/finos/morphir/releases) and has the archive for your platform. The plugin downloads from GitHub Releases, so only released versions are available. The finos/morphir releases before 0.5.0 are releases of the earlier Rust CLI and have no such archive.
 
 ### Permission denied on Unix
 

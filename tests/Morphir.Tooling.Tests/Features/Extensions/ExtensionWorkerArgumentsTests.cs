@@ -11,6 +11,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// The arguments of <c>morphir extension worker</c> (task 4.1 of <c>add-wasm-extension-host</c>): every argument
 /// the pinned contract's <c>worker.arguments</c> lists, with its default, and the usage errors that exit with 2.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class ExtensionWorkerArgumentsTests
 {
     private static JsonElement ContractWorker()
@@ -222,7 +223,22 @@ public sealed class ExtensionWorkerArgumentsTests
     {
         WorkerInvocation.Parse(["--help"]).Should().Be(new WorkerInvocation.Help(Json: false));
         WorkerInvocation.Parse(["--help", "--json"]).Should().Be(new WorkerInvocation.Help(Json: true));
+        // Every mode gives the contract's one command result.
+        WorkerInvocation.Parse(["--help", "--json=stream"]).Should().Be(new WorkerInvocation.Help(Json: true));
+        WorkerInvocation.Parse(["--help", "--json=document"]).Should().Be(new WorkerInvocation.Help(Json: true));
         WorkerInvocation.Parse(["-h", "--abi", "extism-kernel-v1"]).Should().Be(new WorkerInvocation.Help(Json: false));
+    }
+
+    [Test]
+    public void A_json_mode_is_given_only_after_an_equals_sign_and_must_be_stream_or_document()
+    {
+        // adopt-streaming-json: a mode that is not one names the modes; a mode after a space is a positional argument.
+        Invalid(["--help", "--json=lines"]).Should().Contain("stream").And.Contain("document");
+        Invalid([.. Required(), "--json=lines"]).Should().Contain("stream").And.Contain("document");
+        Invalid([.. Required(), "--json", "document"]).Should().Contain("'document'");
+        Serve([.. Required(), "--json=stream"]).Json.Should().BeTrue();
+        // The contract fixes the event lines, so the document mode serves as --json does.
+        Serve([.. Required(), "--json=document"]).Json.Should().BeTrue();
     }
 
     [Test]

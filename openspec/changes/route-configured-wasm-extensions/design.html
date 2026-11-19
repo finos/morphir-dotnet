@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>route-configured-wasm-extensions</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; --ok: #1f7a4d; --stop: #b3261e; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; --ok: #6fd3a0; --stop: #ff9a92; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; vertical-align: top; }
+svg { max-width: 100%; height: auto; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+.table-wrap { overflow-x: auto; }
+figure { margin: 1.5rem 0; overflow-x: auto; } figcaption { color: var(--muted); font-size: .95rem; }
+svg { display: block; width: 100%; min-width: 640px; } .toc ol { padding-left: 1.3rem; }
+svg text { fill: var(--fg); font: 13px system-ui, sans-serif; }
+svg .box { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; }
+svg .new { fill: var(--panel); stroke: var(--ok); stroke-width: 2; }
+svg .edge { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+svg .small { font-size: 11.5px; fill: var(--muted); }
+.stage { color: var(--muted); font-size: .95rem; margin-bottom: 0; }
+</style>
+</head>
+<body><main>
+<h1>route-configured-wasm-extensions</h1>
+<p class="meta">12 November 2026. Product scope explicitly authorized for alpha.5; tests are authored before implementation. No qualification work is included.</p>
+<nav class="toc" aria-label="Contents"><a href="#context">Context</a> · <a href="#selection">Selection</a> · <a href="#session">An owned session</a> · <a href="#failures">Failures and cleanup</a> · <a href="#landing">Landing</a></nav>
+<h2 id="context">Context</h2>
+<p><a href="proposal.md">The proposal</a> closes the gap between the runtime foundation in #570 and normal compile/generate commands. The Python 0.6.0 module is already pinned and exercised by runtime tests. Product commands currently select only built-ins or external process guests. Implementing another model decoder or generator would duplicate checks; these commands should reuse their existing adapters and publication rules.</p>
+<h2 id="selection">Selection</h2>
+<p>CLI extension selection wins, followed by the existing frontend/codegen extension setting. If neither exists, a selected language/target with an extensions table containing path selects that named module. A selection with a matching module path uses the WASM connector; otherwise the current process connector remains. Path, ABI and digest come from the same effective configuration snapshot as the selection. Relative paths use the source configuration directory, with the project root as fallback. Explicit project/config selection must not be lost by reloading from the invocation directory inside the connector.</p>
+<pre aria-label="Product data flow">effective configuration → selected module → existing module loader
+                                                   ↓
+normal publisher ← existing MEP model adapter ← owned WASM channel</pre>
+<p>The module loader still decides runtime availability, digest, classification and ABI refusal in its established order. Production does not discover or download a bundle.</p>
+<h2 id="session">An owned session</h2>
+<p>The existing frontend and backend adapters negotiate model tuples, bound payloads and validate replies/artifacts. Their dependency on an owned process session becomes a small typed owned-session contract, implemented by the existing process owner and a single-message channel owner. The latter drives ordinary HostSession over WasmChannel. It does not alter MEP admission, conformance controls, notification advertisement or request allocation. Each adapter uses its existing private validation path for either transport and reports wasm for the new transport.</p>
+<p>Disposal ownership transfers only on successful connection. Failed initialization or adapter admission closes the channel. Request cancellation waits for the bounded runtime call to settle, then closes the owned session; no task is abandoned. Shutdown/exit and disposal retain the current lifecycle rules. Bounded guest output goes to stderr, never result stdout.</p>
+<p>A self-worker process was considered but would add executable-location and module re-read identity problems. Duplicating the frontend/backend model logic was rejected. Both commands are attempted through this shared session boundary; generate is the first landing cut if compile would miss the five-hour target.</p>
+<h2 id="failures">Failures and cleanup</h2>
+<p>Windows x64 fails before reading a selected module, with extension.runtime_unavailable and win_x64_trap_unsupported. Commands selecting no WASM module do not probe its engine. Existing typed command failures, artifact path checks, compile records and owned generation publication remain. No protection setting, raw arbitrary send, conformance checker or second launcher is added.</p>
+<h2 id="landing">Landing</h2>
+<p><a href="specs/wasm-product-commands/spec.md">Requirements</a> and <a href="tasks.md">tasks</a> bind the tests to the behavior. First run the new tests RED under a coordinator slot, then implement and verify the affected paths including a real digest-pinned bundle CLI run. Existing process and built-in controls prevent selection regressions. Add the experimental guide with exact commands in the implementation commit. The initial draft is a test-first checkpoint, not a test-pass claim. After #570 lands, merge main normally, obtain scoped F#/C# review and satisfy exact-head CI. Kit/report/notification/qualification/packaging work stays deferred.</p>
+</main></body></html>

@@ -112,3 +112,52 @@ type InstallationPlatform private (platform: Platform) =
             Parsing.refuse
                 "extension.no_matching_artifact"
                 $"Unknown v1 index platform '{os}/{arch}'."
+
+// Activation follows the executable process architecture, including x64 emulation.
+// Keep Toolchain.Platform.current's historical OS-architecture behavior unchanged.
+module internal ActivationPlatforms =
+    let forProcess windows macos linux architecture (runtimeIdentifier: string) =
+        let suffix =
+            match architecture with
+            | Architecture.X64 -> "x64"
+            | Architecture.Arm64 -> "arm64"
+            | _ -> "unsupported"
+
+        let prefix =
+            if windows then
+                "win-"
+            elif macos then
+                "osx-"
+            elif
+                linux
+                && runtimeIdentifier.StartsWith("linux-musl", StringComparison.Ordinal)
+            then
+                "linux-musl-"
+            elif linux then
+                "linux-"
+            else
+                "unsupported-"
+
+        InstallationPlatform.Parse(
+            prefix
+            + suffix
+        )
+
+    let current () =
+        forProcess
+            (OperatingSystem.IsWindows())
+            (OperatingSystem.IsMacOS())
+            (OperatingSystem.IsLinux())
+            RuntimeInformation.ProcessArchitecture
+            RuntimeInformation.RuntimeIdentifier
+
+    let ensure descriptorTriple =
+        current ()
+        |> Result.bind (fun expected ->
+            if descriptorTriple = Some expected.DescriptorTriple then
+                Ok()
+            else
+                Parsing.refuse
+                    "extension.no_matching_artifact"
+                    $"Activation requires {expected.DescriptorTriple}; installed artifact targets a different process platform."
+        )

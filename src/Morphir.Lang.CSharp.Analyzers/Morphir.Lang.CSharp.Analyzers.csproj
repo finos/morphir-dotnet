@@ -1,0 +1,37 @@
+<!--
+  An application publish passes PublishAot, PublishTrimmed and PublishSingleFile as global properties, which also reach
+  this netstandard2.0 library (for example dotnet publish src/Morphir -p:PublishAot=true). The SDK refuses them for
+  netstandard2.0 (NETSDK1207), so this library keeps them local and off.
+-->
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;PublishTrimmed;PublishSingleFile">
+
+    <PropertyGroup>
+        <PublishAot>false</PublishAot>
+        <PublishTrimmed>false</PublishTrimmed>
+        <PublishSingleFile>false</PublishSingleFile>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <!--
+          netstandard2.0 with only a Roslyn dependency: the compiler, the IDE and the C# frontend load this assembly.
+          The admission rules and the loop recognizer are here (design.html, PKG-1 and ADM-1).
+        -->
+        <TargetFramework>netstandard2.0</TargetFramework>
+        <RootNamespace>Morphir.Lang.CSharp.Analyzers</RootNamespace>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+        <IsRoslynComponent>true</IsRoslynComponent>
+        <!-- RS2008: release tracking files come with the first published rule. -->
+        <NoWarn>$(NoWarn);RS2008</NoWarn>
+        <!-- Not a package of its own: the Morphir.Lang.CSharp package carries this assembly in lib/. -->
+        <IsPackable>false</IsPackable>
+        <Description>Roslyn analyzer rules that report the C# constructs outside the Morphir subset.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    </ItemGroup>
+
+</Project>

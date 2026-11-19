@@ -1,0 +1,237 @@
+# Choosing the CI operating systems
+
+The Development workflow (`.github/workflows/development.yml`) tests on Linux, Windows and macOS. Windows and macOS
+runners cost much more than Linux runners. Use this page to run Linux only while a pull request is not ready to merge.
+
+The Fallout target `CIPlan` makes the decision (`build/Build.CI.cs`, `build/Helpers/CiPlan.cs`). The workflow only
+reads its outputs.
+
+## What runs
+
+Linux always runs: lint, OpenSpec and the Linux tests. Labels add the other platforms.
+
+| Pull request | Operating systems | The `ci` check |
+| --- | --- | --- |
+| Draft, no platform label | Linux | Passes with a warning that Windows and macOS did not run |
+| Ready for review, no platform label | Linux, Windows, macOS | Passes when all pass |
+| `ci:windows` | Linux, Windows | Passes with a warning on a draft; fails on a ready pull request |
+| `ci:macos` | Linux, macOS | Passes with a warning on a draft; fails on a ready pull request |
+| `ci:windows` and `ci:macos`, or `ci:full` | Linux, Windows, macOS | Passes when all pass |
+| `ci:linux-only` | Linux | Passes with a warning on a draft; fails on a ready pull request |
+| Release call (`workflow_call`) | Linux, Windows, macOS, all run again | Passes when all pass |
+
+When a pull request has a platform label, the labels give the exact set, on a draft and on a ready pull request.
+Labels combine, and the larger set wins: `ci:linux-only` with `ci:windows` runs Linux and Windows.
+
+A pull request that is ready for review needs every platform before it can merge. The `ci` check names the missing
+platform and the label that adds it.
+
+## Which tests run on Windows and macOS
+
+Most tests are managed logic that gives the same result on each operating system. A pull request runs them once, on
+Linux. On Windows and macOS it runs only the tests whose result can depend on the operating system. Those tests have
+the marker `PlatformSpecific`:
+
+| Framework | Marker |
+| --- | --- |
+| TUnit (C#) | `[Category("PlatformSpecific")]` on the test method or the test class |
+| Reqnroll (`.feature`) | The tag `@PlatformSpecific` on the feature or the scenario |
+| Expecto (F#) | `testLabel "PlatformSpecific"` on the test or the test list |
+
+Mark a test that uses the real file system, paths, line endings, processes, the `dotnet` command, an operating
+system API, native code or sockets, directly or through the code under test. A test with no marker has no Windows and
+macOS coverage in a pull request. If you are not sure, mark the test.
+
+A test gets its models, trees and files from an object mother or from `FixtureCatalog` (see "Test data" in
+`.agents/skills/test-manager/SKILL.md`). Neither one uses the file system: a mother builds its case in memory, and
+the catalog serves the files below `tests/Fixtures` as resources embedded in `Morphir.TestSupport`. A test that only
+reads its data that way needs no marker for it. A test that writes that data to disk, into a `TestSandbox` or into
+the workspace of a scenario with `FixtureTrees.WriteTree`, uses the file system and has the marker.
+
+The black-box project `tests/Morphir.BlackBox.Tests` needs no marker on a test. Each of its tests starts the product
+on the operating system of the run, so the assembly has the marker, and each operating system runs each of its
+groups (see [The black-box groups](#the-black-box-groups)).
+
+The `Test` target has the parameter `--test-scope` (`build/Build.Testing.cs`, `build/Helpers/TestPlan.cs`):
+
+| Scope | Tests | Used by |
+| --- | --- | --- |
+| `all` (default) | Every test of every test assembly | Linux in a pull request; every operating system in a manual run and in a call from another workflow |
+| `platform` | Only the tests with the marker | Windows and macOS in a pull request |
+
+The scope `platform` finds the test assemblies with a search for the three marker forms in the sources below
+`tests/<project>/`. The word `PlatformSpecific` alone is not the marker, because a Morphir IR type has a case with
+that name. An assembly that has a marker but selects no test fails the run. To run every test on every operating
+system for a branch, use a manual run with `os=full`.
+
+```bash
+./build.sh --target Test --test-scope platform   # only the marked tests
+./build.sh --target Test --test-parallelism 1    # one test assembly at a time
+./build.sh --target Test --test-group smoke      # only one group of the black-box tests
+```
+
+### Run a CI test job locally
+
+The Windows and macOS test jobs of a pull request run the scope `platform` in Release, with
+`MORPHIR_TEST_MAX_PROCESSES=4` on a runner with 4 processors, so 2 test assemblies at a time and a share of 2 product
+processes for each. To run exactly that on your machine (PowerShell on Windows; `./build.sh` with
+`MORPHIR_TEST_MAX_PROCESSES=4` elsewhere):
+
+```powershell
+$env:MORPHIR_TEST_MAX_PROCESSES = '4'
+./build.ps1 --target Compile --configuration Release
+./build.ps1 --target Test --configuration Release --skip Restore Compile --test-scope platform --test-parallelism 2
+```
+
+`--test-parallelism 2` matters: without it a machine with more processors runs up to 4 assemblies at a time, and the
+shares change. Run the same command without `MORPHIR_TEST_MAX_PROCESSES` and `--test-parallelism` too: on a
+machine with 12 processors the defaults give each test process a share of 1, the smallest gate that a test must
+survive. The test processes start no PowerShell: Windows PowerShell's first start on a fresh CI image can take
+longer than a test's time limit. A test that needs a plain child process starts the `ProcessHelper` of
+`tests/Morphir.TestSupport`, and `TestShellRulesTests` of `tests/Morphir.Build.Tests` keeps PowerShell out. The one test that
+starts PowerShell on purpose runs the delivered `install-morphirup.ps1` (`EndToEnd/InstallScripts.feature`), as a user
+does: with PowerShell 7 when it is on PATH, as on the CI runners.
+
+The same job then runs "Run build tests" (`TestBuild`, after `PackAll`). Its first part, the Pester tests of the
+PowerShell scripts in `tests/Scripts`, needs no packages and runs alone with:
+
+```powershell
+./build.ps1 --target TestScripts --configuration Release --skip Restore Compile
+```
+
+Pester is not a dotnet tool: the restore of `build/_build.csproj` downloads the pinned version (a `PackageDownload`)
+into the NuGet packages folder, and the target imports it from there.
+
+## The black-box groups
+
+A black-box test reaches the product only through a built artifact. Those tests are in one project,
+`tests/Morphir.BlackBox.Tests`, in four groups by their purpose
+(see [its README](../../tests/Morphir.BlackBox.Tests/README.md)):
+
+| Group | Proves | Pull request, each operating system | Release and manual workflows |
+| --- | --- | --- | --- |
+| `integration` | The components behind one capability work together. | Development build | Also each published target that supports the capabilities of the test |
+| `journey` | One user goal that needs two or more capabilities. | Development build | Also each published target |
+| `smoke` | An artifact starts and does one basic function. For the host of a library that the CLI does not reach: the host runs and passes its checks. | Development build, with the managed library hosts. The Native AOT lane (`TestAot`, the probes and the hosts): Linux only | Also the published targets |
+| `e2e` | The delivered form itself: installation, layout, start. | Development build, for a test with no lane | Each published and packaged target |
+
+The group states the purpose. The form of the product on which a test runs is the target, and the target does not
+change the group.
+
+A group is a suite of the `Test` target (`build/Helpers/TestPlan.cs`): it runs as its own test process, at the same
+time as other suites, with its own row in the report and its own result directory. A group suite has one filter in
+both scopes, `[(Category=<group>)&(Category!=lane)]`. A group with no test fails its run, so a group is in the plan
+from the change that adds its first test. `--test-group <group>` runs only the suites of that group and no other
+suite. The `integration` and `e2e` groups pack projects of the repository (the package driver), so they run as
+suites that use the source projects.
+
+The Linux test job runs the Native AOT lane after the tests: `./build.sh --target TestAot` publishes each probe,
+each library host and morphirup with Native AOT, checks the trim and AOT warnings of each publish, and compares the
+native output with the managed output.
+
+A test that needs more than the development build has the tag `@lane` and one lane tag (`@packages`,
+`@native-aot` or `@published`). The run of a group does not select it. If another run selects it, the test is
+skipped before its first step, with the lane of the test and the lane of the run as the reason. The report row of a
+black-box suite shows the count of skipped tests by reason (lane, host, capability).
+
+The release and manual workflows (`deployment.yml`, `manual-e2e-test.yml`, `manual-aot-test.yml`) run each group
+against a published or packaged target with `TestE2E` (`scripts/run-e2e-tests.cs`): one test process for each group,
+with `MORPHIR_TEST_TARGET` and `MORPHIR_TEST_LANE=published`. That run executes the tests with no lane and the tests
+of the published lane, and skips each test that the target does not support with its reason.
+
+The packages lane (`@lane @packages`) has the tests of the packages that the pack step makes: their layout, their
+metadata, their versions, and the install of the tools. In a pull request, each operating system runs it in the step
+"Run build tests", after "Pack packages for build testing": the `TestBuild` target runs the Pester tests of the
+scripts (`TestScripts`, `tests/Scripts`), the build tests and then the
+black-box project with the filter `[Category=packages]`, `MORPHIR_TEST_LANE=packages` and
+`MORPHIR_TEST_PACKAGES` set to the output folder of `PackAll`. The package driver reads only that folder; a run with
+no package there stops before its first test with the pack command.
+
+## Parallel builds and tests
+
+`Restore` and `Compile` use one MSBuild node for each processor. `--build-nodes 1` keeps a build small when more than
+one build runs on the machine at the same time.
+
+`Test` runs more than one test assembly at the same time: half the processors, rounded up, from 1 to 4
+(`--test-parallelism`). Each assembly writes its output as one block when it completes. The job summary and the log
+show the time of each assembly.
+
+A test process limits the product processes that it runs at the same time (`ProcessGate` of
+`tests/Morphir.TestSupport`). Each test process has its own limit, so `Test` gives each one a fixed share of one
+limit for the machine, in `MORPHIR_TEST_MAX_PROCESSES`:
+
+- The limit for the machine is `MORPHIR_TEST_MAX_PROCESSES` of the caller, or half the processors and not less
+  than 2.
+- No more test processes run at the same time than that limit.
+- Each test process gets the limit divided by the number of test processes at the same time, rounded down. The
+  share does not depend on the moment at which a suite starts.
+- A suite that runs alone gets the complete limit.
+
+For example, a limit of 8 with 2 test processes at the same time gives 4 to each, and with 3 it gives 2 to each.
+The first lines of the `Test` log show the limit and the share.
+
+The test jobs of `development.yml` set `MORPHIR_TEST_MAX_PROCESSES` to 4. A runner has 3 or 4 processors and runs 2
+test processes at the same time, so each test process gets 2. On a machine with many processors you can set a
+larger limit for a faster run, for example `MORPHIR_TEST_MAX_PROCESSES=18 ./build.sh --target Test`.
+
+All test assemblies share the `obj` and `bin` folders of the repository. A test that runs `dotnet build`, `pack` or
+`publish` on a project of the repository must obey these rules:
+
+- Do not replace the assemblies of the solution build. Pack with `--no-build`, build a copy of a fixture with
+  `-p:BuildProjectReferences=false`, or send all outputs to a temporary folder with `--artifacts-path`.
+- Set `WithSourceProjects()` on the test assembly in `build/Helpers/TestPlan.cs`. Only one such assembly runs at a
+  time.
+- Use a new temporary directory and a unique package version for each test, not a fixed name or a fixed port.
+
+A test assembly that has tests with a time budget runs alone: set `Alone()` on it in `build/Helpers/TestPlan.cs`.
+`Morphir.Toolchain.Tests` and `Morphir.Extensions.Wasm.Tests` are such assemblies.
+
+## How a test job uses its build
+
+The `Build` step is the one restore and the one compile of a test job. The steps after it pass
+`--skip Restore Compile`, so they use those outputs.
+
+Do not pass a property such as `DebugType` or `PackageVersion` to a `dotnet pack`, `build` or `publish` of a
+solution project between two compiles. A property on the command line also applies to the referenced projects, and
+it can remove or replace their intermediate files. The next compile then builds them, and all projects that use
+them, again. `PackTool` does this with `DebugType=none`, so run it after the steps that need the compile outputs.
+
+## Where the selection shows
+
+- The run page shows a "CI plan" notice, for example `Linux, Windows (label ci:windows). Runs: ...`.
+- The job summary of the `plan` job shows the selection, why it was selected, and for each check: runs, passed in an
+  earlier run (with a link to that job), or not selected (with the label that adds it).
+- The job summary of the `ci` job shows the verdict and the result of each check.
+
+## Jobs that already passed do not run again
+
+The plan job looks up the pull_request runs of Development for the same head commit, with every attempt. A lint,
+OpenSpec or test job that passed in one of them does not run again. Thus:
+
+- When a draft becomes ready for review, only Windows and macOS run.
+- When you add `ci:macos` to a pull request that ran Linux and Windows, only macOS runs.
+- A new push changes the head commit, so every selected job runs again.
+
+Manual runs (`workflow_dispatch`) are not evidence: GitHub does not count their checks for a pull request.
+
+## Change the selection without a push
+
+Change a `ci:*` label. The CI request workflow (`.github/workflows/ci-request.yml`) re-runs the Development run of
+the pull request for its head commit. If that run has not completed, it is cancelled first. The plan job of the re-run
+reads the labels and the draft state as they are now. A re-run keeps the `pull_request` event, so its `ci` check
+counts for the pull request. Other labels start nothing.
+
+"Re-run all jobs" on the run page does the same.
+
+A label change on a pull request from a fork starts nothing. Push to the pull request to replan with its labels.
+
+## Manual runs
+
+Run the Development workflow by hand to test a branch on chosen platforms. Set `os` to `auto` (all), `linux`,
+`full`, or a list of `windows` and `macos`:
+
+```bash
+gh workflow run development.yml --ref <branch> -f os=windows
+```
+
+A manual run never reuses jobs, and its checks do not count for a pull request.

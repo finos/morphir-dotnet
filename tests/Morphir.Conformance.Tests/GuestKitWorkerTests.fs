@@ -215,9 +215,57 @@ let private workerInvocations (fake: FakeHost) =
     invocations fake
     |> List.filter (fun arguments -> not (List.contains "--help" arguments))
 
+/// Runs the one-session model tier with a worker that runs script and has exited before the runner's first request,
+/// and checks that describe fails because the transport ended, naming the session and the worker, and that the run
+/// plans no model case.
+let private expectTransportEndedBeforeFirstRequest (script: JsonNode list) =
+    let fake = FakeWorker.host [ "generic", script ]
+    use _gate = ProcessGate.Shared.EnterAsync().GetAwaiter().GetResult()
+    use sessions = create fake "generic" (shortLimits ())
+
+    let opener =
+        Func<KitSessionRequest, CancellationToken, Task<HostSession>>(fun request cancellation ->
+            task {
+                let! session = sessions.OpenAsync(request, cancellation)
+                let pid = onlyProcess sessions
+
+                if not (eventually (fun () -> not (isRunning pid))) then
+                    failtest "the worker did not exit"
+
+                return session
+            }
+        )
+
+    let result =
+        ModelTierRunner
+            .RunAsync(kit.Value, opener, CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+
+    let pid = onlyProcess sessions
+
+    match (step "describe" result).Outcome with
+    | StepOutcome.Failed difference ->
+        Expect.stringContains difference "has ended" "the step says the transport ended"
+        Expect.stringContains difference "model-tier" "the step names the session"
+        Expect.stringContains difference (string pid) "the step names the worker"
+    | other -> failtest $"Expected describe to fail, got {other}"
+
+    Expect.equal (result.Steps |> Seq.map _.Id |> List.ofSeq) [ "describe" ] "no model case is planned"
+
+    let record =
+        sessions.EndAsync(CancellationToken.None).GetAwaiter().GetResult()
+        |> List.ofSeq
+        |> only
+
+    Expect.equal record.End (WorkerEnd.Exited 0) $"the worker exited with 0: {record}"
+    Expect.equal sessions.ProcessIds.Count 1 "no second worker"
+
 [<Tests>]
 let tests =
-    testSequenced
+    // PlatformSpecific: these tests start worker processes, so the platform scope of the Test target runs them on
+    // every operating system (docs/contributing/ci-os-matrix.md).
+    testSequenced >> testLabel "PlatformSpecific"
     <| testList "GuestKit worker sessions" [
         for version, claim, cases, tuples in
             [
@@ -656,8 +704,28 @@ let tests =
             Expect.equal (line.ToString()) "12 ms: {\"event\":\"started\"}" "stable text"
         }
 
-        test
-            "A write to a worker that has ended throws WorkerEndedException, which names the session and the worker" {
+        test "A write after the factory closed the stdin of an exited worker keeps the pipe's ObjectDisposedException" {
+            // On Linux and macOS a worker's stdin is a pipe stream, whose CanWrite stays true after it is closed.
+            let checkClosed (cause: string) (write: WorkerInput -> unit) =
+                use pipe = new Pipes.AnonymousPipeServerStream(Pipes.PipeDirection.Out)
+                let input = new WorkerInput(pipe, KitSessionPurpose.Describe, 42, (fun () -> true))
+                input.Dispose()
+
+                match failureOf (fun () -> write input) with
+                | Some(:? WorkerEndedException as ended) ->
+                    match ended.InnerException with
+                    | :? ObjectDisposedException -> ()
+                    | other -> failtest $"{cause}: expected the stdin to be closed, got {other}"
+                | other -> failtest $"{cause}: expected WorkerEndedException, got {other}"
+
+            checkClosed "Write" (fun input -> input.Write([| 0uy |], 0, 1))
+
+            checkClosed "WriteAsync" (fun input ->
+                input.WriteAsync(ReadOnlyMemory [| 0uy |], CancellationToken.None).AsTask().GetAwaiter().GetResult()
+            )
+        }
+
+        test "A write to a worker that has ended throws WorkerEndedException, which names the session and the worker" {
             let fake = FakeWorker.host [ "describe", [ started []; exitWith 0 ] ]
             use _gate = ProcessGate.Shared.EnterAsync().GetAwaiter().GetResult()
             use sessions = create fake "describe" (shortLimits ())
@@ -757,6 +825,17 @@ let tests =
             Expect.equal (sessions.ProcessIds.Count) 1 "no reopen workaround"
             expectGone record
         }
+
+        test "When the worker has ended before its first request, describe says the transport ended and nothing more is planned" {
+            expectTransportEndedBeforeFirstRequest [ started []; exitWith 0 ]
+        }
+
+        test "When the worker has ended but a child keeps its stdio open, describe says the transport ended" {
+            // The pipes outlive the worker, so a write of describe would succeed and the connection would close only
+            // when the child exits: an extension that has ended did not refuse describe.
+            expectTransportEndedBeforeFirstRequest [ started []; holdStdio 3000; exitWith 0 ]
+        }
+
         test
             "OpenAsync after the factory is disposed throws ObjectDisposedException and starts no worker" {
             let fake = FakeWorker.host [ "describe", [ started []; exitWith 0 ] ]

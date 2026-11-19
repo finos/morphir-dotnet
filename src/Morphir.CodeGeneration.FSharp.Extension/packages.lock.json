@@ -1,7 +1,7 @@
 {
   "version": 2,
   "dependencies": {
-    "net10.0": {
+    "net11.0": {
       "FSharp.Core": {
         "type": "Direct",
         "requested": "[10.1.403, )",
@@ -28,21 +28,30 @@
           "FSharp.Core": "[10.1.403, )",
           "Fabulous.AST": "[1.10.0, )",
           "Fantomas.Core": "[7.0.5, )",
+          "Morphir.Files": "[1.0.0, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
           "Morphir.IR.Pipeline.Plugins": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
         }
       },
-      "morphir.ir.pipeline": {
+      "morphir.files": {
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )"
+        }
+      },
+      "morphir.ir.pipeline": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Files": "[1.0.0, )"
         }
       },
       "morphir.ir.pipeline.plugins": {
         "type": "Project",
         "dependencies": {
           "FSharp.Core": "[10.1.403, )",
+          "Morphir.Files": "[1.0.0, )",
           "Morphir.IR.Pipeline": "[1.0.0, )",
           "Morphir.Models": "[1.0.0, )"
         }
@@ -57,7 +66,9 @@
       "morphir.models": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[10.1.403, )"
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Files": "[1.0.0, )",
+          "YamlDotNet": "[16.3.0, )"
         }
       },
       "morphir.myriad.systemtextjson.annotations": {
@@ -81,6 +92,12 @@
           "FSharp.Core": "8.0.100",
           "Fantomas.FCS": "7.0.5"
         }
+      },
+      "YamlDotNet": {
+        "type": "CentralTransitive",
+        "requested": "[16.3.0, )",
+        "resolved": "16.3.0",
+        "contentHash": "SgMOdxbz8X65z8hraIs6hOEdnkH6hESTAIUa7viEngHOYaH+6q5XJmwr1+yb9vJpNQ19hCQY69xbFsLtXpobQA=="
       }
     }
   }

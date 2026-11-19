@@ -1,0 +1,13 @@
+{
+  "formatVersion": 4,
+  "name": "invoice",
+  "def": {
+    "Public": {
+      "doc": "An invoice, with its amount in café-cents.",
+      "TypeAliasDefinition": {
+        "typeParams": [],
+        "typeExp": { "Record": { "fields": { "amount": "morphir/SDK:basics#int" } } }
+      }
+    }
+  }
+}

@@ -103,3 +103,4 @@ let tests =
                 Expect.isTrue (blocks "text" |> List.contains error.Message) $"the guide shows: {error.Message}"
         }
     ]
+    |> testLabel "PlatformSpecific"

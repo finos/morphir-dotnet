@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
+        <Description>Shared Morphir knowledge identities, text selections, annotations and links</Description>
+        <PackageTags>$(PackageTags);morphir;knowledge;annotations</PackageTags>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <IsTrimmable>true</IsTrimmable>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsAotCompatible>true</IsAotCompatible>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+    <ItemGroup>
+        <Compile Include="Identifiers.fs" />
+        <Compile Include="Text.fs" />
+        <Compile Include="Annotations.fs" />
+    </ItemGroup>
+</Project>

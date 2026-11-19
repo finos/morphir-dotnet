@@ -1,0 +1,12 @@
+<Project>
+  <!--
+    Keeps the fixture project independent of the repository's build settings: this file stops MSBuild's search for a
+    parent Directory.Build.props, and central package management and lock files are off. The project has no package
+    reference, so Renovate's restore with the root NuGet.config needs only the .NET SDK. It is not in Morphir.slnx.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <ImportDirectoryPackagesProps>false</ImportDirectoryPackagesProps>
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+  </PropertyGroup>
+</Project>

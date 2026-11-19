@@ -1,0 +1,83 @@
+{
+  "formatVersion": 4,
+  "distribution": {
+    "Library": {
+      "packageName": "acme/shapes",
+      "dependencies": {},
+      "def": {
+        "modules": {
+          "shapes": {
+            "Public": {
+              "types": {
+                "circle": {
+                  "Public": {
+                    "TypeAliasDefinition": {
+                      "typeParams": [],
+                      "typeExp": {
+                        "Record": {
+                          "fields": {
+                            "radius": "morphir/SDK:basics#int"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "rect": {
+                  "Public": {
+                    "TypeAliasDefinition": {
+                      "typeParams": [],
+                      "typeExp": {
+                        "Record": {
+                          "fields": {
+                            "width": "morphir/SDK:basics#int",
+                            "height": "morphir/SDK:basics#int"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "shape": {
+                  "Public": {
+                    "CustomTypeDefinition": {
+                      "typeParams": [],
+                      "access": "Public",
+                      "constructors": {
+                        "circle": [
+                          [
+                            "circle",
+                            "acme/shapes:shapes#circle"
+                          ]
+                        ],
+                        "rect": [
+                          [
+                            "rect",
+                            "acme/shapes:shapes#rect"
+                          ]
+                        ]
+                      }
+                    }
+                  }
+                },
+                "size": {
+                  "Public": {
+                    "CustomTypeDefinition": {
+                      "typeParams": [],
+                      "access": "Public",
+                      "constructors": {
+                        "small": [],
+                        "large": []
+                      }
+                    }
+                  }
+                }
+              },
+              "values": {}
+            }
+          }
+        }
+      }
+    }
+  }
+}

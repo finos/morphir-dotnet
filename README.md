@@ -75,14 +75,48 @@ adds bounded inventory, verified membership and recoverable batch application th
 `morphir workspace migrate [directory]`. See the
 [reader profile](src/Morphir.Configuration.IO/README.md) for syntax and provenance.
 
+## Get started
+
+Install `morphirup`, the Morphir toolchain manager. It is one file and needs nothing else installed.
+
+```sh
+# macOS (Apple silicon) and Linux (x64, ARM64)
+curl -fsSL https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.sh | sh
+```
+
+```powershell
+# Windows (x64, ARM64), in PowerShell
+irm https://raw.githubusercontent.com/finos/morphir-dotnet/main/scripts/install-morphirup.ps1 | iex
+```
+
+```sh
+# Or with mise
+mise use -g 'github:finos/morphir[matching=morphirup,version_prefix=v,prerelease=true]'
+```
+
+The script installs `morphirup` from the newest [Morphir release](https://github.com/finos/morphir/releases) that has
+it, and verifies the download first. `morphirup` then sets up the toolchain from the same releases. Open a new
+terminal and run `morphirup --version`; it prints the version you installed.
+
+| Platform | Install morphirup | Set up, compile and generate |
+| --- | --- | --- |
+| macOS on Apple silicon | Yes | Yes |
+| Windows x64 and ARM64 | Yes | Yes |
+| Linux x64 and ARM64 | Yes | Not yet: `morphirup setup` does not support Linux yet |
+| macOS on Intel | No | No |
+
+Next, build [your first model](docs/content/docs/getting-started/first-model.md). The
+[installation guide](docs/content/docs/getting-started/installation.md) covers script options, a given release,
+manual download and the standalone `morphir` CLI. If something goes wrong, see
+[Troubleshooting](docs/content/docs/getting-started/troubleshooting.md).
 ## SDK libraries
 
-`Morphir.SDK.CSharp` is an independent `net10.0` runtime package with immutable
+`Morphir.SDK.CSharp` is an independent `net11.0` and `net10.0` runtime package with immutable
 C#/.NET public types. See the [C# SDK guide](docs/content/docs/sdk/csharp/_index.md)
 for its bounded operation contract and package usage.
 
 The in-memory [C# generator](docs/content/docs/backends/csharp/_index.md) lowers
-typed classic/v4 libraries with explicit numeric C# 14/15 profiles, immutable
+typed classic/v4 libraries as C# 15 (Roslyn syntax trees), immutable
 values, executable functions/patterns/record operations and public SDK bindings.
 Original business fixtures and the bounded modern package-host/trimming checks
 are verified under [#474](https://github.com/finos/morphir-dotnet/issues/474).
@@ -96,7 +130,7 @@ Generate C# through the existing CLI, with numeric profiles and a validated
 optional namespace:
 
 ```powershell
-morphir generate --input model.json --target csharp --output generated --option language-version=14 --option namespace=Example.Generated --json
+morphir generate --input model.json --target csharp --output generated --option language-version=15 --option namespace=Example.Generated --json
 ```
 
 The [C# walkthrough](docs/content/docs/getting-started/morphir-to-csharp.md)
@@ -106,18 +140,26 @@ its [main specification](openspec/specs/cli-csharp-generation/spec.md) and
 [archived evidence](openspec/changes/archive/2026-11-03-integrate-csharp-generation-cli/validation.md) are synchronized
 in this follow-up. Archive PR landing and root-verified cleanup remain pending.
 
-## Getting Started
+## Build from source and other installs
 
 ### Building from source
 
-All projects target .NET 10 LTS. Install the SDK pinned in
-[`global.json`](./global.json), or use `mise install` to install the tools in
-[`mise.toml`](./mise.toml). CI uses the same SDK pin.
+The repository builds with the .NET 11 SDK and C# 15. Applications, .NET tools and tests target `net11.0`.
+Packable libraries target `net11.0` and `net10.0` (.NET 10 LTS), so .NET 10 applications can use them.
+.NET 8 and .NET 9 reached the end of support on 2026-11-10, so .NET 10 is the lowest target.
+MSBuild tasks and Myriad plugins target `net10.0`, so the .NET 10 SDK can load them.
+The `netstandard2.0` attribute packages keep that target. The properties
+`MorphirCurrentTargetFramework`, `MorphirLibraryTargetFrameworks` and `MorphirHostedTargetFramework` in
+[`Directory.Build.props`](./Directory.Build.props) set these targets.
+
+Install the SDK pinned in [`global.json`](./global.json), for example with `dotnetup sdk install` or
+`dotnet-install --jsonfile global.json`. CI uses the same SDK pin. [`mise.toml`](./mise.toml) pins the other
+development tools (OpenSpec, Node, PowerShell), not the .NET SDK.
 
 VS Code users can run **Dev Containers: Reopen in Container** to use the
 Microsoft .NET SDK image in [`.devcontainer/Dockerfile`](./.devcontainer/Dockerfile).
-The SDK includes the C# and F# compilers. Renovate groups the container, global.json,
-and mise SDK updates together and keeps them on .NET 10 LTS. Moving to the next LTS
+The SDK includes the C# and F# compilers. Renovate groups the container and global.json
+SDK updates together and keeps them on the .NET 11 SDK. Moving to the next SDK
 major version requires an explicit baseline update.
 
 ```bash
@@ -128,9 +170,10 @@ major version requires an explicit baseline update.
 
 To compile classic Morphir model JSON into F#, see the [Myriad getting-started article](docs/content/docs/getting-started/morphir-to-fsharp.md), [plugin reference](docs/content/docs/guides/myriad-fsharp.md), and [car rental tutorial](docs/content/docs/guides/car-rental-tutorial.md). The [runnable example](examples/car-rental/README.md) covers inventory, reservation, pickup, return and billing with one generated F# file per module.
 
-### Quick Start
+### Other ways to install the standalone morphir CLI
 
-Install Morphir using one of the following methods:
+To install with `morphirup`, see [Get started](#get-started). These routes install the `morphir` command line
+itself:
 
 **Using proto (Recommended for multi-language toolchains):**
 
@@ -172,12 +215,12 @@ dotnet-morphir --version   # .NET tool
 
 **Compile F# to Morphir IR:** follow the five-minute [Compile F# guide](https://finos.github.io/morphir-dotnet/docs/getting-started/compile-fsharp/).
 
-For detailed installation instructions and troubleshooting, see the [Installation Guide](https://finos.github.io/morphir-dotnet/getting-started/installation/).
+For detailed installation instructions and troubleshooting, see the [Installation Guide](https://finos.github.io/morphir-dotnet/docs/getting-started/installation/).
 
 ### Documentation
 
-- [Installation Guide](https://finos.github.io/morphir-dotnet/getting-started/installation/)
-- [Getting Started](https://finos.github.io/morphir-dotnet/getting-started/)
+- [Installation Guide](https://finos.github.io/morphir-dotnet/docs/getting-started/installation/)
+- [Getting Started](https://finos.github.io/morphir-dotnet/docs/getting-started/)
 - [API Documentation](https://finos.github.io/morphir-dotnet/api/)
 - [Morphir Ecosystem](https://morphir.finos.org/)
 
@@ -187,7 +230,7 @@ This project uses [Nuke](https://nuke.build/) for build orchestration, providing
 
 ### Requirements
 
-- [.NET SDK 10.0.403](https://dotnet.microsoft.com/download) or a later patch in the same feature band, as specified in `global.json`
+- [.NET SDK 11.0.100](https://dotnet.microsoft.com/download) or a later patch in the same feature band, as specified in `global.json`
 
 ### Basic Commands
 
@@ -244,7 +287,7 @@ for the build command, schema and provenance. After building its test project,
 run the offline validator with:
 
 ```powershell
-dotnet exec tests/Morphir.SDK.Conformance.Tests/bin/Debug/net10.0/Morphir.SDK.Conformance.Tests.dll --maximum-parallel-tests 2
+dotnet exec tests/Morphir.SDK.Conformance.Tests/bin/Debug/net11.0/Morphir.SDK.Conformance.Tests.dll --maximum-parallel-tests 2
 ```
 
 F# runtime consumers use `Morphir.SDK.FSharp`. Its namespace and runtime assembly
@@ -264,7 +307,7 @@ morphir-dotnet/
 ├── tests/
 │   ├── Morphir.Core.Tests/    # Unit tests for Core
 │   ├── Morphir.Tooling.Tests/ # Unit tests for Tooling
-│   └── Morphir.E2E.Tests/     # End-to-end tests (BDD/Gherkin)
+│   └── Morphir.BlackBox.Tests/ # Black-box tests of the built artifacts (BDD/Gherkin)
 ├── build/
 │   ├── _build.csproj          # Nuke build project
 │   └── Build.cs               # Build orchestration (strongly-typed)
@@ -308,7 +351,7 @@ morphir-dotnet/
 
 ### Scripts
 
-The project uses C# scripts (`.cs` files) for build automation, leveraging .NET 10's direct C# file execution. These scripts are located in the `scripts/` directory:
+The project uses C# scripts (`.cs` files) for build automation, leveraging the direct C# file execution of the .NET SDK. These scripts are located in the `scripts/` directory:
 
 - `run-tests.cs` - Runs unit tests
 - `run-e2e-tests.cs` - Runs end-to-end tests
@@ -417,7 +460,7 @@ build.cmd --target Test                                       # Windows
 ./build.sh --target Test --configuration Debug
 build.cmd --target Test --configuration Debug
 
-# Build E2E test project
+# Build the black-box test project for the published targets
 ./build.sh --target BuildE2ETests
 build.cmd --target BuildE2ETests
 
@@ -425,7 +468,7 @@ build.cmd --target BuildE2ETests
 ./build.sh --target TestE2E                                   # Unix/macOS
 build.cmd --target TestE2E                                    # Windows
 
-# Run E2E tests for specific executable type (aot, trimmed, untrimmed, or all)
+# Run the black-box tests on one target (a value of MORPHIR_TEST_TARGET, or tool, all or offerings)
 ./build.sh --target TestE2E --executable-type trimmed
 build.cmd --target TestE2E --executable-type trimmed
 ```
@@ -485,7 +528,7 @@ Key targets:
 - `PublishSingleFile` - Publish the legacy trimmed single-file release asset (requires `--rid`)
 - `PublishExecutable` - Publish AOT executable (requires `--rid`)
 - `PublishSingleFileUntrimmed` - Publish untrimmed single-file executable (requires `--rid`)
-- `TestE2E` - Run end-to-end tests
+- `TestE2E` - Run each group of the black-box tests against a published or packaged target
 - `PublishLibs` - Publish library packages to NuGet
 - `PublishTool` - Publish tool package to NuGet
 - `PublishAll` - Publish all packages to NuGet

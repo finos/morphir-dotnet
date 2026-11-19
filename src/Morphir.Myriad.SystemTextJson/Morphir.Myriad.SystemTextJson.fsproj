@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>$(MorphirHostedTargetFramework)</TargetFramework>
     <Description>Generate trim-safe and Native AOT-safe System.Text.Json converters and contexts for F# records, unions and enums at build time, through Myriad.</Description>
     <PackageTags>fsharp;myriad;system.text.json;json;aot;trimming;source-generator</PackageTags>
     <Nullable>enable</Nullable>

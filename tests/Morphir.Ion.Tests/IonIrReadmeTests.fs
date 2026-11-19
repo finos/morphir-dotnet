@@ -37,3 +37,4 @@ let tests =
             for code in codes do
                 Expect.stringContains readme $"`{code}`" "The README lists the code"
     ]
+    |> testLabel "PlatformSpecific"

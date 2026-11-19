@@ -1,5 +1,9 @@
 namespace Morphir.IR.V4
 
+#if NETSTANDARD2_0
+open Morphir.Compat
+#endif
+
 open System.Collections.Generic
 
 /// <summary>

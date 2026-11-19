@@ -20,6 +20,11 @@ public class ChannelTests
 
     private static readonly PeerInfo Host = new(PeerKind.Cli, "morphir-dotnet-tests", "0.0.0");
 
+    /// <summary>How soon a cancelled call must stop. The engine stops it at the first epoch tick after the
+    /// cancellation (<see cref="WasmEngine.EpochInterval"/>, 10 ms); this is 200 ticks, for a runner whose processors
+    /// are busy, and still well under the call deadline at which a call that ignored its cancellation would end.</summary>
+    private static readonly TimeSpan StopLimit = TimeSpan.FromSeconds(2);
+
     private static ExtismModule Admit(string module) =>
         WasmEngine.Shared.Load(CraftedCorpus.ModuleBytes(module)).Match(
             compiled => WasmHost.Admit(compiled, WasmAbi.ExtismKernel).Match(
@@ -324,6 +329,52 @@ public class ChannelTests
     }
 
     [Test]
+    [NotInParallel] // The call runs on a worker thread, so measure allocations across the process.
+    [Arguments(0, false)]
+    [Arguments(1, false)]
+    [Arguments(0, true)]
+    public async Task A_response_over_the_limit_is_refused_before_copying_the_guest_buffer(int returnCode, bool setsError)
+    {
+        const int OutputBytes = 16 * 1024 * 1024;
+        var module = CraftedGuest.AdmitWat($$"""
+            (module
+              (import "extism:host/env" "alloc" (func $alloc (param i64) (result i64)))
+              (import "extism:host/env" "error_set" (func $error (param i64)))
+              (import "extism:host/env" "output_set" (func $output_set (param i64 i64)))
+              (func (export "handle") (result i32)
+                (call $output_set (call $alloc (i64.const {{OutputBytes}})) (i64.const {{OutputBytes}}))
+                {{(setsError ? "(call $error (call $alloc (i64.const 1)))" : "")}}
+                (i32.const {{returnCode}})))
+            """);
+        using var channel = WasmChannel.Open(module, SessionLimits.Default with { ResponseFrameBytes = 1024 })
+            .Match(opened => opened, failure => throw new InvalidOperationException(failure.Message));
+        var body = Request(1);
+        var before = GC.GetTotalAllocatedBytes(precise: true);
+
+        var thrown = await Assert.That(async () => await channel.RequestAsync(Initialize, body, CancellationToken.None))
+            .Throws<WasmChannelException>();
+        var allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
+
+        if (setsError)
+        {
+            await Assert.That(thrown!.Failure).IsTypeOf<WasmChannelFailure.ExtismError>();
+        }
+        else if (returnCode != 0)
+        {
+            var nonZero = thrown!.Failure as WasmChannelFailure.NonZeroResult;
+            await Assert.That(nonZero).IsNotNull();
+            await Assert.That(nonZero!.OutputBytes).IsEqualTo(OutputBytes);
+        }
+        else
+        {
+            var over = thrown!.Failure as WasmChannelFailure.ResponseOverLimit;
+            await Assert.That(over).IsNotNull();
+            await Assert.That(over!.FrameBytes).IsEqualTo(OutputBytes + (long)$"Content-Length: {OutputBytes}\r\n\r\n".Length);
+        }
+        await Assert.That(allocated).IsLessThan(OutputBytes / 2L);
+    }
+
+    [Test]
     public async Task The_default_frame_limits_are_the_contract_limits()
     {
         using var contract = JsonDocument.Parse(await File.ReadAllBytesAsync(MepWasmFixtures.Contract));
@@ -342,27 +393,39 @@ public class ChannelTests
         using var cancellation = new CancellationTokenSource();
         var clock = Stopwatch.StartNew();
         var cancelledAt = TimeSpan.Zero;
-        // The cancellation comes from a thread of its own and its moment is recorded. A timer on the thread pool
-        // fires late when other tests' spinning guests keep the processors busy, and the test would then measure
-        // the timer's delay, not how fast the call stops.
+        TimeSpan? stoppedAt = null;
+        // The cancellation comes from a thread of its own, which records its moment and then the moment the instance
+        // ended. The instance is discarded only after the call has returned, so that moment is when the call
+        // stopped. Neither moment waits for the thread pool: a timer on it fires late, and the awaiting test resumes
+        // late, when other tests' spinning guests and blocked threads keep it busy. Measured after the await, the
+        // test would time the thread pool, not how fast the call stops.
         var canceller = new Thread(() =>
         {
             Thread.Sleep(300);
             cancelledAt = clock.Elapsed;
             cancellation.Cancel();
+            while (clock.Elapsed - cancelledAt < StopLimit)
+            {
+                if (channel.InstanceEnded)
+                {
+                    stoppedAt = clock.Elapsed;
+                    return;
+                }
+
+                Thread.Sleep(1);
+            }
         })
         { IsBackground = true };
         canceller.Start();
 
         await Assert.That(async () => await channel.RequestAsync(Initialize, Request(1), cancellation.Token))
             .Throws<OperationCanceledException>();
-        clock.Stop();
         canceller.Join();
 
-        // The instance is discarded only after the call has returned, so an ended instance shows the call stopped.
         await Assert.That(channel.InstanceEnded).IsTrue();
         await Assert.That(channel.Failure?.Outcome).IsEqualTo("cancelled");
-        await Assert.That(clock.Elapsed - cancelledAt).IsLessThan(TimeSpan.FromSeconds(1));
+        await Assert.That(stoppedAt).IsNotNull();
+        await Assert.That(stoppedAt!.Value - cancelledAt).IsLessThan(StopLimit);
         await Assert.That(channel.HandleCalls).IsEqualTo(1);
     }
 

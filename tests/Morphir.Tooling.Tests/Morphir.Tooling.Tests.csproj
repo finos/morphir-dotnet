@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <InterceptorsNamespaces>$(InterceptorsNamespaces);Foundatio.Mediator.Generated</InterceptorsNamespaces>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <OutputType>Exe</OutputType>
@@ -34,6 +34,8 @@
     <ProjectReference Include="..\..\src\Morphir.Tooling\Morphir.Tooling.csproj" />
     <ProjectReference Include="..\..\src\Morphir.Testing\Morphir.Testing.fsproj" />
     <ProjectReference Include="..\Morphir.TestSupport\Morphir.TestSupport.csproj" />
+    <!-- The mother cases of models and document trees, for the tree checks of model verify. -->
+    <ProjectReference Include="..\Morphir.Models.TestSupport\Morphir.Models.TestSupport.fsproj" />
     <!-- The in-process F# frontend and the MCK corpus, for the compile fold property and the tool path (task 4.6). -->
     <ProjectReference Include="..\..\src\Morphir.Frontend.FSharp\Morphir.Frontend.FSharp.fsproj" />
     <ProjectReference Include="..\..\src\Morphir.Frontend.FSharp.Extension\Morphir.Frontend.FSharp.Extension.fsproj" />
@@ -42,19 +44,25 @@
     <ProjectReference Include="..\..\src\Morphir.Conformance\Morphir.Conformance.fsproj" />
     <!-- The scripted fake worker for the mck wasm-host command tests; run from this output with dotnet exec. -->
     <ProjectReference Include="..\Morphir.Conformance.FakeWorker\Morphir.Conformance.FakeWorker.csproj" />
-    <ProjectReference Include="../../src/Morphir.Mck/Morphir.Mck.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
     <!-- Test data files -->
+    <!-- Keep direct adapter tests compiling while the dedicated morphir-mck entry point adopts this donor. -->
+    <Compile Include="../../src/Morphir.Tooling/Features/Mck/MckCommands.cs" Link="Features/Mck/Donor/MckCommands.cs" />
+    <!-- Reuse the exact runtime-test bundle pin and bounded fetcher for product-command tests. -->
+    <Compile Include="../Morphir.Extensions.Wasm.Tests/PublishedGuest.cs" Link="Fixtures/PublishedGuest.cs" />
+    <Compile Include="../Morphir.Extensions.Wasm.Tests/MepWasmFixtures.cs" Link="Fixtures/MepWasmFixtures.cs" />
     <None Include="TestData\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- The greeting example of finos/morphir; see ../Fixtures/MorphirIR/PROVENANCE.md. -->
+    <None Include="../Fixtures/MorphirIR/greeting-example-v3.json" Link="TestData/greeting-example-v3.json" CopyToOutputDirectory="PreserveNewest" />
     <!--
       The pinned WASM profile contract, crafted corpus and modules, for the configured-module loader; see
       ../Fixtures/MepWasm/PROVENANCE.md. IfDifferent, as in Morphir.Extensions.Wasm.Tests, so restored bytes replace a stale copy.
     -->
     <None Include="../Fixtures/MepWasm/**/*" Link="Fixtures/MepWasm/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="IfDifferent" />
     <!-- The worker's own crafted guests (add-wasm-extension-host, task 4.1), shared with the end-to-end tests. -->
-    <None Include="../Morphir.E2E.Tests/TestData/Wasm/*" Link="WorkerGuests/%(Filename)%(Extension)" CopyToOutputDirectory="IfDifferent" />
+    <None Include="../Fixtures/WorkerGuests/*.wasm;../Fixtures/WorkerGuests/*.wat" Link="WorkerGuests/%(Filename)%(Extension)" CopyToOutputDirectory="IfDifferent" />
     <Content Include="**/*.feature"/>
   </ItemGroup>
 
@@ -67,20 +75,11 @@
     <None Update="**/.gitkeep" Visible="false" />
   </ItemGroup>
 
-  <Target Name="CopyDevelopmentMckRuntime" AfterTargets="Build">
-    <MSBuild Projects="../../src/Morphir.Mck/Morphir.Mck.csproj" Targets="GetTargetPath"
-             Properties="Configuration=$(Configuration);TargetFramework=$(TargetFramework)" BuildInParallel="false">
-      <Output TaskParameter="TargetOutputs" ItemName="_DevelopmentMckTarget" />
-    </MSBuild>
-    <PropertyGroup>
-      <_DevelopmentMckDirectory>$([System.IO.Path]::GetDirectoryName('%(_DevelopmentMckTarget.Identity)'))</_DevelopmentMckDirectory>
-    </PropertyGroup>
-    <ItemGroup>
-      <_DevelopmentMckRuntime Include="$(_DevelopmentMckDirectory)/**/*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(_DevelopmentMckRuntime)"
-          DestinationFiles="@(_DevelopmentMckRuntime->'$(OutDir)DevelopmentMck/%(RecursiveDir)%(Filename)%(Extension)')"
-          SkipUnchangedFiles="true" />
-  </Target>
+  <!--
+    The CLI entry points of the development build, for the tests that start the CLI (CliTestHelper, DevelopmentCli).
+    This project references the tooling library and no entry point, so this import makes its build build them.
+  -->
+  <Import Project="../Morphir.TestSupport/build/Morphir.CliArtifacts.targets" />
+
 </Project>
 

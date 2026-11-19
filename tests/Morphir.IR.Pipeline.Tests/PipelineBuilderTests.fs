@@ -1,6 +1,7 @@
 module Morphir.IR.Pipeline.Tests.PipelineBuilderTests
 
 open Expecto
+open Morphir.Files
 open Morphir.IR.Pipeline
 
 let private key1 = Property.create<string> "test.key1"

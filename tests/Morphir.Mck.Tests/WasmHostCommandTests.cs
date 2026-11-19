@@ -7,6 +7,7 @@ using System.Text.Json.Nodes;
 using FluentAssertions;
 using Morphir.Conformance.WasmHost;
 using Morphir.TestSupport;
+using Morphir.TestSupport.Fixtures;
 using Morphir.Mck;
 
 
@@ -17,6 +18,7 @@ namespace Morphir.Mck.Tests;
 /// task 1.5): exit statuses 0, 1 and 2, one JSON document on stdout, diagnostics on stderr, and help that says
 /// experimental. The runner itself is tested in tests/Morphir.Conformance.Tests.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class WasmHostCommandTests
 {
     private const string Identity = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -74,23 +76,22 @@ public sealed class WasmHostCommandTests
     ];
 
     /// <summary>A checkout in a sandbox whose corpus holds one case, with its module and the suite generated from it.</summary>
-    private static string OneCaseKit(TestSandbox sandbox, string caseId)
+    private static string UnknownNamespaceKit(TestSandbox sandbox)
     {
-        var fixtures = Path.Combine("tests", "Fixtures", "MepWasm");
-        Directory.CreateDirectory(sandbox.PathOf(fixtures, "fixtures", "wasm"));
-        File.Copy(Path.Combine(Root, fixtures, "PROVENANCE.md"), sandbox.PathOf(fixtures, "PROVENANCE.md"));
-        var corpus = JsonNode.Parse(File.ReadAllText(Path.Combine(Root, fixtures, "wasm-host.cases.json")))!.AsObject();
+        const string caseId = "classification/unknown-namespace";
+        var corpusEntry = FixtureCatalog.WasmHost.Corpus;
+        var module = FixtureCatalog.WasmHost.UnknownNamespaceModule;
+        var modulePath = sandbox.PathOf("tests", "Fixtures", module.RelativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(modulePath)!);
+        File.WriteAllBytes(modulePath, FixtureCatalog.ReadBytes(module));
+        File.WriteAllBytes(sandbox.PathOf("tests", "Fixtures", corpusEntry.Provenance), FixtureCatalog.WasmHost.ReadProvenance());
+
+        var corpus = JsonNode.Parse(FixtureCatalog.ReadText(corpusEntry))!.AsObject();
         var cases = corpus["cases"]!.AsArray();
         foreach (var other in cases.Where(node => node!["caseId"]!.GetValue<string>() != caseId).ToList()) cases.Remove(other);
-        var module = cases.Single()!["module"]!.GetValue<string>();
-        var wasm = corpus["modules"]![module]!["wasm"]!.GetValue<string>();
-        File.WriteAllText(sandbox.PathOf(fixtures, "wasm-host.cases.json"), corpus.ToJsonString());
-        File.Copy(Path.Combine(Root, fixtures, wasm), sandbox.PathOf([fixtures, .. wasm.Split('/')]));
-        var suite = sandbox.PathOf("conformance", "suites", "wasm-host");
-        Directory.CreateDirectory(suite);
-        foreach (var file in Directory.GetFiles(Kit)) File.Copy(file, Path.Combine(suite, Path.GetFileName(file)));
+        File.WriteAllText(sandbox.PathOf("tests", "Fixtures", corpusEntry.RelativePath), corpus.ToJsonString());
         Generation.writeRepository(sandbox.Root).IsOk.Should().BeTrue("the reduced suite generates");
-        return suite;
+        return sandbox.PathOf("conformance", "suites", "wasm-host");
     }
 
     [Test]
@@ -150,7 +151,7 @@ public sealed class WasmHostCommandTests
     public async Task RunExitsZeroWhenEveryApplicableCasePassedAndReportCheckAgrees()
     {
         await using var sandbox = TestSandbox.Create("morphir-mck-run-");
-        var kit = OneCaseKit(sandbox, "classification/unknown-namespace");
+        var kit = UnknownNamespaceKit(sandbox);
         var report = sandbox.PathOf("out", "wasm-host.json");
         var run = await InvokeAsync([
             "mck", "wasm-host", "run", "--kit", kit, .. FakeHost(sandbox, Refusal()), "--offering", "test", "--platform", "test-platform", "--engine", "fake", "--report", report
@@ -171,7 +172,7 @@ public sealed class WasmHostCommandTests
     {
         // add-wasm-extension-host task 5.3: "the release check rejects a report cited for another offering".
         await using var sandbox = TestSandbox.Create("morphir-mck-run-");
-        var kit = OneCaseKit(sandbox, "classification/unknown-namespace");
+        var kit = UnknownNamespaceKit(sandbox);
         var report = sandbox.PathOf("out", "wasm-host.json");
         var run = await InvokeAsync([
             "mck", "wasm-host", "run", "--kit", kit, .. FakeHost(sandbox, Refusal()), "--offering", "native-aot", "--platform", "win-arm64", "--engine", "wasmtime 50.0.1", "--report", report

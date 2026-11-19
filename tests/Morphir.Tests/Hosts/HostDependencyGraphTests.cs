@@ -11,6 +11,7 @@ namespace Morphir.Tests.Hosts;
 /// past them. These tests read the resolved dependency graph instead: the committed <c>packages.lock.json</c> and,
 /// when the project has been restored, <c>obj/project.assets.json</c>.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class HostDependencyGraphTests
 {
     private static readonly string[] ManagedOnly = ["FSharp.Compiler.Service", "Morphir.Frontend.FSharp", "Morphir.Tooling.Managed"];

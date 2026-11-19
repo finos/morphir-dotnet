@@ -209,11 +209,11 @@ morphir tool which <name> [options]
 
 ## Extension Commands
 
-`extension list` is available. Installation, selection and removal commands are
-still stubs. The installation library provides portable-value parsers,
-platform mappings, MEP eligibility checks, a verified single-file store, bounded
-archive inspection and temporary run-directory ownership. The complete install
-pipeline is unfinished. See [extension installation status](extension-installation.md).
+`extension list` and `extension install` are available. `extension install` takes a
+provider source, such as `github:finos/morphir-python@0.6.2` or `nuget:Acme.Morphir.Python@1.2.3`, or an explicit
+local-developer declaration from a registered repository. Both need explicit
+`--no-probe` consent. A positional archive URL is not accepted. Selection and removal
+commands remain stubs. See [extension installation status](extension-installation.md).
 The full installer is tracked by
 [#558](https://github.com/finos/morphir-dotnet/issues/558).
 
@@ -221,15 +221,18 @@ An extension adds a capability to Morphir, such as a code generator. The plan is
 [Morphir extension model PRD](../../contributing/design/prds/morphir-extension-model.md).
 
 ```bash
-morphir extension list [--json] [--platform <rid>] [--local]
-morphir extension runtimes [--json]
-morphir extension install <name> <url> <version> [--platform <rid>] [--local]   # not implemented yet
+morphir extension list [--json[=stream|document]] [--platform <rid>] [--local]
+morphir extension runtimes [--json[=stream|document]]
+morphir extension repository add <name> --directory <absolute-path> --home <absolute-home> --local-developer [--dry-run]
+morphir extension install github:<owner>/<repo>[@<version-or-tag>] --home <absolute-home> --no-probe [--dry-run]
+morphir extension install nuget:<package-id>[@<version>] [--source <name|url|folder>] [--configfile <path>] [--interactive] --home <absolute-home> --no-probe [--dry-run]
+morphir extension install <name> --repository <registered-name> --local-release <json> --local-archive <zip> --home <absolute-home> --local-developer --no-probe [--dry-run]
 morphir extension use <name> <version> [--platform <rid>] [--local]             # not implemented yet
 morphir extension remove <name> <version> [--platform <rid>] [--local]          # not implemented yet
 morphir extension which <name> [--platform <rid>]                               # not implemented yet
 ```
 
-`install`, `use`, `remove` and `which` fail with exit code 1 and a link to
+`use`, `remove` and `which` fail with exit code 1 and a link to
 [issue #492](https://github.com/finos/morphir-dotnet/issues/492). They arrive with step 3 of the PRD.
 
 `morphir extension runtimes` reports whether this host can run WASM extensions, with its engine, profiles and bounds,
@@ -239,37 +242,164 @@ or the reason it cannot. See [morphir extension runtimes](../extension-runtimes/
 WASM module over stdio for a conformance runner, and no product command uses it. See
 [morphir extension worker](../extension-worker/).
 
+### extension install
+
+Install an extension package from a provider source, then run it by its id:
+
+```bash
+morphir extension install github:finos/morphir-python@0.6.2 --home "$HOME/.morphir" --no-probe
+morphir compile --language python ... --extension-id <id>
+```
+
+`compile` and `generate` run an installed extension by its id with `--extension-id`, a process from its package
+tree or a WASM module through the host's WASM runtime. Both check the stored copy against the lock offline first: a
+changed module or tree fails before the extension runs. A WASM extension runs through the same loader as a module
+that `extensions.<name>.path` configures, and its session must agree with the installed claims
+(`extension.claims_mismatch` otherwise). A host without a WASM runtime fails with `extension.runtime_unavailable`.
+
+The part before the colon names the provider. Each provider only finds the release and
+downloads the artifact. The installer that checks the digest, unpacks the package and
+writes the catalog and lock is the same for every provider.
+
+| Provider | Source | What it reads |
+| --- | --- | --- |
+| `github` | `github:<owner>/<repo>[@<version-or-tag>]` | The `release.json` asset of a GitHub release, then the artifact asset for this platform |
+| `nuget` | `nuget:<package-id>[@<version>]` | The `morphir/release.json` entry of a NuGet package, then the package subtree or WASM entry for this platform |
+| local developer | `<extension-id> --repository <name> --local-release <json> --local-archive <archive> --local-developer` | A release declaration and archive in a registered local repository |
+
+For `github:`:
+
+- `@<version>` (SemVer) selects the release tagged `v<version>`, else the release tagged `<version>`.
+  The descriptor `version` must equal `<version>`.
+- `@<tag>` that is not SemVer selects the release with that exact tag.
+- No `@` selects the latest release, as GitHub reports it: never a draft or a prerelease.
+- The release must follow the
+  [GitHub release convention](https://morphir.finos.org/docs/design/draft/extensions/distribution-and-acquisition#github-release-convention):
+  one `release.json` asset (extension family `0.1.0-preview.3`), and each artifact `filename` equal to the name of
+  an asset of the same release.
+- The artifact bytes stream into a private stage in the Home, and their SHA-256 must equal the descriptor `sha256`
+  before anything else reads them. A mismatch, a missing asset or no artifact for this platform installs nothing.
+- The command uses the anonymous GitHub API. Set `GITHUB_TOKEN` or `GH_TOKEN` to raise the rate limit or to read a
+  private repository. The token goes only to the API host. When the limit is reached, the command fails with
+  `extension.github_rate_limited` and says when the limit resets.
+- A WASM-only release installs from GitHub in the same way: the module asset is checked against its `sha256` and
+  stored unchecked, with no guest run.
+- Naming a release is an explicit request, so `--local-developer` does not apply. `--no-probe` is required, as for
+  a local declaration: the extension is not started during installation, and its claims stay unchecked.
+- `--dry-run` reads the release metadata and `release.json`, and downloads no artifact.
+- Only `extension install` uses the network. `compile` and `generate` run the installed copy and never download.
+
+For `nuget:`:
+
+```bash
+# From the sources of nuget.config (nuget.org, a private V3 feed, a folder feed)
+morphir extension install nuget:Acme.Morphir.Python@1.2.3 --home "$HOME/.morphir" --no-probe
+
+# From one source only: a configured source name, a V3 service index URL, or a folder
+morphir extension install nuget:Acme.Morphir.Python --source ./artifacts/nupkg --home "$HOME/.morphir" --no-probe
+
+# Plan only: reads the main package, selects the artifact, writes nothing to the Home
+morphir extension install nuget:Acme.Morphir.Python@1.2.3 --home "$HOME/.morphir" --no-probe --dry-run
+```
+
+- The package id follows the NuGet id rules and is compared ignoring case. The version is a NuGet version, compared
+  in normalized form (`1.2` is `1.2.0`). A malformed id or version fails with `extension.invalid_source`.
+- `@<version>` selects that exact version from the first applicable source that has it, also a prerelease or an
+  unlisted version. No `@` selects the highest stable listed version across the applicable sources, as
+  `dotnet tool install` without `--version` does: never a prerelease or an unlisted version. A folder feed has no
+  listing, so all its stable versions count.
+- Without `--source`, the sources are the enabled `packageSources` of the `nuget.config` hierarchy from the current
+  directory, or of the file `--configfile` names. When `nuget.config` has `packageSourceMapping`, only the sources
+  mapped to the package id apply. `--source` replaces that list with one source: a configured source name, a V3
+  `index.json` URL, or a folder path. A configured source with the same URL keeps its credentials.
+- A source is recorded in the lock, so it must be an `https` service index whose path ends in `/index.json`, or a
+  folder. An `http` source, a V2 URL or a URL with userinfo, a query or a fragment fails with
+  `extension.invalid_source`.
+- Credentials come from the `packageSourceCredentials` of `nuget.config` and from NuGet credential provider plugins,
+  found as NuGet finds them: the `NUGET_PLUGIN_PATHS` variable, else `nuget-plugin-*` executables on `PATH` and the
+  plugins folder. The command is non-interactive; `--interactive` lets a plugin prompt for sign-in, with its prompts on
+  standard error. NuGet sends a credential only to its own source. No credential is written to a log, a lock or a
+  catalog. A refused credential fails with `extension.nuget_unauthorized`, which names the source.
+- Package signatures are checked as the dotnet CLI checks them on the same operating system: by default on Windows
+  and Linux, not on macOS. On Linux and macOS, `morphir` uses the code signing and timestamping trust lists of the
+  .NET SDK, which it carries, as the dotnet CLI does. `DOTNET_NUGET_SIGNATURE_VERIFICATION=true` or `false` changes the default on Linux and
+  macOS. The client policy of `nuget.config` (`signatureValidationMode` `accept`, or `require` with
+  `trustedSigners`) applies to each package the command reads; `require` checks signatures on every operating system.
+  A refused package fails with `extension.nuget_signature_invalid`.
+- The main package must hold `morphir/release.json`, its `.nuspec` id and version must equal the request, and the
+  descriptor `version` must equal the package version. An ordinary NuGet package fails with
+  `extension.release_descriptor_missing`; a different version fails with `extension.version_mismatch`.
+- A process artifact has the package format `nupkg`. Its `filename` names the main package (one package, layout A)
+  or a package whose id is the main id, a `.`, and more, at the same version and from the same source (one package
+  per platform, layout B). Only the files under the artifact `root` are installed; `.nuspec`, `_rels/`,
+  `[Content_Types].xml`, `package/`, `.signature.p7s` and `morphir/` outside the root are not. A package of another
+  publisher fails with `extension.invalid_descriptor`; a missing artifact package fails with
+  `extension.artifact_missing`.
+- The installed tree is pinned by the descriptor `treeSha256`, not by the `.nupkg` bytes, because a feed such as
+  nuget.org signs a package after it is packed. A changed file under the root fails with
+  `package.tree_digest_mismatch` and installs nothing.
+- A RID-specific .NET tool installs when its payload is self-contained or Native AOT. An `entryPoint` that ends in
+  `.dll`, or a `<entry point>.runtimeconfig.json` that names a shared framework, fails with
+  `extension.unsupported_package`, because such a tool needs an installed .NET runtime.
+- A descriptor may offer `process` and `wasm` artifacts. The command selects the `process` artifact for this
+  platform, else a `wasm` artifact, and the lock records the selection. A WASM artifact is the entry
+  `morphir/<filename>` of the main package, checked against its `sha256` (a mismatch fails with
+  `extension.digest_mismatch`). It is stored in the single-file store, its claims stay unchecked, and the guest does
+  not run during the install.
+- No source with the package or version fails with `extension.nuget_not_found`; a source that cannot be read fails
+  with `extension.nuget_unreachable`. Both messages name the package, the version and the sources tried.
+- The command writes only to the Home: it downloads into a private stage in the Home and uses no NuGet HTTP cache,
+  global packages folder or NuGet temporary folder. A credential provider plugin keeps its own cache.
+- `--source`, `--configfile` and `--interactive` apply only to a `nuget:` source; with any other source they fail
+  with `extension.invalid_source`.
+
+Extension authors: see [Publish an extension as a NuGet package](../../guides/publish-extension-nuget/).
+
+The catalog and lock record where the artifact came from as a provider-tagged source, for example
+`{"kind": "github-release-asset", "repository": "finos/morphir-python", "tag": "v0.6.2", "asset": "…"}`, and the
+release as `{"kind": "github-release", …, "revision": "<sha256 of release.json>"}`. A NuGet install records
+`{"kind": "nuget-package-entry", "feed": "https://api.nuget.org/v3/index.json", "id": "acme.morphir.python.osx-arm64",
+"version": "1.2.3", "path": "tools/net11.0/osx-arm64"}` and `{"kind": "nuget-package", "feed": …,
+"id": "acme.morphir.python", "version": "1.2.3", "revision": "<sha256 of morphir/release.json>"}`.
+
 ### extension list
 
 List the extensions that this host knows, and say which offering of morphir-dotnet is running and what it needs from
-the machine. Today the extensions are the built-in F# frontend of `morphir compile`, the built-in generators of
-`morphir generate` and the built-in analyzers of [`morphir validate`](validate.md).
+the machine. Today the extensions are the built-in C# and F# frontends of `morphir compile`, the built-in passes that
+change or check a model before a backend runs, the built-in generators of `morphir generate` and the built-in analyzers of
+[`morphir validate`](validate.md).
 
 ```bash
 $ morphir extension list
-╭────────────────────────┬────────────────┬─────────┬─────────────────────┬──────────┬─────────────────────────╮
-│ ID                     │ NAME           │ VERSION │ TYPES               │ DELIVERY │ HOSTS                   │
-├────────────────────────┼────────────────┼─────────┼─────────────────────┼──────────┼─────────────────────────┤
-│ morphir-dotnet.fsharp  │ F# frontend    │ 0.4.0   │ frontend (fsharp)   │ built-in │ morphir, dotnet-morphir │
-│ morphir.csharp         │ C# generator   │ 0.4.0   │ backend             │ built-in │ morphir, dotnet-morphir │
-│ morphir.fsharp         │ F# generator   │ 0.4.0   │ backend             │ built-in │ morphir, dotnet-morphir │
-│ morphir.type-validator │ Type validator │ 0.4.0   │ validator (1, 2, 3) │ built-in │ morphir, dotnet-morphir │
-╰────────────────────────┴────────────────┴─────────┴─────────────────────┴──────────┴─────────────────────────╯
+╭─────────────────────────────────┬─────────────────────┬─────────┬───────────────────────────────────┬──────────┬─────────────────────────╮
+│ ID                              │ NAME                │ VERSION │ TYPES                             │ DELIVERY │ HOSTS                   │
+├─────────────────────────────────┼─────────────────────┼─────────┼───────────────────────────────────┼──────────┼─────────────────────────┤
+│ morphir-dotnet.csharp           │ C# frontend         │ 0.4.0   │ frontend (csharp)                 │ built-in │ morphir, dotnet-morphir │
+│ morphir-dotnet.csharp.admission │ C# admission checks │ 0.4.0   │ transform (before-backend csharp) │ built-in │ morphir, dotnet-morphir │
+│ morphir-dotnet.fsharp           │ F# frontend         │ 0.4.0   │ frontend (fsharp)                 │ built-in │ morphir, dotnet-morphir │
+│ morphir.csharp                  │ C# generator        │ 0.4.0   │ backend                           │ built-in │ morphir, dotnet-morphir │
+│ morphir.fsharp                  │ F# generator        │ 0.4.0   │ backend                           │ built-in │ morphir, dotnet-morphir │
+│ morphir.type-validator          │ Type validator      │ 0.4.0   │ validator (1, 2, 3)               │ built-in │ morphir, dotnet-morphir │
+╰─────────────────────────────────┴─────────────────────┴─────────┴───────────────────────────────────┴──────────┴─────────────────────────╯
 ```
 
 The rows are sorted by id. The version of a built-in is the version of the host, including any build metadata.
 The `TYPES` column shows each type. For a frontend, the languages that it reads follow in parentheses; for a validator,
-the IR versions that it reads.
+the IR versions that it reads; for a transform, its stage, and for a stage before a backend, the target.
 
 In a terminal the table has styled borders and headers and fits the terminal width. When stdout is redirected, or
 `NO_COLOR` is set, the table has no ANSI codes. The table is for people: scripts use `--json`.
 
 **Options:**
-- `--json`: Write one JSON document on stdout.
+- `--json[=stream|document]`: Write the list as JSON on stdout: a bare `--json` writes one `completed` record whose
+  `report` is the list, `--json=document` the list alone, as one document. See [Machine output](_index.md#machine-output).
+  A usage error in a JSON mode is a list with no extensions and a `diagnostics` array (`extension.invalid_arguments`),
+  exit code 2.
 - `--platform <rid>`, `--local`: Select installed extensions. There are none until step 3 of the PRD, so these
   options do not change the result now. Built-in extensions always appear.
 
-With `--json`, from the Native AOT `morphir` for Windows ARM64:
+With `--json=document`, from the Native AOT `morphir` for Windows ARM64 (with `--json`, this is the `report` of the
+one `completed` line):
 
 ```json
 {
@@ -279,6 +409,39 @@ With `--json`, from the Native AOT `morphir` for Windows ARM64:
   "platform": "win-arm64",
   "prerequisites": { "runtime": [], "sdk": [], "native": [] },
   "extensions": [
+    {
+      "id": "morphir-dotnet.csharp",
+      "name": "C# frontend",
+      "version": "0.4.0",
+      "description": "Compiles C# source files to a Morphir model in process, with Roslyn.",
+      "types": ["frontend"],
+      "delivery": "built-in",
+      "hosts": ["morphir", "dotnet-morphir"],
+      "deployments": ["native-aot", "self-contained", "framework-dependent", "dotnet-tool"],
+      "available": true,
+      "prerequisites": { "runtime": [], "sdk": [], "native": [] },
+      "capabilities": {
+        "frontend": {
+          "languages": [{ "id": "csharp", "fileExtensions": [".cs"] }],
+          "irVersions": ["4"]
+        }
+      }
+    },
+    {
+      "id": "morphir-dotnet.csharp.admission",
+      "name": "C# admission checks",
+      "version": "0.4.0",
+      "description": "Checks that the model fits the C# backend: types, names, the lowering of values, and name collisions.",
+      "types": ["transform"],
+      "delivery": "built-in",
+      "hosts": ["morphir", "dotnet-morphir"],
+      "deployments": ["native-aot", "self-contained", "framework-dependent", "dotnet-tool"],
+      "available": true,
+      "prerequisites": { "runtime": [], "sdk": [], "native": [] },
+      "capabilities": {
+        "transform": { "stage": "before-backend", "target": "csharp" }
+      }
+    },
     {
       "id": "morphir-dotnet.fsharp",
       "name": "F# frontend",
@@ -310,14 +473,14 @@ With `--json`, from the Native AOT `morphir` for Windows ARM64:
       "available": true,
       "prerequisites": { "runtime": [], "sdk": [], "native": [] },
       "capabilities": {
-        "backend": { "targets": ["csharp"], "irVersions": ["1", "2", "3", "3.0.0", "3.1.0", "4", "4.0.0"], "generate": true }
+        "backend": { "targets": ["csharp"], "irVersions": ["4", "4.0.0"], "generate": true }
       }
     }
   ]
 }
 ```
 
-The example leaves out the `morphir.fsharp` and `morphir.type-validator` entries. The four offerings report:
+The `transform` member is a morphir-dotnet report member, like `validator`: MEP 0.2.0-draft.1 has no transform capability, so the stage is never written into a MEP message. The example leaves out the `morphir.fsharp` and `morphir.type-validator` entries. The C# frontend `morphir-dotnet.csharp` is available in every offering, the Native AOT `morphir` included: Roslyn runs under Native AOT. The four offerings report:
 
 | Offering | `host` | `deployment` | `execution` | `platform` | Top-level `prerequisites` | `morphir-dotnet.fsharp` |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -351,9 +514,9 @@ the top-level `prerequisites`, and never reports one of the four names. It still
 | `capabilities.backend` | The MEP backend claim: targets, IR versions in their declared spelling, and `generate`. |
 | `capabilities.validator` | The IR versions that a validator reads, in the spelling of the model readers. This is a morphir-dotnet report member: MEP `0.2.0-draft.1` has no validator capability, so hosts do not write it into MEP messages. |
 
-Logs and diagnostics go to stderr, so `morphir extension list --json | jq` works. If two extensions have the same id,
-the command exits with code 2 and names each duplicate id (`extension.duplicate_id`). With `--json`, the document then
-has an empty `extensions` array and a `diagnostics` array.
+Logs and diagnostics go to stderr, so `morphir extension list --json=document | jq` works. If two extensions have the
+same id, the command exits with code 2 and names each duplicate id (`extension.duplicate_id`). In a JSON mode, the
+report then has an empty `extensions` array and a `diagnostics` array.
 
 ### Extension ids
 

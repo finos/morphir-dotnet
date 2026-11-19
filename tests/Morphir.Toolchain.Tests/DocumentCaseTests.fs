@@ -44,3 +44,4 @@ let tests =
                     Expect.equal actual case.Expected $"{case.Document} has the manifest's outcome")
         ]
     ]
+    |> testLabel "PlatformSpecific"

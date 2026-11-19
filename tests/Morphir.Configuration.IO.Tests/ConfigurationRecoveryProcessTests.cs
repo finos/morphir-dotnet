@@ -10,6 +10,7 @@ namespace Morphir.Configuration.IO.Tests;
 public sealed class ConfigurationRecoveryProcessTests
 {
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("BeforeStage:first")]
     [Arguments("BeforeStage:second")]
     [Arguments("BeforeInstall:first")]
@@ -50,6 +51,7 @@ public sealed class ConfigurationRecoveryProcessTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ProcessExitAfterDirectoryCreationBeforeHostReturnRetainsAnUncertainOwnershipJournal()
     {
         var root = ProjectPath.join(Path.GetTempPath(), "recovery-parent-process-" + Guid.NewGuid().ToString("N"));

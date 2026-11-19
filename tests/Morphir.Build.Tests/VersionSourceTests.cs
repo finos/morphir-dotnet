@@ -11,6 +11,7 @@ namespace Morphir.Build.Tests;
 /// CHANGELOG.md. An explicit -p:Version or -p:PackageVersion wins, so local and test builds
 /// can pack a throwaway version into an isolated feed.
 /// </summary>
+[Category("PlatformSpecific")]
 public class VersionSourceTests
 {
     private const string OverrideVersion = "0.0.0-versionsource";

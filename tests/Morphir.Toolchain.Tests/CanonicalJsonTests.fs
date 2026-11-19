@@ -83,12 +83,14 @@ let tests =
                 | Ok _ -> failtestf "the plan accepted %s" spelling
 
             Expect.isOk (ResultDocument.read (resultWithUnknownInteger "9007199254740991" true)) "the bound is inclusive")
+        |> testLabel "PlatformSpecific"
 
         testCase "the result reader bounds unknown plan integers before checking the plan digest" (fun () ->
             match ResultDocument.read (resultWithUnknownInteger "9007199254740992" false) with
             | Error refusal ->
                 Expect.equal (Code.readerName refusal.Code, DocumentPath.render refusal.Path) ("invalid_value", "plan.unknown[0].x") "the exact member"
             | Ok _ -> failtest "a plan cannot carry an integer past the bound")
+        |> testLabel "PlatformSpecific"
 
         testCase "unknown numbers outside a plan are still ignored" (fun () ->
             let original =
@@ -99,6 +101,7 @@ let tests =
             for spelling in [ System.String('9', 80); "1.5" ] do
                 let bytes = JsonText.toBytes (Value.Object(("unknown", Value.Number spelling) :: original))
                 Expect.isOk (ResultDocument.read bytes) spelling)
+        |> testLabel "PlatformSpecific"
 
         testCase "the escaping fixture's plan digest is the SHA-256 of its canonical bytes" (fun () ->
             let canonical = Fixtures.bytes "result/setup-plan-escaping.plan.canonical.json"
@@ -109,4 +112,5 @@ let tests =
                 // The reader already refused a planSha256 that is not this digest.
                 Expect.equal digested.Sha256 (Sha256.ofBytes canonical) "planSha256"
             | other -> failtestf "the escaping fixture does not read with a plan: %A" other)
+        |> testLabel "PlatformSpecific"
     ]

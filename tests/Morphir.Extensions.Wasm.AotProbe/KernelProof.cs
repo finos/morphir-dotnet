@@ -689,13 +689,13 @@ public static partial class KernelProof
         }
 
         // The FSharp.Core assembly-level summary lines, which every F#-carrying Native AOT publish in this repository
-        // has, are the baseline that the TestMepAot target accepts and Morphir.Mep.AotProbe keeps as warnings. Every
+        // has, are the baseline that the Native AOT lane of the black-box tests accepts and Morphir.Mep.AotProbe keeps as warnings. Every
         // other IL line fails the claim.
         var baseline = ilLines.Where(IsFSharpCoreSummary).ToArray();
         var unexpected = ilLines.Where(line => !IsFSharpCoreSummary(line)).ToArray();
         output.WriteLine($"  IL warnings and errors in the publish log: {ilLines.Length}");
         output.WriteLine($"  IL2026: {ilLines.Count(line => line.Contains("IL2026", StringComparison.Ordinal))}; IL3050: {ilLines.Count(line => line.Contains("IL3050", StringComparison.Ordinal))}");
-        output.WriteLine($"  the FSharp.Core summary baseline (IL2104, IL3053), as TestMepAot accepts it: {baseline.Length}");
+        output.WriteLine($"  the FSharp.Core summary baseline (IL2104, IL3053), as the Native AOT lane accepts it: {baseline.Length}");
         foreach (var line in baseline)
         {
             output.WriteLine($"    {line}");
@@ -743,7 +743,7 @@ public static partial class KernelProof
         return unexpected.Length == 0 && findings.Count == 0 && files > 0 ? Verdict.Holds : Verdict.Fails;
     }
 
-    /// <summary>The same test as the <c>TestMepAot</c> build target (<c>build/Build.MyriadJson.cs</c>).</summary>
+    /// <summary>The same test as the Native AOT lane of the black-box tests (<c>PublishWarning</c> of <c>tests/Morphir.TestSupport</c>).</summary>
     static bool IsFSharpCoreSummary(string line) =>
         line.Contains("FSharp.Core", StringComparison.Ordinal)
         && (line.Contains("IL2104", StringComparison.Ordinal) || line.Contains("IL3053", StringComparison.Ordinal));

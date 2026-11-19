@@ -18,8 +18,16 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// level: no product command reaches it in this change. The modules are the pinned crafted corpus under
 /// <c>tests/Fixtures/MepWasm/</c>; each test copies the bytes it needs into a <see cref="TestSandbox"/>.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class WasmModuleLoaderTests
 {
+    [TUnit.Core.Before(HookType.Test)]
+    public void RequireRuntime()
+    {
+        if (WasmRuntime.Process.Platform == "win-x64")
+            Skip.Test("win_x64_trap_unsupported: module execution is unavailable; #609.");
+    }
+
     private static readonly HostIdentity Host = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
 
     private static readonly WasmModuleLoader Loader = new(WasmRuntime.Process, Host);

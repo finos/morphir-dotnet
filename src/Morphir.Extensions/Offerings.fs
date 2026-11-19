@@ -158,11 +158,11 @@ type Deployment =
 
     /// <summary>
     /// What the offering needs from the machine. The runtime is the shared framework that the projects' runtime
-    /// configuration names, <c>Microsoft.NETCore.App</c> 10.0 with the default roll-forward, so any later 10.x serves.
+    /// configuration names, <c>Microsoft.NETCore.App</c> 11.0 with the default roll-forward, so any later 11.x serves.
     /// The tool needs the SDK only to install it.
     /// </summary>
     member this.Prerequisites: Prerequisites =
-        let runtime: RuntimePrerequisite = { name = "Microsoft.NETCore.App"; versions = [| ">=10.0.0"; "<11.0.0" |] }
+        let runtime: RuntimePrerequisite = { name = "Microsoft.NETCore.App"; versions = [| ">=11.0.0"; "<12.0.0" |] }
 
         match this with
         | NativeAot
@@ -171,7 +171,7 @@ type Deployment =
         | DotnetTool ->
             {
                 runtime = [| runtime |]
-                sdk = [| { name = "Microsoft.NET.Sdk"; versions = [| ">=10.0.100" |]; phase = SdkPhase.Install } |]
+                sdk = [| { name = "Microsoft.NET.Sdk"; versions = [| ">=11.0.100" |]; phase = SdkPhase.Install } |]
             }
 
     /// <summary>The wire value.</summary>

@@ -82,7 +82,14 @@ The host SHALL report, without loading a module, whether its WASM runtime is ava
 - **THEN** the report lists `wasm` as unavailable with reason `platform_unsupported`
 
 ### Requirement: Unavailable runtime fails by name
-When a command needs a WASM extension and the runtime is unavailable, the host SHALL fail before reading the module with `extension.runtime_unavailable`, naming the host, the platform and the reason: `platform_unsupported`, `engine_missing` or `engine_load_failed`. It SHALL NOT surface a native library loading error as the diagnostic.
+When a command needs a WASM extension and the runtime is unavailable, the host SHALL fail before reading the module with `extension.runtime_unavailable`, naming the host, the platform and the reason: `platform_unsupported`, `engine_missing`, `engine_load_failed` or `win_x64_trap_unsupported`. It SHALL NOT surface a native library loading error as the diagnostic.
+
+#### Scenario: Windows x64 protection compatibility is unresolved
+- **WHEN** a Windows x64 host reports its runtime or a command selects a WASM extension
+- **THEN** the runtime is unavailable with reason `win_x64_trap_unsupported`
+- **AND** neither the engine nor a guest module is loaded
+- **AND** the direct engine entry point also refuses execution
+- **AND** CET, context-validation, signal-trap and Spectre settings are not weakened
 
 #### Scenario: Engine library missing
 - **WHEN** a framework-dependent host starts without its engine library and a command needs a WASM extension

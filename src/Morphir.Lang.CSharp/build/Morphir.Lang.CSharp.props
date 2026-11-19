@@ -1,0 +1,17 @@
+<Project>
+  <!--
+    The MSBuild properties that the analyzers and the source generator of the package read (design.html, BLD-1):
+    - MorphirModel: true for a model project. The admission rules report only in a model project.
+    - MorphirGenerateCSharpFiles: true to let the MSBuild target of the package write the generated files into the
+      intermediate output folder. Then the source generator does nothing.
+    - MorphirCSharpNamespace: the namespace of all generated files. Empty: the namespace of the package of the model.
+    - TargetFrameworkIdentifier and TargetFrameworkVersion: the output has the polyfill file below net11.0 only.
+  -->
+  <ItemGroup>
+    <CompilerVisibleProperty Include="MorphirModel" />
+    <CompilerVisibleProperty Include="MorphirGenerateCSharpFiles" />
+    <CompilerVisibleProperty Include="MorphirCSharpNamespace" />
+    <CompilerVisibleProperty Include="TargetFrameworkIdentifier" />
+    <CompilerVisibleProperty Include="TargetFrameworkVersion" />
+  </ItemGroup>
+</Project>

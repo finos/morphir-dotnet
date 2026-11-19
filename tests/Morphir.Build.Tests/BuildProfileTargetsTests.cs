@@ -18,6 +18,7 @@ public class BuildProfileTargetsTests
     private const string Managed = "self-contained;framework-dependent";
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ABuildWithoutAProfileStatesNoDeployment()
     {
         var (exit, output, generated) = await Generate(Managed);
@@ -28,6 +29,7 @@ public class BuildProfileTargetsTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("self-contained", "win-arm64", "Morphir.Extensions.BuildProfile.Of(Morphir.Extensions.Deployment.SelfContained, Morphir.Extensions.Platform.WinArm64)")]
     [Arguments("framework-dependent", "linux-x64", "Morphir.Extensions.BuildProfile.Of(Morphir.Extensions.Deployment.FrameworkDependent, Morphir.Extensions.Platform.LinuxX64)")]
     public async Task ANamedProfileStatesItsDeploymentAndPlatform(string deployment, string rid, string expected)
@@ -38,6 +40,7 @@ public class BuildProfileTargetsTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TheToolProfileIsPortable()
     {
         var (exit, output, generated) = await Generate("dotnet-tool", "-p:MorphirDeployment=dotnet-tool");
@@ -46,6 +49,7 @@ public class BuildProfileTargetsTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("native-aot", "win-x64", "is published as self-contained;framework-dependent, not as native-aot")]
     [Arguments("legacy-single-file", "win-x64", "is not one of native-aot, self-contained, framework-dependent and dotnet-tool")]
     [Arguments("self-contained", "linux-musl-x64", "needs one of the six first-delivery runtime identifiers")]
@@ -58,6 +62,7 @@ public class BuildProfileTargetsTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task AnEntryPointMustNameItsOfferings()
     {
         var (exit, output, _) = await Generate("");
@@ -76,6 +81,7 @@ public class BuildProfileTargetsTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("src/Morphir/Morphir.csproj", "native-aot")]
     [Arguments("src/Morphir.Managed/Morphir.Managed.csproj", "self-contained;framework-dependent")]
     [Arguments("src/Morphir.Tool/Morphir.Tool.csproj", "dotnet-tool")]

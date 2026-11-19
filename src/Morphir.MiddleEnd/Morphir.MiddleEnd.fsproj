@@ -1,0 +1,64 @@
+<!--
+  An application publish passes PublishAot, PublishTrimmed and PublishSingleFile as global properties, which also reach
+  the netstandard2.0 target of this library (for example dotnet publish src/Morphir -p:PublishAot=true). The SDK refuses
+  them for netstandard2.0 (NETSDK1207), so that target keeps them local and off. The other targets keep the values of the
+  publish. The application still compiles and trims this assembly.
+-->
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="PublishAot;PublishTrimmed;PublishSingleFile">
+
+    <PropertyGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+        <PublishAot>false</PublishAot>
+        <PublishTrimmed>false</PublishTrimmed>
+        <PublishSingleFile>false</PublishSingleFile>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <!--
+          The middle end: Morphir IR to Morphir IR. It holds the semantic node address, the IR upgrade steps and (later) the
+          transform contract and the rewrite engine. It builds for netstandard2.0 so that the MSBuild target and the
+          source generator of Morphir.Lang.CSharp can call it in a compiler host.
+        -->
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks);netstandard2.0</TargetFrameworks>
+        <RootNamespace>Morphir.MiddleEnd</RootNamespace>
+        <Description>The Morphir middle end: semantic IR node addresses, IR upgrade steps, and the transform contract and rewrite engine for passes from Morphir IR to Morphir IR.</Description>
+        <PackageTags>$(PackageTags);morphir;ir;middle-end</PackageTags>
+        <!-- C# callers read the nullable metadata that F# nullness writes. Without it, C# sees F# types as oblivious. -->
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <!-- Trimming and AOT analyzers for the frameworks that support them (NETSDK1210, NETSDK1212). -->
+    <PropertyGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
+        <IsTrimmable>true</IsTrimmable>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsAotCompatible>true</IsAotCompatible>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Morphir.MiddleEnd.Tests" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Morphir.Models\Morphir.Models.fsproj" />
+        <ProjectReference Include="..\Morphir.Compilation\Morphir.Compilation.fsproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="NodeAddress.fs" />
+        <Compile Include="NodeWalk.fs" />
+        <Compile Include="Lineage.fs" />
+        <Compile Include="Upgrade.fs" />
+        <Compile Include="ClassicToCurrent.fs" />
+        <Compile Include="CurrentIr.fs" />
+        <Compile Include="CurrentModel.fs" />
+        <Compile Include="Features.fs" />
+        <Compile Include="Rewrite.fs" />
+        <Compile Include="Transform.fs" />
+    </ItemGroup>
+
+</Project>

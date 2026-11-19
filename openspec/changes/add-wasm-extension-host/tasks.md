@@ -1,5 +1,16 @@
 # Tasks
 
+## Alpha.5 landing scope, 12 November 2026
+
+The maintainer prioritizes landing the committed runtime, Extism adapter, sandbox,
+worker, runtime report and configuration loader, followed by a separate experimental
+product-command PR. Windows x64 reports `win_x64_trap_unsupported` before engine or
+module loading until [#609](https://github.com/finos/morphir-dotnet/issues/609) is fixed
+without weakening process protections. The diagnostic signal-trap switch is removed.
+Further conformance/report implementation, the generic 21-case kit, notification
+delivery evidence, task 5.4, tasks 6.1/6.2 and Rust parity are deferred beyond alpha.5.
+Existing committed evidence retains its original producer identity and limitations.
+
 This is the morphir-dotnet adoption of the finos/morphir change `add-dotnet-wasm-extension-host` (draft PR finos/morphir#1148, read at `970dce7b`). Groups 1 to 6 keep the parent's task numbers and wording, so that completion can be reported against the parent. The indented notes under a checkbox say where the work lands in this repository; they are planning detail and are not tracked. Group 0 holds the two tasks only this repository has.
 
 GitHub issue: [finos/morphir-dotnet#563](https://github.com/finos/morphir-dotnet/issues/563). This repository has no Beads database.

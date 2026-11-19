@@ -147,6 +147,7 @@ let tests =
                     "code"
             }
         ]
+        |> testLabel "PlatformSpecific"
 
         testList "SourceSelection" [
             test "keeps document order" {

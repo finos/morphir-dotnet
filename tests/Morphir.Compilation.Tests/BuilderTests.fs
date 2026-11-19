@@ -345,4 +345,5 @@ let familyGuards =
 
             Expect.isEmpty offenders "production code converts a model between families"
         }
+        |> testLabel "PlatformSpecific"
     ]

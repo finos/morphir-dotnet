@@ -1,0 +1,10 @@
+{
+  "formatVersion": 4,
+  "name": "money",
+  "spec": {
+    "TypeAliasSpecification": {
+      "typeParams": [],
+      "typeExp": "morphir/SDK:basics#int"
+    }
+  }
+}

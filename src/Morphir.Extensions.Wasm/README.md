@@ -303,9 +303,9 @@ it. This library has no reference to the runner, and the runner none to this lib
   `HostSession` assigns the ids and writes `morphir.initialize` itself. The evidence is in
   `openspec/changes/add-wasm-extension-host/evidence/3.5-generic-guest-kit.md`.
 
-The resident memory of an Extism session is bounded by twice the ceiling, because the guest's memory and the
-kernel's memory each have it: 512 MiB with the default of 256 MiB. The user guide says so in
-`docs/content/docs/configuration/wasm-extensions.md`.
+The Extism guest and kernel each have a linear-memory ceiling. Their combined linear memory can reach
+512 MiB at the default of 256 MiB per memory. Engine and host allocations contribute separately to resident
+memory. See the [WASM extensions guide](../../docs/content/docs/configuration/wasm-extensions.md).
 
 ## Loading a configured module
 

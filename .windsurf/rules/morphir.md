@@ -94,7 +94,7 @@ dotnet fsi .claude/skills/qa-tester/validate-packages.fsx
 ### Testing Frameworks
 - **Unit Tests**: TUnit (in `tests/*.Tests/`)
 - **BDD Tests**: Reqnroll (Gherkin features in `tests/*/Features/*.feature`)
-- **E2E Tests**: CLI execution tests (in `tests/Morphir.E2E.Tests/`)
+- **Black-box tests**: tests of the built artifacts, in groups by purpose (in `tests/Morphir.BlackBox.Tests/`)
 
 ## 🏗️ Coding Principles
 
@@ -166,7 +166,7 @@ Console.WriteLine("Processing..."); // This goes to stdout!
 **Why**:
 - Stdout is for command output only (JSON, formatted results)
 - Stderr is for diagnostics and logging
-- Enables: `./morphir ir verify file.json --json | jq .`
+- Enables: `./morphir model verify file.json --json | jq .`
 
 See AGENTS.md Section 5 for complete details.
 
@@ -203,7 +203,7 @@ morphir-dotnet/
 │   ├── Morphir.Core.Tests/
 │   ├── Morphir.Tooling.Tests/
 │   │   └── Features/         # BDD feature files
-│   └── Morphir.E2E.Tests/
+│   └── Morphir.BlackBox.Tests/
 ├── build/
 │   ├── Build.cs              # Main build entry
 │   ├── Build.Packaging.cs    # Package targets

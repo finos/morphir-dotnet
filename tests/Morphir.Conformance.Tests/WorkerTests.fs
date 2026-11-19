@@ -41,7 +41,10 @@ let private runOne (modules: (string * Text.Json.Nodes.JsonNode list) list) (cas
 
 [<Tests>]
 let tests =
-    testList "WASM host worker adapter and runner (task 1.5)" [
+    // PlatformSpecific: these tests use the real file system, the checkout or worker processes, so the platform
+    // scope of the Test target runs them on every operating system (docs/contributing/ci-os-matrix.md).
+    testLabel "PlatformSpecific"
+    <| testList "WASM host worker adapter and runner (task 1.5)" [
         test "The worker arguments follow the corpus's worker convention" {
             let case = (suiteCase "limits/request-over-limit").Case
 
@@ -84,6 +87,29 @@ let tests =
                 (given.Substring(0, 63))
                 (Identity.Substring(0, 63))
                 "the same first 63 digits"
+        }
+
+        // adopt-streaming-json, "The worker's help result keeps its contract form": the pinned contract states one
+        // morphir/command-result, so a host that wraps it in a completed record is refused.
+        test "A help result wrapped in a completed record is refused" {
+            let record =
+                """{"event":"completed","report":{"profile":"morphir/command-result","result":{"help":"h","buildIdentity":"IDENTITY"}}}"""
+
+            Expect.isError (Worker.parseHelp (record.Replace("IDENTITY", Identity) + "\n")) "a completed wrapper"
+        }
+
+        test "The build identity is read from one morphir/command-result document" {
+            let result =
+                """{"profile":"morphir/command-result","result":{"help":"h","buildIdentity":"IDENTITY"}}"""
+
+            Expect.equal
+                (Worker.parseHelp (result.Replace("IDENTITY", Identity) + "\n"))
+                (Ok Identity)
+                "the identity of the document"
+        }
+
+        test "A help result without a build identity is refused" {
+            Expect.isError (Worker.parseHelp """{"profile":"morphir/command-result"}""") "no result.buildIdentity"
         }
 
         test "A frame is a Content-Length header and the compact UTF-8 body" {

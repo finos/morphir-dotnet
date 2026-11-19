@@ -26,7 +26,8 @@ does not create the project or compile it. Keep handwritten files separate
 from owned artifact paths. See the [command reference](../../cli/generate/) for
 the supported profile, options, exit codes and publication guarantees.
 
-`morphir generate --target fsharp` uses the built-in backend `morphir.fsharp`.
-The same generator is also published as the MEP extension
-`morphir-fsharp-backend` for hosts without that built-in; see
-[F# generation](../../backends/fsharp/).
+`morphir generate --target fsharp` uses the F# backend built into the CLI. The same generator also comes as a
+separate backend, `morphir-fsharp-backend`, which `morphirup` installs; see [F# generation](../../backends/fsharp/).
+
+To run these commands without a checkout or .NET, see
+[Your first model with morphirup]({{< relref "/docs/getting-started/first-model" >}}).

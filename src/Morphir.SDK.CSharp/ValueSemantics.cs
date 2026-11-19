@@ -9,6 +9,12 @@ internal interface IComparableSequence
     IEnumerable<object> ComparableItems { get; }
 }
 
+/// <summary>
+/// The Morphir equality and hashing of the SDK. A switch on the runtime type, with no reflection, so it works under Native
+/// AOT: scalars, <c>double</c> with IEEE equality, tuples item by item, SDK values and <see cref="IMorphirValue"/>. Any other
+/// value, such as a plain record or a plain union, uses its own <c>Equals</c> and <c>GetHashCode</c>. The backend refuses
+/// equality on a type that holds a function, so the SDK has no function check at run time.
+/// </summary>
 internal static class ValueSemantics
 {
     internal static bool Equal<T>(T left, T right)
@@ -22,8 +28,7 @@ internal static class ValueSemantics
             for (var i = 0; i < x.Length; i++) if (!Equal(x[i], y[i])) return false;
             return true;
         }
-        if (left is int or decimal or string or char or bool or Unit or Order or ISdkValue) return left.Equals(right);
-        throw new NotSupportedException("Equality requires a supported scalar, SDK value, tuple or explicit IMorphirValue implementation.");
+        return left.Equals(right);
     }
 
     internal static int Hash<T>(T value)
@@ -36,8 +41,6 @@ internal static class ValueSemantics
             for (var i = 0; i < tuple.Length; i++) hash.Add(Hash(tuple[i]));
             return hash.ToHashCode();
         }
-        if (value is int or double or decimal or string or char or bool or Unit or Order or ISdkValue)
-            return value.GetHashCode();
-        throw new NotSupportedException("Hashing requires a supported immutable value.");
+        return value.GetHashCode();
     }
 }

@@ -1,11 +1,9 @@
-using System.Diagnostics;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Morphir.IR.Model;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Scenarios;
-using Morphir.Tooling.Tests.Integration.CLI;
 using Morphir.Extensions;
 using Morphir.TestSupport;
 
@@ -52,40 +50,7 @@ public sealed class GenerationReportingTests
     }
 
     [Test]
-    public async Task OperationalCliFailureReturnsTwoAndOneJsonDocument() =>
-        await AssertOperationalFailureAsync(new CliTestHelper(), TimeSpan.FromSeconds(30));
-
-    // Test runners run many CLI children through the shared process gate, so a command can wait for a slot
-    // longer than its own budget. The budget is for the command, so the wait must not use it.
-    [Test]
-    public async Task OperationalCliFailureBudgetStartsAfterTheProcessSlotIsGranted()
-    {
-        var gate = new ProcessGate(1);
-        var budget = TimeSpan.FromSeconds(15);
-        var busy = ChildProcess.RunAsync(Sleep(budget + TimeSpan.FromSeconds(3)), TimeSpan.FromSeconds(60), gate: gate);
-        await Task.Delay(TimeSpan.FromMilliseconds(500)); // The busy child takes the only slot first.
-
-        await AssertOperationalFailureAsync(new CliTestHelper(gate: gate), budget);
-        await busy;
-    }
-
-    private static async Task AssertOperationalFailureAsync(CliTestHelper cli, TimeSpan budget)
-    {
-        var missing = Path.Combine(Path.GetTempPath(), "missing-model-" + Guid.NewGuid().ToString("N") + ".json");
-        var output = Path.Combine(Path.GetTempPath(), "unused-output-" + Guid.NewGuid().ToString("N"));
-        var result = await cli.ExecuteCommandAsync($"generate --input \"{missing}\" --target fsharp --output \"{output}\" --json", timeout: budget);
-        result.ExitCode.Should().Be(2);
-        using var json = JsonDocument.Parse(result.StandardOutput);
-        json.RootElement.GetProperty("failureKind").GetString().Should().Be("operational");
-        Directory.Exists(output).Should().BeFalse();
-    }
-
-    private static ProcessStartInfo Sleep(TimeSpan duration) =>
-        OperatingSystem.IsWindows()
-            ? ChildProcess.StartInfo("cmd.exe", "/c", $"ping -n {(int)duration.TotalSeconds + 1} 127.0.0.1 >nul")
-            : ChildProcess.StartInfo("/bin/sh", "-c", $"sleep {(int)duration.TotalSeconds}");
-
-    [Test]
+    [Category("PlatformSpecific")]
     public async Task HostCancellationReachesTheHandlerAndReturns130BeforePublication()
     {
         var root = Path.Combine(Path.GetTempPath(), "morphir-cancel-" + Guid.NewGuid().ToString("N"));
@@ -95,7 +60,7 @@ public sealed class GenerationReportingTests
             var input = GenerationInputFixtures.DailyRate(root, "3", "json");
             var output = Path.Combine(root, "output");
             var slow = new SlowBackend();
-            using var app = MorphirCli.CreateBuilder(["generate", "--input", input, "--target", "slow", "--output", output, "--json"])
+            using var app = MorphirCli.CreateBuilder(["generate", "--input", input, "--target", "slow", "--output", output, "--json=document"])
                 .AddScenario<GenerationScenario>().ConfigureServices(services => services.AddSingleton<IGenerationBackend>(slow)).Build();
             using var cancellation = new CancellationTokenSource();
             var running = app.RunAsync(cancellation.Token);

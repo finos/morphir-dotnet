@@ -1,0 +1,7 @@
+Trading.cs(10,9): error MORPHIR1001: A 'foreach' loop is not in the Morphir subset [https://morphir.finos.org/rules/csharp/unsupported_loop]
+Trading.cs(10,37): error MORPHIR1002: A change of 'total' is not in the Morphir subset [https://morphir.finos.org/rules/csharp/unsupported_mutation]
+Trading.cs(11,9): error MORPHIR1002: A change of 'counter' is not in the Morphir subset [https://morphir.finos.org/rules/csharp/unsupported_mutation]
+Trading.cs(12,9): error MORPHIR1001: A 'while' loop is not in the Morphir subset [https://morphir.finos.org/rules/csharp/unsupported_loop]
+Trading.cs(12,33): error MORPHIR1002: A change of 'total' is not in the Morphir subset [https://morphir.finos.org/rules/csharp/unsupported_mutation]
+Trading.cs(15,48): error MORPHIR1003: 'dynamic' is not in the Morphir subset [https://morphir.finos.org/rules/csharp/unsupported_dynamic]
+Trading.cs(17,35): error MORPHIR1004: Property 'Value' has a 'set' accessor [https://morphir.finos.org/rules/csharp/unsupported_mutable_property]

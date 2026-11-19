@@ -49,11 +49,11 @@ public enum ArtifactLayout
 /// </summary>
 public sealed class Deployment
 {
-    /// <summary>The runtime that a managed deployment runs on, from the projects' target framework <c>net10.0</c>.</summary>
-    public const string Runtime = "Microsoft.NETCore.App 10.0";
+    /// <summary>The runtime that a managed deployment runs on, from the applications' target framework <c>net11.0</c>.</summary>
+    public const string Runtime = "Microsoft.NETCore.App 11.0";
 
     /// <summary>The SDK that installing a .NET tool needs.</summary>
-    public const string ToolSdk = ".NET SDK 10.0";
+    public const string ToolSdk = ".NET SDK 11.0";
 
     // Archives hold what the program needs to run: no debug symbols and no XML documentation files.
     private static readonly ImmutableSortedDictionary<string, string> Lean = Properties(
@@ -471,7 +471,7 @@ public sealed class LegacyAsset
             ("TrimMode", "partial"),
             ("TreatWarningsAsErrors", "false")),
         // The RIDs of the build-executables matrix in .github/workflows/deployment.yml.
-        [TargetPlatform.WinX64, TargetPlatform.OsxArm64, TargetPlatform.LinuxX64, TargetPlatform.LinuxArm64]);
+        [TargetPlatform.WinX64, TargetPlatform.WinArm64, TargetPlatform.OsxArm64, TargetPlatform.LinuxX64, TargetPlatform.LinuxArm64]);
 
     /// <summary>The untrimmed baseline that the manual AOT workflow compares with. Never released.</summary>
     public static readonly LegacyAsset UntrimmedSingleFile = new(

@@ -48,12 +48,10 @@ The script requires no packages beyond the .NET SDK. It is optional for running 
 - [Plugin reference](../../docs/content/docs/guides/myriad-fsharp.md)
 - [End-to-end tutorial](../../docs/content/docs/guides/car-rental-tutorial.md)
 
-Run the package-consumer BDD tests with:
+Run the package-consumer scenarios of the black-box tests with:
 
 ```sh
-dotnet run --project tests/Morphir.Myriad.Integration.Tests -- \
-  --no-progress --maximum-parallel-tests 1
-dotnet fsi tests/Morphir.Myriad.Tests/package-tests.fsx
+./build.sh --target Test --skip Restore Compile --test-group integration
 ```
 
-The tests build clean consumers from locally packed packages, check all three IR versions, verify the full lifecycle and business rejections, and exercise the tutorial's rate change. The F# package checks also cover cold restore, stale output, module additions/removals, paths, cleanup and concurrent configurations. Nuke's `TestMyriadPackages` target runs those checks, and `TestAll` includes it.
+The scenarios build clean consumers from locally packed packages, check all three IR versions, verify the full lifecycle and business rejections, and exercise the tutorial's rate change (`tests/Morphir.BlackBox.Tests/Integration/MyriadCarRental.feature`). The F# package checks also cover cold restore, stale output, module additions/removals, paths, cleanup and concurrent configurations (`Integration/MyriadConsumer.feature`). The `Test` target runs them.

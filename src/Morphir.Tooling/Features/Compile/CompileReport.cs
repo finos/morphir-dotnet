@@ -4,7 +4,9 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 using Morphir.Compilation;
+using Morphir.Tooling.Cli;
 
 namespace Morphir.Tooling.Features.Compile;
 
@@ -86,18 +88,26 @@ public sealed record CompileReportGeneration(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Formatting { get; init; }
 
+    /// <summary>
+    /// The passes before the backend, as in the <c>generate</c> report: the ids that ran, the application list and the reads of
+    /// other modules. Each <c>before</c> is in the model that the frontend wrote, as in the top-level <c>passes</c>. Written only
+    /// when a pass ran or a record came from an earlier stage.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Morphir.Tooling.Features.Transform.PassesReport? Passes { get; init; }
+
     /// <summary>The report shape of <paramref name="generation"/>.</summary>
     public static CompileReportGeneration From(CompileGeneration generation) => generation.Result is { } result
         ? new(result.Target, result.Backend, result.OutputDirectory, result.SourceVersion, result.Family, result.DistributionKind,
             result.Representation, [.. result.Publication.Artifacts], [.. result.Publication.Written], [.. result.Publication.Unchanged],
             [.. result.Publication.Removed])
-        { Formatting = result.Formatting }
+        { Formatting = result.Formatting, Passes = result.Passes }
         : new(generation.Target, generation.Backend, generation.OutputDirectory, null, null, null, null, [], [], [], []);
 }
 
 /// <summary>
-/// The one JSON report of <c>morphir compile --json</c>, and the report of the last <c>--json-lines</c> record.
-/// Members are camelCase. <c>installed</c> lists the <c>-o</c> installations of this run.
+/// The report of <c>morphir compile</c>: the one document of <c>--json=document</c>, and the <c>report</c> of the
+/// last record of <c>--json</c>. Members are camelCase. <c>installed</c> lists the <c>-o</c> installations of this run.
 /// </summary>
 public sealed record CompileReport(
     bool Success,
@@ -116,6 +126,12 @@ public sealed record CompileReport(
     /// <summary>The generation of <c>--target</c> (CLI-2). Left out of the JSON when no target was requested.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public CompileReportGeneration? Generation { get; init; }
+    /// <summary>Actual installed process observation in the existing generation-provider shape.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Provider { get; init; }
+    /// <summary>The passes that ran after the frontend: their ids, the application list and the reads of other modules. Written only when a pass ran.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Morphir.Tooling.Features.Transform.PassesReport? Passes { get; init; }
 
     /// <summary>The report of a folded compile result.</summary>
     public static CompileReport From(CompileResult result)
@@ -128,7 +144,7 @@ public sealed record CompileReport(
             success => new CompileReport(true, 0, success.Language, success.Frontend, success.IrVersion.Text,
                 SourcesOf(success.Sources, result.Settings!.WorkingDirectory), [.. success.Modules], success.Publication.IrPath, [.. success.Publication.Installed],
                 diagnostics, null, origins)
-            { Generation = success.Generation is { } generation ? CompileReportGeneration.From(generation) : null },
+            { Generation = success.Generation is { } generation ? CompileReportGeneration.From(generation) : null, Provider = success.Provider, Passes = success.Passes },
             // A failure in the generation stages keeps the published compile (CLI-2).
             failure => new CompileReport(false, failure.Kind.ExitCode(), language, failure.Frontend, irVersion,
                 failure.Sources is { } sources ? SourcesOf(sources, result.Settings!.WorkingDirectory) : null,
@@ -155,27 +171,17 @@ public sealed record CompileReport(
         return (inside ? relative : full).Replace('\\', '/');
     }
 
-    /// <summary>The indented JSON of <c>--json</c>.</summary>
-    public string ToJson() => JsonSerializer.Serialize(this, CompileJsonContext.Relaxed.CompileReport);
+    /// <summary>The indented JSON of <c>--json=document</c>.</summary>
+    public string ToJson() => JsonSerializer.Serialize(this, JsonInfo);
+
+    /// <summary>The source-generated contract of the report, for the shared <see cref="JsonOutputWriter{TReport}"/>.</summary>
+    public static JsonTypeInfo<CompileReport> JsonInfo => CompileJsonContext.Relaxed.CompileReport;
 }
 
-/// <summary>A <c>stageStarted</c> record.</summary>
-public sealed record StageStartedRecord(string Event, string Stage);
-
-/// <summary>A <c>diagnostics</c> record.</summary>
-public sealed record DiagnosticsRecord(string Event, string Stage,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Document,
-    CompileReportDiagnostic[] Diagnostics);
-
-/// <summary>A <c>stageCompleted</c> record.</summary>
-public sealed record StageCompletedRecord(string Event, string Stage, bool Passed);
-
-/// <summary>The last <c>completed</c> record, with the full report.</summary>
-public sealed record CompletedRecord(string Event, CompileReport Report);
-
-/// <summary>The indented JSON contract of <c>--json</c>.</summary>
+/// <summary>The indented JSON contract of <c>--json=document</c>; the records of <c>--json</c> are compact.</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true)]
 [JsonSerializable(typeof(CompileReport))]
+[JsonSerializable(typeof(CompileReportDiagnostic[]))]
 internal partial class CompileJsonContext : JsonSerializerContext
 {
     /// <summary>The context with relaxed escaping: stdout is not HTML, so quotes and apostrophes stay readable.</summary>
@@ -187,57 +193,49 @@ internal partial class CompileJsonContext : JsonSerializerContext
     });
 }
 
-/// <summary>The compact JSON contract of <c>--json-lines</c> records (STRM-2).</summary>
-[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = false)]
-[JsonSerializable(typeof(StageStartedRecord))]
-[JsonSerializable(typeof(DiagnosticsRecord))]
-[JsonSerializable(typeof(StageCompletedRecord))]
-[JsonSerializable(typeof(CompletedRecord))]
-internal partial class CompileJsonLinesContext : JsonSerializerContext
-{
-    /// <summary>The context with relaxed escaping, like the report.</summary>
-    public static CompileJsonLinesContext Relaxed { get; } = new(new JsonSerializerOptions
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false,
-        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-    });
-}
-
 /// <summary>
-/// Writes compile events as JSON Lines (STRM-2): one compact UTF-8 JSON object per line, each with an
-/// <c>event</c> member, flushed when the event occurs. The <c>completed</c> record is written last, once.
+/// Writes the record of each compile event of <c>--json</c> (STRM-2) through the shared
+/// <see cref="JsonOutputWriter{TReport}"/>: <c>stageStarted</c>, <c>diagnostics</c> and <c>stageCompleted</c>, each
+/// one compact UTF-8 JSON object on one line, flushed when the event occurs. The command writes the last
+/// <c>completed</c> record with <see cref="JsonOutputWriter{TReport}.Completed"/>, once it has folded the report. In
+/// document mode the events write nothing.
 /// </summary>
-public sealed class JsonLinesWriter(Stream output)
+public sealed class JsonLinesWriter(JsonOutputWriter<CompileReport> output)
 {
-    private static readonly byte[] NewLine = "\n"u8.ToArray();
+
+    /// <summary>The shared writer of compile's report in <paramref name="mode"/> on the UTF-8 byte stream <paramref name="stdout"/>.</summary>
+    public static JsonOutputWriter<CompileReport> Output(Stream stdout, JsonOutputMode mode) =>
+        new(new StreamWriter(stdout, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), bufferSize: -1, leaveOpen: true),
+            mode, CompileReport.JsonInfo);
 
     /// <summary>Writes the record of one stream event. A <see cref="CompileEvent.Completed"/> event writes nothing:
-    /// its record needs the folded report, which <see cref="WriteCompletedAsync"/> writes.</summary>
-    public ValueTask WriteEventAsync(CompileEvent compileEvent, CancellationToken ct) => compileEvent switch
+    /// its record needs the folded report.</summary>
+    public ValueTask WriteEventAsync(CompileEvent compileEvent, CancellationToken ct)
     {
-        CompileEvent.StageStarted started => WriteAsync(JsonSerializer.SerializeToUtf8Bytes(
-            new StageStartedRecord("stageStarted", started.Stage.WireValue()), CompileJsonLinesContext.Relaxed.StageStartedRecord), ct),
-        CompileEvent.DiagnosticsReported reported => WriteAsync(JsonSerializer.SerializeToUtf8Bytes(
-            new DiagnosticsRecord("diagnostics", reported.Stage.WireValue(), reported.DocumentUri,
-                [.. reported.Diagnostics.Select(CompileReportDiagnostic.From)]), CompileJsonLinesContext.Relaxed.DiagnosticsRecord), ct),
-        CompileEvent.StageCompleted completed => WriteAsync(JsonSerializer.SerializeToUtf8Bytes(
-            new StageCompletedRecord("stageCompleted", completed.Stage.WireValue(), completed.Passed), CompileJsonLinesContext.Relaxed.StageCompletedRecord), ct),
-        _ => ValueTask.CompletedTask
-    };
+        switch (compileEvent)
+        {
+            case CompileEvent.StageStarted started:
+                output.Event("stageStarted", record => record.WriteString("stage", started.Stage.WireValue()));
+                break;
+            case CompileEvent.DiagnosticsReported reported:
+                output.Event("diagnostics", record =>
+                {
+                    record.WriteString("stage", reported.Stage.WireValue());
+                    if (reported.DocumentUri is { } document) record.WriteString("document", document);
+                    record.WritePropertyName("diagnostics");
+                    JsonSerializer.Serialize(record, [.. reported.Diagnostics.Select(CompileReportDiagnostic.From)],
+                        CompileJsonContext.Relaxed.CompileReportDiagnosticArray);
+                });
+                break;
+            case CompileEvent.StageCompleted completed:
+                output.Event("stageCompleted", record =>
+                {
+                    record.WriteString("stage", completed.Stage.WireValue());
+                    record.WriteBoolean("passed", completed.Passed);
+                });
+                break;
+        }
 
-    /// <summary>Writes the last record, which holds the same report that <c>--json</c> writes.</summary>
-    public ValueTask WriteCompletedAsync(CompileReport report, CancellationToken ct) =>
-        WriteAsync(JsonSerializer.SerializeToUtf8Bytes(new CompletedRecord("completed", report), CompileJsonLinesContext.Relaxed.CompletedRecord), ct);
-
-    private async ValueTask WriteAsync(byte[] line, CancellationToken ct)
-    {
-        await output.WriteAsync(line, ct);
-        await output.WriteAsync(NewLine, ct);
-        await output.FlushAsync(ct);
+        return ValueTask.CompletedTask;
     }
-
-    /// <summary>The UTF-8 text of <paramref name="report"/> as one compact line, without the line end.</summary>
-    public static string CompletedLine(CompileReport report) =>
-        Encoding.UTF8.GetString(JsonSerializer.SerializeToUtf8Bytes(new CompletedRecord("completed", report), CompileJsonLinesContext.Relaxed.CompletedRecord));
 }

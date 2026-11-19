@@ -16,6 +16,7 @@ namespace Morphir.Build.Tests.Helpers;
 /// for its platform; a linked engine is recorded by the pinned C API archive it was linked from; an artifact that
 /// carries a separate library cannot claim single-file delivery.
 /// </summary>
+[Category("PlatformSpecific")]
 public class PackagedEngineTests
 {
     private static readonly IReadOnlyDictionary<string, byte[]> LibraryBytes = TargetPlatform.All.ToDictionary(

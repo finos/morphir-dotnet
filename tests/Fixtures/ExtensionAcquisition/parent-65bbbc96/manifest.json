@@ -1,0 +1,82 @@
+{
+  "description": "Unmodified authoritative parent blobs. Expectations remain parent-owned; unsupported operations are not executed.",
+  "files": [
+    {
+      "file": "identity-cases.json",
+      "repository": "https://github.com/finos/morphir",
+      "path": "docs/spec/extensions/identity-cases.json",
+      "commit": "65bbbc961d9eb962ad941a859c9d09fba058f5a0",
+      "sha256": "907c74f816c70a486bfabb4a25c13bb60180bf1ae5377a051f98f9e1a6a87774"
+    },
+    {
+      "file": "package-cases.json",
+      "repository": "https://github.com/finos/morphir",
+      "path": "docs/spec/extensions/package-cases.json",
+      "commit": "65bbbc961d9eb962ad941a859c9d09fba058f5a0",
+      "sha256": "47b3137550baf9c0fbd60ab66032ef77e983466451b1cf6f653d354ee5ceaab6"
+    },
+    {
+      "file": "schemas/release.schema.json",
+      "repository": "https://github.com/finos/morphir",
+      "path": "website/static/schemas/extensions/0.1.0-preview.3/release.schema.json",
+      "commit": "65bbbc961d9eb962ad941a859c9d09fba058f5a0",
+      "sha256": "3f8647d89525414563714838c3326a7960f6bda3bdb6948959bc5b6fb130027e"
+    },
+    {
+      "file": "schemas/claims.schema.json",
+      "repository": "https://github.com/finos/morphir",
+      "path": "website/static/schemas/extensions/0.1.0-preview.3/claims.schema.json",
+      "commit": "65bbbc961d9eb962ad941a859c9d09fba058f5a0",
+      "sha256": "9e10c26d654fd02e3ea6bdf84cd9375dff28b2e15a9c10e7d400a969ee598fb9"
+    },
+    {
+      "file": "schemas/index-record.schema.json",
+      "repository": "https://github.com/finos/morphir",
+      "path": "website/static/schemas/extensions/0.1.0-preview.3/index-record.schema.json",
+      "commit": "65bbbc961d9eb962ad941a859c9d09fba058f5a0",
+      "sha256": "7fb4a8fe6ed5edb51b9dd962e1cfce47df52ce635b79919a2bd1e71818ed6d18"
+    },
+    {
+      "file": "schemas/catalog.schema.json",
+      "repository": "https://github.com/finos/morphir",
+      "path": "website/static/schemas/extensions/0.1.0-preview.3/catalog.schema.json",
+      "commit": "65bbbc961d9eb962ad941a859c9d09fba058f5a0",
+      "sha256": "e9e5274032e72715d66f64912cd1cabf52c464a862f2769d91bd9f296126d7da"
+    },
+    {
+      "file": "schemas/lock.schema.json",
+      "repository": "https://github.com/finos/morphir",
+      "path": "website/static/schemas/extensions/0.1.0-preview.3/lock.schema.json",
+      "commit": "65bbbc961d9eb962ad941a859c9d09fba058f5a0",
+      "sha256": "f33e8fb9af7fa6db4cf53816a9c1b514921ccda42cd3d2155d9d3f50e2296e59"
+    },
+    {
+      "file": "schemas/journal.schema.json",
+      "repository": "https://github.com/finos/morphir",
+      "path": "website/static/schemas/extensions/0.1.0-preview.3/journal.schema.json",
+      "commit": "65bbbc961d9eb962ad941a859c9d09fba058f5a0",
+      "sha256": "033ee53c5c70c54324bdd326cc43105decb8a55ee2bc32272da3d6bf00eed399"
+    },
+    {
+      "file": "schemas/repositories.schema.json",
+      "repository": "https://github.com/finos/morphir",
+      "path": "website/static/schemas/extensions/0.1.0-preview.3/repositories.schema.json",
+      "commit": "65bbbc961d9eb962ad941a859c9d09fba058f5a0",
+      "sha256": "e6247986f7448c9b63ae318606645845e056a1573dfff46e7c68ee8627743fd5"
+    },
+    {
+      "file": "fixtures/nupkg-packed.nupkg",
+      "repository": "https://github.com/finos/morphir",
+      "path": "docs/spec/extensions/fixtures/nupkg-packed.nupkg",
+      "commit": "65bbbc961d9eb962ad941a859c9d09fba058f5a0",
+      "sha256": "ea0499d6575dd5cc6284555cad60e7cb910d6d3cf49b0d3741ff0140260fadce"
+    },
+    {
+      "file": "fixtures/nupkg-repository-signed.nupkg",
+      "repository": "https://github.com/finos/morphir",
+      "path": "docs/spec/extensions/fixtures/nupkg-repository-signed.nupkg",
+      "commit": "65bbbc961d9eb962ad941a859c9d09fba058f5a0",
+      "sha256": "4eaf211c64a4a8806e030ab1b78d9458abe01adf9af8d2d7e443e10692c613d8"
+    }
+  ]
+}

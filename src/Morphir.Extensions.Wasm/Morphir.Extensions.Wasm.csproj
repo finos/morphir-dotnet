@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsAotCompatible>true</IsAotCompatible>
@@ -8,6 +8,7 @@
     <Description>The WASM extension runtime of morphir-dotnet: Wasmtime with the embedded Extism kernel module.</Description>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Morphir.Tooling" />
     <PackageReference Include="Wasmtime" />
   </ItemGroup>
   <ItemGroup>

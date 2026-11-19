@@ -4,6 +4,7 @@ using System.CommandLine;
 using FluentAssertions;
 using Morphir.Configuration;
 using Morphir.Tooling.Features.Configuration;
+using Morphir.Tooling.Cli;
 
 namespace Morphir.Tooling.Tests.Features.Configuration;
 
@@ -33,6 +34,7 @@ public sealed class ConfigurationEditingCommandTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("--type", "unsupported")]
     [Arguments("--type", "bool")]
     [Arguments("--type", "array")]
@@ -50,11 +52,12 @@ public sealed class ConfigurationEditingCommandTests
         var host = new ObservingHost();
         var root = new RootCommand();
         root.Subcommands.Add(new ConfigurationEditingCommand("set", host));
-        root.Parse(["set", "custom.value", "value", "--json", .. controls]).Invoke().Should().Be(2);
+        OptionValueRewrite.Parse(root, ["set", "custom.value", "value", "--json", .. controls]).Invoke().Should().Be(2);
         host.Calls.Should().Be(0);
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments("--workspace")]
     [Arguments("--user")]
     [Arguments("--global")]
@@ -64,7 +67,7 @@ public sealed class ConfigurationEditingCommandTests
         var host = new ObservingHost();
         var root = new RootCommand();
         root.Subcommands.Add(new ConfigurationEditingCommand("set", host));
-        root.Parse(["set", "custom.value", "value", selector, "--json", "--no-profiles"]).Invoke().Should().Be(0);
+        OptionValueRewrite.Parse(root, ["set", "custom.value", "value", selector, "--json", "--no-profiles"]).Invoke().Should().Be(0);
         host.Calls.Should().Be(1);
         var scope = host.Invocation!.Scope;
         (selector switch { "--workspace" => scope.IsWorkspace, "--user" => scope.IsUser, "--global" => scope.IsGlobal, _ => scope.IsSystem }).Should().BeTrue();

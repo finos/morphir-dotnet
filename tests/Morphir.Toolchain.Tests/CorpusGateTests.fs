@@ -53,6 +53,7 @@ let tests =
                               yield relative ]
 
             Expect.isEmpty unlisted "fixtures without a case")
+        |> testLabel "PlatformSpecific"
 
         testCase "every committed signature is the one its key's public TEST-ONLY label gives" (fun () ->
             // signed_repository.rs committed_fixtures_are_reproducible_from_their_labels and
@@ -89,6 +90,7 @@ let tests =
                       | _ -> yield $"{path}: signatures is not an array" ]
 
             Expect.isEmpty mismatches "signatures that do not reproduce")
+        |> testLabel "PlatformSpecific"
 
         testCase "the F# recipe's providers name the repository whose canonical root identifies it" (fun () ->
             // signed_repository.rs the_repository_identity_is_the_digest_of_the_canonical_root, with TufTests' anchor
@@ -100,6 +102,7 @@ let tests =
 
             for provider in recipe.Providers do
                 Expect.equal provider.Release.RepositoryId identity "each provider names the repository")
+        |> testLabel "PlatformSpecific"
 
         testCase "a zero floor matches no prerelease CLI" (fun () ->
             // signed_repository.rs a_zero_floor_matches_no_prerelease_cli: why offerings publish <0.0.0-0, not >=0.0.0.

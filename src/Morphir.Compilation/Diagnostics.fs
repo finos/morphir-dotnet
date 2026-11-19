@@ -1,5 +1,9 @@
 namespace Morphir.Compilation
 
+#if NETSTANDARD2_0
+open Morphir.Compilation.Compat
+#endif
+
 open System
 open System.Collections.Generic
 open System.Diagnostics.CodeAnalysis

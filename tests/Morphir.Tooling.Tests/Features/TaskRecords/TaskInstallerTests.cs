@@ -13,6 +13,7 @@ namespace Morphir.Tooling.Tests.Features.TaskRecords;
 /// Spec: compile-task-records and the pinned upstream out-directory contract, "Install". <c>-o</c> copies
 /// the record's <c>value</c> into the target and keeps an <c>installed</c> ledger of the files it wrote.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class TaskInstallerTests : IDisposable
 {
     private readonly RecordWorkspace _workspace = new();

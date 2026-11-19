@@ -47,40 +47,91 @@ let readBytes maximum path =
 
     output.ToArray()
 
+// The path with each link among its existing parts replaced by its target. The parts that do not exist yet stay.
+// At most 40 links are followed in total, as SYMLOOP_MAX allows on Linux and more than macOS allows.
+let private physicalPath (path: string) =
+    let mutable followed = 0
+
+    let rec resolve (path: string) =
+        let root =
+            Path.GetPathRoot path
+            |> Option.ofObj
+            |> Option.defaultValue "/"
+
+        let rec walk (current: string) parts =
+            match parts with
+            | [] -> current
+            | (part: string) :: rest ->
+                let next = Path.Combine(current, part)
+
+                let target =
+                    try
+                        (FileInfo next).LinkTarget
+                    with
+                    | :? UnauthorizedAccessException
+                    | :? IOException ->
+                        refuse "local.home_unreadable" $"A parent folder of --home cannot be read: '{next}'."
+
+                match target with
+                | null -> walk next rest
+                | target ->
+                    followed <- followed + 1
+
+                    if followed > 40 then
+                        refuse "local.home_links" "The parent folders of --home have too many levels of links."
+
+                    walk (resolve (Path.GetFullPath(target, current))) rest
+
+        walk root (path.Substring(root.Length).Split('/', StringSplitOptions.RemoveEmptyEntries) |> List.ofArray)
+
+    resolve path
+
+/// An absolute Home. Off Windows its parent folders are physical: the installed host refuses a source document below
+/// a link, and setup reads its readiness sources below Home. On macOS, $TMPDIR is below the link /var. The last part
+/// is not followed, so a Home that is itself a link is refused when it is opened, as before.
 let homePath (home: string) =
     if not (Path.IsPathFullyQualified home) then
         refuse "local.home_not_absolute" "--home must be an absolute isolated Morphir Home."
 
-    Path.TrimEndingDirectorySeparator(Path.GetFullPath home)
+    let full = Path.TrimEndingDirectorySeparator(Path.GetFullPath home)
 
-let result command status (candidate: Sha256 option) diagnostic =
+    if OperatingSystem.IsWindows() then
+        full
+    else
+        match Path.GetDirectoryName full, Path.GetFileName full with
+        | null, _
+        | _, "" -> full
+        | parent, name -> Path.Combine(physicalPath parent, name)
+
+/// The result of a completed step of the historical local route, whose candidate, receipt and selection are
+/// local-toolchains 0.1.0-preview.1 documents. A refusal is written by <see cref="refusal"/>.
+let result command status (candidate: Sha256) =
     Value.Object [
         "$schema", Value.String(LocalCandidateDocument.schema "result")
         "command", Value.String command
         "status", Value.String status
         "origin", Value.String "local-developer"
-        match candidate with
-        | Some identity ->
-            "candidateSha256", Value.String identity.Text
+        "candidateSha256", Value.String candidate.Text
 
-            if
-                status
-                <> "planned"
-                && status
-                   <> "refused"
-            then
-                "receiptPath", Value.String(LocalCandidateDocument.receiptPath identity)
+        if status <> "planned" then
+            "receiptPath", Value.String(LocalCandidateDocument.receiptPath candidate)
 
-            if
-                status = "selected"
-                || status = "shown"
-            then
-                "selectionPath", Value.String LocalCandidateDocument.selectionPath
-        | None -> ()
-        match diagnostic with
-        | Some(code, message) ->
-            "diagnostic",
-            Value.Object [ "code", Value.String code; "message", Value.String message ]
-        | None -> ()
+        if
+            status = "selected"
+            || status = "shown"
+        then
+            "selectionPath", Value.String LocalCandidateDocument.selectionPath
+    ]
+    |> JsonText.toBytes
+
+/// A refused setup, select or show: a local-toolchains 0.1.0-preview.5 result. The origin is the origin of the route
+/// or of the generation the command acted on, local-developer or release-checksum.
+let refusal command origin code message =
+    Value.Object [
+        "$schema", Value.String(ComposedDocuments.schemaFor ReleaseBundleDocument.family "result")
+        "command", Value.String command
+        "status", Value.String "refused"
+        "origin", Value.String origin
+        "diagnostic", Value.Object [ "code", Value.String code; "message", Value.String message ]
     ]
     |> JsonText.toBytes

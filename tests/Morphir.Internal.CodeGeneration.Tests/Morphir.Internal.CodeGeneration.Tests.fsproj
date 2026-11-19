@@ -3,7 +3,7 @@
     <PropertyGroup>
         <OutputType>Library</OutputType>
         <GenerateProgramFile>false</GenerateProgramFile>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFramework>$(MorphirCurrentTargetFramework)</TargetFramework>
         <GenerateDocumentationFile>false</GenerateDocumentationFile>
         <RootNamespace>Morphir.Internal.CodeGeneration.Tests</RootNamespace>
         <ReqnrollUseIntermediateOutputPathForCodeBehind>true</ReqnrollUseIntermediateOutputPathForCodeBehind>

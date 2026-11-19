@@ -3,8 +3,12 @@ using System.Collections.Immutable;
 
 namespace Morphir.SDK.CSharp;
 
-/// <summary>A persistent list with structural Morphir equality and hashing.</summary>
-public sealed class List<T> : IReadOnlyList<T>, IEquatable<List<T>>, ISdkValue, IComparableSequence
+/// <summary>
+/// A persistent list with structural Morphir equality and hashing. It is <see cref="IComparable{T}"/> with the Morphir
+/// order of <see cref="MorphirComparers.Value"/>, so a list satisfies the constraint of a type variable of the class
+/// <c>comparable</c>.
+/// </summary>
+public sealed class List<T> : IReadOnlyList<T>, IEquatable<List<T>>, IComparable<List<T>>, ISdkValue, IComparableSequence
 {
     private readonly ImmutableList<T> _items;
     private List(ImmutableList<T> items) => _items = items;
@@ -20,6 +24,35 @@ public sealed class List<T> : IReadOnlyList<T>, IEquatable<List<T>>, ISdkValue, 
     public T this[int index] => _items[index];
     public List<T> Cons(T head) { ArgumentNullException.ThrowIfNull(head); return new(_items.Insert(0, head)); }
     public List<TResult> Map<TResult>(Func<T, TResult> callback) => List<TResult>.FromEnumerable(_items.Select(callback));
+    public List<T> Filter(Func<T, bool> predicate) => List<T>.FromEnumerable(_items.Where(predicate));
+    public List<TResult> FilterMap<TResult>(Func<T, Maybe<TResult>> callback) =>
+        List<TResult>.FromEnumerable(_items.Select(callback).Where(maybe => maybe.IsJust).Select(maybe => maybe.Match(value => value, () => throw new InvalidOperationException("FilterMap kept a Nothing."))));
+    /// <summary>
+    /// <c>List.map</c> in the functional form that the C# backend writes. It comes before the <c>Select</c> of LINQ, so the
+    /// result is an SDK list.
+    /// </summary>
+    public List<TResult> Select<TResult>(Func<T, TResult> selector) => Map(selector);
+    /// <summary><c>List.filter</c> in the functional form that the C# backend writes. The result is an SDK list.</summary>
+    public List<T> Where(Func<T, bool> predicate) => Filter(predicate);
+    /// <summary>
+    /// <c>List.foldl</c> in the functional form that the C# backend writes: <c>func state item</c> for each item, in order,
+    /// starting from <paramref name="seed"/>. The order of the arguments of <paramref name="func"/> is the order of LINQ.
+    /// </summary>
+    public TState Aggregate<TState>(TState seed, Func<TState, T, TState> func)
+    {
+        ArgumentNullException.ThrowIfNull(func);
+        var state = seed;
+        foreach (var item in _items) state = func(state, item);
+        return state;
+    }
+    /// <summary>Folds from the left: <c>step item state</c> for each item, in order, starting from <paramref name="initial"/>.</summary>
+    public TState Foldl<TState>(Func<T, Func<TState, TState>> step, TState initial)
+    {
+        ArgumentNullException.ThrowIfNull(step);
+        var state = initial;
+        foreach (var item in _items) state = step(item)(state);
+        return state;
+    }
     public List<T> Append(List<T> right) => new(_items.AddRange(right._items));
     public Maybe<T> Head() => Length == 0 ? Maybe<T>.Nothing : Maybe<T>.Just(_items[0]);
     public Maybe<List<T>> Tail() => Length == 0 ? Maybe<List<T>>.Nothing : Maybe<List<T>>.Just(new(_items.RemoveAt(0)));
@@ -35,6 +68,12 @@ public sealed class List<T> : IReadOnlyList<T>, IEquatable<List<T>>, ISdkValue, 
     public override int GetHashCode() { var hash = new HashCode(); foreach (var item in _items) hash.Add(ValueSemantics.Hash(item)); return hash.ToHashCode(); }
     public static bool operator ==(List<T>? left, List<T>? right) => left is null ? right is null : left.Equals(right);
     public static bool operator !=(List<T>? left, List<T>? right) => !(left == right);
+    /// <summary>Compares with the Morphir order: item by item, then by length, with ordinal strings. Null is not a value.</summary>
+    public int CompareTo(List<T>? other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        return ((IComparableSequence)this).CompareSequence(other);
+    }
     IEnumerable<object> IComparableSequence.ComparableItems => _items.Select(x => (object)x!);
     int IComparableSequence.CompareSequence(IComparableSequence other)
     {

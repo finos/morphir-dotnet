@@ -236,3 +236,4 @@ let tests =
 
         testList "cases" [ for case in cases -> testCase case.Name (fun () -> run case) ]
     ]
+    |> testLabel "PlatformSpecific"

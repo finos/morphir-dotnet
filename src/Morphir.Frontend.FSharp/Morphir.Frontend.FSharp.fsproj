@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
         <RootNamespace>Morphir.Frontend.FSharp</RootNamespace>
         <Description>The in-process F# source frontend for morphir compile: a hermetic F# compiler service edge, checked match evidence, admission, planning and lowering into Morphir IR.</Description>
         <PackageReleaseNotes>### Added

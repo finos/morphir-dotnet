@@ -1,0 +1,83 @@
+{
+  "formatVersion": "3.1.0",
+  "name": "invoice",
+  "def": {
+    "access": "Public",
+    "value": [
+      "TypeAliasDefinition",
+      [],
+      [
+        "Record",
+        {
+          "slot": 3
+        },
+        [
+          {
+            "name": [
+              "amount"
+            ],
+            "tpe": [
+              "Reference",
+              {
+                "slot": 4
+              },
+              [
+                [
+                  [
+                    "morphir"
+                  ],
+                  [
+                    "s",
+                    "d",
+                    "k"
+                  ]
+                ],
+                [
+                  [
+                    "basics"
+                  ]
+                ],
+                [
+                  "int"
+                ]
+              ],
+              []
+            ]
+          },
+          {
+            "name": [
+              "currency"
+            ],
+            "tpe": [
+              "Reference",
+              {
+                "slot": 5
+              },
+              [
+                [
+                  [
+                    "morphir"
+                  ],
+                  [
+                    "s",
+                    "d",
+                    "k"
+                  ]
+                ],
+                [
+                  [
+                    "string"
+                  ]
+                ],
+                [
+                  "string"
+                ]
+              ],
+              []
+            ]
+          }
+        ]
+      ]
+    ]
+  }
+}

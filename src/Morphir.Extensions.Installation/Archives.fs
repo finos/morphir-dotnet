@@ -288,7 +288,7 @@ module internal ArchiveChecks =
     // TarReader materializes PAX/GNU payloads internally. Inspect their 512-byte headers before returning bytes
     // to it, so a declared multi-megabyte extension header is refused before allocation. Effective names still
     // come from TarReader, after it has interpreted GNU long names and PAX overrides.
-    type TarHeaders(input: Stream) =
+    type TarHeaders(input: Stream, maxEntries: int) =
         inherit ReadProxy(input)
         let header = Array.zeroCreate<byte> 512
         let mutable headerOffset = 512
@@ -360,9 +360,9 @@ module internal ArchiveChecks =
                             entryCount
                             + 1
 
-                        if entryCount > InstallationLimits.MaxArchiveEntries then
+                        if entryCount > maxEntries then
                             limit
-                                "Archive exceeds 1024 entries, including PAX/GNU metadata headers."
+                                $"Archive exceeds {maxEntries} entries, including PAX/GNU metadata headers."
 
                         let size = tarNumber header
                         let extension = List.contains (char header[156]) [ 'x'; 'g'; 'L'; 'K' ]
@@ -396,9 +396,11 @@ module internal ArchiveChecks =
         Directory: bool
         Length: int64
         Compressed: int64
+        DataStart: int64
+        Crc: uint32
     }
 
-    let zipRecords (input: Stream) =
+    let zipRecordsWithPolicy (input: Stream) package =
         let tailOffset =
             max
                 0L
@@ -440,10 +442,16 @@ module internal ArchiveChecks =
 
         let mutable count = int64 (u16 tail (endAt + 10))
         let mutable central = int64 (u32 tail (endAt + 16))
+        let mutable centralSize = int64 (u32 tail (endAt + 12))
+
+        let mutable centralEnd =
+            tailOffset
+            + int64 endAt
 
         if
             count = 65535L
             || central = int64 UInt32.MaxValue
+            || centralSize = int64 UInt32.MaxValue
         then
             let locator =
                 readAt
@@ -464,6 +472,23 @@ module internal ArchiveChecks =
                 unsafe "Invalid ZIP64 locator."
 
             let record = readAt input (number (u64 locator 8)) 56
+            centralEnd <- number (u64 locator 8)
+
+            if
+                package
+                && (number (u64 record 4) < 44L
+                    || centralEnd
+                       + 12L
+                       + number (u64 record 4)
+                       <> tailOffset
+                          + int64 endAt
+                          - 20L
+                    || u64 record 24
+                       <> u64 record 32)
+            then
+                Operations.fail
+                    "package.zip_header_mismatch"
+                    "ZIP64 end records have inconsistent extents or counts."
 
             if
                 u32 record 0
@@ -477,9 +502,32 @@ module internal ArchiveChecks =
 
             count <- number (u64 record 32)
             central <- number (u64 record 48)
+            centralSize <- number (u64 record 40)
 
-        if count > int64 InstallationLimits.MaxArchiveEntries then
+        if
+            count > int64 (
+                if package then
+                    4096
+                else
+                    InstallationLimits.MaxArchiveEntries
+            )
+        then
             limit "Archive exceeds 1024 entries."
+
+        if
+            package
+            && (central
+                + centralSize
+                <> centralEnd
+                || u16 tail (endAt + 8)
+                   <> u16 tail (endAt + 10))
+        then
+            Operations.fail
+                "package.zip_header_mismatch"
+                "ZIP central directory extent or entry count differs."
+
+        let centralStart = central
+        let mutable nextLocal = 0L
 
         let names = Names()
 
@@ -511,7 +559,7 @@ module internal ArchiveChecks =
 
                 let spelling = Encoding.ASCII.GetString name
                 let directory = spelling.EndsWith '/'
-                let normalized = names.Add(spelling, directory)
+                let normalized = if package then spelling else names.Add(spelling, directory)
                 let attributes = u32 fixedHeader 38
 
                 let mode =
@@ -520,7 +568,9 @@ module internal ArchiveChecks =
                     &&& 0xF000u
 
                 if
-                    mode <> 0u
+                    (not package
+                     || fixedHeader[5] = 3uy)
+                    && mode <> 0u
                     && mode
                        <> (if directory then 0x4000u else 0x8000u)
                 then
@@ -585,6 +635,14 @@ module internal ArchiveChecks =
                             local <- next ()
 
                     if
+                        package
+                        && tag = 0x7075
+                    then
+                        Operations.fail
+                            "package.zip_unsupported"
+                            "Unicode path extras are not portable package paths."
+
+                    if
                         (tag = 0x000D
                          && length > 12)
                         || (tag = 0x756E
@@ -647,6 +705,155 @@ module internal ArchiveChecks =
                     + int64 localName.Length
                     + int64 (u16 localHeader 28)
 
+                if package then
+                    let flags = u16 fixedHeader 8
+                    let method = u16 fixedHeader 10
+
+                    if
+                        flags
+                        &&& 0x41
+                        <> 0
+                        || (method
+                            <> 0
+                            && method
+                               <> 8)
+                    then
+                        Operations.fail
+                            "package.zip_unsupported"
+                            "Encrypted or unsupported ZIP compression."
+
+                    if
+                        local
+                        <> nextLocal
+                    then
+                        Operations.fail
+                            "package.zip_header_mismatch"
+                            "ZIP has a prefix, gap, overlap or reordered local data."
+
+                    let localExtra =
+                        readAt
+                            input
+                            (local
+                             + 30L
+                             + int64 localName.Length)
+                            (u16 localHeader 28)
+
+                    let mutable at = 0
+                    let mutable localSize = int64 (u32 localHeader 22)
+                    let mutable localCompressed = int64 (u32 localHeader 18)
+
+                    while at < localExtra.Length do
+                        if at + 4 > localExtra.Length then
+                            Operations.fail "package.zip_header_mismatch" "Truncated local extra."
+
+                        let tag, length = u16 localExtra at, u16 localExtra (at + 2)
+
+                        if
+                            at
+                            + 4
+                            + length > localExtra.Length
+                        then
+                            Operations.fail
+                                "package.zip_header_mismatch"
+                                "Truncated local extra payload."
+
+                        if tag = 0x7075 then
+                            Operations.fail "package.zip_unsupported" "Unicode local path extra."
+
+                        if tag = 1 then
+                            let mutable offset = at + 4
+
+                            let next () =
+                                if
+                                    offset + 8 > at
+                                                 + 4
+                                                 + length
+                                then
+                                    Operations.fail
+                                        "package.zip_header_mismatch"
+                                        "Truncated local ZIP64 sizes."
+
+                                let result = number (u64 localExtra offset)
+                                offset <- offset + 8
+                                result
+
+                            if localSize = int64 UInt32.MaxValue then
+                                localSize <- next ()
+
+                            if localCompressed = int64 UInt32.MaxValue then
+                                localCompressed <- next ()
+
+                        at <-
+                            at
+                            + 4
+                            + length
+
+                    let dataEnd =
+                        dataStart
+                        + compressed
+
+                    if
+                        flags
+                        &&& 8 = 0
+                    then
+                        if
+                            u32 localHeader 14
+                            <> u32 fixedHeader 16
+                            || localSize
+                               <> size
+                            || localCompressed
+                               <> compressed
+                        then
+                            Operations.fail
+                                "package.zip_header_mismatch"
+                                "Local CRC or size differs from central directory."
+
+                        nextLocal <- dataEnd
+                    else
+                        let wide =
+                            size
+                            >= int64 UInt32.MaxValue
+                            || compressed
+                               >= int64 UInt32.MaxValue
+                            || u32 localHeader 22 = UInt32.MaxValue
+
+                        let first = readAt input dataEnd 4
+                        let signed = u32 first 0 = 0x08074B50u
+
+                        let start =
+                            dataEnd
+                            + (if signed then 4L else 0L)
+
+                        let descriptor = readAt input start (if wide then 20 else 12)
+
+                        let descriptorCompressed =
+                            if wide then
+                                number (u64 descriptor 4)
+                            else
+                                int64 (u32 descriptor 4)
+
+                        let descriptorSize =
+                            if wide then
+                                number (u64 descriptor 12)
+                            else
+                                int64 (u32 descriptor 8)
+
+                        if
+                            u32 descriptor 0
+                            <> u32 fixedHeader 16
+                            || descriptorCompressed
+                               <> compressed
+                            || descriptorSize
+                               <> size
+                        then
+                            Operations.fail
+                                "package.zip_header_mismatch"
+                                "ZIP data descriptor differs from central directory."
+
+                        nextLocal <-
+                            start
+                            + int64 descriptor.Length
+
                 if
                     compressed > central
                                  - dataStart
@@ -665,8 +872,25 @@ module internal ArchiveChecks =
                     Directory = directory
                     Length = size
                     Compressed = compressed
+                    DataStart = dataStart
+                    Crc = u32 fixedHeader 16
                 }
         |]
+        |> fun records ->
+            if
+                package
+                && (nextLocal
+                    <> centralStart
+                    || central
+                       <> centralEnd)
+            then
+                Operations.fail
+                    "package.zip_header_mismatch"
+                    "ZIP contains hidden data outside its records."
+
+            records
+
+    let zipRecords input = zipRecordsWithPolicy input false
 
     let tarHeaderIsValid (bytes: byte array) =
         if
@@ -897,7 +1121,7 @@ module internal ArchiveChecks =
                         unsupported ()
                     // A seekless prefix reader keeps gzip byte/ratio accounting on the actual input stream.
                     use replay = new Prefix(first, expanded)
-                    use guarded = new TarHeaders(replay)
+                    use guarded = new TarHeaders(replay, InstallationLimits.MaxArchiveEntries)
                     use archive = new TarReader(guarded, true)
                     let names = Names()
                     let mutable reading = true
@@ -979,6 +1203,99 @@ module internal ArchiveChecks =
         finally
             for snapshot in snapshots do
                 snapshot.Dispose()
+
+    /// The entries of a tar.gz package by the package policy of a ZIP package (zipRecordsWithPolicy with package):
+    /// at most 4096 entries, here including PAX/GNU metadata headers; only regular files and directories; ASCII names
+    /// as written, which the package reader checks, so "./" names are allowed; the same 1 GiB expansion, ratio and
+    /// 256 MiB entry bounds; and no inspection of a resource as a nested archive.
+    let tarPackageRecords (source: Stream) (ct: CancellationToken) =
+        source.Position <- 0L
+        let mutable total = 0L
+
+        let remaining () =
+            InstallationLimits.MaxArchiveBytes
+            - total
+
+        let charge count =
+            total <-
+                total
+                + int64 count
+
+            if total > InstallationLimits.MaxArchiveBytes then
+                limit "Package expansion, including metadata and padding, exceeds 1 GiB."
+
+        use counted = new Counted(source)
+        use gzip = new GZipStream(counted, CompressionMode.Decompress, true)
+        use expanded = new Expanded(gzip, counted, ct, remaining, charge)
+        let first = Array.zeroCreate<byte> 512
+        let mutable read = 0
+
+        while read < 512 do
+            let count = expanded.Read(first, read, 512 - read)
+
+            if count = 0 then
+                unsupported ()
+
+            read <-
+                read
+                + count
+
+        if not (tarHeaderIsValid first) then
+            unsupported ()
+
+        use replay = new Prefix(first, expanded)
+        use guarded = new TarHeaders(replay, 4096)
+        use archive = new TarReader(guarded, true)
+        let records = ResizeArray<ArchiveEntryInfo>()
+        let mutable reading = true
+
+        while reading do
+            ct.ThrowIfCancellationRequested()
+
+            match archive.GetNextEntry(false) with
+            | null -> reading <- false
+            | entry when entry.EntryType = TarEntryType.GlobalExtendedAttributes -> ()
+            | entry ->
+                let directory = entry.EntryType = TarEntryType.Directory
+
+                if
+                    not directory
+                    && entry.EntryType <> TarEntryType.RegularFile
+                    && entry.EntryType <> TarEntryType.V7RegularFile
+                then
+                    unsafe $"Not a regular tar entry: {entry.Name}"
+
+                if
+                    entry.Name
+                    |> Seq.exists (fun c -> c > '\u007F')
+                then
+                    unsafe "Non-ASCII tar entry."
+
+                if entry.Length > InstallationLimits.MaxArtifactBytes then
+                    limit $"Tar entry exceeds 256 MiB: {entry.Name}"
+
+                records.Add(ArchiveEntryInfo(entry.Name, entry.Length, directory))
+
+        let buffer = Array.zeroCreate<byte> (64 * 1024)
+
+        while guarded.Read(buffer, 0, buffer.Length)
+              <> 0 do
+            ()
+
+        let mutable draining = true
+
+        while draining do
+            let count = expanded.Read(buffer, 0, buffer.Length)
+
+            if count = 0 then
+                draining <- false
+            elif
+                buffer[0 .. count - 1]
+                |> Array.exists ((<>) 0uy)
+            then
+                unsafe "Data follows the end of the tar archive."
+
+        records.ToArray()
 
     let inspect (source: Stream) (ct: CancellationToken) =
         inspectWithExpansionLimit source ct InstallationLimits.MaxArchiveBytes

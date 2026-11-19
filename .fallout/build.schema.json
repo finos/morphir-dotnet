@@ -27,15 +27,21 @@
         "BuildE2ETests",
         "BuildProtoPlugin",
         "Check",
+        "CheckBuildMachine",
         "CheckMorphirup",
+        "CheckNativeAotHost",
         "CI",
+        "CIGate",
         "CILint",
+        "CIPlan",
+        "CIRequest",
         "CITest",
         "Clean",
         "CleanProtoPlugin",
         "Compile",
         "CreateGitHubRelease",
         "DevWorkflow",
+        "FlattenReleaseAssets",
         "Format",
         "Lint",
         "MorphirupChecksums",
@@ -46,13 +52,16 @@
         "PackPlatformTarballs",
         "PackRelease",
         "PackTool",
+        "PackWindowsToolchain",
         "Precommit",
+        "PrepareExtensionProcessPackage",
         "PrepareRelease",
         "ProbeMorphirNative",
         "PublishAll",
         "PublishCliTool",
         "PublishExecutable",
         "PublishExtensionTools",
+        "PublishFSharpBackendProcess",
         "PublishFSharpFrontendProcess",
         "PublishLibs",
         "PublishLocalAll",
@@ -65,14 +74,13 @@
         "Restore",
         "Test",
         "TestAll",
+        "TestAot",
         "TestBuild",
         "TestE2E",
         "TestExtensionInstallationAot",
-        "TestMepAot",
-        "TestMorphirupAot",
-        "TestMyriadJsonAot",
-        "TestMyriadPackages",
-        "TestProtoPlugin"
+        "TestProtoPlugin",
+        "TestScripts",
+        "WindowsToolchainChecksums"
       ]
     },
     "Verbosity": {
@@ -158,6 +166,15 @@
           "type": "string",
           "description": "NuGet API key for publishing"
         },
+        "BuildNodes": {
+          "type": "integer",
+          "format": "int32",
+          "description": "MSBuild nodes for Restore and Compile; 0 uses one node for each processor - Default is 0"
+        },
+        "CiOs": {
+          "type": "string",
+          "description": "CIPlan: the os input of a manual run (auto, linux, full, or a comma-separated list of windows and macos)"
+        },
         "Configuration": {
           "type": "string",
           "description": "Configuration to build - Default is 'Release'"
@@ -172,11 +189,31 @@
         },
         "ExecutableType": {
           "type": "string",
-          "description": "Executable type for E2E tests: aot, trimmed, untrimmed, tool or all (those four); native-aot, self-contained, framework-dependent or dotnet-tool (a packaged release profile); or offerings (all four packaged)"
+          "description": "Target of TestE2E, a value of MORPHIR_TEST_TARGET: dev, aot, trimmed, untrimmed, native-aot, self-contained, framework-dependent, dotnet-tool or executable (with MORPHIR_TEST_EXECUTABLE and MORPHIR_TEST_HOST); or tool (the development build with the tool host), all (aot, trimmed, untrimmed and tool) or offerings (the four packaged offerings)"
+        },
+        "ExtensionArchive": {
+          "type": "string",
+          "description": "Existing whole-folder archive for package metadata preparation"
+        },
+        "ExtensionEntryPoint": {
+          "type": "string",
+          "description": "Portable entry-point path in the published process folder"
+        },
+        "ExtensionPackageOutput": {
+          "type": "string",
+          "description": "New directory for release.json and the canonical package manifest"
         },
         "ExtensionProcessesDir": {
           "type": "string",
           "description": "Output directory for self-contained extension process folders and archives"
+        },
+        "ExtensionPublishedFolder": {
+          "type": "string",
+          "description": "Complete published process folder for package metadata preparation"
+        },
+        "ExtensionReleaseTemplate": {
+          "type": "string",
+          "description": "Existing release descriptor with actual provider identity and claims"
         },
         "Global": {
           "type": "boolean",
@@ -224,6 +261,13 @@
           "type": "string",
           "description": "Folder for the morphirup release assets and their checksum file"
         },
+        "ReleaseAssetSources": {
+          "type": "array",
+          "description": "Folders of downloaded platform outputs that FlattenReleaseAssets copies into the release assets folder",
+          "items": {
+            "type": "string"
+          }
+        },
         "ReleaseDir": {
           "type": "string",
           "description": "Output directory for release profile artifacts"
@@ -244,13 +288,47 @@
           "type": "string",
           "description": "Output directory for untrimmed single-file executables"
         },
+        "TestGroup": {
+          "type": "string",
+          "description": "Test: run only one purpose group of the black-box tests: integration, e2e, smoke or journey - Default is every suite"
+        },
         "TestHangTimeout": {
           "type": "string",
           "description": "Time with no test progress after which a Microsoft.Testing.Platform test run takes a hang dump and stops - Default is '10m'"
         },
+        "TestParallelism": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int32",
+          "description": "Test: the number of test assemblies that run at the same time - Default is half the processors, rounded up, from 1 to 4"
+        },
+        "TestScope": {
+          "type": "string",
+          "description": "Test: 'all' runs every test; 'platform' runs only the tests with the PlatformSpecific marker - Default is 'all'"
+        },
+        "ToolchainLocalDeveloper": {
+          "type": "boolean",
+          "description": "Produce an explicit local-developer candidate instead of release-checksum release input"
+        },
+        "ToolchainPlatforms": {
+          "type": "array",
+          "description": "The toolchain platforms that WindowsToolchainChecksums requires, for a run that produces only some; by default every one (win-x64, win-arm64, osx-arm64)",
+          "items": {
+            "type": "string"
+          }
+        },
         "ToolDllDir": {
           "type": "string",
           "description": "Output directory for tool DLLs"
+        },
+        "WindowsToolchainSources": {
+          "type": "array",
+          "description": "Folders of the downloaded Windows toolchain outputs that WindowsToolchainChecksums lists, one per Windows RID",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },

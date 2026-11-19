@@ -1,6 +1,5 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
-using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using FluentAssertions;
@@ -12,7 +11,9 @@ namespace Morphir.Tooling.Tests.Features.Generate;
 /// <summary>
 /// The F# backend option <c>format</c>: true (the default) formats with Fantomas when the host can, false writes the
 /// emitter's own text with LF line endings and one final LF. The report says what happened, and a host that cannot
-/// format under the default says so on stderr, never on stdout.
+/// format under the default says so on stderr, never on stdout. These tests use the generator of the product in the
+/// test process; the tests that need only the CLI are in
+/// tests/Morphir.BlackBox.Tests/Integration/GenerationFormatting.feature and GenerationExtension.feature.
 /// </summary>
 public class GenerateFormattingTests
 {
@@ -50,6 +51,7 @@ public class GenerateFormattingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task FormatFalseWritesLfTextWithOneFinalLfAndTheReportSaysOff()
     {
         using var sandbox = TestSandbox.Create("morphir-format-");
@@ -68,6 +70,7 @@ public class GenerateFormattingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TheDefaultFormatsUnderJitAndTheReportSaysApplied()
     {
         using var sandbox = TestSandbox.Create("morphir-format-");
@@ -76,6 +79,7 @@ public class GenerateFormattingTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task TheFormattingWarningIsForAHostThatCannotFormatOnly()
     {
         GenerateCommand.Warnings(Report("unavailable")).Should().ContainSingle()
@@ -91,14 +95,17 @@ public class GenerateFormattingTests
             { Formatting = formatting }), new());
     }
 
+    /// <summary>The native host of the development build, from the assembly metadata of Morphir.CliArtifacts.targets.</summary>
+    private static string NativeHost => Morphir.TestSupport.Drivers.CliArtifacts.OfDevelopmentBuild(typeof(GenerateFormattingTests).Assembly)
+        .PathOf(Morphir.TestSupport.Drivers.MorphirHost.Native);
+
     /// <summary>
     /// Runs the JIT <c>morphir</c> with the runtime's dynamic-code feature switch off, the switch that is false
     /// under Native AOT, so the F# backend cannot run Fantomas as on the Native AOT host.
     /// </summary>
     private static async Task<ChildProcessResult> RunWithoutDynamicCode(TestSandbox sandbox, params string[] arguments)
     {
-        var configuration = typeof(GenerateFormattingTests).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
-        var bin = Path.Combine(GenerateSteps.RepositoryRoot(), "src", "Morphir", "bin", configuration, "net10.0");
+        var bin = Path.GetDirectoryName(NativeHost)!;
         var runtimeConfig = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(bin, "morphir.runtimeconfig.json")))!;
         var runtimeOptions = runtimeConfig["runtimeOptions"]!.AsObject();
         if (runtimeOptions["configProperties"] is not JsonObject properties)
@@ -107,7 +114,7 @@ public class GenerateFormattingTests
         var custom = sandbox.PathOf("no-dynamic-code.runtimeconfig.json");
         await File.WriteAllTextAsync(custom, runtimeConfig.ToJsonString());
 
-        var start = ChildProcess.StartInfo("dotnet", ["exec", "--runtimeconfig", custom, Path.Combine(bin, "morphir.dll"), .. arguments]);
+        var start = ChildProcess.StartInfo("dotnet", ["exec", "--runtimeconfig", custom, NativeHost, .. arguments]);
         start.WorkingDirectory = sandbox.Work;
         sandbox.Apply(start);
         return await ChildProcess.RunAsync(start, TimeSpan.FromMinutes(2));
@@ -143,15 +150,14 @@ public class GenerateFormattingTests
     /// <summary>Runs the JIT <c>morphir</c> of this configuration as a child process.</summary>
     private static async Task<ChildProcessResult> RunCli(TestSandbox sandbox, params string[] arguments)
     {
-        var configuration = typeof(GenerateFormattingTests).Assembly.GetCustomAttribute<AssemblyConfigurationAttribute>()!.Configuration;
-        var bin = Path.Combine(GenerateSteps.RepositoryRoot(), "src", "Morphir", "bin", configuration, "net10.0");
-        var start = ChildProcess.StartInfo("dotnet", ["exec", Path.Combine(bin, "morphir.dll"), .. arguments]);
+        var start = ChildProcess.StartInfo("dotnet", ["exec", NativeHost, .. arguments]);
         start.WorkingDirectory = sandbox.Work;
         sandbox.Apply(start);
         return await ChildProcess.RunAsync(start, TimeSpan.FromMinutes(2));
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task WithFormatFalseThePublisherWritesTheFrozenBytesOfTheToolchainCaseForTheBuiltInAndTheGuest()
     {
         using var sandbox = TestSandbox.Create("morphir-format-case-");
@@ -166,7 +172,7 @@ public class GenerateFormattingTests
 
         var guest = Path.Combine(AppContext.BaseDirectory, "morphir-fsharp-backend.dll");
         var run = await RunCli(sandbox, "generate", "--input", ir, "--target", "fsharp", "--output", sandbox.PathOf("guest"),
-            "--extension", guest, "--option", "format=false", "--json");
+            "--extension", guest, "--option", "format=false", "--json=document");
         run.ExitCode.Should().Be(0, run.CombinedOutput);
         var report = JsonNode.Parse(run.StandardOutput)!;
         report["backendTransport"]!.GetValue<string>().Should().Be("mep");
@@ -174,56 +180,12 @@ public class GenerateFormattingTests
     }
 
     [Test]
-    public async Task OnAHostThatCannotFormatTheDefaultWarnsOnStderrOnlyAndTheJsonReportSaysUnavailable()
-    {
-        using var sandbox = TestSandbox.Create("morphir-format-host-");
-        var run = await RunWithoutDynamicCode(sandbox, "generate", "--input", Model, "--target", "fsharp", "--output", sandbox.PathOf("gen"), "--json");
-
-        run.ExitCode.Should().Be(0, run.CombinedOutput);
-        run.StandardError.Should().Contain("warning:").And.Contain("format=false");
-        run.StandardOutput.Should().NotContain("warning", "warnings never go to stdout");
-        JsonNode.Parse(run.StandardOutput)!["formatting"]!.GetValue<string>().Should().Be("unavailable");
-    }
-
-    [Test]
-    public async Task OnAHostThatCannotFormatTheDefaultWritesTheBytesOfFormatFalse()
-    {
-        using var sandbox = TestSandbox.Create("morphir-format-host-");
-        foreach (var (name, model) in new[] { ("daily-rate", Model), ("case", Path.Combine(CaseDirectory, "expected", "ir-4.0.0.json")) })
-        {
-            var run = await RunWithoutDynamicCode(sandbox, "generate", "--input", model, "--target", "fsharp", "--output", sandbox.PathOf("default-" + name), "--json");
-            run.ExitCode.Should().Be(0, run.CombinedOutput);
-            JsonNode.Parse(run.StandardOutput)!["formatting"]!.GetValue<string>().Should().Be("unavailable");
-
-            var off = await RunWithoutDynamicCode(sandbox, "generate", "--input", model, "--target", "fsharp", "--output", sandbox.PathOf("off-" + name),
-                "--option", "format=false", "--json");
-            off.ExitCode.Should().Be(0, off.CombinedOutput);
-            var artifacts = JsonNode.Parse(off.StandardOutput)!["artifacts"]!.AsArray().Select(item => item!.GetValue<string>()).ToArray();
-            artifacts.Should().NotBeEmpty();
-            foreach (var path in artifacts)
-                (await File.ReadAllBytesAsync(sandbox.PathOf("default-" + name, path)))
-                    .Should().Equal(await File.ReadAllBytesAsync(sandbox.PathOf("off-" + name, path)), $"{name}/{path}");
-        }
-    }
-
-    [Test]
-    public async Task OnAHostThatCannotFormatHumanModeKeepsStdoutToTheArtifactPaths()
-    {
-        using var sandbox = TestSandbox.Create("morphir-format-host-");
-        var run = await RunWithoutDynamicCode(sandbox, "generate", "--input", Model, "--target", "fsharp", "--output", sandbox.PathOf("gen"));
-
-        run.ExitCode.Should().Be(0, run.CombinedOutput);
-        run.StandardError.Should().Contain("warning:");
-        run.StandardOutput.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Should().OnlyContain(line => line.EndsWith(".fs", StringComparison.Ordinal), "stdout lists only the artifacts");
-    }
-
-    [Test]
+    [Category("PlatformSpecific")]
     public async Task WithFormatFalseAHostThatCannotFormatWritesTheSameBytesAsJitAndDoesNotWarn()
     {
         using var sandbox = TestSandbox.Create("morphir-format-host-");
         var run = await RunWithoutDynamicCode(sandbox, "generate", "--input", Model, "--target", "fsharp", "--output", sandbox.PathOf("nodyn"),
-            "--option", "format=false", "--json");
+            "--option", "format=false", "--json=document");
         run.ExitCode.Should().Be(0, run.CombinedOutput);
         run.StandardError.Should().NotContain("warning");
         JsonNode.Parse(run.StandardOutput)!["formatting"]!.GetValue<string>().Should().Be("off");

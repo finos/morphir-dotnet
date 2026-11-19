@@ -7,6 +7,7 @@ open System
 open System.IO
 open System.Text.RegularExpressions
 open Expecto
+open Morphir.Files
 open Morphir.IR.Pipeline
 open Morphir.Ion
 open Morphir.Ion.Tests
@@ -167,6 +168,7 @@ let tests =
                 (filesOf "v3-specs"
                  |> List.exists (fun file -> file.StartsWith "deps/"))
                 "Specification dependencies"
+        |> testLabel "PlatformSpecific"
 
         testCase "The escaped names tree has the names the draft's table lists"
         <| fun () ->
@@ -187,6 +189,7 @@ let tests =
                     "deps/acme/_xml/@/manifest/module.ion"
                 ] do
                 Expect.contains files expected "The reference CLI wrote the file"
+        |> testLabel "PlatformSpecific"
 
         testCase "A tree read from disk through lazy streams reads the same"
         <| fun () ->
@@ -215,6 +218,7 @@ let tests =
             finally
                 if Directory.Exists directory then
                     Directory.Delete(directory, true)
+        |> testLabel "PlatformSpecific"
 
         testList "A disk-loaded tree runs through a pipeline with stream sources" [
             for name, classic in
@@ -284,6 +288,7 @@ let tests =
                         if Directory.Exists directory then
                             Directory.Delete(directory, true)
         ]
+        |> testLabel "PlatformSpecific"
 
         testCase "The vendored trees match their recorded hashes"
         <| fun () ->
@@ -332,4 +337,5 @@ let tests =
                         |> Array.contains key
 
                 Expect.isTrue exists $"A row names something that exists: {key}"
+        |> testLabel "PlatformSpecific"
     ]

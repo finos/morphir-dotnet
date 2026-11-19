@@ -560,6 +560,76 @@ let tests =
             Expect.isNonEmpty (errorsFor (obj [ "fsharp", obj [ "extension", ConfigValue.Integer 1L ] ])) "extension is a string"
             Expect.isNonEmpty (errorsFor (obj [ "fsharp", obj [ "extension", text " padded " ] ])) "extension has no surrounding space"
         }
+        test "the [codegen.csharp] table has the keys of the C# backend, and a malformed value is an error" {
+            let errorsFor (table: ConfigValue) =
+                let identity = source "codegen.toml" SourceRole.RootPrimary DocumentFormat.Toml
+
+                Resolver.resolve
+                    { DocumentDefaults.resolutionInput with
+                        Sources = [ supplied identity (obj [ "codegen", obj [ "csharp", table ] ]) ]
+                    }
+                |> fun result ->
+                    result.Diagnostics
+                    |> List.filter (fun d -> d.Severity = DiagnosticSeverity.Error)
+
+            Expect.isEmpty
+                (errorsFor (
+                    obj [
+                        "extension", text "csharp-guest"
+                        "profile", text "functional"
+                        "traversal", text "loop"
+                        "tail_recursion", text "local-function"
+                        "float_equality", text "ieee"
+                        "namespace", text "Acme.Generated"
+                        "language_version", ConfigValue.Integer 15L
+                    ]
+                ))
+                "each key with a valid value"
+
+            for key, value in [
+                "profile", text "declarative"
+                "traversal", text "sideways"
+                "tail_recursion", text "loop-function"
+                "float_equality", text "maybe"
+                "float_equality", ConfigValue.Boolean true
+                "namespace", text ""
+                "language_version", text "15"
+                "optimize", ConfigValue.Boolean true
+            ] do
+                Expect.isNonEmpty (errorsFor (obj [ key, value ])) $"[codegen.csharp] {key} = {value} is an error"
+        }
+        test "the [frontend.csharp] table has the keys of the C# frontend, and a malformed value is an error" {
+            let errorsFor (table: ConfigValue) =
+                let identity = source "frontend.toml" SourceRole.RootPrimary DocumentFormat.Toml
+
+                Resolver.resolve
+                    { DocumentDefaults.resolutionInput with
+                        Sources = [ supplied identity (obj [ "frontend", obj [ "csharp", table ] ]) ]
+                    }
+                |> fun result ->
+                    result.Diagnostics
+                    |> List.filter (fun d -> d.Severity = DiagnosticSeverity.Error)
+
+            Expect.isEmpty
+                (errorsFor (
+                    obj [
+                        "extension", text "csharp-guest"
+                        "project_file", text "Model.csproj"
+                        "loop_lowering", text "recursion"
+                    ]
+                ))
+                "each key with a valid value"
+
+            Expect.isEmpty (errorsFor (obj [ "loop_lowering", text "traversal" ])) "traversal is a value"
+
+            for key, value in [
+                "loop_lowering", text "sideways"
+                "loop_lowering", ConfigValue.Boolean true
+                "traversal", text "functional"
+                "model_project", ConfigValue.Boolean true
+            ] do
+                Expect.isNonEmpty (errorsFor (obj [ key, value ])) $"[frontend.csharp] {key} = {value} is an error"
+        }
         test "every extension table may declare abi and sha256 (CFG-1)" {
             let resolve table =
                 let identity = source "extensions.toml" SourceRole.RootPrimary DocumentFormat.Toml

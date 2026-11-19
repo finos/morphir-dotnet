@@ -1,5 +1,5 @@
 using System.Collections.Immutable;
-using Morphir.IR.Pipeline;
+using Morphir.Files;
 
 namespace Morphir.Tooling.Features.Generate;
 
@@ -19,7 +19,7 @@ public sealed class GenerationPublisher : IGenerationPublisher
         {
             output = Path.TrimEndingDirectorySeparator(Path.GetFullPath(policy.OutputDirectory));
             var source = Path.TrimEndingDirectorySeparator(Path.GetFullPath(input.Path));
-            if (Contains(output, source) || Contains(source, output))
+            if (ContainsPath(output, source) || ContainsPath(source, output))
                 return ValueTask.FromResult(Fail(GenerationFailureKind.Invocation, "input-output-overlap", "Input and output paths must not overlap."));
             if (LinkedPath(output) is not null || LinkedPath(source) is not null)
                 return ValueTask.FromResult(Fail(GenerationFailureKind.Invocation, "unsafe-publication-path", "Input/output paths and their ancestors must not be links."));
@@ -60,10 +60,10 @@ public sealed class GenerationPublisher : IGenerationPublisher
             manifest.ResultValue.ToImmutableArray(), receipt.Written.ToImmutableArray(), receipt.Unchanged.ToImmutableArray(), receipt.Removed.ToImmutableArray())));
     }
 
-    private static bool Contains(string parent, string child) => parent.Equals(child, StringComparison.OrdinalIgnoreCase) ||
+    internal static bool ContainsPath(string parent, string child) => parent.Equals(child, StringComparison.OrdinalIgnoreCase) ||
         child.StartsWith(Path.EndsInDirectorySeparator(parent) ? parent : parent + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
 
-    private static string? LinkedPath(string path)
+    internal static string? LinkedPath(string path)
     {
         for (var current = new DirectoryInfo(Path.GetFullPath(path)); current is not null; current = current.Parent)
         {

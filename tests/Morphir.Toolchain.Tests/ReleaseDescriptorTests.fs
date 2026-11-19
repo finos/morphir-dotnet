@@ -128,6 +128,7 @@ let toolReleaseTests =
         testCase "a descriptor over 1 MiB is refused before it is parsed" (fun () ->
             refusedWith ReaderCode.InvalidDocument "" (ToolReleaseDocument.read (Array.create (1024 * 1024 + 1) (byte ' '))))
     ]
+    |> testLabel "PlatformSpecific"
 
 /// The claim set of the first artifact of an extension release descriptor of the signed repository.
 let private claimsOf (target: string) =
@@ -202,6 +203,7 @@ let claimSetTests =
 
             Expect.isOk (readClaims edited) "read")
     ]
+    |> testLabel "PlatformSpecific"
 
 let private frontendDescriptor () = valueOf "extensions/fsharp-frontend/0.6.0/release.json"
 let private readDescriptor (value: Value) = ExtensionReleaseDocument.read (bytesOf value)
@@ -224,6 +226,7 @@ let claimListTests =
                 | Ok claims -> check claims
                 | Error refusal -> failtestf "refused: %A" refusal)
     ]
+    |> testLabel "PlatformSpecific"
 [<Tests>]
 let extensionReleaseTests =
     testList "Extension release descriptors" [
@@ -318,6 +321,7 @@ let extensionReleaseTests =
         testCase "a descriptor over 1 MiB is refused before it is parsed" (fun () ->
             refusedWith ReaderCode.InvalidDocument "" (ExtensionReleaseDocument.read (Array.create (1024 * 1024 + 1) (byte ' '))))
     ]
+    |> testLabel "PlatformSpecific"
 
 /// A synthetic authenticated tool-release target for the resolver's own cases.
 let private release (version: string) (channels: string list) (status: string) (cli: string) (platforms: (string * string) list) =
@@ -436,6 +440,8 @@ let linearTests =
             match withinBudget 5.0 "reading 6,000 artifacts" (fun () -> ToolReleaseDocument.read bytes) with
             | Ok release -> Expect.equal release.Artifacts.Length 6_000 "every artifact"
             | Error refusal -> failtestf "refused: %A" refusal)
+        // Under the budget of withinBudget: after the parallel tests, one at a time.
+        |> testSequenced
 
         testCase "two artifacts equal as parsed values, with their members in another order, are refused" (fun () ->
             let release = valueOf "releases/morphir-dotnet-native-aot/1.2.3.json"
@@ -443,6 +449,7 @@ let linearTests =
             let reordered = match first with Value.Object members -> Value.Object(List.rev members) | other -> other
             let edited = setAt [ "artifacts" ] (Value.Array [ first; reordered ]) release
             refusedWith ReaderCode.InconsistentDocument "artifacts[1]" (ToolReleaseDocument.read (bytesOf edited)))
+        |> testLabel "PlatformSpecific"
 
         testCase "a repeated filename among many artifacts is refused at the repetition" (fun () ->
             let descriptor = valueOf "extensions/fsharp-frontend/0.6.0/release.json"
@@ -451,6 +458,7 @@ let linearTests =
             let artifacts = [ for i in 1..300 -> named i ] @ [ named 1 ]
             let edited = setAt [ "artifacts" ] (Value.Array artifacts) descriptor
             refusedWith ReaderCode.InconsistentDocument "artifacts[300].filename" (readDescriptor edited))
+        |> testLabel "PlatformSpecific"
 
         testCase "the resolver selects among 60,000 releases in linear time" (fun () ->
             let targets = Map.ofList [ for i in 1..60_000 -> release $"1.0.{i}" [ "stable" ] "active" ">=0.4.0" windows ]
@@ -462,4 +470,5 @@ let linearTests =
             match resolved with
             | Ok selection -> Expect.equal selection.Version.Text "1.0.60000" "the greatest"
             | Error refusal -> failtestf "refused: %A" refusal)
+        |> testSequenced
     ]

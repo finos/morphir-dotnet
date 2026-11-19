@@ -9,6 +9,7 @@ namespace Morphir.Configuration.IO.Tests;
 public sealed class WorkspaceMigrationPolicyReviewTests
 {
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments(false)]
     [Arguments(true)]
     public void NewlyAdoptedProjectsCannotGainUnrelatedExistingWorkspaceSettings(bool classic)
@@ -44,6 +45,7 @@ public sealed class WorkspaceMigrationPolicyReviewTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     [Arguments(".")]
     [Arguments("**")]
     public void SuppliedExclusionsPreventRootConversionWithoutRemovingItsIdentity(string pattern)

@@ -14,6 +14,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// <c>extension.runtime_unavailable</c> before the module is read, exit 3 (a refusal before any request), and no stdout
 /// bytes.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class ExtensionWorkerRuntimeTests
 {
     private sealed class CountingLoader(WasmRuntimeAvailability answer, string platform = "win-arm64")
@@ -35,6 +36,7 @@ public sealed class ExtensionWorkerRuntimeTests
         ("platform_unsupported", "linux-musl-x64"),
         ("engine_missing", "win-arm64"),
         ("engine_load_failed", "linux-x64"),
+        ("win_x64_trap_unsupported", "win-x64"),
     ];
 
     private static WasmRuntimeAvailability Unavailable(string reason) => WasmRuntimeAvailability.UnavailableBecause(reason switch
@@ -42,6 +44,7 @@ public sealed class ExtensionWorkerRuntimeTests
         "platform_unsupported" => WasmRuntimeUnavailableReason.PlatformUnsupported,
         "engine_missing" => WasmRuntimeUnavailableReason.EngineMissing,
         "engine_load_failed" => WasmRuntimeUnavailableReason.EngineLoadFailed,
+        "win_x64_trap_unsupported" => WasmRuntimeUnavailableReason.WinX64TrapUnsupported,
         _ => throw new ArgumentOutOfRangeException(nameof(reason), reason, null),
     });
 
@@ -154,6 +157,17 @@ public sealed class ExtensionWorkerRuntimeTests
 
         var run = await Run(arguments, loader.Loader);
 
+        if (firstFailing == "module" && WasmRuntime.Process.Platform == "win-x64")
+        {
+            run.ExitCode.Should().Be(ExtensionWorker.Refused, run.Describe());
+            run.Stdout.Should().BeEmpty();
+            run.Single("refused").Text("error.code").Should().Be("extension.runtime_unavailable");
+            run.Single("refused").Text("error.message").Should().Contain("win_x64_trap_unsupported");
+            run.EventNames.Should().NotContain("fault", "the process safety refusal precedes module I/O");
+            loader.Probes.Should().Be(1);
+            return;
+        }
+
         run.ExitCode.Should().Be(exitCode, run.Describe());
         run.Stdout.Should().BeEmpty();
         if (code is null)
@@ -184,6 +198,9 @@ public sealed class ExtensionWorkerRuntimeTests
     [Test]
     public async Task AWorkerWithTheRuntimeServesAsBefore()
     {
+        if (WasmRuntime.Process.Platform == "win-x64")
+            Skip.Test("win_x64_trap_unsupported: guest worker execution is unavailable; #609.");
+
         var loader = new CountingLoader(WasmRuntimeAvailability.Available);
 
         var run = await WorkerHarness.RunAsync(WorkerHarness.Arguments(WorkerHarness.Corpus("extism-echo")),

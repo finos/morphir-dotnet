@@ -1,0 +1,17 @@
+{
+  "enabledPlugins": {
+    "dotnet-msbuild@dotnet-agent-skills": true,
+    "dotnet11@dotnet-agent-skills": true,
+    "dotnet-upgrade@dotnet-agent-skills": true,
+    "dotnet-nuget@dotnet-agent-skills": true,
+    "dotnet-diag@dotnet-agent-skills": true
+  },
+  "extraKnownMarketplaces": {
+    "dotnet-agent-skills": {
+      "source": {
+        "source": "github",
+        "repo": "dotnet/skills"
+      }
+    }
+  }
+}

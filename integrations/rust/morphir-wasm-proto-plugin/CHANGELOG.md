@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The plugin downloads the Morphir CLI from the finos/morphir releases (`https://github.com/finos/morphir/releases/download/v<version>/`),
+  the official place for Morphir releases. The plugin itself is still released here, as `plugin-v*`.
+
 ## [0.1.1] - 2025-12-19
 
 ### Added

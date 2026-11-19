@@ -1,0 +1,10 @@
+Total           ForEach  state=[total] declared=[o] flowsOut=[total] cfgBlocks=10 => List.foldl
+Notionals       ForEach  state=[] declared=[o] flowsOut=[] cfgBlocks=10 => List.map
+Large           ForEach  state=[] declared=[o] flowsOut=[] cfgBlocks=11 => List.filter
+LargeNotionals  ForEach  state=[] declared=[o] flowsOut=[] cfgBlocks=11 => List.filterMap
+SumAndCount     ForEach  state=[count,sum] declared=[o] flowsOut=[count,sum] cfgBlocks=10 => List.foldl (state is a tuple of 2)
+Factorial       While    state=[acc,n] declared=[] flowsOut=[acc] cfgBlocks=6 => LetRecursion (parameters: acc,n; exits: 0 break, 0 return)
+FirstIndexOver  For      state=[i] declared=[i] flowsOut=[] cfgBlocks=8 => LetRecursion (parameters: i; exits: 0 break, 1 return)
+Counted         ForEach  state=[total] declared=[o] flowsOut=[total] cfgBlocks=10 => REFUSE (writes counter)
+UntilNegative   ForEach  state=[total] declared=[o] flowsOut=[total] cfgBlocks=11 => LetRecursion (parameters: total; exits: 1 break, 0 return)
+Fill            For      state=[i] declared=[i] flowsOut=[] cfgBlocks=5 => REFUSE (writes array element)

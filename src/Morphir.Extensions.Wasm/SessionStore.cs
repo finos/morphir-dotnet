@@ -145,7 +145,31 @@ public sealed class SessionStore : IDisposable
     public ExtismModule Module { get; }
 
     /// <summary>The bounds of this session.</summary>
-    public SessionLimits Limits { get; }
+    public SessionLimits Limits { get; private set; }
+
+    internal string? ApplyModelAccessLimits(int frameBytes, int guestStateBytes)
+    {
+        var ceiling = Math.Min(Limits.MemoryCeilingBytes, guestStateBytes);
+        var memory = Memory;
+        if (memory.GuestBytes > ceiling || memory.KernelBytes > ceiling)
+        {
+            return $"The current WASM memory exceeds maxGuestStateBytes ({ceiling} bytes).";
+        }
+
+        if (!hostFunctions.TryRestrictVariableBytes(ceiling))
+        {
+            return $"The Extism variable store exceeds maxGuestStateBytes ({ceiling} bytes).";
+        }
+
+        store.SetLimits(memorySize: ceiling, tableElements: null, instances: null, tables: null, memories: null);
+        Limits = Limits with
+        {
+            MemoryCeilingBytes = ceiling,
+            RequestFrameBytes = Math.Min(Limits.RequestFrameBytes, frameBytes),
+            ResponseFrameBytes = Math.Min(Limits.ResponseFrameBytes, frameBytes),
+        };
+        return null;
+    }
 
     /// <summary>The guest's instance in this session.</summary>
     public Instance Guest => guest ?? throw new InvalidOperationException("The guest is not instantiated.");
@@ -220,8 +244,12 @@ public sealed class SessionStore : IDisposable
     /// <c>proc_exit(0)</c>, which the contract makes a successful call), <see cref="HandleOutcome.Failed"/> when
     /// the call failed, and <see cref="HandleOutcome.NotRun"/> when an earlier call had already failed.
     /// </returns>
-    public HandleOutcome CallHandle(ReadOnlySpan<byte> input, CancellationToken cancellation = default)
+    public HandleOutcome CallHandle(ReadOnlySpan<byte> input, CancellationToken cancellation = default) =>
+        CallHandle(input, cancellation, responseFrameLimit: null, out _);
+
+    internal HandleOutcome CallHandle(ReadOnlySpan<byte> input, CancellationToken cancellation, long? responseFrameLimit, out int outputBytes)
     {
+        outputBytes = 0;
         if (Failure is { } ended)
         {
             return new HandleOutcome.NotRun(ended);
@@ -252,13 +280,13 @@ public sealed class SessionStore : IDisposable
             }
 
             var returnCode = handle.Invoke() is int code ? code : 0;
-            return Complete(returnCode);
+            return Complete(returnCode, responseFrameLimit, out outputBytes);
         }
         catch (WasmtimeException exited) when (Cause<GuestExited>(exited) is { Code: 0 })
         {
             // WASI proc_exit(0): the contract's policy makes the call succeed, with the output set before it
             // (wasi.procExitZero).
-            return Complete(0);
+            return Complete(0, responseFrameLimit, out outputBytes);
         }
         catch (WasmtimeException failure)
         {
@@ -271,16 +299,33 @@ public sealed class SessionStore : IDisposable
         }
     }
 
-    HandleOutcome Complete(int returnCode)
+    HandleOutcome Complete(int returnCode, long? responseFrameLimit, out int outputBytes)
     {
         var errorHandle = CallI64("error_get");
         var error = errorHandle == 0 ? [] : Read(errorHandle, CallI64("length", errorHandle));
         var outputOffset = CallI64("output_offset");
         var outputLength = CallI64("output_length");
-        var output = outputLength == 0 ? [] : Read(outputOffset, outputLength);
+        if (returnCode == 0 && errorHandle == 0 && outputLength > 0 && responseFrameLimit is long limit)
+        {
+            var frameBytes = WasmChannel.FrameBytes(outputLength);
+            if (frameBytes > limit)
+            {
+                callClock.Stop();
+                throw new ResponseFrameTooLarge(frameBytes, limit, Memory);
+            }
+        }
+        outputBytes = checked((int)outputLength);
+        // The channel reports guest failures before interpreting output, so it only needs the length.
+        var discardOutput = responseFrameLimit.HasValue && (returnCode != 0 || errorHandle != 0);
+        var output = outputBytes == 0 || discardOutput ? [] : Read(outputOffset, outputBytes);
         callClock.Stop();
         return new HandleOutcome.Completed(
             new HandleCallResult(returnCode, outputOffset, output, errorHandle, error), FuelUsed, callClock.Elapsed, Memory);
+    }
+
+    internal sealed class ResponseFrameTooLarge(long frameBytes, long limit, MemoryUse memory) : Exception
+    {
+        internal WasmChannelFailure.ResponseOverLimit Failure { get; } = new(frameBytes, limit, memory);
     }
 
     /// <summary>

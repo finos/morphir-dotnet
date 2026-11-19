@@ -96,7 +96,7 @@ producer identity stays distinct from the later packaging-only PR head.
 
 ## Reproduction and remaining acceptance
 
-The [user walkthrough](../../content/docs/getting-started/local-morphirup-candidate.md)
+The [user walkthrough](../../content/docs/contributing/local-morphirup-candidate.md)
 shows consumer commands, official producer targets and the opt-in actual-native
 E2E test. Producer builds require the repository's pinned SDK and native compiler;
 consumer installation and file-input compilation do not require system .NET.

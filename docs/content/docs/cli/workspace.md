@@ -14,7 +14,7 @@ Use it when a repository contains several classic projects, including when the r
 ## Synopsis
 
 ```text
-morphir workspace migrate [<directory>] [--include <pattern>] [--exclude <pattern>] [--dry-run] [--json]
+morphir workspace migrate [<directory>] [--include <pattern>] [--exclude <pattern>] [--dry-run] [--json[=stream|document]]
 ```
 
 The supplied directory, or the current directory when omitted, bounds the inventory and resulting edits. The command does not walk ancestors to find more projects to adopt.
@@ -33,7 +33,7 @@ morphir workspace migrate ./repo
 | `--include <pattern>` | Refine candidates using a root-relative pattern; repeatable |
 | `--exclude <pattern>` | Exclude candidate paths using a root-relative pattern; repeatable |
 | `--dry-run` | Preview the complete workspace and project plan without writing |
-| `--json` | Emit a structured plan/result and diagnostics |
+| `--json[=stream\|document]` | Emit a structured plan/result and diagnostics: a stream that ends with one `completed` record, or with `=document` one document. See [Machine output](_index.md#machine-output) |
 
 Inventory stays within the selected root, skips discovered links, stops at nested declared workspaces, and excludes version-control, dependency, and build-output directories. Existing workspace exclusions remain effective.
 

@@ -5,6 +5,7 @@ using FluentAssertions;
 namespace Morphir.Configuration.IO.Tests;
 
 [Category("WorkspaceMigrationDiscovery")]
+[Category("PlatformSpecific")]
 public sealed class WorkspaceMigrationDiscoveryTests
 {
     [Test]

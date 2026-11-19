@@ -12,6 +12,7 @@ namespace Morphir.Tooling.Tests.Features.Extensions;
 /// The probe of the WASM runtime (task 4.2 of <c>add-wasm-extension-host</c>, design RPT-1): each unavailable reason,
 /// decided from what starting the engine did, and the process value that probes at most once, on first need.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class WasmRuntimeProbeTests
 {
     private const string Supported = "win-arm64";
@@ -29,6 +30,39 @@ public sealed class WasmRuntimeProbeTests
     [Test]
     public void AnEngineThatStartsIsAvailable() =>
         WasmRuntimeProbe.Probe(Supported, () => { }, Absent).Should().Be(WasmRuntimeAvailability.Available);
+
+    [Test]
+    public void WindowsX64RefusesBeforeLoadingTheEngineOrInspectingItsLibrary()
+    {
+        var availability = WasmRuntimeProbe.Probe("win-x64",
+            () => throw new InvalidOperationException("must not load an unsafe engine"),
+            () => throw new InvalidOperationException("must not inspect the library"));
+
+        availability.CanRunModules.Should().BeFalse();
+        availability.Match(() => "available", reason => reason.WireValue)
+            .Should().Be("win_x64_trap_unsupported");
+    }
+
+    [Test]
+    [Arguments("win-x64")]
+    [Arguments("win-arm64")]
+    public void AnAvailableRuntimeCannotOverrideWindowsX64SafetyBeforeModuleIo(string claimedPlatform)
+    {
+        if (claimedPlatform != "win-x64" && WasmRuntime.Process.Platform != "win-x64")
+            Skip.Test("This row checks the actual Windows x64 process against a misidentified runtime.");
+        using var sandbox = TestSandbox.Create();
+        var runtime = new WasmRuntime(claimedPlatform, () => WasmRuntimeAvailability.Available);
+        var host = TestHosts.Unprofiled(MorphirHost.Native, ReleaseVersion.Create("0.4.0"));
+        var loader = new WasmModuleLoader(runtime, host);
+
+        var outcome = loader.Load(new WasmModuleSource("python", sandbox.PathOf("does-not-exist.wasm")));
+
+        var failure = outcome.Should().BeOfType<WasmModuleLoad.Failed>().Subject.Failure
+            .Should().BeOfType<WasmModuleFailure.RuntimeUnavailable>().Subject;
+        failure.Platform.Should().Be("win-x64");
+        failure.Reason.Should().Be(WasmRuntimeUnavailableReason.WinX64TrapUnsupported);
+        failure.Code.Should().Be("extension.runtime_unavailable");
+    }
 
     [Test]
     [Arguments("linux-musl-x64")]
@@ -79,6 +113,8 @@ public sealed class WasmRuntimeProbeTests
     {
         var platform = WasmRuntimeProbe.CurrentPlatform;
         var system = platform[..platform.LastIndexOf('-')];
+        if (platform == "win-x64")
+            Skip.Test("win_x64_trap_unsupported: the engine is refused before loading; #609.");
         var other = WasmRuntimeProbe.EnginePlatforms.FirstOrDefault(candidate =>
             candidate != platform && candidate[..candidate.LastIndexOf('-')] == system);
         if (other is null || WasmRuntimeProbe.EngineLibraryFileName(other) is not { } name)
@@ -159,7 +195,9 @@ public sealed class WasmRuntimeProbeTests
     public void ThisProcessIsOnAPlatformWithAnEngineAndItsEngineIsAvailable()
     {
         WasmRuntimeProbe.EnginePlatforms.Should().Contain(WasmRuntime.Process.Platform);
-        WasmRuntime.Process.Availability.Should().Be(WasmRuntimeAvailability.Available);
+        WasmRuntime.Process.Availability.Should().Be(WasmRuntime.Process.Platform == "win-x64"
+            ? Unavailable(WasmRuntimeUnavailableReason.WinX64TrapUnsupported)
+            : WasmRuntimeAvailability.Available);
     }
 
     // --- First need, once ---------------------------------------------------------------------------------------

@@ -100,3 +100,4 @@ let tests =
                 let pinned = document.RootElement.GetProperty("properties").GetProperty("schemaVersion").GetProperty("const")
                 Expect.equal (pinned.GetString()) ContractVersion.current (Path.GetFileName schema))
     ]
+    |> testLabel "PlatformSpecific"

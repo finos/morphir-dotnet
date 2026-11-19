@@ -1,0 +1,73 @@
+name: "Dependency caches"
+
+# The one writer of the dependency caches that the pull request workflows read.
+#
+# GitHub gives a pull request the caches of its own branch and of the default branch. A cache that a pull request
+# saves is visible to that pull request only. When each pull request saved its own caches, they filled the 10 GB
+# limit of the repository and no pull request got a warm cache from another. So the pull request jobs restore only
+# (development.yml), and this workflow saves the caches on main when a file that selects the dependencies changes.
+#
+# A cache is an accelerator, not an input: a job with no cache downloads the same packages. Run this workflow
+# manually to make the caches again after GitHub removes them (it removes a cache that no run read for 7 days).
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - "**/packages.lock.json"
+            - "Directory.Packages.props"
+            - "NuGet.config"
+            - "global.json"
+            - "mise.toml"
+            - ".github/workflows/dependency-caches.yml"
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+# A newer push to main supersedes the run before it.
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    # ~/.nuget/packages for each operating system of the test matrix. The key is the key that the lint and test jobs
+    # of development.yml restore. No restore-keys: a new key starts from an empty folder, so the cache holds only the
+    # packages of the current lock files and does not grow with each dependency update.
+    nuget:
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ubuntu-latest, windows-latest, macOS-latest]
+        runs-on: ${{ matrix.os }}
+        timeout-minutes: 20
+        steps:
+            - uses: actions/checkout@v6.1.0
+              with:
+                  persist-credentials: false
+            - name: Setup .NET SDK
+              uses: actions/setup-dotnet@v5
+              with:
+                  global-json-file: global.json
+            - name: Cache the NuGet packages
+              id: cache
+              uses: actions/cache@v5
+              with:
+                  path: ~/.nuget/packages
+                  key: ${{ runner.os }}-nuget-v3-${{ hashFiles('**/packages.lock.json') }}
+            # On a hit the cache for these lock files exists, and the action saves nothing.
+            - name: Restore dependencies
+              if: steps.cache.outputs.cache-hit != 'true'
+              shell: bash
+              run: ./build.sh --target Restore
+
+    # The mise tools of the OpenSpec job of development.yml. The step is the same as in that job, so the action
+    # makes the same cache key; here it also saves the cache.
+    mise:
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0

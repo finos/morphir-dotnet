@@ -224,7 +224,7 @@ module ReceiptDocument =
             return kind, status, workflow
         }
 
-    let private componentChecks (n: Node) : Read<ComponentChecks> =
+    let internal componentChecks (n: Node) : Read<ComponentChecks> =
         result {
             let! checks = array check n
 

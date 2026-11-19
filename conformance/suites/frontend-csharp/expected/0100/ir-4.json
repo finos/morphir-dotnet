@@ -1,0 +1,67 @@
+{
+  "formatVersion": 4,
+  "distribution": {
+    "Library": {
+      "packageName": "acme/demo",
+      "dependencies": {},
+      "def": {
+        "modules": {
+          "records": {
+            "Public": {
+              "types": {
+                "car": {
+                  "Public": {
+                    "TypeAliasDefinition": {
+                      "typeParams": [],
+                      "typeExp": {
+                        "Record": {
+                          "attributes": {
+                            "source": {
+                              "startLine": 2,
+                              "startColumn": 1,
+                              "endLine": 2,
+                              "endColumn": 51
+                            }
+                          },
+                          "fields": {
+                            "plate": {
+                              "Reference": {
+                                "attributes": {
+                                  "source": {
+                                    "startLine": 2,
+                                    "startColumn": 26,
+                                    "endLine": 2,
+                                    "endColumn": 32
+                                  }
+                                },
+                                "fqname": "morphir/SDK:string#string"
+                              }
+                            },
+                            "seats": {
+                              "Reference": {
+                                "attributes": {
+                                  "source": {
+                                    "startLine": 2,
+                                    "startColumn": 40,
+                                    "endLine": 2,
+                                    "endColumn": 43
+                                  }
+                                },
+                                "fqname": "morphir/SDK:basics#int"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "values": {}
+            }
+          }
+        }
+      }
+    }
+  }
+}

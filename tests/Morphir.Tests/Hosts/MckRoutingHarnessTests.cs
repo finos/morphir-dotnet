@@ -13,6 +13,7 @@ namespace Morphir.Tests.Hosts;
 /// of their own, so a diagnostic that goes back to the shared gate fails here within that deadline instead of hanging.
 /// </summary>
 [NotInParallel]
+[Category("PlatformSpecific")]
 public sealed class MckRoutingHarnessTests
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(20);

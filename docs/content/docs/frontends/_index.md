@@ -11,4 +11,5 @@ code.
 
 | Language | Frontend | Status |
 | --- | --- | --- |
+| C# | [C# frontend](csharp/) | In process in every offering, the Native AOT `morphir` included. See [compile]({{< relref "/docs/cli/compile" >}}). |
 | F# | [F# frontend](fsharp/) | In process in `dotnet-morphir compile`, and as the MEP guest `morphir-fsharp-frontend` for `morphir compile --extension`. See [compile]({{< relref "/docs/cli/compile" >}}). |

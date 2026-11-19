@@ -42,10 +42,10 @@
       "type": "array",
       "items": {
         "type": "string",
-        "pattern": "^[a-z][a-z0-9]*$"
+        "pattern": "^([a-z][a-z0-9]*|[0-9]+)$"
       },
       "minItems": 1,
-      "description": "A Name is a list of lowercase words that represents a human-readable identifier.\nExample: [\"value\", \"in\", \"u\", \"s\", \"d\"] can be rendered as valueInUSD or value_in_USD.\n"
+      "description": "A Name is a list of lowercase words that represents a human-readable identifier.\nEach word is either a lowercase letter followed by lowercase letters/digits,\nor a standalone numeric sequence.\n"
     },
     "Path": {
       "type": "array",
@@ -81,8 +81,15 @@
       "description": "Fully-Qualified Name that provides a globally unique identifier for any type or value.\nConsists of [packagePath, modulePath, localName].\n"
     },
     "Attributes": {
-      "type": "object",
-      "description": "Attributes can be attached to various nodes in the IR for extensibility.\nWhen no additional information is needed, an empty object {} is used.\n"
+      "oneOf": [
+        {
+          "type": "object"
+        },
+        {
+          "$ref": "#/definitions/Type"
+        }
+      ],
+      "description": "Attributes can be attached to various nodes in the IR for extensibility.\nIn many distributions (like those from morphir-elm), expressions are annotated\nwith their inferred types in the attributes field.\n"
     },
     "AccessControlled": {
       "type": "object",

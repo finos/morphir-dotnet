@@ -1,13 +1,14 @@
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.FSharp.Collections;
-using Morphir.IR.Pipeline;
+using Morphir.Files;
 using Morphir.Tooling.Features.Generate;
 
 using Morphir.TestSupport;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
+[Category("PlatformSpecific")]
 public sealed class GenerationPublisherTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "morphir-publisher-" + Guid.NewGuid().ToString("N"));

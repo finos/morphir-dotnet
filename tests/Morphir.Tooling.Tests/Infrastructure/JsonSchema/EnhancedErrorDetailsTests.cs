@@ -58,6 +58,7 @@ public class EnhancedErrorDetailsTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ValidateAsync_ShouldIncludeFoundValue_ForMissingRequiredField()
     {
         // Arrange - missing formatVersion field
@@ -75,6 +76,7 @@ public class EnhancedErrorDetailsTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ValidateAsync_ShouldIncludeExpectedValue_ForMissingRequiredField()
     {
         // Arrange - missing formatVersion field
@@ -92,6 +94,7 @@ public class EnhancedErrorDetailsTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ValidateAsync_ShouldNotIncludeLineAndColumn_WhenNotAvailable()
     {
         // Arrange

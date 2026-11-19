@@ -45,3 +45,4 @@ let tests =
                 File.Delete received
         }
     ]
+    |> testLabel "PlatformSpecific"

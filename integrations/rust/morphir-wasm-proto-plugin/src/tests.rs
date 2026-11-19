@@ -100,6 +100,23 @@ mod tests {
             };
             assert_eq!(rid, "win-x64");
         }
+
+        // The mapping that download_prebuilt uses.
+        #[test]
+        fn test_platform_rid_maps_every_released_host() {
+            use crate::platform_rid;
+            assert_eq!(platform_rid(HostOS::Linux, HostArch::X64), Some("linux-x64"));
+            assert_eq!(platform_rid(HostOS::Linux, HostArch::Arm64), Some("linux-arm64"));
+            assert_eq!(platform_rid(HostOS::MacOS, HostArch::X64), Some("osx-x64"));
+            assert_eq!(platform_rid(HostOS::MacOS, HostArch::Arm64), Some("osx-arm64"));
+            assert_eq!(platform_rid(HostOS::Windows, HostArch::X64), Some("win-x64"));
+            assert_eq!(platform_rid(HostOS::Windows, HostArch::Arm64), Some("win-arm64"));
+        }
+
+        #[test]
+        fn test_platform_rid_refuses_an_unsupported_host() {
+            assert_eq!(crate::platform_rid(HostOS::Windows, HostArch::X86), None);
+        }
     }
 
     // Tests for URL generation
@@ -109,12 +126,12 @@ mod tests {
             let version = "1.0.0";
             let rid = "linux-x64";
             let download_url = format!(
-                "https://github.com/finos/morphir-dotnet/releases/download/v{}/morphir-{}-v{}.tar.gz",
+                "https://github.com/finos/morphir/releases/download/v{}/morphir-{}-v{}.tar.gz",
                 version, rid, version
             );
             assert_eq!(
                 download_url,
-                "https://github.com/finos/morphir-dotnet/releases/download/v1.0.0/morphir-linux-x64-v1.0.0.tar.gz"
+                "https://github.com/finos/morphir/releases/download/v1.0.0/morphir-linux-x64-v1.0.0.tar.gz"
             );
         }
 
@@ -199,7 +216,7 @@ mod tests {
             let version = "1.0.0-rc.1";
             let rid = "linux-x64";
             let download_url = format!(
-                "https://github.com/finos/morphir-dotnet/releases/download/v{}/morphir-{}-v{}.tar.gz",
+                "https://github.com/finos/morphir/releases/download/v{}/morphir-{}-v{}.tar.gz",
                 version, rid, version
             );
             assert!(download_url.contains("1.0.0-rc.1"));

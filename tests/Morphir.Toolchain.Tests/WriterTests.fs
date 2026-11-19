@@ -61,3 +61,4 @@ let tests =
             Expect.equal (request.Host, request.Toolset.Preset) (host, preset) "the same request"
             Expect.sequenceEqual bytes (Fixtures.bytes "request/approved.toml") "the approved example's exact bytes")
     ]
+    |> testLabel "PlatformSpecific"

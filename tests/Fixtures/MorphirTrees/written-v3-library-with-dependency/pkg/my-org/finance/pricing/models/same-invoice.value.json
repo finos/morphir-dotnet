@@ -1,0 +1,86 @@
+{
+  "formatVersion": "3.1.0",
+  "name": "same-invoice",
+  "def": {
+    "access": "Public",
+    "value": {
+      "inputTypes": [
+        [
+          [
+            "invoice"
+          ],
+          {
+            "slot": 9
+          },
+          [
+            "Reference",
+            {
+              "slot": 10
+            },
+            [
+              [
+                [
+                  "my",
+                  "org"
+                ],
+                [
+                  "finance"
+                ]
+              ],
+              [
+                [
+                  "pricing"
+                ],
+                [
+                  "models"
+                ]
+              ],
+              [
+                "invoice"
+              ]
+            ],
+            []
+          ]
+        ]
+      ],
+      "outputType": [
+        "Reference",
+        {
+          "slot": 11
+        },
+        [
+          [
+            [
+              "my",
+              "org"
+            ],
+            [
+              "finance"
+            ]
+          ],
+          [
+            [
+              "pricing"
+            ],
+            [
+              "models"
+            ]
+          ],
+          [
+            "invoice"
+          ]
+        ],
+        []
+      ],
+      "body": [
+        "Variable",
+        {
+          "slot": 12
+        },
+        [
+          "invoice"
+        ]
+      ]
+    }
+  }
+}

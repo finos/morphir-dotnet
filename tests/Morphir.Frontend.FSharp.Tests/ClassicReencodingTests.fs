@@ -100,3 +100,4 @@ let tests =
                 Expect.equal actual.Diagnostics expected.Diagnostics $"{case.Id}: the diagnostics"
         }
     ]
+    |> testLabel "PlatformSpecific"

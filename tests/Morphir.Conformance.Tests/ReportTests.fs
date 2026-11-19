@@ -78,7 +78,10 @@ let private problems (result: Result<WasmHostReport, string list>) =
 
 [<Tests>]
 let tests =
-    testList "WASM host report and report check (task 1.5)" [
+    // PlatformSpecific: these tests use the real file system, the checkout or worker processes, so the platform
+    // scope of the Test target runs them on every operating system (docs/contributing/ci-os-matrix.md).
+    testLabel "PlatformSpecific"
+    <| testList "WASM host report and report check (task 1.5)" [
         // Spec "Report identity".
         test "The report identifies the runner, the corpus, the contract, the host and each module" {
             let node = JsonNode.Parse(Encoding.UTF8.GetString(bytes.Force())).AsObject()

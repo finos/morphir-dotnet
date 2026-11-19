@@ -1,0 +1,1468 @@
+// Copyright 2026 FINOS
+// SPDX-License-Identifier: Apache-2.0
+namespace Morphir.Lang.CSharp.Emit
+
+#if NETSTANDARD2_0
+open Morphir.Compat
+#endif
+
+open System
+open System.Collections.Generic
+open System.Globalization
+open Microsoft.CodeAnalysis
+open Microsoft.CodeAnalysis.CSharp
+open Microsoft.CodeAnalysis.CSharp.Syntax
+open Morphir.Lang.CSharp.Backend
+open Morphir.IR
+open TypeEmission
+open ValueLowering
+
+/// <summary>Writes the value definitions of a module as C# methods, from the typed lowering.</summary>
+module internal Values =
+    let private sdkRoot (name: string) = [ "Morphir"; "SDK"; "CSharp"; name ]
+
+    /// <summary>A type syntax used as the target of a member access: a name is an expression.</summary>
+    let private asExpression (t: TypeSyntax) : ExpressionSyntax = t :> ExpressionSyntax
+
+    /// <summary>The expression, in parentheses unless it is already a primary expression.</summary>
+    let private wrap (e: ExpressionSyntax) : ExpressionSyntax =
+        match e with
+        // A negative number is a primary expression only in parentheses: (T)-1 and -1.M() do not mean the value.
+        | :? LiteralExpressionSyntax as literal when literal.Token.Text.StartsWith "-" -> Cs.paren e
+        | :? IdentifierNameSyntax
+        | :? MemberAccessExpressionSyntax
+        | :? InvocationExpressionSyntax
+        | :? ParenthesizedExpressionSyntax
+        | :? ObjectCreationExpressionSyntax
+        | :? LiteralExpressionSyntax
+        | :? TupleExpressionSyntax
+        | :? ElementAccessExpressionSyntax
+        | :? TypeSyntax -> e
+        | _ -> Cs.paren e
+
+    /// <summary>A literal of the model as a C# expression.</summary>
+    let literal (ct: System.Threading.CancellationToken) (value: LiteralEmission.Literal) : ExpressionSyntax =
+        ct.ThrowIfCancellationRequested()
+        let double' = asExpression (Cs.keywordType SyntaxKind.DoubleKeyword)
+
+        match value with
+        | LiteralEmission.Bool flag -> Cs.boolLiteral flag
+        | LiteralEmission.Int number ->
+            SF.LiteralExpression(SyntaxKind.NumericLiteralExpression, SF.Literal(int number)) :> ExpressionSyntax
+        | LiteralEmission.Decimal number ->
+            SF.LiteralExpression(SyntaxKind.NumericLiteralExpression, SF.Literal number) :> ExpressionSyntax
+        | LiteralEmission.Float number when Double.IsNaN number -> Cs.access double' "NaN"
+        | LiteralEmission.Float number when Double.IsPositiveInfinity number -> Cs.access double' "PositiveInfinity"
+        | LiteralEmission.Float number when Double.IsNegativeInfinity number -> Cs.access double' "NegativeInfinity"
+        | LiteralEmission.Float number when number = 0.0 && BitConverter.DoubleToInt64Bits number < 0L ->
+            SF.PrefixUnaryExpression(
+                SyntaxKind.UnaryMinusExpression,
+                SF.LiteralExpression(SyntaxKind.NumericLiteralExpression, SF.Literal("0.0d", 0.0))
+            )
+            :> ExpressionSyntax
+        | LiteralEmission.Float number ->
+            let text = number.ToString("R", CultureInfo.InvariantCulture)
+            // The suffix keeps a whole number a double.
+            SF.LiteralExpression(SyntaxKind.NumericLiteralExpression, SF.Literal(text + "d", number)) :> ExpressionSyntax
+        | LiteralEmission.String text -> Cs.stringLiteral text
+        | LiteralEmission.Char c ->
+            SF.LiteralExpression(SyntaxKind.CharacterLiteralExpression, SF.Literal c) :> ExpressionSyntax
+
+    /// <summary>The state of the emission of one value definition.</summary>
+    type private Scope(context: Context, checkedValue: Checked) =
+        let used = HashSet<string>(StringComparer.Ordinal)
+
+        /// <summary>The local functions of the method: the C# name, the input shapes and the output shape.</summary>
+        member val Functions = Dictionary<string, Shape list * Shape>(StringComparer.Ordinal)
+
+        member _.Context = context
+        member _.Checked = checkedValue
+        /// <summary>The effective handling options of this value definition: the traversal form and the tail recursion form.</summary>
+        member _.Handling = context.Handling checkedValue.Top.Name
+        member _.Location = checkedValue.Top.Location
+        member _.Ct = context.Ct
+
+        /// <summary>A name for a local that no other local of the method has.</summary>
+        member _.Fresh(hint: string) : string =
+            let rec pick count =
+                let text = if count = 0 then hint else hint + "_" + string (count + 1)
+                if used.Add text then text else pick (count + 1)
+
+            pick 0
+
+        /// <summary>The C# name of a local of the model: camel case, and unique in the method.</summary>
+        member this.Local(name: Name) : string =
+            let (Name words) = name
+
+            let camel =
+                match words with
+                | [] -> "value"
+                | first :: rest ->
+                    let tail = rest |> List.map (fun w -> if w = "" then "" else w.Substring(0, 1).ToUpperInvariant() + w.Substring 1)
+                    let text = first.ToLowerInvariant() + String.concat "" tail
+                    if text.Length > 0 && Char.IsAsciiDigit text[0] then "_" + text else text
+
+            this.Fresh camel
+
+        member _.Type(shape: Shape) : TypeSyntax =
+            TypeSyntaxes.render context checkedValue.Top.Location checkedValue.Parameters Set.empty (checkedValue.CheckedType shape)
+
+        member _.Resolve(shape: Shape) : Shape = checkedValue.Resolve shape
+
+    type private Env = Map<Name, string>
+
+    /// <summary>The functions that a loop body calls as its last step: the state of each function and its parameters, and the state local when the loop has one.</summary>
+    type private LoopTargets = {
+        State: string option
+        Functions: Map<Name, int * string list>
+    }
+
+    /// <summary>The list functions of the transform table.</summary>
+    type private Traversal =
+        | MapTraversal
+        | FilterTraversal
+        | FilterMapTraversal
+        | FoldTraversal
+
+    /// <summary>A saturated call of a list function of the transform table, with its arguments.</summary>
+    let private traversalOf (value: Typed) : (Traversal * Typed list) option =
+        let rec spine (v: Typed) (acc: Typed list) =
+            match v.Node with
+            | TApply(f, x) -> spine f (x :: acc)
+            | _ -> v, acc
+
+        let head, args = spine value []
+
+        match head.Node with
+        | TSdk operation when operation.Module = "List" && List.length args = List.length operation.Inputs ->
+            match operation.Method with
+            | "Map" -> Some(MapTraversal, args)
+            | "Filter" -> Some(FilterTraversal, args)
+            | "FilterMap" -> Some(FilterMapTraversal, args)
+            | "Foldl" -> Some(FoldTraversal, args)
+            | _ -> None
+        | _ -> None
+
+    /// <summary>
+    /// The name of a parameter that the backend makes for a function that is not a lambda. No name of the model has the
+    /// character '#', so the name cannot hide a name of the model.
+    /// </summary>
+    let private madeName (hint: string) = Name [ "#" + hint ]
+
+    let private isMade (Name words) =
+        match words with
+        | [ word ] when word.StartsWith "#" -> true
+        | _ -> false
+
+    /// <summary>The lets at the start of a value, and the value after them.</summary>
+    let rec private splitLets (value: Typed) : (Name * Typed) list * Typed =
+        match value.Node with
+        | TLet(name, binding, rest) ->
+            let bindings, last = splitLets rest
+            (name, binding) :: bindings, last
+        | _ -> [], value
+
+    /// <summary>
+    /// The parameter and the body of a function of one parameter: the lambda, or a made parameter that the function is
+    /// applied to.
+    /// </summary>
+    let private unaryOf (f: Typed) (input: Shape) (output: Shape) : Name * Typed =
+        match f.Node with
+        | TLambda(name, _, body) -> name, body
+        | _ ->
+            let parameter = madeName "item"
+            parameter, { Type = output; Node = TApply(f, { Type = input; Node = TVariable parameter }) }
+
+    /// <summary>The step of a fold: the element and one state, or the element and a tuple of states.</summary>
+    type private FoldStep =
+        | OneState of element: Name * state: Name * body: Typed
+        | TupleState of element: Name * states: Name list * body: Typed
+
+    let private foldStepOf (f: Typed) (element: Shape) (state: Shape) : FoldStep option =
+        match f.Node with
+        | TLambda(x, _, { Node = TLambda(s, _, body) }) -> Some(OneState(x, s, body))
+        | TLambda(x, _, { Node = TPatternLambda({ Pattern = TTuplePattern items }, _, body) }) ->
+            let names = items |> List.choose (fun item -> match item.Pattern with TAs({ Pattern = TWild }, n) -> Some n | _ -> None)
+            if List.length names = List.length items then Some(TupleState(x, names, body)) else None
+        | TLambda _
+        | TPatternLambda _ -> None
+        | _ ->
+            let x = madeName "item"
+            let s = madeName "acc"
+            let partial = { Type = Arrow(state, state); Node = TApply(f, { Type = element; Node = TVariable x }) }
+            Some(OneState(x, s, { Type = state; Node = TApply(partial, { Type = state; Node = TVariable s }) }))
+
+    /// <summary>The assignment of new values to locals: one assignment, or one tuple assignment that computes all values first.</summary>
+    let private assignAll (locals: string list) (values: ExpressionSyntax list) : StatementSyntax =
+        let target, source =
+            match locals, values with
+            | [ local ], [ value ] -> Cs.id local :> ExpressionSyntax, value
+            | _ -> Cs.tuple (locals |> List.map (fun l -> Cs.id l :> ExpressionSyntax)), Cs.tuple values
+
+        SF.ExpressionStatement(SF.AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, target, source)) :> StatementSyntax
+
+    let private funcOf (inputs: TypeSyntax list) (output: TypeSyntax) : TypeSyntax =
+        Cs.globalGeneric [ "System"; "Func" ] (inputs @ [ output ])
+
+    /// <summary>A block that computes a value, called at once: the form of a statement-bodied expression.</summary>
+    let private immediately (output: TypeSyntax) (statements: StatementSyntax list) : ExpressionSyntax =
+        Cs.invoke
+            (Cs.access (Cs.newObject (funcOf [] output) [ Cs.lambdaNoArgs (Cs.block statements) ]) "Invoke")
+            []
+
+    let private caseType (scope: Scope) (candidate: Constructor) (arguments: Shape list) : TypeSyntax =
+        Cs.globalGeneric (TypeSyntaxes.caseSegments scope.Context candidate.Owner candidate.Case) (arguments |> List.map scope.Type)
+
+    let private comparer (scope: Scope) (shape: Shape) : ExpressionSyntax =
+        let rec go shape =
+            let comparers = asExpression (Cs.globalGeneric (sdkRoot "MorphirComparers") [])
+
+            match shape with
+            | Named(name, []) when sdk name = Some("basics", "int") -> Cs.access comparers "Int"
+            | Named(name, []) when sdk name = Some("basics", "float") -> Cs.access comparers "Float"
+            | Named(name, []) when sdk name = Some("char", "char") -> Cs.access comparers "Char"
+            | Named(name, []) when sdk name = Some("string", "string") -> Cs.access comparers "String"
+            | Named(name, [ item ]) when sdk name = Some("list", "list") -> Cs.invoke (Cs.access comparers "List") [ go item ]
+            | Product items when List.length items = 2 || List.length items = 3 ->
+                Cs.invoke (Cs.access comparers "Tuple") (List.map go items)
+            | _ ->
+                Admission.fail "unsupported-comparable" scope.Location "No structural SDK comparer exists for this key type."
+
+        go shape
+
+    /// <summary>The call of an SDK operation with its arguments.</summary>
+    let private sdkCall (scope: Scope) (operation: SdkMapping.Operation) (args: ExpressionSyntax list) : ExpressionSyntax =
+        let instance index inputs = Cs.invoke (Cs.access (wrap args[index]) operation.Method) inputs
+        let factory inputs = Cs.invoke (Cs.access (asExpression (scope.Type operation.Output)) operation.Method) inputs
+
+        match operation.Module, operation.Method with
+        | ("Basics" | "Decimal"), methodName ->
+            Cs.invoke (Cs.access (asExpression (Cs.globalGeneric (sdkRoot operation.Module) [])) methodName) args
+        | "List", "Singleton" -> factory args
+        | "List", "Foldl" -> instance 2 [ args[0]; args[1] ]
+        | "List", "Map"
+        | "List", "Filter"
+        | "List", "FilterMap"
+        | "Maybe", _
+        | "Result", _
+        | "List", "Cons" -> instance 1 [ args[0] ]
+        | "List", "Length" -> Cs.access (wrap args[0]) "Length"
+        | "List", "Head"
+        | "List", "Tail"
+        | "Dict", "ToList"
+        | "Set", "ToList" -> instance 0 []
+        | ("Dict" | "Set"), ("Empty" | "Singleton" | "FromEnumerable") ->
+            let key =
+                match scope.Resolve operation.Output with
+                | Named(_, key :: _) -> key
+                | _ -> Admission.fail "type-mismatch" scope.Location "A collection factory requires its concrete output type."
+
+            factory (args @ [ comparer scope key ])
+        | "Dict", "Get"
+        | "Dict", "Remove"
+        | "Set", "Insert"
+        | "Set", "Remove" -> instance 1 [ args[0] ]
+        | "Dict", "Insert"
+        | "Dict", "Update" -> instance 2 [ args[0]; args[1] ]
+        | _ -> instance 0 [ args[1] ]
+
+    /// <summary>A function value of the inputs and the output, which calls <paramref name="call"/> when all inputs are given.</summary>
+    let private curry (scope: Scope) (inputs: Shape list) (output: Shape) (call: ExpressionSyntax list -> ExpressionSyntax) : ExpressionSyntax =
+        match inputs with
+        | [] -> call []
+        | _ ->
+            let names = inputs |> List.map (fun _ -> scope.Fresh "arg")
+            let pairs = List.zip inputs names
+
+            // The output of the step for the last input is the output of the function; of an earlier step, a function.
+            let rec outputs (remaining: Shape list) =
+                match remaining with
+                | [] -> output
+                | input :: rest -> Arrow(input, outputs rest)
+
+            let rec loop (remaining: (Shape * string) list) =
+                match remaining with
+                | [] -> call (names |> List.map (fun n -> Cs.id n :> ExpressionSyntax))
+                | (input, name) :: rest ->
+                    let result = outputs (rest |> List.map fst)
+                    Cs.newObject (funcOf [ scope.Type input ] (scope.Type result)) [ Cs.lambda name (loop rest) ]
+
+            loop pairs
+
+    /// <summary>The names of the fields of the record that a record shape is written as, in the order of its declaration.</summary>
+    let private recordFieldsOf (scope: Scope) (shape: Shape) : Name list =
+        let resolved = scope.Resolve shape
+
+        match resolved with
+        | Fields _ ->
+            let owner, _ = recordTarget scope.Ct scope.Context.Catalog scope.Location (scope.Checked.CheckedType resolved)
+
+            match owner.Definition with
+            | Alias(Fields declared) -> declared |> List.map fst
+            | _ -> Admission.fail "type-mismatch" scope.Location "The selected record target is not a record."
+        | _ -> Admission.fail "type-mismatch" scope.Location "A closed record is required."
+
+    /// <summary>
+    /// The items in the order of the fields of the record that C# writes. Two aliases with the same fields share one
+    /// record, so the order of an alias can differ from the order of the record.
+    /// </summary>
+    let private inRecordOrder (scope: Scope) (fields: (Name * Shape) list) (items: 'item list) : 'item list =
+        let byName = List.zip (List.map fst fields) items |> Map.ofList
+        recordFieldsOf scope (Fields fields) |> List.map (fun name -> Map.find name byName)
+
+    /// <summary>The types of the fields of a constructor, the type that it builds, and how to build it from the values.</summary>
+    let private constructorParts (scope: Scope) (candidate: Constructor) (args: Shape list) =
+        let substitutions = List.zip candidate.Owner.Parameters args |> Map.ofList
+        let fields = candidate.Fields |> List.map (fun (name, shape) -> name, substitute scope.Ct substitutions shape)
+        let output = if candidate.IsRecord then Fields fields else Named(candidate.Owner.Name, args)
+
+        let build (values: ExpressionSyntax list) : ExpressionSyntax =
+            if candidate.IsRecord then
+                let declared = recordFieldsOf scope output
+
+                if List.map fst fields = declared then
+                    Cs.newObject (scope.Type output) values
+                else
+                    // The values are evaluated in the order of the alias, then given in the order of the record.
+                    let temporaries = List.map2 (fun (name, shape) value -> name, shape, scope.Local name, value) fields values
+                    let statements = temporaries |> List.map (fun (_, shape, temp, v) -> Cs.local (scope.Type shape) temp v)
+                    let ordered = inRecordOrder scope fields (temporaries |> List.map (fun (_, _, temp, _) -> Cs.id temp :> ExpressionSyntax))
+                    immediately (scope.Type output) (statements @ [ Cs.returns (Cs.newObject (scope.Type output) ordered) ])
+            elif candidate.Runtime.IsSome then
+                let target = Cs.access (asExpression (scope.Type output)) candidate.Runtime.Value
+                if List.isEmpty values then target else Cs.invoke target values
+            elif TypeSyntaxes.isUnion candidate.Owner then
+                Cs.cast (scope.Type output) (wrap (List.head values))
+            else
+                Cs.newObject (caseType scope candidate args) values
+
+        List.map snd fields, output, build
+
+    /// <summary>The pieces of a pattern for a switch expression, or none when the pattern needs the long form.</summary>
+    let rec private switchPattern (scope: Scope) (env: Env) (p: TypedPattern) : (PatternSyntax * Env) option =
+        scope.Ct.ThrowIfCancellationRequested()
+        let many (patterns: TypedPattern list) =
+            let rec go acc env remaining =
+                match remaining with
+                | [] -> Some(List.rev acc, env)
+                | item :: rest ->
+                    match switchPattern scope env item with
+                    | Some(converted, env') -> go (converted :: acc) env' rest
+                    | None -> None
+
+            go [] env patterns
+
+        let positional (subs: PatternSyntax list) =
+            SF.PositionalPatternClause(SF.SeparatedList<SubpatternSyntax>(subs |> List.map (fun s -> SF.Subpattern s)))
+
+        match p.Pattern with
+        | TWild
+        | TUnitPattern -> Some(SF.DiscardPattern() :> PatternSyntax, env)
+        | TAs({ Pattern = TWild }, name) ->
+            let local = scope.Local name
+            Some(SF.VarPattern(SF.SingleVariableDesignation(Cs.token local)) :> PatternSyntax, Map.add name local env)
+        | TAs(inner, name) ->
+            switchPattern scope env inner
+            |> Option.map (fun (converted, env') ->
+                let local = scope.Local name
+                SF.BinaryPattern(SyntaxKind.AndPattern, converted, SF.VarPattern(SF.SingleVariableDesignation(Cs.token local))) :> PatternSyntax,
+                Map.add name local env')
+        | TLiteralPattern(LiteralEmission.Float _) -> None
+        | TLiteralPattern lit -> Some(SF.ConstantPattern(literal scope.Ct lit) :> PatternSyntax, env)
+        | TTuplePattern items ->
+            many items
+            |> Option.map (fun (subs, env') -> SF.RecursivePattern().WithPositionalPatternClause(positional subs) :> PatternSyntax, env')
+        | TEmptyList
+        | THeadTail _ -> None
+        | TConstructorPattern(candidate, _, _) when candidate.Runtime.IsSome -> None
+        | TConstructorPattern(candidate, args, items) ->
+            if candidate.IsRecord then
+                let fields = candidate.Fields |> List.map (fun (name, shape) -> name, substitute scope.Ct (List.zip candidate.Owner.Parameters args |> Map.ofList) shape)
+
+                many items
+                |> Option.map (fun (subs, env') ->
+                    SF.RecursivePattern(scope.Type p.Type, positional (inRecordOrder scope fields subs), null, null) :> PatternSyntax, env')
+            elif TypeSyntaxes.isUnion candidate.Owner then
+                let wrapped = scope.Type (snd (List.head candidate.Fields) |> substitute scope.Ct (List.zip candidate.Owner.Parameters args |> Map.ofList))
+
+                match items with
+                | [ { Pattern = TAs({ Pattern = TWild }, name) } ] ->
+                    let local = scope.Local name
+                    Some(SF.DeclarationPattern(wrapped, SF.SingleVariableDesignation(Cs.token local)) :> PatternSyntax, Map.add name local env)
+                | [ { Pattern = TWild } ] -> Some(SF.TypePattern(wrapped) :> PatternSyntax, env)
+                | [ inner ] ->
+                    switchPattern scope env inner
+                    |> Option.map (fun (converted, env') -> SF.BinaryPattern(SyntaxKind.AndPattern, SF.TypePattern(wrapped), converted) :> PatternSyntax, env')
+                | _ -> None
+            else
+                let target = caseType scope candidate args
+
+                if List.isEmpty items then
+                    Some(SF.TypePattern(target) :> PatternSyntax, env)
+                else
+                    many items
+                    |> Option.map (fun (subs, env') -> SF.RecursivePattern(target, positional subs, null, null) :> PatternSyntax, env')
+
+    /// <summary>
+    /// The values that a pattern of a switch takes, in the form that the check of the arms reads: any value, or one
+    /// constructor with the values of its parts. A constructor knows the keys of all the constructors of its type, or
+    /// none when the type has no end of values, such as an <c>Int</c>.
+    /// </summary>
+    type private Space =
+        | Any
+        | Ctor of key: string * siblings: Set<string> option * parts: Space list
+
+    /// <summary>The space of a pattern. The parts of a record are in the order of their names, so two aliases of one record agree.</summary>
+    let rec private spaceOf (p: TypedPattern) : Space =
+        match p.Pattern with
+        | TWild
+        | TUnitPattern -> Any
+        | TAs(inner, _) -> spaceOf inner
+        | TLiteralPattern(LiteralEmission.Bool flag) -> Ctor((if flag then "true" else "false"), Some(set [ "true"; "false" ]), [])
+        | TLiteralPattern literal -> Ctor(sprintf "literal %A" literal, None, [])
+        | TTuplePattern items -> Ctor("tuple", Some(set [ "tuple" ]), List.map spaceOf items)
+        | TEmptyList -> Ctor("[]", Some(set [ "[]"; "::" ]), [])
+        | THeadTail(head, rest) -> Ctor("::", Some(set [ "[]"; "::" ]), [ spaceOf head; spaceOf rest ])
+        | TConstructorPattern(candidate, _, items) when candidate.IsRecord ->
+            let parts = List.zip (List.map fst candidate.Fields) items |> List.sortBy fst |> List.map (snd >> spaceOf)
+            Ctor("record", Some(set [ "record" ]), parts)
+        | TConstructorPattern(candidate, _, items) ->
+            let (Name words) = candidate.Case
+            let key (words: string list) = "case " + String.Join(" ", words)
+
+            let siblings =
+                match candidate.Owner.Definition with
+                | Cases(_, cases) when candidate.Runtime.IsNone -> Some(cases |> List.map (fun (Name words, _) -> key words) |> Set.ofList)
+                | _ -> None
+
+            Ctor(key words, siblings, List.map spaceOf items)
+
+    /// <summary>
+    /// Whether a row of spaces takes a value that no row before it takes (the check of Maranget). C# refuses an arm
+    /// that earlier arms already take, and an arm that takes every value after the arms that take every value.
+    /// </summary>
+    let rec private useful (rows: Space list list) (row: Space list) : bool =
+        let arityOf key =
+            rows |> List.tryPick (function
+                | Ctor(k, _, parts) :: _ when k = key -> Some(List.length parts)
+                | _ -> None)
+
+        let specialize (key: string) (arity: int) =
+            rows
+            |> List.choose (function
+                | Ctor(k, _, parts) :: rest when k = key -> Some(parts @ rest)
+                | Any :: rest -> Some(List.replicate arity Any @ rest)
+                | _ -> None)
+
+        match row with
+        | [] -> List.isEmpty rows
+        | Ctor(key, _, parts) :: rest -> useful (specialize key (List.length parts)) (parts @ rest)
+        | Any :: rest ->
+            let heads = rows |> List.choose (function Ctor(k, siblings, _) :: _ -> Some(k, siblings) | _ -> None)
+            let named = heads |> List.map fst |> Set.ofList
+
+            let complete =
+                heads |> List.tryPick snd |> Option.filter (fun siblings -> Set.isSubset siblings named)
+
+            match complete with
+            | Some siblings ->
+                siblings |> Set.exists (fun key -> let arity = defaultArg (arityOf key) 0 in useful (specialize key arity) (List.replicate arity Any @ rest))
+            | None -> useful (rows |> List.choose (function Any :: rest -> Some rest | _ -> None)) rest
+
+    /// <summary>The value expressions that a typed expression holds directly.</summary>
+    let private childrenOf (v: Typed) : Typed list =
+        match v.Node with
+        | TLiteral _
+        | TVariable _
+        | TUnit
+        | TFieldFunction _
+        | TConstructor _
+        | TSdk _
+        | TReference _ -> []
+        | TApply(f, x) -> [ f; x ]
+        | TLambda(_, _, body)
+        | TPatternLambda(_, _, body) -> [ body ]
+        | TLet(_, binding, rest) -> [ binding; rest ]
+        | TLetRec(definitions, rest) -> (definitions |> List.map (fun (_, d) -> d.LocalBody)) @ [ rest ]
+        | TTuple items
+        | TList items -> items
+        | TRecord fields -> fields |> List.map snd
+        | TField(target, _) -> [ target ]
+        | TUpdate(target, fields) -> target :: (fields |> List.map snd)
+        | TIf(c, a, b) -> [ c; a; b ]
+        | TMatch(target, cases) -> target :: (cases |> List.map snd)
+        | TDestructure(_, target, body) -> [ target; body ]
+
+    /// <summary>Whether the expression names the variable. A local that nothing names gets a discard, so the compiler stays quiet.</summary>
+    let rec private uses (name: Name) (v: Typed) : bool =
+        match v.Node with
+        | TVariable n when n = name -> true
+        | _ -> childrenOf v |> List.exists (uses name)
+
+    let rec private expression (scope: Scope) (env: Env) (value: Typed) : ExpressionSyntax =
+        scope.Ct.ThrowIfCancellationRequested()
+        let expr = expression scope env
+        let typ = scope.Type
+
+        match value.Node with
+        | TLiteral lit -> literal scope.Ct lit
+        | TVariable name ->
+            let local = Map.find name env
+
+            match scope.Functions.TryGetValue local with
+            | true, (inputs, output) -> curry scope inputs output (fun values -> Cs.invoke (Cs.id local) values)
+            | _ -> Cs.id local :> ExpressionSyntax
+        | TUnit -> Cs.access (asExpression (Cs.globalGeneric (sdkRoot "Unit") [])) "Value"
+        | TTuple items -> Cs.tuple (List.map expr items)
+        | TList items ->
+            match scope.Resolve value.Type with
+            | Named(_, [ item ]) ->
+                let target = asExpression (Cs.globalGeneric (sdkRoot "List") [ typ item ])
+
+                if List.isEmpty items then
+                    Cs.access target "Empty"
+                else
+                    let array =
+                        SF.ArrayCreationExpression(
+                            SF.ArrayType(typ item).WithRankSpecifiers(SF.SingletonList(SF.ArrayRankSpecifier(SF.SingletonSeparatedList<ExpressionSyntax>(SF.OmittedArraySizeExpression())))),
+                            SF.InitializerExpression(SyntaxKind.ArrayInitializerExpression, SF.SeparatedList<ExpressionSyntax>(List.map expr items))
+                        )
+
+                    Cs.invoke (Cs.access target "FromEnumerable") [ array ]
+            | _ -> Admission.fail "type-mismatch" scope.Location "A list expression has an inconsistent type."
+        | TConstructor(candidate, args) ->
+            let fieldShapes, output, build = constructorParts scope candidate args
+            curry scope fieldShapes output build
+        | TRecord fields -> recordExpression scope env value fields
+        | TField(target, name) -> Cs.access (wrap (expr target)) (title name)
+        | TFieldFunction name ->
+            match scope.Resolve value.Type with
+            | Arrow(input, output) ->
+                let parameter = scope.Fresh "item"
+                Cs.newObject (funcOf [ typ input ] (typ output)) [ Cs.lambda parameter (Cs.access (Cs.id parameter) (title name)) ]
+            | _ -> Admission.fail "type-mismatch" scope.Location "A field function has an inconsistent type."
+        | TUpdate(target, fields) ->
+            let assignments =
+                fields
+                |> List.map (fun (name, v) ->
+                    SF.AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, Cs.id (title name), expr v) :> ExpressionSyntax)
+
+            SF.WithExpression(wrap (expr target), SF.InitializerExpression(SyntaxKind.WithInitializerExpression, SF.SeparatedList<ExpressionSyntax>(assignments)))
+            :> ExpressionSyntax
+        | TIf(condition, yes, no) -> SF.ConditionalExpression(wrap (expr condition), wrap (expr yes), wrap (expr no)) :> ExpressionSyntax
+        | TMatch(target, cases) -> matchExpression scope env value target cases
+        | TLet _
+        | TLetRec _
+        | TDestructure _ -> immediately (typ value.Type) (tail scope env value)
+        | TPatternLambda(p, input, body) ->
+            let subject = scope.Fresh "input"
+            let condition, bindings, scoped = patternCondition scope env (Cs.id subject) p
+
+            let guard =
+                match condition with
+                | Some c -> [ SF.IfStatement(SF.PrefixUnaryExpression(SyntaxKind.LogicalNotExpression, Cs.paren c), Cs.throwStatement [ "System"; "InvalidOperationException" ] "Morphir argument pattern failed.") :> StatementSyntax ]
+                | None -> []
+
+            let statements = guard @ bindings @ tail scope scoped body
+            Cs.newObject (funcOf [ typ input ] (typ body.Type)) [ Cs.lambdaBlock subject (Cs.block statements) ]
+        | TApply _ -> applyExpression scope env value
+        | TLambda(name, input, body) ->
+            let parameter = scope.Local name
+            Cs.newObject (funcOf [ typ input ] (typ body.Type)) [ Cs.lambda parameter (expression scope (Map.add name parameter env) body) ]
+        | TSdk operation -> curry scope operation.Inputs operation.Output (sdkCall scope operation)
+        | TReference(target, args) ->
+            let inputs, output, call = referenceCall scope target args
+            curry scope inputs output call
+
+    and private referenceCall (scope: Scope) (target: Top) (args: Shape list) =
+        let definition = target.Definition
+        let signature = List.foldBack (fun (_, input) output -> Arrow(input, output)) definition.Inputs definition.Output
+        let freeNames = freeParameters scope.Ct signature |> Set.toList
+        let substitutions = List.zip freeNames args |> Map.ofList
+        let inputs = definition.Inputs |> List.map (snd >> substitute scope.Ct substitutions)
+        let output = substitute scope.Ct substitutions definition.Output
+        let segments = ModuleLayouts.qualified scope.Context.Layouts target.Name
+        let method' = asExpression (Cs.globalGeneric segments (args |> List.map scope.Type))
+        inputs, output, (fun values -> Cs.invoke method' values)
+
+    and private recordExpression (scope: Scope) (env: Env) (value: Typed) (fields: (Name * Typed) list) : ExpressionSyntax =
+        let declared = recordFieldsOf scope value.Type
+
+        if List.map fst fields = declared then
+            Cs.newObject (scope.Type value.Type) (fields |> List.map (snd >> expression scope env))
+        else
+            // The fields are evaluated in the order that the model wrote them, then given in the order of the record.
+            let temporaries = fields |> List.map (fun (name, v) -> name, scope.Fresh(scope.Local name), v)
+            let statements = temporaries |> List.map (fun (_, temp, v) -> Cs.local (scope.Type v.Type) temp (expression scope env v))
+            let values = declared |> List.map (fun name -> let _, temp, _ = temporaries |> List.find (fun (n, _, _) -> n = name) in Cs.id temp :> ExpressionSyntax)
+            immediately (scope.Type value.Type) (statements @ [ Cs.returns (Cs.newObject (scope.Type value.Type) values) ])
+
+    and private applyExpression (scope: Scope) (env: Env) (value: Typed) : ExpressionSyntax =
+        match traversalExpression scope env value with
+        | Some written -> written
+        | None -> callExpression scope env value
+
+    /// <summary>
+    /// A list function of the transform table in the form of the profile: a loop in a block that is called at once
+    /// (imperative), or a call of <c>Select</c>, <c>Where</c>, <c>FilterMap</c> or <c>Aggregate</c> (functional). A
+    /// filter map or a fold that has no loop form is written in the functional form.
+    /// </summary>
+    and private traversalExpression (scope: Scope) (env: Env) (value: Typed) : ExpressionSyntax option =
+        match traversalOf value with
+        | None -> None
+        | Some _ ->
+            let loop =
+                if scope.Handling.Traversal = Morphir.Lang.CSharp.TraversalForm.Loop then
+                    traversalLoop scope env value |> Option.map (immediately (scope.Type value.Type))
+                else
+                    None
+
+            match loop with
+            | Some written -> Some written
+            | None -> traversalCall scope env value
+
+    /// <summary>The C# local of a parameter of the model, or a new local for a parameter that the backend made.</summary>
+    and private bindName (scope: Scope) (name: Name) : string =
+        if isMade name then
+            let (Name words) = name
+            scope.Fresh((List.head words).Substring 1)
+        else
+            scope.Local name
+
+    /// <summary>A lambda of one parameter: an expression lambda, or a block lambda when the body needs statements.</summary>
+    and private unaryLambda (scope: Scope) (env: Env) (f: Typed) (input: Shape) (output: Shape) : ExpressionSyntax =
+        let name, body = unaryOf f input output
+        let parameter = bindName scope name
+
+        match tail scope (Map.add name parameter env) body with
+        | [ :? ReturnStatementSyntax as only ] -> Cs.lambda parameter only.Expression
+        | statements -> Cs.lambdaBlock parameter (Cs.block statements)
+
+    /// <summary>The functional form: <c>Select</c>, <c>Where</c>, <c>FilterMap</c> or <c>Aggregate</c> of an SDK list.</summary>
+    and private traversalCall (scope: Scope) (env: Env) (value: Typed) : ExpressionSyntax option =
+        let typ = scope.Type
+
+        let item (shape: Shape) =
+            match scope.Resolve shape with
+            | Named(_, [ element ]) -> element
+            | _ -> Admission.fail "type-mismatch" scope.Location "A list function has an inconsistent type."
+
+        let generic (target: ExpressionSyntax) (methodName: string) (arguments: TypeSyntax list) =
+            if List.isEmpty arguments then Cs.access target methodName
+            else Cs.accessGeneric target (Cs.genericName methodName arguments)
+
+        match traversalOf value with
+        | Some(MapTraversal, [ f; xs ]) ->
+            let input, output = item xs.Type, item value.Type
+            Some(Cs.invoke (generic (wrap (expression scope env xs)) "Select" [ typ output ]) [ unaryLambda scope env f input output ])
+        | Some(FilterTraversal, [ p; xs ]) ->
+            let input = item xs.Type
+
+            let output =
+                match scope.Resolve p.Type with
+                | Arrow(_, result) -> result
+                | _ -> Admission.fail "type-mismatch" scope.Location "A filter has an inconsistent type."
+
+            Some(Cs.invoke (generic (wrap (expression scope env xs)) "Where" []) [ unaryLambda scope env p input output ])
+        | Some(FilterMapTraversal, [ f; xs ]) ->
+            let input = item xs.Type
+
+            let output =
+                match scope.Resolve f.Type with
+                | Arrow(_, result) -> result
+                | _ -> Admission.fail "type-mismatch" scope.Location "A filter map has an inconsistent type."
+
+            Some(Cs.invoke (generic (wrap (expression scope env xs)) "FilterMap" [ typ (item value.Type) ]) [ unaryLambda scope env f input output ])
+        | Some(FoldTraversal, [ f; initial; xs ]) ->
+            let element = item xs.Type
+            let state = value.Type
+
+            match foldStepOf f element state with
+            | None -> None
+            | Some step ->
+                let source = wrap (expression scope env xs)
+                let seed = expression scope env initial
+
+                let parameters, statements =
+                    match step with
+                    | OneState(x, s, body) ->
+                        let stateLocal = bindName scope s
+                        let elementLocal = bindName scope x
+                        [ stateLocal; elementLocal ], tail scope (env |> Map.add s stateLocal |> Map.add x elementLocal) body
+                    | TupleState(x, names, body) ->
+                        // The state is a tuple: the lambda deconstructs it into the names of the pattern first.
+                        let stateLocal = scope.Fresh "state"
+                        let elementLocal = bindName scope x
+                        let locals = names |> List.map (fun n -> n, scope.Local n)
+
+                        let deconstruct =
+                            SF.ExpressionStatement(
+                                SF.AssignmentExpression(
+                                    SyntaxKind.SimpleAssignmentExpression,
+                                    Cs.tuple (
+                                        locals
+                                        |> List.map (fun (_, l) ->
+                                            SF.DeclarationExpression(SF.IdentifierName "var", SF.SingleVariableDesignation(Cs.token l)) :> ExpressionSyntax)
+                                    ),
+                                    Cs.id stateLocal
+                                )
+                            )
+                            :> StatementSyntax
+
+                        let bodyEnv = locals |> List.fold (fun (e: Env) (n, l) -> Map.add n l e) (Map.add x elementLocal env)
+                        [ stateLocal; elementLocal ], deconstruct :: tail scope bodyEnv body
+
+                let parameterList = SF.ParameterList(SF.SeparatedList<ParameterSyntax>(parameters |> List.map (fun p -> SF.Parameter(Cs.token p))))
+
+                let lambda =
+                    match statements with
+                    | [ :? ReturnStatementSyntax as only ] -> SF.ParenthesizedLambdaExpression(parameterList, only.Expression) :> ExpressionSyntax
+                    | _ -> SF.ParenthesizedLambdaExpression(parameterList, null, null).WithBlock(Cs.block statements) :> ExpressionSyntax
+
+                Some(Cs.invoke (generic source "Aggregate" [ typ state ]) [ seed; lambda ])
+        | _ -> None
+
+    /// <summary>
+    /// The loop form of a list function, in the position of a result: a <c>foreach</c> that adds to a list, with an
+    /// <c>if</c> for a filter, or a <c>foreach</c> with accumulator locals for a fold. The last statement returns the
+    /// value. A filter map whose function is not <c>if c then Just e else Nothing</c>, and a fold with a tuple state that
+    /// is not given as a tuple, have no loop form.
+    /// </summary>
+    and private traversalLoop (scope: Scope) (env: Env) (value: Typed) : StatementSyntax list option =
+        let typ = scope.Type
+
+        let item (shape: Shape) =
+            match scope.Resolve shape with
+            | Named(_, [ element ]) -> element
+            | _ -> Admission.fail "type-mismatch" scope.Location "A list function has an inconsistent type."
+
+        let lets (env: Env) (bindings: (Name * Typed) list) (last: Typed) : StatementSyntax list * Env =
+            let rec go (env: Env) (remaining: (Name * Typed) list) =
+                match remaining with
+                | [] -> [], env
+                | (name, binding) :: rest ->
+                    let local = scope.Local name
+                    let statement = Cs.local (typ binding.Type) local (expression scope env binding)
+                    let isUsed = uses name last || (rest |> List.exists (fun (_, b) -> uses name b))
+                    let more, env' = go (Map.add name local env) rest
+                    statement :: ((if isUsed then [] else [ Cs.unused local ]) @ more), env'
+
+            go env bindings
+
+        let foreach (local: string) (source: ExpressionSyntax) (body: StatementSyntax list) =
+            SF.ForEachStatement(SF.IdentifierName "var", Cs.token local, source, Cs.block body) :> StatementSyntax
+
+        let builder (element: Shape) =
+            let local = scope.Fresh "result"
+            let listType = Cs.globalGeneric [ "System"; "Collections"; "Generic"; "List" ] [ typ element ]
+            let declare = Cs.local listType local (Cs.newObject listType [])
+            let sdkList = asExpression (Cs.globalGeneric (sdkRoot "List") [ typ element ])
+            local, declare, Cs.returns (Cs.invoke (Cs.access sdkList "FromEnumerable") [ Cs.id local ])
+
+        let add (local: string) (e: ExpressionSyntax) =
+            SF.ExpressionStatement(Cs.invoke (Cs.access (Cs.id local) "Add") [ e ]) :> StatementSyntax
+
+        match traversalOf value with
+        | Some(MapTraversal, [ f; xs ]) ->
+            let input, output = item xs.Type, item value.Type
+            let source = expression scope env xs
+            let name, body = unaryOf f input output
+            let result, declare, finish = builder output
+            let x = bindName scope name
+            let bindings, last = splitLets body
+            let statements, env' = lets (Map.add name x env) bindings last
+            Some [ declare; foreach x source (statements @ [ add result (expression scope env' last) ]); finish ]
+        | Some(FilterTraversal, [ p; xs ]) ->
+            let input = item xs.Type
+
+            let output =
+                match scope.Resolve p.Type with
+                | Arrow(_, o) -> o
+                | _ -> Admission.fail "type-mismatch" scope.Location "A filter has an inconsistent type."
+
+            let source = expression scope env xs
+            let name, body = unaryOf p input output
+            let result, declare, finish = builder input
+            let x = bindName scope name
+            let bindings, last = splitLets body
+            let statements, env' = lets (Map.add name x env) bindings last
+            let guarded = SF.IfStatement(expression scope env' last, Cs.block [ add result (Cs.id x) ]) :> StatementSyntax
+            Some [ declare; foreach x source (statements @ [ guarded ]); finish ]
+        | Some(FilterMapTraversal, [ f; xs ]) ->
+            match f.Node with
+            | TLambda(name, _, body) ->
+                let bindings, last = splitLets body
+
+                match last.Node with
+                | TIf(condition, { Node = TApply({ Node = TConstructor(just, _) }, element) }, { Node = TConstructor(nothing, _) }) when
+                    just.Runtime = Some "Just" && nothing.Runtime = Some "Nothing"
+                    ->
+                    let source = expression scope env xs
+                    let result, declare, finish = builder (item value.Type)
+                    let x = bindName scope name
+                    let statements, env' = lets (Map.add name x env) bindings last
+                    let guarded = SF.IfStatement(expression scope env' condition, Cs.block [ add result (expression scope env' element) ]) :> StatementSyntax
+                    Some [ declare; foreach x source (statements @ [ guarded ]); finish ]
+                | _ -> None
+            | _ -> None
+        | Some(FoldTraversal, [ f; initial; xs ]) ->
+            let element = item xs.Type
+
+            match foldStepOf f element value.Type with
+            | Some(OneState(x, s, body)) ->
+                let seed = expression scope env initial
+                let source = expression scope env xs
+                let stateLocal = bindName scope s
+                let elementLocal = bindName scope x
+                let bindings, last = splitLets body
+                let statements, env' = lets (env |> Map.add s stateLocal |> Map.add x elementLocal) bindings last
+
+                Some [
+                    Cs.local (typ value.Type) stateLocal seed
+                    foreach elementLocal source (statements @ [ assignAll [ stateLocal ] [ expression scope env' last ] ])
+                    Cs.returns (Cs.id stateLocal)
+                ]
+            | Some(TupleState(x, names, body)) ->
+                let bindings, last = splitLets body
+
+                match initial.Node, last.Node with
+                | TTuple seeds, TTuple nexts when List.length seeds = List.length names && List.length nexts = List.length names ->
+                    let declarations = List.zip names seeds |> List.map (fun (n, seed) -> n, seed, expression scope env seed)
+                    let source = expression scope env xs
+                    let locals = declarations |> List.map (fun (n, seed, written) -> n, scope.Local n, seed, written)
+                    let elementLocal = bindName scope x
+                    let bodyEnv = locals |> List.fold (fun (e: Env) (n, l, _, _) -> Map.add n l e) (Map.add x elementLocal env)
+                    let statements, env' = lets bodyEnv bindings last
+                    let stateLocals = locals |> List.map (fun (_, l, _, _) -> l)
+
+                    Some(
+                        (locals |> List.map (fun (_, l, seed, written) -> Cs.local (typ seed.Type) l written))
+                        @ [ foreach elementLocal source (statements @ [ assignAll stateLocals (nexts |> List.map (expression scope env')) ])
+                            Cs.returns (Cs.tuple (stateLocals |> List.map (fun l -> Cs.id l :> ExpressionSyntax))) ]
+                    )
+                | _ -> None
+            | None -> None
+        | _ -> None
+
+    and private callExpression (scope: Scope) (env: Env) (value: Typed) : ExpressionSyntax =
+        let rec spine (v: Typed) (acc: Typed list) =
+            match v.Node with
+            | TApply(f, x) -> spine f (x :: acc)
+            | _ -> v, acc
+
+        let head, args = spine value []
+        let values = args |> List.map (expression scope env)
+
+        let rec invokeAll (target: ExpressionSyntax) (remaining: ExpressionSyntax list) =
+            match remaining with
+            | [] -> target
+            | x :: rest -> invokeAll (Cs.invoke (Cs.access (wrap target) "Invoke") [ x ]) rest
+
+        let saturated (count: int) (call: ExpressionSyntax list -> ExpressionSyntax) =
+            if count > 0 && List.length values >= count then
+                Some(invokeAll (call (List.take count values)) (List.skip count values))
+            else
+                None
+
+        let direct =
+            match head.Node with
+            | TReference(target, tyArgs) ->
+                let inputs, _, call = referenceCall scope target tyArgs
+
+                if List.isEmpty inputs then
+                    Some(invokeAll (call []) values)
+                else
+                    saturated (List.length inputs) call
+            | TConstructor(candidate, tyArgs) ->
+                let fieldShapes, _, build = constructorParts scope candidate tyArgs
+                saturated (List.length fieldShapes) build
+            | TSdk operation -> saturated (List.length operation.Inputs) (sdkCall scope operation)
+            | TVariable name ->
+                match scope.Functions.TryGetValue(Map.find name env) with
+                | true, (inputs, _) when not (List.isEmpty inputs) ->
+                    let local = Map.find name env
+                    saturated (List.length inputs) (fun values -> Cs.invoke (Cs.id local) values)
+                | _ -> None
+            | _ -> None
+
+        match direct with
+        | Some result -> result
+        | None -> invokeAll (expression scope env head) values
+
+    and private matchExpression (scope: Scope) (env: Env) (value: Typed) (target: Typed) (cases: (TypedPattern * Typed) list) : ExpressionSyntax =
+        let subject = expression scope env target
+
+        let converted =
+            let rec go acc remaining =
+                match remaining with
+                | [] -> Some(List.rev acc)
+                | (p, body) :: rest ->
+                    match switchPattern scope env p with
+                    | Some(pattern, scoped) -> go ((pattern, scoped, body, p) :: acc) rest
+                    | None -> None
+
+            go [] cases
+
+        // An arm that the arms before it already take can never match. C# refuses it, so it is not written.
+        let reachable (arms: (PatternSyntax * Env * Typed * TypedPattern) list) =
+            arms
+            |> List.fold
+                (fun (kept, rows) ((_, _, _, p) as arm) ->
+                    let row = [ spaceOf p ]
+                    if useful rows row then arm :: kept, rows @ [ row ] else kept, rows)
+                ([], [])
+            |> fst
+            |> List.rev
+
+        match converted |> Option.map reachable with
+        | Some arms ->
+            let armSyntax =
+                arms
+                |> List.map (fun (pattern, scoped, body, _) ->
+                    SF.SwitchExpressionArm(pattern, bodyExpression scope scoped body))
+
+            // When some value is left that no arm takes, the switch ends with the failure of the model.
+            let exhaustive = not (useful [ for _, _, _, p in arms -> [ spaceOf p ] ] [ Any ])
+            let last =
+                if exhaustive then []
+                else [ SF.SwitchExpressionArm(SF.DiscardPattern(), Cs.throwNew [ "System"; "InvalidOperationException" ] "Non-exhaustive Morphir pattern.") ]
+
+            SF.SwitchExpression(wrap subject, SF.SeparatedList<SwitchExpressionArmSyntax>(armSyntax @ last)) :> ExpressionSyntax
+        | None ->
+            let name = scope.Fresh "subject"
+            let rec branches remaining : StatementSyntax list =
+                match remaining with
+                | [] -> [ Cs.throwStatement [ "System"; "InvalidOperationException" ] "Non-exhaustive Morphir pattern." ]
+                | (p, body) :: rest ->
+                    let condition, bindings, scoped = patternCondition scope env (Cs.id name) p
+                    let inner = bindings @ tail scope scoped body
+
+                    match condition with
+                    | None -> inner
+                    | Some condition -> (SF.IfStatement(condition, Cs.block inner) :> StatementSyntax) :: branches rest
+
+            immediately (scope.Type value.Type) ([ Cs.local (scope.Type target.Type) name subject ] @ branches cases)
+
+    /// <summary>The body of an arm: an expression, or a block when the body needs statements.</summary>
+    and private bodyExpression (scope: Scope) (env: Env) (body: Typed) : ExpressionSyntax = expression scope env body
+
+    /// <summary>The conditions, the statements that bind names and the extended scope of a pattern, for the long form.</summary>
+    and private patternCondition (scope: Scope) (env: Env) (target: ExpressionSyntax) (p: TypedPattern) : ExpressionSyntax option * StatementSyntax list * Env =
+        scope.Ct.ThrowIfCancellationRequested()
+        let typ = scope.Type
+
+        let combine (conditions: ExpressionSyntax option list) : ExpressionSyntax option =
+            match List.choose id conditions with
+            | [] -> None
+            | first :: rest ->
+                Some(rest |> List.fold (fun (left: ExpressionSyntax) right -> SF.BinaryExpression(SyntaxKind.LogicalAndExpression, left, right) :> ExpressionSyntax) first)
+
+        let many (parts: (TypedPattern * ExpressionSyntax) list) =
+            parts
+            |> List.fold
+                (fun (conditions, statements, env) (item, subTarget) ->
+                    let condition, bindings, env' = patternCondition scope env subTarget item
+                    conditions @ [ condition ], statements @ bindings, env')
+                ([], [], env)
+
+        let rec tupleItem (t: ExpressionSyntax) (index: int) : ExpressionSyntax =
+            if index < 7 then Cs.access (wrap t) ("Item" + string (index + 1)) else tupleItem (Cs.access (wrap t) "Rest") (index - 7)
+
+        match p.Pattern with
+        | TWild
+        | TUnitPattern -> None, [], env
+        | TAs(inner, name) ->
+            let condition, bindings, env' = patternCondition scope env target inner
+            let local = scope.Local name
+            condition, bindings @ [ Cs.local (typ p.Type) local target; Cs.unused local ], Map.add name local env'
+        | TLiteralPattern lit ->
+            let equal = Cs.access (asExpression (Cs.globalGeneric (sdkRoot "Basics") [])) "Equal"
+            Some(Cs.invoke equal [ target; literal scope.Ct lit ]), [], env
+        | TTuplePattern items ->
+            let conditions, bindings, env' = many (items |> List.mapi (fun i item -> item, tupleItem target i))
+            combine conditions, bindings, env'
+        | TEmptyList ->
+            Some(SF.BinaryExpression(SyntaxKind.EqualsExpression, Cs.access (wrap target) "Length", Cs.intLiteral 0) :> ExpressionSyntax), [], env
+        | THeadTail(head, tail') ->
+            let rest =
+                Cs.invoke
+                    (Cs.access (asExpression (typ p.Type)) "FromEnumerable")
+                    [ Cs.invoke (Cs.access (asExpression (Cs.globalGeneric [ "System"; "Linq"; "Enumerable" ] [])) "Skip") [ target; Cs.intLiteral 1 ] ]
+
+            let conditions, bindings, env' =
+                many [ head, (SF.ElementAccessExpression(wrap target, SF.BracketedArgumentList(SF.SingletonSeparatedList(SF.Argument(Cs.intLiteral 0)))) :> ExpressionSyntax); tail', rest ]
+
+            let nonEmpty = SF.BinaryExpression(SyntaxKind.GreaterThanExpression, Cs.access (wrap target) "Length", Cs.intLiteral 0) :> ExpressionSyntax
+            combine (Some nonEmpty :: conditions), bindings, env'
+        | TConstructorPattern(candidate, args, items) when candidate.Runtime.IsSome ->
+            let methodName = candidate.Runtime.Value
+            let variable = scope.Fresh "payload"
+            let failure = Cs.throwNew [ "System"; "InvalidOperationException" ] "Morphir constructor pattern failed."
+            let order = asExpression (Cs.globalGeneric (sdkRoot "Order") [])
+            let equal = Cs.access (asExpression (Cs.globalGeneric (sdkRoot "Basics") [])) "Equal"
+            let notOf (e: ExpressionSyntax) = SF.PrefixUnaryExpression(SyntaxKind.LogicalNotExpression, e) :> ExpressionSyntax
+            let match' (first: ExpressionSyntax) (second: ExpressionSyntax) = Cs.invoke (Cs.access (wrap target) "Match") [ first; second ]
+
+            let extraction, condition =
+                match methodName with
+                | "LT"
+                | "EQ"
+                | "GT" -> target, Cs.invoke equal [ target; Cs.access order methodName ]
+                | "Just" -> match' (Cs.lambda variable (Cs.id variable)) (SF.ParenthesizedLambdaExpression(failure) :> ExpressionSyntax), Cs.access (wrap target) "IsJust"
+                | "Nothing" -> target, notOf (Cs.access (wrap target) "IsJust")
+                | "Ok" -> match' (Cs.lambda variable failure) (Cs.lambda variable (Cs.id variable)), Cs.access (wrap target) "IsOk"
+                | "Err" -> match' (Cs.lambda variable (Cs.id variable)) (Cs.lambda variable failure), notOf (Cs.access (wrap target) "IsOk")
+                | _ -> Admission.fail "unmapped-sdk" scope.Location "The SDK constructor pattern has no binding."
+
+            let conditions, bindings, env' = many (items |> List.map (fun item -> item, extraction))
+            combine (Some condition :: conditions), bindings, env'
+        | TConstructorPattern(candidate, args, items) ->
+            if candidate.IsRecord then
+                let subjects = candidate.Fields |> List.map (fun (name, _) -> Cs.access (wrap target) (title name))
+                let conditions, bindings, env' = many (List.zip items subjects)
+                combine conditions, bindings, env'
+            else
+                let caseTypeSyntax = if TypeSyntaxes.isUnion candidate.Owner then scope.Type (snd (List.head candidate.Fields) |> substitute scope.Ct (List.zip candidate.Owner.Parameters args |> Map.ofList)) else caseType scope candidate args
+                let local = scope.Fresh "case"
+                let tag = SF.IsPatternExpression(wrap target, SF.DeclarationPattern(caseTypeSyntax, SF.SingleVariableDesignation(Cs.token local))) :> ExpressionSyntax
+
+                let subjects =
+                    if TypeSyntaxes.isUnion candidate.Owner then [ Cs.id local :> ExpressionSyntax ]
+                    else candidate.Fields |> List.map (fun (name, _) -> Cs.access (Cs.id local) (title name))
+
+                let conditions, bindings, env' = many (List.zip items subjects)
+                combine (Some tag :: conditions), bindings, env'
+
+    /// <summary>The statements of a value in the position of a result: lets become locals, and the last step returns.</summary>
+    and private tail (scope: Scope) (env: Env) (value: Typed) : StatementSyntax list =
+        scope.Ct.ThrowIfCancellationRequested()
+
+        match value.Node with
+        | TLet(name, binding, rest) ->
+            let local = scope.Local name
+            let initial = expression scope env binding
+            Cs.local (scope.Type binding.Type) local initial
+            :: ((if uses name rest then [] else [ Cs.unused local ]) @ tail scope (Map.add name local env) rest)
+        | TDestructure(p, target, body) ->
+            let subject = scope.Fresh "subject"
+            let condition, bindings, scoped = patternCondition scope env (Cs.id subject) p
+
+            let guard =
+                match condition with
+                | Some c -> [ SF.IfStatement(SF.PrefixUnaryExpression(SyntaxKind.LogicalNotExpression, Cs.paren c), Cs.throwStatement [ "System"; "InvalidOperationException" ] "Morphir destructuring failed.") :> StatementSyntax ]
+                | None -> []
+
+            [ Cs.local (scope.Type target.Type) subject (expression scope env target) ] @ guard @ bindings @ tail scope scoped body
+        | TLetRec([ name, definition ], rest) when
+            scope.Handling.TailRecursion = Morphir.Lang.CSharp.TailRecursionForm.Loop && isInlineLoop name definition rest
+            ->
+            inlineLoop scope env name definition rest
+        | TLetRec(definitions, rest) ->
+            // Every function of the group is known to every body, so the names are bound before the bodies are written.
+            let names = definitions |> List.map (fun (name, definition) -> name, scope.Local name, definition)
+
+            let groupEnv =
+                names |> List.fold (fun (acc: Env) (name, local, definition) ->
+                    scope.Functions[local] <- (definition.LocalInputs |> List.map snd, definition.LocalOutput)
+                    Map.add name local acc) env
+
+            // A function that nothing calls is not written.
+            let isUsed (name: Name) = uses name rest || (definitions |> List.exists (fun (_, d) -> uses name d.LocalBody))
+
+            let functions =
+                if scope.Handling.TailRecursion = Morphir.Lang.CSharp.TailRecursionForm.Loop && isGroupLoop definitions then
+                    groupLoop scope groupEnv names (fun name -> uses name rest)
+                else
+                    names
+                    |> List.filter (fun (name, _, _) -> isUsed name)
+                    |> List.map (fun (name, local, definition) -> localFunction scope groupEnv name local definition)
+
+            functions @ tail scope groupEnv rest
+        | TApply _ when scope.Handling.Traversal = Morphir.Lang.CSharp.TraversalForm.Loop && (traversalOf value).IsSome ->
+            // The loop names its locals once: it is written once.
+            match traversalLoop scope env value with
+            | Some statements -> statements
+            | None -> [ Cs.returns (expression scope env value) ]
+        | _ -> [ Cs.returns (expression scope env value) ]
+
+    /// <summary>
+    /// Whether a recursive binding is one function that calls itself only as its last step, and the value after it only
+    /// calls it once with all arguments: then the loop needs no function, only state locals.
+    /// </summary>
+    and private isInlineLoop (name: Name) (definition: TypedDefinition) (rest: Typed) : bool =
+        let rec spine (v: Typed) (acc: Typed list) =
+            match v.Node with
+            | TApply(f, x) -> spine f (x :: acc)
+            | _ -> v, acc
+
+        let head, args = spine rest []
+        let arity = List.length definition.LocalInputs
+
+        arity > 0
+        && isTailLoop name arity definition.LocalBody
+        && (match head.Node with TVariable called -> called = name | _ -> false)
+        && List.length args = arity
+        && not (args |> List.exists (uses name))
+
+    /// <summary>
+    /// A tail-recursive function that the value after it calls once (D6): state locals with the arguments of the call,
+    /// then a <c>while</c> loop. A body <c>if c then (lets, call) else base</c> is <c>while (c) { lets; state = ...; }</c>
+    /// and then the base; any other body is <c>while (true)</c> with a <c>continue</c> for each call.
+    /// </summary>
+    and private inlineLoop (scope: Scope) (env: Env) (name: Name) (definition: TypedDefinition) (rest: Typed) : StatementSyntax list =
+        let rec spine (v: Typed) (acc: Typed list) =
+            match v.Node with
+            | TApply(f, x) -> spine f (x :: acc)
+            | _ -> v, acc
+
+        let _, args = spine rest []
+        let values = args |> List.map (expression scope env)
+        let inputs = definition.LocalInputs |> List.map (fun (inputName, shape) -> inputName, shape, scope.Local inputName)
+        let declarations = List.zip inputs values |> List.map (fun ((_, shape, local), value) -> Cs.local (scope.Type shape) local value)
+        let bodyEnv = inputs |> List.fold (fun (e: Env) (inputName, _, local) -> Map.add inputName local e) env
+        let locals = inputs |> List.map (fun (_, _, local) -> local)
+
+        let straight (branch: Typed) =
+            let bindings, last = splitLets branch
+            let head, callArgs = spine last []
+
+            match head.Node with
+            | TVariable called when called = name && List.length callArgs = List.length locals -> Some(bindings, callArgs)
+            | _ -> None
+
+        match definition.LocalBody.Node with
+        | TIf(condition, yes, no) when (straight yes).IsSome && not (uses name no) ->
+            let bindings, callArgs = (straight yes).Value
+
+            let rec lets (env: Env) (remaining: (Name * Typed) list) =
+                match remaining with
+                | [] -> [], env
+                | (letName, binding) :: tailBindings ->
+                    let local = scope.Local letName
+                    let statement = Cs.local (scope.Type binding.Type) local (expression scope env binding)
+                    let more, env' = lets (Map.add letName local env) tailBindings
+                    statement :: more, env'
+
+            let statements, stepEnv = lets bodyEnv bindings
+            let step = assignAll locals (callArgs |> List.map (expression scope stepEnv))
+
+            declarations
+            @ [ SF.WhileStatement(expression scope bodyEnv condition, Cs.block (statements @ [ step ])) :> StatementSyntax ]
+            @ tail scope bodyEnv no
+        | _ ->
+            let targets = { State = None; Functions = Map.ofList [ name, (0, locals) ] }
+            declarations @ [ SF.WhileStatement(Cs.boolLiteral true, Cs.block (loopTail scope bodyEnv targets definition.LocalBody)) :> StatementSyntax ]
+
+    /// <summary>
+    /// A local function. A function that only calls itself, and only as its last step, becomes a loop that replaces its
+    /// parameters and goes round again: no stack grows. Any other function is a plain local function.
+    /// </summary>
+    and private localFunction (scope: Scope) (env: Env) (name: Name) (local: string) (definition: TypedDefinition) : StatementSyntax =
+        let inputs = definition.LocalInputs |> List.map (fun (inputName, shape) -> inputName, shape, scope.Local inputName)
+        let bodyEnv = inputs |> List.fold (fun (acc: Env) (inputName, _, ident) -> Map.add inputName ident acc) env
+        let parameters = inputs |> List.map (fun (_, shape, ident) -> SF.Parameter(Cs.token ident).WithType(scope.Type shape))
+
+        let body: StatementSyntax list =
+            // A tail call is a loop (D6), unless the option asks for a local recursive function.
+            if scope.Handling.TailRecursion = Morphir.Lang.CSharp.TailRecursionForm.Loop && isTailLoop name (List.length inputs) definition.LocalBody then
+                let targets = { State = None; Functions = Map.ofList [ name, (0, inputs |> List.map (fun (_, _, ident) -> ident)) ] }
+                [ SF.WhileStatement(Cs.boolLiteral true, Cs.block (loopTail scope bodyEnv targets definition.LocalBody)) :> StatementSyntax ]
+            else
+                tail scope bodyEnv definition.LocalBody
+
+        SF.LocalFunctionStatement(scope.Type definition.LocalOutput, Cs.token local)
+            .WithParameterList(SF.ParameterList(SF.SeparatedList<ParameterSyntax>(parameters)))
+            .WithBody(Cs.block body)
+        :> StatementSyntax
+
+    /// <summary>
+    /// The functions of a group that call each other only as their last step (D6): one local function with a loop and a
+    /// state that selects the body of a function. A call of a function of the group as the last step sets the parameters of
+    /// that function and the state, and goes round again: no stack grows. Each function that the rest of the value calls is
+    /// a local function that starts the loop in its state.
+    /// </summary>
+    and private groupLoop
+        (scope: Scope)
+        (env: Env)
+        (names: (Name * string * TypedDefinition) list)
+        (calledByRest: Name -> bool)
+        : StatementSyntax list =
+        let state = scope.Fresh "state"
+        let loop = scope.Fresh "loop"
+        let intType = Cs.keywordType SyntaxKind.IntKeyword
+
+        let members =
+            names
+            |> List.mapi (fun index (name, local, definition) ->
+                let inputs = definition.LocalInputs |> List.map (fun (inputName, shape) -> inputName, shape, scope.Local inputName)
+                index, name, local, definition, inputs)
+
+        let targets =
+            { State = Some state
+              Functions = members |> List.map (fun (index, name, _, _, inputs) -> name, (index, inputs |> List.map (fun (_, _, ident) -> ident))) |> Map.ofList }
+
+        let output = scope.Type((let _, _, d = List.head names in d).LocalOutput)
+
+        let bodies =
+            members
+            |> List.map (fun (index, _, _, definition, inputs) ->
+                let bodyEnv = inputs |> List.fold (fun (acc: Env) (inputName, _, ident) -> Map.add inputName ident acc) env
+                index, loopTail scope bodyEnv targets definition.LocalBody)
+
+        // Each body ends in a return, a continue or a throw, so the body of the last state needs no condition.
+        let dispatch =
+            bodies
+            |> List.collect (fun (index, statements) ->
+                if index = List.length bodies - 1 then
+                    statements
+                else
+                    [ SF.IfStatement(SF.BinaryExpression(SyntaxKind.EqualsExpression, Cs.id state, Cs.intLiteral index), Cs.block statements) :> StatementSyntax ])
+
+        let parameters =
+            SF.Parameter(Cs.token state).WithType(intType)
+            :: (members |> List.collect (fun (_, _, _, _, inputs) -> inputs |> List.map (fun (_, shape, ident) -> SF.Parameter(Cs.token ident).WithType(scope.Type shape))))
+
+        let loopFunction =
+            SF.LocalFunctionStatement(output, Cs.token loop)
+                .WithParameterList(SF.ParameterList(SF.SeparatedList<ParameterSyntax>(parameters)))
+                .WithBody(Cs.block [ SF.WhileStatement(Cs.boolLiteral true, Cs.block dispatch) :> StatementSyntax ])
+            :> StatementSyntax
+
+        // An entry gives its own arguments, and a default for the parameters of the other states, which the loop sets before it reads them.
+        let unset: ExpressionSyntax =
+            SF.PostfixUnaryExpression(SyntaxKind.SuppressNullableWarningExpression, SF.LiteralExpression(SyntaxKind.DefaultLiteralExpression, SF.Token SyntaxKind.DefaultKeyword)) :> ExpressionSyntax
+
+        let entries =
+            members
+            |> List.filter (fun (_, name, _, _, _) -> calledByRest name)
+            |> List.map (fun (index, _, local, definition, inputs) ->
+                let own = inputs |> List.map (fun (inputName, shape, _) -> scope.Local inputName, shape)
+
+                let arguments =
+                    Cs.intLiteral index
+                    :: (members
+                        |> List.collect (fun (other, _, _, _, otherInputs) ->
+                            if other = index then own |> List.map (fun (ident, _) -> Cs.id ident :> ExpressionSyntax)
+                            else otherInputs |> List.map (fun _ -> unset)))
+
+                SF.LocalFunctionStatement(scope.Type definition.LocalOutput, Cs.token local)
+                    .WithParameterList(SF.ParameterList(SF.SeparatedList<ParameterSyntax>(own |> List.map (fun (ident, shape) -> SF.Parameter(Cs.token ident).WithType(scope.Type shape)))))
+                    .WithBody(Cs.block [ Cs.returns (Cs.invoke (Cs.id loop) arguments) ])
+                :> StatementSyntax)
+
+        if List.isEmpty entries then [] else loopFunction :: entries
+
+    /// <summary>
+    /// The statements of a loop body. A call of a function of the targets as the last step replaces the parameters of that
+    /// function, sets the state when the loop has one, and continues.
+    /// </summary>
+    and private loopTail (scope: Scope) (env: Env) (targets: LoopTargets) (value: Typed) : StatementSyntax list =
+        scope.Ct.ThrowIfCancellationRequested()
+        let recurse = loopTail scope
+
+        let rec spine (v: Typed) (acc: Typed list) =
+            match v.Node with
+            | TApply(f, x) -> spine f (x :: acc)
+            | _ -> v, acc
+
+        match value.Node with
+        | TIf(condition, yes, no) ->
+            [ SF.IfStatement(expression scope env condition, Cs.block (recurse env targets yes), SF.ElseClause(Cs.block (recurse env targets no))) :> StatementSyntax ]
+        | TLet(name, binding, rest) ->
+            let local = scope.Local name
+            Cs.local (scope.Type binding.Type) local (expression scope env binding)
+            :: ((if uses name rest then [] else [ Cs.unused local ]) @ recurse (Map.add name local env) targets rest)
+        | TDestructure(p, target, body) ->
+            let subject = scope.Fresh "subject"
+            let condition, bindings, scoped = patternCondition scope env (Cs.id subject) p
+
+            let guard =
+                match condition with
+                | Some c -> [ SF.IfStatement(SF.PrefixUnaryExpression(SyntaxKind.LogicalNotExpression, Cs.paren c), Cs.throwStatement [ "System"; "InvalidOperationException" ] "Morphir destructuring failed.") :> StatementSyntax ]
+                | None -> []
+
+            [ Cs.local (scope.Type target.Type) subject (expression scope env target) ] @ guard @ bindings @ recurse scoped targets body
+        | TMatch(target, cases) ->
+            let subject = scope.Fresh "subject"
+
+            let rec branches remaining : StatementSyntax list =
+                match remaining with
+                | [] -> [ Cs.throwStatement [ "System"; "InvalidOperationException" ] "Non-exhaustive Morphir pattern." ]
+                | (p, body) :: rest ->
+                    let condition, bindings, scoped = patternCondition scope env (Cs.id subject) p
+                    let inner = bindings @ recurse scoped targets body
+
+                    match condition with
+                    | None -> inner
+                    | Some c -> (SF.IfStatement(c, Cs.block inner) :> StatementSyntax) :: branches rest
+
+            [ Cs.local (scope.Type target.Type) subject (expression scope env target) ] @ branches cases
+        | TApply _ ->
+            let head, args = spine value []
+
+            let assign (target: string) (source: ExpressionSyntax) =
+                SF.ExpressionStatement(SF.AssignmentExpression(SyntaxKind.SimpleAssignmentExpression, Cs.id target, source)) :> StatementSyntax
+
+            match head.Node with
+            | TVariable name when
+                (match Map.tryFind name targets.Functions with
+                 | Some(_, parameters) -> List.length args = List.length parameters
+                 | None -> false)
+                ->
+                let index, parameters = targets.Functions[name]
+                // One tuple assignment computes the new values before any parameter changes.
+                let assigns = assignAll parameters (args |> List.map (expression scope env))
+
+                let select =
+                    match targets.State with
+                    | Some state -> [ assign state (Cs.intLiteral index) ]
+                    | None -> []
+
+                (assigns :: select) @ [ SF.ContinueStatement() :> StatementSyntax ]
+            | _ -> [ Cs.returns (expression scope env value) ]
+        | _ -> [ Cs.returns (expression scope env value) ]
+
+    /// <summary>
+    /// The calls of the functions of a group in a body: the names that it calls as its last step with all arguments, the
+    /// number of other uses of the names, and whether it has a closure that could keep a parameter.
+    /// </summary>
+    and private groupCalls (group: Map<Name, int>) (body: Typed) : Name list * int * bool =
+        let rec spine (v: Typed) (acc: Typed list) =
+            match v.Node with
+            | TApply(f, x) -> spine f (x :: acc)
+            | _ -> v, acc
+
+        let tailCalls = ResizeArray<Name>()
+        let mutable otherUses = 0
+        let mutable closures = false
+
+        let rec visit (isTail: bool) (v: Typed) : unit =
+            match v.Node with
+            | TApply _ ->
+                let head, args = spine v []
+
+                match head.Node with
+                | TVariable name when isTail && Map.tryFind name group = Some(List.length args) ->
+                    tailCalls.Add name
+                    args |> List.iter (visit false)
+                | _ ->
+                    visit false head
+                    args |> List.iter (visit false)
+            | TVariable name -> if Map.containsKey name group then otherUses <- otherUses + 1
+            | TIf(c, a, b) ->
+                visit false c
+                visit isTail a
+                visit isTail b
+            | TMatch(target, cases) ->
+                visit false target
+                cases |> List.iter (fun (_, arm) -> visit isTail arm)
+            | TLet(_, binding, rest) ->
+                visit false binding
+                visit isTail rest
+            | TDestructure(_, target, rest) ->
+                visit false target
+                visit isTail rest
+            | TLetRec(definitions, rest) ->
+                closures <- true
+                definitions |> List.iter (fun (_, d) -> visit false d.LocalBody)
+                visit isTail rest
+            | TLambda(_, _, inner)
+            | TPatternLambda(_, _, inner) ->
+                closures <- true
+                visit false inner
+            | TTuple items
+            | TList items -> items |> List.iter (visit false)
+            | TRecord fields -> fields |> List.iter (snd >> visit false)
+            | TField(target, _) -> visit false target
+            | TUpdate(target, fields) ->
+                visit false target
+                fields |> List.iter (snd >> visit false)
+            | TLiteral _
+            | TUnit
+            | TFieldFunction _
+            | TConstructor _
+            | TSdk _
+            | TReference _ -> ()
+
+        visit true body
+        List.ofSeq tailCalls, otherUses, closures
+
+    /// <summary>Whether the body calls the function only as its last step, at least once, with no closure that could keep a parameter.</summary>
+    and private isTailLoop (self: Name) (arity: int) (body: Typed) : bool =
+        let tailCalls, otherUses, closures = groupCalls (Map.ofList [ self, arity ]) body
+        not (List.isEmpty tailCalls) && otherUses = 0 && not closures
+
+    /// <summary>
+    /// Whether the functions of a group call each other only as their last step, with no closure in a body, and at least
+    /// one function calls another function of the group. Such a group becomes one loop with a state (D6).
+    /// </summary>
+    and private isGroupLoop (definitions: (Name * TypedDefinition) list) : bool =
+        let group = definitions |> List.map (fun (name, d) -> name, List.length d.LocalInputs) |> Map.ofList
+
+        let calls = definitions |> List.map (fun (name, d) -> name, groupCalls group d.LocalBody)
+
+        List.length definitions > 1
+        && calls |> List.forall (fun (_, (_, otherUses, closures)) -> otherUses = 0 && not closures)
+        && calls |> List.exists (fun (name, (tailCalls, _, _)) -> tailCalls |> List.exists (fun called -> called <> name))
+
+    /// <summary>
+    /// The attribute <c>MorphirEmit</c> that the backend writes back for a value whose model carries backend options
+    /// (OPT-1), with the effective value of each option that the carrier has. A value with no carrier gets none.
+    /// </summary>
+    let private emitAttribute (context: Context) (name: FQName) : AttributeListSyntax list =
+        match Map.tryFind name context.Carriers.Values with
+        | None -> []
+        | Some carried ->
+            let effective = context.Handling name
+
+            let argument (property: string) (enumName: string) (memberName: string) =
+                SF.AttributeArgument(SF.NameEquals(Cs.id property), null, Cs.access (Cs.globalName [ "Morphir"; enumName ] :> ExpressionSyntax) memberName)
+
+            let arguments =
+                [ if carried.Traversal.IsSome then
+                      argument "Traversal" "TraversalForm" (match effective.Traversal with
+                                                            | Morphir.Lang.CSharp.TraversalForm.Loop -> "Loop"
+                                                            | Morphir.Lang.CSharp.TraversalForm.Functional -> "Functional")
+                  if carried.TailRecursion.IsSome then
+                      argument "TailRecursion" "TailRecursionForm" (match effective.TailRecursion with
+                                                                    | Morphir.Lang.CSharp.TailRecursionForm.Loop -> "Loop"
+                                                                    | Morphir.Lang.CSharp.TailRecursionForm.LocalFunction -> "LocalFunction") ]
+
+            match arguments with
+            | [] -> []
+            | _ ->
+                [ SF.AttributeList(
+                      SF.SingletonSeparatedList(SF.Attribute(Cs.globalName [ "Morphir"; "MorphirEmit" ], SF.AttributeArgumentList(SF.SeparatedList<AttributeArgumentSyntax>(arguments))))
+                  ) ]
+
+    /// <summary>The method of a value definition.</summary>
+    let methodOf (context: Context) (checkedValue: Checked) : MemberDeclarationSyntax =
+        let scope = Scope(context, checkedValue)
+        let top = checkedValue.Top
+
+        let inputs = top.Definition.Inputs |> List.map (fun (name, shape) -> name, shape, scope.Local name)
+        let env: Env = inputs |> List.map (fun (name, _, local) -> name, local) |> Map.ofList
+        let parameters = inputs |> List.map (fun (_, shape, local) -> SF.Parameter(Cs.token local).WithType(scope.Type shape))
+
+        let statements = tail scope env checkedValue.Body
+        let name = ModuleLayouts.identifier context.Layouts top.Name
+        let output = scope.Type top.Definition.Output
+
+        let declaration =
+            SF.MethodDeclaration(output, Cs.token name)
+                .WithAttributeLists(SF.List<AttributeListSyntax>(emitAttribute context top.Name))
+                .WithModifiers(Cs.modifiers [ (if top.Public then SyntaxKind.PublicKeyword else SyntaxKind.InternalKeyword); SyntaxKind.StaticKeyword ])
+                .WithParameterList(SF.ParameterList(SF.SeparatedList<ParameterSyntax>(parameters)))
+
+        let declaration =
+            if List.isEmpty checkedValue.Parameters then
+                declaration
+            else
+                declaration
+                    .WithTypeParameterList(Declarations.typeParameterList checkedValue.Parameters)
+                    .WithConstraintClauses(SF.List<TypeParameterConstraintClauseSyntax>(Declarations.methodConstraintClauses checkedValue.Classes checkedValue.Parameters))
+
+        match statements with
+        | [ :? ReturnStatementSyntax as only ] ->
+            declaration.WithExpressionBody(SF.ArrowExpressionClause(only.Expression)).WithSemicolonToken(SF.Token SyntaxKind.SemicolonToken) :> MemberDeclarationSyntax
+        | _ -> declaration.WithBody(Cs.block statements) :> MemberDeclarationSyntax

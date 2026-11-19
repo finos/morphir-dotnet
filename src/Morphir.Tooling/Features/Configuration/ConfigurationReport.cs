@@ -28,7 +28,10 @@ public sealed record ConfigurationReport(
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public ConfigurationContainmentDto? Containment { get; init; }
 
-    public string ToJson() => JsonSerializer.Serialize(this, ConfigurationJsonContext.Default.ConfigurationReport);
+    public string ToJson() => JsonSerializer.Serialize(this, JsonInfo);
+
+    /// <summary>The source-generated contract of the report, for the shared JSON output writer.</summary>
+    public static System.Text.Json.Serialization.Metadata.JsonTypeInfo<ConfigurationReport> JsonInfo => ConfigurationJsonContext.Default.ConfigurationReport;
 
     internal static ConfigurationReport From(InspectionResult result, bool origin, bool scope)
     {

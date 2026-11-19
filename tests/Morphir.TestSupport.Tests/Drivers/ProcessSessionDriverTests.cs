@@ -1,0 +1,166 @@
+// Copyright 2026 FINOS
+// SPDX-License-Identifier: Apache-2.0
+using System.Runtime.InteropServices;
+using System.Text;
+using FluentAssertions;
+using Morphir.TestSupport.Drivers;
+
+namespace Morphir.TestSupport.Tests.Drivers;
+
+/// <summary>
+/// The session driver (design DRV-1 of the change consolidate-black-box-tests, task 6.3) against a fixture process:
+/// the scripted fake worker of <c>tests/Morphir.Conformance.FakeWorker</c>, which reads and writes Content-Length
+/// frames. A request gets its reply while the process is alive, and an interrupt gives the exit and its time.
+/// </summary>
+[Category("PlatformSpecific")]
+public class ProcessSessionDriverTests
+{
+    private static string FakeWorker => Path.Combine(AppContext.BaseDirectory, "Morphir.Conformance.FakeWorker.dll");
+
+    private static async Task<(ScenarioWorkspace Workspace, ProcessSessionDriver Sessions, string Script)> Arrange(string script)
+    {
+        var workspace = ScenarioWorkspace.Create(Path.Combine(AppContext.BaseDirectory, "Fixtures"));
+        var file = workspace.File("fake script.json");
+        workspace.WriteText(file, script);
+        await Task.CompletedTask;
+        return (workspace, new ProcessSessionDriver(new TestTarget.DevelopmentBuild(), MorphirHost.Native, FakeWorker, workspace), file.Path);
+    }
+
+    [Test]
+    public async Task ARequestGetsItsReplyWhileTheProcessIsAlive()
+    {
+        var (workspace, sessions, script) = await Arrange("""{"modules":{"*":[{"echo":1},{"hang":true}]}}""");
+        await using var _ = workspace;
+        await using var session = await sessions.StartAsync(["--script", script, "extension", "worker"]);
+
+        await session.WriteAsync(ContentLengthFrames.Frame("""{"jsonrpc":"2.0","id":1}"""));
+        var replied = await session.WaitUntilAsync(() => ContentLengthFrames.Read(session.StandardOutput).Frames.Count == 1, TimeSpan.FromSeconds(30));
+        var alive = await session.WaitUntilAsync(() => false, TimeSpan.FromMilliseconds(200)) is false && session.ProcessId > 0;
+
+        replied.Should().BeTrue();
+        alive.Should().BeTrue();
+        Encoding.UTF8.GetString(ContentLengthFrames.Read(session.StandardOutput).Frames.Single()).Should().Be("""{"jsonrpc":"2.0","id":1}""");
+        var exit = await session.WaitForExitAsync(TimeSpan.FromMilliseconds(500));
+        exit.ExitCode.Should().BeNull("the fake still hangs at the time limit, so the driver stops it");
+    }
+
+    [Test]
+    public async Task AnInterruptGivesTheExitAndTheTimeFromTheInterruptToTheExit()
+    {
+        var (workspace, sessions, script) = await Arrange("""{"modules":{"*":[{"stderr":"ready"},{"hang":true}]}}""");
+        await using var _ = workspace;
+        await using var session = await sessions.StartAsync(["--script", script, "extension", "worker"]);
+        (await session.WaitUntilAsync(() => session.StandardError.Any(line => line.Text == "ready"), TimeSpan.FromSeconds(30))).Should().BeTrue();
+
+        var sent = await session.InterruptAsync(ConsoleControlEvent.CtrlBreak);
+        var exit = await session.WaitForExitAsync(TimeSpan.FromSeconds(30));
+
+        exit.ExitCode.Should().NotBeNull(exit.Describe());
+        exit.ExitCode.Should().NotBe(0, exit.Describe());
+        exit.InterruptedAt.Should().Be(sent);
+        exit.FromInterruptToExit.Should().NotBeNull();
+        exit.FromInterruptToExit!.Value.Should().BeGreaterThanOrEqualTo(TimeSpan.Zero).And.BeLessThan(TimeSpan.FromSeconds(10));
+    }
+
+    // A Windows process can start with Ctrl+C ignored: CREATE_NEW_PROCESS_GROUP sets that attribute, and each child
+    // inherits it. A test process started that way by an agent, a shell or a runner gave the attribute to each session,
+    // so CTRL_C_EVENT reached no handler and the session hung until its time limit. A session takes Ctrl+C as in a
+    // user's console, whatever the test process inherited. The test leaves its process with Ctrl+C ignored only up to
+    // the start of the session: the driver enables it again there.
+    [Test]
+    public async Task ACtrlCInterruptsTheSessionAlsoWhenTheTestProcessIgnoresCtrlC()
+    {
+        if (!OperatingSystem.IsWindows()) Skip.Test("Only a Windows process inherits whether it ignores Ctrl+C.");
+        SetConsoleCtrlHandler(IntPtr.Zero, true).Should().BeTrue("the test process ignores Ctrl+C, as a process of a new process group does");
+        var (workspace, sessions, script) = await Arrange("""{"modules":{"*":[{"stderr":"ready"},{"hang":true}]}}""");
+        await using var _ = workspace;
+        await using var session = await sessions.StartAsync(["--script", script, "extension", "worker"]);
+        (await session.WaitUntilAsync(() => session.StandardError.Any(line => line.Text == "ready"), TimeSpan.FromSeconds(30))).Should().BeTrue();
+
+        await session.InterruptAsync(ConsoleControlEvent.CtrlC);
+        var exit = await session.WaitForExitAsync(TimeSpan.FromSeconds(10));
+
+        exit.ExitCode.Should().NotBeNull("Ctrl+C ends the fake, which has no handler of its own; " + exit.Describe());
+        exit.ExitCode.Should().NotBe(0, exit.Describe());
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetConsoleCtrlHandler(IntPtr handler, bool add);
+
+    // The session of the target holds a slot of the shared gate for its whole life. With a share of one slot, an
+    // interrupt that waited for a slot of the same gate waited until the time limit of the session stopped its target.
+    [Test]
+    public async Task AnInterruptDoesNotWaitForASlotOfTheSharedGate()
+    {
+        var (workspace, sessions, script) = await Arrange("""{"modules":{"*":[{"stderr":"ready"},{"hang":true}]}}""");
+        await using var _ = workspace;
+        await using var session = await sessions.StartAsync(["--script", script, "extension", "worker"], new ProcessSessionOptions { Timeout = TimeSpan.FromSeconds(60) });
+        (await session.WaitUntilAsync(() => session.StandardError.Any(line => line.Text == "ready"), TimeSpan.FromSeconds(30))).Should().BeTrue();
+
+        var slots = new List<IDisposable>();
+        try
+        {
+            // The session holds one slot of the shared gate; the test takes the others, so that none is free, as with a
+            // share of one slot. Other tests of the assembly hold slots too: the wait for them is bounded, and the
+            // slots are held only for the interrupt. On Linux and macOS the interrupt is kill(2) and starts no helper.
+            using var waitForSlots = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+            for (var i = 1; i < ProcessGate.Shared.Limit; i++) slots.Add(await ProcessGate.Shared.EnterAsync(waitForSlots.Token));
+            var interrupt = session.InterruptAsync(ConsoleControlEvent.CtrlBreak);
+            (await Task.WhenAny(interrupt, Task.Delay(TimeSpan.FromSeconds(30)))).Should().BeSameAs(interrupt, "the helper of the interrupt has a gate of its own");
+            await interrupt;
+        }
+        finally
+        {
+            foreach (var slot in slots) slot.Dispose();
+        }
+
+        var exit = await session.WaitForExitAsync(TimeSpan.FromSeconds(30));
+        exit.ExitCode.Should().NotBeNull(exit.Describe());
+    }
+
+    [Test]
+    public async Task TheOutputIsReadAsItComesAndStandardErrorKeepsTheTimeOfEachLine()
+    {
+        var (workspace, sessions, script) = await Arrange("""{"modules":{"*":[{"stderr":"first"},{"frame":{"a":1}},{"read":1},{"stderr":"second"}]}}""");
+        await using var _ = workspace;
+        await using var session = await sessions.StartAsync(["--script", script, "extension", "worker"]);
+
+        (await session.WaitUntilAsync(() => session.StandardOutput.Length > 0, TimeSpan.FromSeconds(30))).Should().BeTrue();
+        session.StandardError.Select(line => line.Text).Should().Equal("first");
+        await session.WriteAsync(ContentLengthFrames.Frame("{}"));
+        var exit = await session.WaitForExitAsync(TimeSpan.FromSeconds(30));
+
+        exit.ExitCode.Should().Be(0, exit.Describe());
+        exit.StandardError.Select(line => line.Text).Should().Equal("first", "second");
+        exit.StandardError[1].At.Should().BeGreaterThanOrEqualTo(exit.StandardError[0].At);
+        exit.Frames.Problem.Should().BeNull();
+        exit.FromInterruptToExit.Should().BeNull();
+    }
+
+    [Test]
+    public async Task TheSessionIsContainedInTheWorkspace()
+    {
+        var (workspace, sessions, script) = await Arrange("""{"modules":{"*":[{"exit":3}]}}""");
+        await using var _ = workspace;
+        await using var session = await sessions.StartAsync(
+            ["--script", script, "--log", "log.jsonl", "extension", "worker", "--json"],
+            new ProcessSessionOptions { Environment = new Dictionary<string, string?> { ["MORPHIR_SESSION_TEST"] = "1" } });
+
+        var exit = await session.WaitForExitAsync(TimeSpan.FromSeconds(30));
+
+        exit.ExitCode.Should().Be(3);
+        workspace.ReadText(workspace.File("log.jsonl")).Should().Contain("\"--json\"", "the process starts in the work area of the workspace");
+        session.CommandLine.Should().StartWith(DotnetHost.Path + " ", "the session starts the dotnet host by its path, so a changed PATH does not hide it").And.Contain(FakeWorker);
+    }
+
+    [Test]
+    public void ContentLengthFramesAreReadStrictly()
+    {
+        var two = ContentLengthFrames.Frame("{}").Concat(ContentLengthFrames.Frame("[1]")).ToArray();
+
+        ContentLengthFrames.Read(two).Frames.Select(Encoding.UTF8.GetString).Should().Equal("{}", "[1]");
+        ContentLengthFrames.Read([.. two, (byte)'x']).Problem.Should().Contain("not a frame");
+        ContentLengthFrames.Read(Encoding.ASCII.GetBytes("Length: 2\r\n\r\n{}")).Problem.Should().Contain("not one Content-Length line");
+        ContentLengthFrames.Read(Encoding.ASCII.GetBytes("Content-Length: 9\r\n\r\n{}")).Problem.Should().Contain("ends first");
+    }
+}

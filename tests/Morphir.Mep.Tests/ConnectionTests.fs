@@ -58,6 +58,24 @@ type private BrokenStream() =
     override _.SetLength _ = raise (NotSupportedException())
     override _.Write(_, _, _) = raise (NotSupportedException())
 
+type private ClosedOwnedOutput() =
+    inherit MemoryStream()
+
+    interface ITransportWriteAvailability with
+        member _.EnsureWriteAvailable() = raise (IOException "The owned peer has exited.")
+
+/// An output whose every write fails as the stdin of an exited worker does.
+type private FailingOutput() =
+    inherit MemoryStream()
+    override _.Write(_: byte array, _: int, _: int) = raise (IOException "The owned peer has exited.")
+    override _.Write(_: ReadOnlySpan<byte>) = raise (IOException "The owned peer has exited.")
+
+    override _.WriteAsync(_: byte array, _: int, _: int, _: CancellationToken) =
+        Task.FromException(IOException "The owned peer has exited.")
+
+    override _.WriteAsync(_: ReadOnlyMemory<byte>, _: CancellationToken) =
+        ValueTask(Task.FromException(IOException "The owned peer has exited."))
+
 /// A handler that waits until its token cancels and records that it saw the cancellation, where Task.Delay ends
 /// with it. It does not use token.Register inside `use` (issue 585): the cancel can run Task.Delay's callback first;
 /// the handler then resumes on another thread and disposes that registration before the cancelling thread reaches
@@ -113,6 +131,23 @@ let tests =
                       (receive toHost.Reader)
                       ("""{"jsonrpc":"2.0","id":""" + id + ""","error":{"code":-32800,"message":"Request cancelled"}}""")
                       "Cancelled reply with the same id token"
+
+          testCase "an already closed connection preserves the owned transport's refusal without writing"
+          <| fun _ ->
+              use input = new MemoryStream()
+              use output = new ClosedOwnedOutput()
+
+              let connection = Connection(input, output, Dispatcher(readOnlyDict []))
+              let ended = connection.RunAsync(CancellationToken.None).GetAwaiter().GetResult()
+              Expect.equal ended ConnectionEnd.EndOfStream "The reader closed before the request"
+              Expect.throwsT<IOException>
+                  (fun () ->
+                      connection.RequestAsync(Method.Ping.WireValue, None, CancellationToken.None)
+                          .GetAwaiter()
+                          .GetResult()
+                      |> ignore)
+                  "The owner can identify the stopped transport"
+              Expect.equal output.Length 0L "No request bytes are written"
 
           testCase "a cancel for an unknown id is ignored"
           <| fun _ ->
@@ -490,17 +525,21 @@ module internal ConformanceFixture =
                 }
             )
 
-    /// Signals the next real read after a known byte boundary. The preceding frame has then been parsed by RunAsync.
+    /// Signals once a read starts at or beyond a byte boundary, even if it started before the caller armed the signal.
     type ObservedRead(inner: Stream) =
         inherit Stream()
         let gate = obj ()
         let mutable consumed = 0L
+        let mutable readStartedAt = 0L
         let mutable boundary: (int64 * TaskCompletionSource<unit>) option = None
         member _.AfterBytes(count: int64) =
             lock gate (fun () ->
                 if count <= 0L || boundary.IsSome then invalidOp "Fixture setup: invalid or already armed read boundary."
                 let completion = signal ()
-                boundary <- Some(count, completion)
+                if readStartedAt >= count then
+                    completion.TrySetResult() |> ignore
+                else
+                    boundary <- Some(count, completion)
                 completion.Task)
         override _.CanRead = true
         override _.CanWrite = false
@@ -515,8 +554,9 @@ module internal ConformanceFixture =
         override _.ReadAsync(buffer: Memory<byte>, token) =
             ValueTask<int>(task {
                 lock gate (fun () ->
+                    readStartedAt <- consumed
                     match boundary with
-                    | Some(count, completion) when consumed >= count ->
+                    | Some(count, completion) when readStartedAt >= count ->
                         boundary <- None
                         completion.TrySetResult() |> ignore
                     | _ -> ())
@@ -570,6 +610,34 @@ let conformanceStreamTests =
     let moduleName = "MEP conformance stream evidence"
     let wait = ConformanceFixture.wait
     testSequenced <| testList moduleName [
+        testCase "a request whose write fails keeps the transport's reason in its local error" <| fun _ ->
+            let fromPeer = Pipe()
+            use input = fromPeer.Reader.AsStream()
+            use output = new FailingOutput()
+            use lifetime = new CancellationTokenSource()
+            let session = HostSession.CreateConformance(input, output, ConformanceFixture.host, ConformanceFixture.limits (), lifetime.Token)
+            let run = session.RunAsync lifetime.Token
+            match wait (session.DescribeAsync CancellationToken.None) with
+            | Error error ->
+                Expect.stringContains error.Message "did not complete" "The request did not complete"
+                Expect.stringContains error.Message "The owned peer has exited." "The transport's reason is kept"
+            | Ok _ -> failtest "A failed write cannot succeed"
+            lifetime.Cancel()
+            try wait run |> ignore with _ -> ()
+
+        testCase "a request after end of stream keeps the owned transport's reason without writing" <| fun _ ->
+            use input = new MemoryStream()
+            use output = new ClosedOwnedOutput()
+            use lifetime = new CancellationTokenSource()
+            let session = HostSession.CreateConformance(input, output, ConformanceFixture.host, ConformanceFixture.limits (), lifetime.Token)
+            wait (session.RunAsync lifetime.Token) |> ignore
+            match wait (session.DescribeAsync CancellationToken.None) with
+            | Error error ->
+                Expect.stringContains error.Message "The connection ended" "The connection ended"
+                Expect.stringContains error.Message "The owned peer has exited." "The owner identifies the stopped transport"
+            | Ok _ -> failtest "A closed connection cannot answer"
+            Expect.equal output.Length 0L "No request bytes are written"
+
         testCase "describe starts at one and retains exact sent and whitespace reply bodies" <| fun _ ->
             use edge = new ConformanceFixture.StreamEdge()
             let pending = edge.Session.DescribeAsync CancellationToken.None

@@ -63,6 +63,7 @@ let tests =
                   expected["model"] <- JsonNode.Parse(JsonSerializer.Serialize(envelope, MepJson.Default.MorphirModel))
 
                   Expect.isTrue (JsonNode.DeepEquals(written, expected)) $"{id} round-trips: {written}"
+          |> testLabel "PlatformSpecific"
 
           testCase "Absent requiredGuarantees and options read as empty, as the wire rules say"
           <| fun _ ->
@@ -154,3 +155,34 @@ let tests =
 
               let read = decode MepJson.Default.Artifact (JsonNode.Parse """{"path":"A/B.fs","content":"x"}""" |> nonNull)
               Expect.isFalse read.Binary "An absent binary reads as false" ]
+
+[<Tests>]
+let requestCacheTests =
+    testList "Reserved bounded request IDs" [
+        test "An exact retained-byte cap admits an ID and one byte under refuses" {
+            let exact = 256L + 128L + 2L * int64 "request-1".Length
+            let admitted = BoundedRequestIdCache(Some exact)
+            Expect.isTrue (admitted.TryAdd "request-1") "Exact reservation"
+            Expect.equal admitted.RetainedBytes exact "Explicit retained accounting"
+            Expect.isFalse (admitted.TryAdd "request-1") "Duplicates remain invalid"
+            Expect.equal admitted.RetainedBytes exact "Duplicates do not reserve twice"
+            let refused = BoundedRequestIdCache(Some(exact - 1L))
+            Expect.isFalse (refused.TryAdd "request-1") "One byte over reservation"
+            Expect.equal refused.RetainedBytes 256L "Refusal retains only fixed cache metadata"
+        }
+        test "Distinct IDs aggregate against the cap with ordinal identity" {
+            let cache = BoundedRequestIdCache(Some 516L)
+            Expect.isTrue (cache.TryAdd "a") "First costs 130"
+            Expect.isTrue (cache.TryAdd "A") "Ordinally distinct ID at exact cap"
+            Expect.isFalse (cache.TryAdd "b") "Next request cannot exceed reservation"
+            Expect.equal cache.RetainedBytes 516L "Bounded aggregate"
+        }
+        test "The existing unrestricted ledger remains the default" {
+            let cache = BoundedRequestIdCache(None)
+            Expect.isTrue (cache.TryAdd "request") "Normal behavior"
+            Expect.isFalse (cache.TryAdd "request") "Default still rejects reuse"
+            let ledger = BoundedGeneration()
+            Expect.isTrue (ledger.TryReserveSingleOperationRequestCache 260L) "Opt in before start"
+            Expect.isFalse (ledger.TryReserveSingleOperationRequestCache 260L) "No reconfiguration"
+        }
+    ]

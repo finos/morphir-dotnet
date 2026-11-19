@@ -11,6 +11,7 @@ namespace Morphir.Tooling.Tests.Features.Mck;
 /// absolute folders of PATH, in order. Relative and empty PATH entries are skipped, the current directory is never
 /// searched, and on Windows only an <c>.exe</c> is a candidate, because anything else would need a shell.
 /// </summary>
+[Category("PlatformSpecific")]
 public class MckToolResolutionTests
 {
     private static readonly string Suffix = OperatingSystem.IsWindows() ? ".exe" : "";

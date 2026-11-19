@@ -4,13 +4,14 @@ using System.Text.Json;
 using FluentAssertions;
 using Morphir.Extensions;
 using Morphir.Tooling.Features.Extensions;
-using Morphir.Tooling.Tests.Integration.CLI;
+using Morphir.Tooling.Cli;
 
 namespace Morphir.Tooling.Tests.Features.Extensions;
 
 /// <summary>
 /// <c>morphir extension runtimes</c> (task 4.2 of <c>add-wasm-extension-host</c>, design RPT-1): the report of the
-/// WASM runtime, as one JSON document and as text, for an available runtime and for each unavailable reason.
+/// WASM runtime, as one JSON document and as text, for an available runtime and for each unavailable reason. The
+/// report of the real CLI process is in tests/Morphir.BlackBox.Tests/Integration/Extensions.feature.
 /// </summary>
 public sealed class ExtensionRuntimesReportTests
 {
@@ -23,6 +24,7 @@ public sealed class ExtensionRuntimesReportTests
         ("platform_unsupported", "linux-musl-x64"),
         ("engine_missing", "win-arm64"),
         ("engine_load_failed", "linux-x64"),
+        ("win_x64_trap_unsupported", "win-x64"),
     ];
 
     private static WasmRuntimeUnavailableReason Reason(string wire) => wire switch
@@ -30,6 +32,7 @@ public sealed class ExtensionRuntimesReportTests
         "platform_unsupported" => WasmRuntimeUnavailableReason.PlatformUnsupported,
         "engine_missing" => WasmRuntimeUnavailableReason.EngineMissing,
         "engine_load_failed" => WasmRuntimeUnavailableReason.EngineLoadFailed,
+        "win_x64_trap_unsupported" => WasmRuntimeUnavailableReason.WinX64TrapUnsupported,
         _ => throw new ArgumentOutOfRangeException(nameof(wire), wire, null),
     };
 
@@ -37,9 +40,9 @@ public sealed class ExtensionRuntimesReportTests
 
     private static (int Exit, string Stdout) Run(HostIdentity host, WasmRuntime runtime, bool json)
     {
-        var stdout = new List<string>();
-        var exit = ExtensionRuntimesCommand.Execute(host, runtime, json, stdout.Add);
-        return (exit, string.Join('\n', stdout).Replace("\r\n", "\n"));
+        var stdout = new StringWriter();
+        var exit = ExtensionRuntimesCommand.Execute(host, runtime, json ? JsonOutputMode.Document : JsonOutputMode.None, stdout);
+        return (exit, stdout.ToString().Replace("\r\n", "\n").TrimEnd('\n'));
     }
 
     private static JsonElement Json(HostIdentity host, WasmRuntime runtime)
@@ -156,31 +159,5 @@ public sealed class ExtensionRuntimesReportTests
         Run(Native, runtime, json: false);
 
         probes.Should().Be(1);
-    }
-
-    /// <summary>Through the real CLI process: one JSON document on stdout, and the engine of this build available.</summary>
-    [Test]
-    public async Task TheCliReportsItsOwnRuntimeAsOneJsonDocumentOnStdout()
-    {
-        var result = await new CliTestHelper(Environment.GetEnvironmentVariable("MORPHIR_GENERATION_CLI"))
-            .ExecuteCommandAsync("extension runtimes --json", timeout: TimeSpan.FromSeconds(60));
-
-        result.ExitCode.Should().Be(0, result.CombinedOutput);
-        using var document = JsonDocument.Parse(result.StandardOutput);
-        document.RootElement.GetProperty("host").GetString().Should().Be("morphir");
-        document.RootElement.GetProperty("platform").GetString().Should().Be(WasmRuntime.Process.Platform);
-        var wasm = document.RootElement.GetProperty("runtimes")[0];
-        wasm.GetProperty("available").GetBoolean().Should().BeTrue(result.StandardOutput);
-        wasm.GetProperty("engine").GetProperty("version").GetString().Should().Be(WasmRuntimeIdentity.EngineVersion);
-    }
-
-    [Test]
-    public async Task TheCliTextNamesTheRuntimeAndItsEngine()
-    {
-        var result = await new CliTestHelper(Environment.GetEnvironmentVariable("MORPHIR_GENERATION_CLI"))
-            .ExecuteCommandAsync("extension runtimes", timeout: TimeSpan.FromSeconds(60));
-
-        result.ExitCode.Should().Be(0, result.CombinedOutput);
-        result.StandardOutput.Should().Contain("wasm: available").And.Contain($"Engine: {WasmRuntimeIdentity.Engine}");
     }
 }

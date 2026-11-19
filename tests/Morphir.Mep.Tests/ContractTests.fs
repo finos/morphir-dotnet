@@ -271,6 +271,7 @@ let tests =
                               Expect.throwsT<JsonException>
                                   (fun () -> item.RoundTrip reduced |> ignore)
                                   $"Omitting the required member {field.Name} is refused"
+              |> testLabel "PlatformSpecific"
 
           testCase "renaming a member in a copy of the pin is detected"
           <| fun _ ->
@@ -284,6 +285,7 @@ let tests =
                   Expect.isFalse
                       (checkedTypes |> List.forall (matchesNames contract.RootElement))
                       $"A pin drift of {original} cannot pass the contract check"
+          |> testLabel "PlatformSpecific"
 
           testCaseAsync "a framed describe payload reaches the generated codec"
           <| async {

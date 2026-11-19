@@ -312,7 +312,7 @@ let tests =
             use sandbox = tempDirectory ()
 
             for device in [ "/dev/null"; "/dev/zero" ] do
-                let link = Path.Combine(sandbox.Work, nonNull (Path.GetFileName device) + ".toml")
+                let link = Path.Combine(sandbox.Work, Path.GetFileName device + ".toml")
                 File.CreateSymbolicLink(link, device) |> ignore
                 let run = runIn sandbox.Work Platform.LinuxX64 [ "doctor"; "--request"; link; "--lock"; fixture "lock/two-platforms-bound.json" ]
 
@@ -400,7 +400,7 @@ let tests =
             | other -> failtestf "unexpected diagnostics %A" other)
 
         testCase "the AOT probe's plan normalizes its decomposed character and has the recorded digest" (fun () ->
-            // build/Build.MyriadJson.cs TestMorphirupAot runs this command under JIT and Native AOT with --expect-plan.
+            // The Native AOT lane of the black-box tests (TestAot) runs this command under JIT and Native AOT with --expect-plan.
             let probe = Path.Combine(__SOURCE_DIRECTORY__, "AotProbe")
             let recipe = File.ReadAllBytes(Path.Combine(probe, "recipe.json"))
             let decomposed = Encoding.UTF8.GetBytes "cafe\u0301"
@@ -597,3 +597,4 @@ let tests =
                 | other -> failtestf "unexpected diagnostics %A" other)
         ]
     ]
+    |> testLabel "PlatformSpecific"

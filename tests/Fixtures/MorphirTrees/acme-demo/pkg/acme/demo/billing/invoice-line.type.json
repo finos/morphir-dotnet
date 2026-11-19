@@ -1,0 +1,9 @@
+{
+  "formatVersion": 4,
+  "name": "invoice-line",
+  "def": {
+    "Public": {
+      "TypeAliasDefinition": { "typeParams": [], "typeExp": "morphir/SDK:basics#int" }
+    }
+  }
+}

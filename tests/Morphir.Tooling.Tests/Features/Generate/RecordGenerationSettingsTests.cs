@@ -16,6 +16,7 @@ namespace Morphir.Tooling.Tests.Features.Generate;
 /// serialized"): <c>generate</c> without <c>--input</c> reads the IR through the compile record and holds the
 /// shared lock until model loading ends. Each wait has a bound and waits on a signal, never on a sleep.
 /// </summary>
+[Category("PlatformSpecific")]
 public sealed class RecordGenerationSettingsTests
 {
     private static readonly TimeSpan Bound = TimeSpan.FromSeconds(60);

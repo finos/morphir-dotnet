@@ -39,11 +39,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.12.0" />
     <!-- Reference assemblies as embedded resources: a single-file AOT app has no ref pack on disk. -->
     <PackageReference Include="Basic.Reference.Assemblies.Net100" Version="1.8.15" Condition="'$(ProbeRefs)' != 'sdk'" />
     <!-- workspaces: the Workspaces layer (AdhocWorkspace, MEF host services), which IDE-style tools use. -->
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.9.0" Condition="'$(ProbeVariant)' == 'workspaces'" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.12.0" Condition="'$(ProbeVariant)' == 'workspaces'" />
   </ItemGroup>
   <!--
     RoslynSingleWarn=true: collapse the warnings of the Roslyn assemblies into one warning per

@@ -5,6 +5,7 @@ using Morphir.Tooling.Features.Extensions;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Features.Validate;
 using Morphir.Tooling.Infrastructure;
+using Morphir.Tooling.Cli;
 
 namespace Morphir.Tooling.Tests.Features.Extensions;
 
@@ -38,9 +39,9 @@ public sealed class OfferingReportTests
 
     private static JsonDocument List(HostIdentity host)
     {
-        var stdout = new List<string>();
-        ExtensionListCommand.Execute(Registry(host), true, stdout.Add, new StringWriter(), TerminalProfile.Plain).Should().Be(0);
-        return JsonDocument.Parse(string.Join('\n', stdout));
+        var stdout = new StringWriter();
+        ExtensionListCommand.Execute(Registry(host), JsonOutputMode.Document, stdout, new StringWriter(), TerminalProfile.Plain).Should().Be(0);
+        return JsonDocument.Parse(stdout.ToString());
     }
 
     private static JsonElement Entry(JsonDocument document, string id) =>
@@ -87,7 +88,7 @@ public sealed class OfferingReportTests
         var runtime = prerequisites.GetProperty("runtime").EnumerateArray().Single();
         runtime.GetProperty("kind").GetString().Should().Be("runtime");
         runtime.GetProperty("name").GetString().Should().Be("Microsoft.NETCore.App");
-        Strings(runtime.GetProperty("versions")).Should().Equal(">=10.0.0", "<11.0.0");
+        Strings(runtime.GetProperty("versions")).Should().Equal(">=11.0.0", "<12.0.0");
         prerequisites.GetProperty("sdk").GetArrayLength().Should().Be(0, "running needs no SDK");
     }
 
@@ -101,7 +102,7 @@ public sealed class OfferingReportTests
         sdk.GetProperty("kind").GetString().Should().Be("sdk");
         sdk.GetProperty("name").GetString().Should().Be("Microsoft.NET.Sdk");
         sdk.GetProperty("phase").GetString().Should().Be("install", "the SDK is an installation prerequisite, not a runtime one");
-        Strings(sdk.GetProperty("versions")).Should().Equal(">=10.0.100");
+        Strings(sdk.GetProperty("versions")).Should().Equal(">=11.0.100");
     }
 
     [Test]

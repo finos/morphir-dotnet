@@ -543,3 +543,4 @@ let tests =
                     "original syntax, never the analysis copy"
         }
     ]
+    |> testLabel "PlatformSpecific"

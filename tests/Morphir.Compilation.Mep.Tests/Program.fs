@@ -10,6 +10,14 @@ open Morphir.TestSupport
 [<EntryPoint>]
 let main args =
     match args with
+    | [| "--fake-sleeper" |] ->
+        use self = System.Diagnostics.Process.GetCurrentProcess()
+        let marker = System.IO.Path.Combine(System.Environment.CurrentDirectory, "descendant.pid")
+        let temporary = marker + ".tmp"
+        System.IO.File.WriteAllText(temporary, $"{self.Id}|{ProcessIdentity.start self}")
+        System.IO.File.Move(temporary, marker, true)
+        System.Threading.Thread.Sleep 60000
+        0
     | [| "--fake-guest"; scenario |] -> FakeGuests.run scenario
     | _ ->
         let tripwire = MachineTripwire.Capture()

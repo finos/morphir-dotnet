@@ -22,7 +22,7 @@ The generation command SHALL resolve exact target csharp to the first-party C# p
 
 ### Requirement: Validated C# backend options
 
-The C# provider SHALL accept language-version values 14 or 15, defaulting to 14, and an optional valid C# namespace. Existing last-occurrence option precedence SHALL apply. Unknown option names, unsupported versions, malformed namespaces and wrong JSON types SHALL fail before emission.
+The C# provider SHALL accept the language-version value 15, defaulting to 15, an optional valid C# namespace, a profile (`imperative` or `functional`), and the handling options of the C# handling options capability. Existing last-occurrence option precedence SHALL apply. Unknown option names, unsupported versions, malformed namespaces and wrong JSON types SHALL fail before emission.
 
 #### Scenario: Explicit RC language target
 
@@ -31,8 +31,18 @@ The C# provider SHALL accept language-version values 14 or 15, defaulting to 14,
 
 #### Scenario: Repeated option and default
 
-- **WHEN** language-version is omitted or supplied as 15 and then 14
-- **THEN** the effective language version is 14
+- **WHEN** language-version is omitted
+- **THEN** the effective language version is 15, and a repeated option uses its last occurrence
+
+#### Scenario: Older language version
+
+- **WHEN** the invocation supplies language-version=14
+- **THEN** the invocation returns code 2 with a diagnostic that names 15 as the supported version, and no publication
+
+#### Scenario: Profile option
+
+- **WHEN** the user supplies --option profile=functional
+- **THEN** the provider writes the functional form of each traversal
 
 #### Scenario: Invalid options
 
@@ -94,3 +104,17 @@ The registered C# provider SHALL work in trimmed and Native AOT CLI builds throu
 
 - **WHEN** a trimmed or Native AOT CLI generates the nonempty pricing fixture with JSON reporting
 - **THEN** the report parses, the source artifacts are present, and a separate consumer with the matching compiler builds and executes them
+
+### Requirement: Generation runs the upgrade and the passes
+
+Before the C# backend, `morphir generate --target csharp` SHALL upgrade a classic model and SHALL run the target-side passes for `csharp`. A pass error SHALL stop the run before publication.
+
+#### Scenario: Pass error
+
+- **WHEN** a target-side pass reports an error for the model
+- **THEN** the command returns a failure exit code and publishes nothing
+
+#### Scenario: Checks of the backend
+
+- **WHEN** a model has a name collision that the backend checked before this change
+- **THEN** the same diagnostic is reported, now by a target-side pass

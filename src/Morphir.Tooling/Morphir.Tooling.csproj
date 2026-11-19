@@ -1,8 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <LangVersion>14</LangVersion>
+    <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -63,6 +62,7 @@
     <ProjectReference Include="..\Morphir.Configuration\Morphir.Configuration.fsproj" />
     <ProjectReference Include="..\Morphir.Configuration.IO\Morphir.Configuration.IO.csproj" />
     <ProjectReference Include="..\Morphir.Toolchain.IO\Morphir.Toolchain.IO.fsproj" />
+    <ProjectReference Include="..\Morphir.Extensions.Installation\Morphir.Extensions.Installation.fsproj" />
     <ProjectReference Include="..\Morphir.Models\Morphir.Models.fsproj" />
     <!-- Versioning.FormatVersion spellings for task records (VER-1) -->
     <ProjectReference Include="..\Morphir.Compilation\Morphir.Compilation.fsproj" />
@@ -71,9 +71,11 @@
     <!-- The WASM extension runtime, for the configured-module loader (add-wasm-extension-host, task 2.6) -->
     <ProjectReference Include="..\Morphir.Extensions.Wasm\Morphir.Extensions.Wasm.csproj" />
     <ProjectReference Include="..\Morphir.Analyzers\Morphir.Analyzers.fsproj" />
-    <ProjectReference Include="..\Morphir.IR.Pipeline\Morphir.IR.Pipeline.fsproj" />
+    <ProjectReference Include="..\Morphir.Files\Morphir.Files.fsproj" />
+    <ProjectReference Include="..\Morphir.Knowledge.Okf\Morphir.Knowledge.Okf.fsproj" />
     <ProjectReference Include="..\Morphir.CodeGeneration.FSharp\Morphir.CodeGeneration.FSharp.fsproj" />
-    <ProjectReference Include="..\Morphir.CodeGeneration.CSharp\Morphir.CodeGeneration.CSharp.fsproj" />
+    <ProjectReference Include="..\Morphir.Lang.CSharp\Morphir.Lang.CSharp.fsproj" />
+    <ProjectReference Include="..\Morphir.MiddleEnd\Morphir.MiddleEnd.fsproj" />
     <ProjectReference Include="..\Morphir.Ion\Morphir.Ion.fsproj" />
   </ItemGroup>
 

@@ -212,3 +212,4 @@ let tests =
                 Expect.equal target.Text "artifacts/morphir-dotnet-native-aot/1.2.3/win-x64.zip" "the host archive"
             | other -> failtestf "expected SizeUnknown, got %A" other)
     ]
+    |> testLabel "PlatformSpecific"

@@ -15,6 +15,7 @@ public class SchemaValidatorTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ValidateAsync_ShouldReturnValid_WhenJsonMatchesSchema()
     {
         // Arrange
@@ -29,6 +30,7 @@ public class SchemaValidatorTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ValidateAsync_ShouldReturnInvalid_WhenRequiredFieldMissing()
     {
         // Arrange
@@ -67,6 +69,7 @@ public class SchemaValidatorTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ValidateAsync_ShouldThrowException_WhenInvalidSchemaVersion()
     {
         // Arrange
@@ -94,6 +97,7 @@ public class SchemaValidatorTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ValidateAsync_ShouldIncludePathInErrors_WhenValidationFails()
     {
         // Arrange

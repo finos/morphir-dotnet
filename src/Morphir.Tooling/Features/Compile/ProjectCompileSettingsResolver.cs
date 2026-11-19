@@ -193,9 +193,24 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
         Setting<ImmutableArray<string>>? exposed = config.Strings("project", "exposed_modules");
 
         // A frontend extension: --extension, else [frontend.<language>].extension of the selected language.
-        var extension = overrides.Extension is { } cliExtension
+        if (overrides.ExtensionId is not null && overrides.Extension is not null)
+            Error(CompileCodes.InvalidArguments, "Choose --extension or --extension-id, not both.");
+        Setting<Morphir.Extensions.ExtensionId>? installedId = null;
+        if (overrides.ExtensionId is { } rawId)
+        {
+            if (Morphir.Extensions.ExtensionId.TryParse(rawId, out var parsedId, out _))
+                installedId = new(parsedId, new SettingOrigin.CommandLine("--extension-id"));
+            else Error(CompileCodes.InvalidArguments, "--extension-id must be a valid full extension identity.");
+        }
+        var extension = overrides.ExtensionId is not null ? null : overrides.Extension is { } cliExtension
             ? new Setting<string>(cliExtension, new SettingOrigin.CommandLine("--extension"))
             : language is null ? null : config.String("frontend", language.Value.Value, "extension");
+        if (overrides.ExtensionId is null && extension is null && language is not null && config.String("extensions", language.Value.Value, "path") is { } modulePath)
+            extension = new(language.Value.Value, modulePath.Origin);
+        Features.Extensions.WasmModuleSource? wasmModule = null;
+        if (overrides.ExtensionId is null && extension is not null && !Features.Extensions.ConfiguredWasmModule.TryRead(config, extension.Value,
+                loaded.ProjectRoot ?? working, out wasmModule, out var moduleError))
+            Error(CompileCodes.InvalidSetting, moduleError!);
         if (extension is not null && string.IsNullOrWhiteSpace(extension.Value))
             Error(CompileCodes.InvalidSetting, $"The frontend extension from {Describe(extension.Origin)} is empty.");
 
@@ -203,6 +218,13 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
         var ignoredBackend = overrides.Target?.Target is RequestedTarget.Valid requestedTarget
             ? config.String("codegen", requestedTarget.Id.Value, "extension")
             : null;
+        // The other keys of that table are configured backend options, as generate reads them.
+        var configuredBackendOptions = overrides.Target?.Target is RequestedTarget.Valid optionsTarget
+            ? BackendOptions.ConfiguredOf(config.ScalarMembers("codegen", optionsTarget.Id.Value))
+            : [];
+
+        // The other keys of each [frontend.<language>] table are extra options of the frontend of that language (OPT-1).
+        var frontendOptions = config.FrontendOptionTables();
 
         // Sources (SRC-1): --project-file, --input, the configured project file, the source directory.
         var unread = ImmutableArray<string>.Empty;
@@ -256,9 +278,13 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             IrVersion = version,
             ExposedModules = exposed,
             Extension = extension,
+            InstalledExtensionId = installedId,
+            WasmModule = wasmModule,
             Sources = sources,
             UnreadProjectFileKeys = unread,
             IgnoredBackendExtension = ignoredBackend,
+            ConfiguredBackendOptions = configuredBackendOptions,
+            FrontendOptions = frontendOptions,
             ProjectRoot = loaded.ProjectRoot,
             OutRoot = place.OutRoot,
             Member = place.Member,
@@ -287,6 +313,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
     /// </summary>
     internal sealed class ConfigurationView(LoadedCompileConfiguration loaded)
     {
+        public bool Has(params string[] path) => Find(path) is not null;
         private ConfigValue? Find(string[] path) =>
             ConfigValueProjections.TryFind(loaded.Effective, path, out var value) ? value : null;
 
@@ -305,6 +332,33 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             Find(path) is { } value && ConfigValueProjections.TryTextList(value, out var items)
                 ? new([.. items], Origin(path))
                 : null;
+
+        /// <summary>The scalar members of the table at the path, as JSON values, in ordinal order. No table gives none.</summary>
+        public IReadOnlyList<KeyValuePair<string, System.Text.Json.JsonElement>> ScalarMembers(params string[] path) =>
+            Find(path) is { } table ? ConfigValueProjections.ScalarMembers(table) : [];
+
+        /// <summary>
+        /// The extra options of each <c>[frontend.&lt;language&gt;]</c> table, by the language: each scalar key except
+        /// <c>extension</c> and <c>project_file</c>, which select the frontend and the sources, with <c>-</c> for <c>_</c>
+        /// (<c>loop_lowering</c> is <c>loop-lowering</c>).
+        /// </summary>
+        public ImmutableDictionary<LanguageId, ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>>> FrontendOptionTables()
+        {
+            var tables = ImmutableDictionary.CreateBuilder<LanguageId, ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>>>();
+            if (Find(["frontend"]) is not { } frontend) return tables.ToImmutable();
+            foreach (var language in ConfigValueProjections.Tables(frontend))
+            {
+                ImmutableArray<KeyValuePair<string, System.Text.Json.JsonElement>> options =
+                [
+                    .. ScalarMembers("frontend", language)
+                        .Where(pair => pair.Key is not ("extension" or "project_file"))
+                        .Select(pair => new KeyValuePair<string, System.Text.Json.JsonElement>(pair.Key.Replace('_', '-'), pair.Value))
+                ];
+                // A table name that is not a language id names no frontend, so no frontend can read its keys.
+                if (options.Length > 0 && LanguageId.TryParse(language, out var id, out _)) tables[id] = options;
+            }
+            return tables.ToImmutable();
+        }
 
         /// <summary>Every <c>frontend.&lt;language&gt;.project_file</c> key that is set, as TOML writes it (a dotted language is quoted).</summary>
         public ImmutableArray<string> ProjectFileKeys() =>

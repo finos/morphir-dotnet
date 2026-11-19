@@ -8,6 +8,7 @@ using Morphir.Tooling.Features.Compile;
 namespace Morphir.Tooling.Tests.Features.Compile;
 
 /// <summary>Task 4.2: compile settings precedence, origins and exact format versions (CLI-1, VER-1, SRC-2).</summary>
+[Category("PlatformSpecific")]
 public sealed class CompileSettingsResolverTests
 {
     private static readonly ProjectCompileSettingsResolver Resolver = new();
@@ -33,6 +34,20 @@ public sealed class CompileSettingsResolverTests
         settings.Package.Origin.Should().BeOfType<SettingOrigin.Configuration>()
             .Which.File.Should().EndWith("morphir.toml");
         Path.GetFullPath(((SettingOrigin.Configuration)settings.Package.Origin).File).Should().Be(Path.GetFullPath(file));
+    }
+
+    [Test]
+    public void TheKeysOfEachFrontendTableAreItsExtraOptionsWithADashForAnUnderscore()
+    {
+        using var workspace = new CompileWorkspace();
+        workspace.Write("morphir.toml",
+            "[project]\nname = \"acme/car-rental\"\n\n[frontend.csharp]\nextension = \"csharp-guest\"\nproject_file = \"Model.csproj\"\nloop_lowering = \"recursion\"\n\n[frontend.fsharp]\nsome_flag = true\n");
+        var settings = Passed(Resolver.Resolve(new CompileOverrides { Inputs = ["Model.cs"] }, workspace.Context()));
+        settings.FrontendOptionsOf(LanguageId.Create("csharp")).Select(pair => $"{pair.Key}={pair.Value.GetRawText()}")
+            .Should().Equal("loop-lowering=\"recursion\"");
+        settings.FrontendOptionsOf(LanguageId.Create("fsharp")).Select(pair => $"{pair.Key}={pair.Value.GetRawText()}")
+            .Should().Equal("some-flag=true");
+        settings.FrontendOptionsOf(LanguageId.Create("elm")).Should().BeEmpty();
     }
 
     [Test]

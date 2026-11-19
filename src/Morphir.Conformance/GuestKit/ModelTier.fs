@@ -516,8 +516,11 @@ module internal ModelTierPlan =
         | Some(JsonValue.String id), Some(JsonValue.String version) -> Some $"{id} {version}"
         | _ -> None
 
+    // A function, not a module value: in a Release build the optimizer inlines `num` into a module value and keeps
+    // each int64 argument as a hidden value of this module, so the file's initialiser would start the initialiser of
+    // ModelTierPlan, which other threads enter by other routes (TypeInitialisation in Morphir.TestSupport).
     /// The kit's fixed limits of the model-transport offer.
-    let limits =
+    let limits () =
         obj
             [ "maxEncodedBytes", num 1000000L
               "maxDecodedBytes", num 750000L
@@ -532,7 +535,7 @@ module internal ModelTierPlan =
                   [ for version in selection.ModelVersions do
                         jsonTuple Compile version
                         jsonTuple Generate version ]
-              "limits", limits
+              "limits", limits ()
               "guarantees", arr [] ]
 
     let private sourceDocuments (language: string) (documents: (JsonValue * JsonValue) list) =
@@ -1027,7 +1030,7 @@ module internal ModelTierSession =
                     | _ -> None
                 | _ -> None
 
-            match limits with
+            match limits () with
             | JsonValue.Object members ->
                 members
                 |> List.map (fun (name, value) ->

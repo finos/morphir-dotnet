@@ -1,6 +1,7 @@
 namespace Morphir.Ion
 
 open System
+open Morphir.Files
 open Morphir.IR.Pipeline
 
 /// <summary>A parser for the pipeline that reads Ion files and Ion document trees.</summary>
