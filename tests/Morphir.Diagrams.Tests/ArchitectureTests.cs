@@ -102,4 +102,20 @@ public class ArchitectureTests
 
         diagnostics.ShouldHaveSingleItem().Code.ShouldBe("mermaid/architecture-group-endpoint");
     }
+
+    [Test]
+    public void AnEdgeLeavesAndEntersByItsPorts()
+    {
+        var svg = FlowchartGeometry.Render("architecture-beta\n  service a(server)[A]\n  service b(database)[B]\n  a:R -- L:b\n  service c(disk)[C]\n  a:B -- T:c\n");
+        var a = FlowchartGeometry.Node(svg, "a");
+        var b = FlowchartGeometry.Node(svg, "b");
+        var c = FlowchartGeometry.Node(svg, "c");
+
+        var across = FlowchartGeometry.Route(svg, "a", "b");
+        across[0].X.ShouldBe(a.Right, 1);
+        across[^1].X.ShouldBe(b.Left, 1);
+        var down = FlowchartGeometry.Route(svg, "a", "c");
+        down[0].Y.ShouldBe(a.Bottom, 1);
+        down[^1].Y.ShouldBe(c.Top, 1);
+    }
 }
