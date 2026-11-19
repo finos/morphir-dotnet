@@ -605,7 +605,12 @@ note targets, ownership cycles and transitions into an initial or out of a final
 | Note | `node=Idle::note-0` | Folded note joined by a dotted line | external |
 
 All 53 fixtures of the pinned Mermaid reference are accepted or refused as Mermaid 12.2.0
-does, with the same states, regions and transitions. As Mermaid does, entry and exit points
+does, with the same states, regions and transitions, and all 122 fixtures of the pinned
+PlantUML 1.2026.9 state reference are accepted or refused as PlantUML does, with the same
+links. PlantUML blocks may use `||` regions, `[H]`, `[H*]` and `Composite[H]` history, pins and
+expansion nodes (read as entry and exit points), direction words in arrows and colour suffixes;
+a transition between two concurrent regions of one composite is refused, as PlantUML does.
+`Mermaid.Print` and `PlantUml.Print` write canonical text in either language. As Mermaid does, entry and exit points
 and floating notes in Mermaid source are kept in the source but not drawn.
 
 ## Exploring routes and scenarios

@@ -66,25 +66,34 @@ module internal PlantUmlReader =
 
             builder.ToString()
 
-        let lines = body |> Array.map (text >> unquoted)
+        let lines =
+            body
+            |> Array.map (text >> unquoted)
+            |> Array.filter (fun value ->
+                let lower = value.ToLowerInvariant()
+                not (lower.StartsWith "end note" || lower = "endnote" || lower.StartsWith "end legend" || lower = "endlegend"))
         let starts (prefix: string) (value: string) = value.StartsWith(prefix, StringComparison.Ordinal)
 
         let isState (value: string) =
-            starts "state " value || value.Contains "[*]" || starts "hide empty description" value
+            value.StartsWith("state ", StringComparison.OrdinalIgnoreCase) || value.Contains "[*]" || starts "hide empty description" value
 
         let isActivity (value: string) =
             starts ":" value
-            || starts "|" value
+            || Text.RegularExpressions.Regex.IsMatch(value, @"^\|[^|]+\|")
             || value.Contains "(*)"
-            || List.exists (fun word -> value = word || starts (word + " ") value || starts (word + "(") value)
-                [ "start"; "stop"; "end"; "if"; "fork"; "repeat"; "while"; "detach"; "kill"; "split"; "partition" ]
+            || List.contains value [ "start"; "stop"; "end"; "detach"; "kill"; "fork"; "split"; "repeat" ]
+            || List.exists (fun word -> starts (word + " ") value || starts (word + "(") value) [ "if"; "repeat"; "while"; "partition"; "fork again"; "split again" ]
 
         let isOther (value: string) =
             List.exists (fun word -> starts (word + " ") value)
                 [ "class"; "interface"; "enum"; "abstract"; "participant"; "actor"; "usecase"; "component"; "node"; "object"; "entity"; "package"; "database"; "map"; "json"; "boundary"; "control"; "collections"; "queue"; "artifact"; "cloud"; "frame"; "folder"; "rectangle"; "card"; "file"; "agent"; "storage"; "stack"; "hexagon"; "person"; "label"; "port"; "portin"; "portout"; "timing"; "robust"; "concise"; "clock"; "binary" ]
 
+        // A body of arrows between names, with nothing else to tell, is a state diagram.
+        let isArrow (value: string) = Text.RegularExpressions.Regex.IsMatch(value, @"^\S+\s*[<x]?-.*[->]\s*\S+")
+
         match Array.exists isState lines, Array.exists isActivity lines, Array.exists isOther lines with
         | true, false, _ -> Ok "state"
+        | false, false, false when Array.exists isArrow lines -> Ok "state"
         | false, true, false -> Ok "activity"
         | true, true, _ -> Error "plantuml/ambiguous-kind"
         | _ -> Error "plantuml/unsupported-kind"
@@ -161,6 +170,35 @@ type PlantUml private () =
     /// Parses one PlantUML activity, state, regex, EBNF, JSON or YAML block. Returns a Result for F# callers.
     static member Parse(source: string | null) : Result<DiagramDocument, ImmutableArray<Diagnostic>> =
         SourceReading.parse "plantuml" PlantUmlReader.read source
+
+    /// Writes a diagram as one canonical PlantUML block. Reading the text gives the same model, and printing that
+    /// again gives the same text. A family with no PlantUML form returns diagnostics. Returns a Result for F# callers.
+    static member Print(diagram: Diagram) : Result<string, ImmutableArray<Diagnostic>> =
+        ArgumentNullException.ThrowIfNull diagram
+
+        let result =
+            match diagram with
+            | Diagram.State model -> MermaidPrinter.stateText true model
+            | other -> Error [ $"{other} has no PlantUML printer." ]
+
+        result |> Result.mapError (List.map (fun message -> Reading.error "plantuml/unprintable" message None) >> ImmutableArray.CreateRange)
+
+    /// Writes a diagram as one canonical PlantUML block for C# callers. Diagnostics is empty on success.
+    static member TryPrint
+        (
+            diagram: Diagram,
+            [<Out; MaybeNullWhen(false)>] text: byref<string>,
+            [<Out>] diagnostics: byref<ImmutableArray<Diagnostic>>
+        ) =
+        match PlantUml.Print diagram with
+        | Ok printed ->
+            text <- printed
+            diagnostics <- ImmutableArray<Diagnostic>.Empty
+            true
+        | Error errors ->
+            text <- Unchecked.defaultof<_>
+            diagnostics <- errors
+            false
 
     /// Parses a PlantUML block for C# callers. Diagnostics is empty on success.
     static member TryParse

@@ -34,7 +34,7 @@ Delivered in [finos/morphir-dotnet#692](https://github.com/finos/morphir-dotnet/
 ## 5. PlantUML envelope and state diagrams
 
 - [x] 5.1 Read the `@start`/`@end` envelope with closer, multiple-block and trailing-content diagnostics, family detection of `@startuml` bodies, and preprocessor refusal without I/O; verify envelope tests.
-- [ ] 5.2 Read and print PlantUML state syntax, including history, entry and exit points, pins and `||` regions, into the state model; verify the pinned PlantUML state corpus.
+- [x] 5.2 Read and print PlantUML state syntax, including history, entry and exit points, pins and `||` regions, into the state model; verify the pinned PlantUML state corpus.
 
 ## 6. Swimlanes
 

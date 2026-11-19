@@ -383,28 +383,60 @@ module internal MermaidPrinter =
 
     /// Canonical Mermaid text for a state diagram. Each region's block declares its states and the transitions that
     /// use its `[*]`; other transitions follow at the top level, where a mention does not move a state.
-    let state (model: StateDiagram) =
+    let stateText (plantUml: bool) (model: StateDiagram) =
         let lines = ResizeArray<string>()
         let errors = ResizeArray<string>()
         let byId = model.States |> Seq.map (fun state -> state.Id, state) |> dict
-        let pseudo (id: DiagramId) = match byId.TryGetValue id with | true, state -> state.Role = StateRole.Initial || state.Role = StateRole.Final | false, _ -> false
-        let regionOfStar (transition: StateTransition) = [ transition.Source; transition.Target ] |> List.tryFind pseudo |> Option.map (fun id -> byId[id].Region)
+        let language = if plantUml then "PlantUML" else "Mermaid"
 
-        let endpoint (id: DiagramId) = if pseudo id then "[*]" else id.Value
+        let roleOf (id: DiagramId) = match byId.TryGetValue id with | true, state -> Some state.Role | false, _ -> None
+
+        // A history state of a composite prints as `Owner[H]`; one named after a region prints as `[H]` in that region.
+        let historyOwner (id: DiagramId) =
+            let value = id.Value
+            let cut = value.LastIndexOf "::"
+            let owner = if cut > 0 then value.Substring(0, cut) else value
+            if byId.ContainsKey(DiagramId.Create owner) then Some owner else None
+
+        // `[*]` and `[H]` name the pseudostates whose identifiers their region or owner gives; others are declared.
+        let starForm (id: DiagramId) =
+            match byId.TryGetValue id with
+            | true, state when state.Role = StateRole.Initial -> id.Value = state.Region + "::initial"
+            | true, state when state.Role = StateRole.Final -> id.Value = state.Region + "::final"
+            | _ -> false
+
+        let historyForm (id: DiagramId) =
+            match roleOf id with
+            | Some StateRole.ShallowHistory -> id.Value.EndsWith("::history", StringComparison.Ordinal)
+            | Some StateRole.DeepHistory -> id.Value.EndsWith("::deep-history", StringComparison.Ordinal)
+            | _ -> false
+
+        let scoped (id: DiagramId) = starForm id || plantUml && historyForm id && (historyOwner id).IsNone
+
+        let regionOfStar (transition: StateTransition) = [ transition.Source; transition.Target ] |> List.tryFind scoped |> Option.map (fun id -> byId[id].Region)
+
+        let endpoint (id: DiagramId) =
+            match roleOf id with
+            | _ when starForm id -> "[*]"
+            | Some StateRole.ShallowHistory when plantUml && historyForm id -> (historyOwner id |> Option.defaultValue "") + "[H]"
+            | Some StateRole.DeepHistory when plantUml && historyForm id -> (historyOwner id |> Option.defaultValue "") + "[H*]"
+            | _ -> id.Value
 
         let transition pad (transition: StateTransition) =
             let label = if transition.Label = "" then "" else $" : {transition.Label}"
             lines.Add $"{pad}{endpoint transition.Source} --> {endpoint transition.Target}{label}"
 
         let quoted (label: string) =
-            if label.Contains '"' then errors.Add $"The label {label} has a quote that Mermaid cannot write."
+            if label.Contains '"' then errors.Add $"The label {label} has a quote that {language} cannot write."
             "\"" + label + "\""
 
-        lines.Add "stateDiagram-v2"
+        lines.Add(if plantUml then "@startuml" else "stateDiagram-v2")
 
-        match model.Direction with
-        | FlowDirection.TopToBottom -> ()
-        | other -> lines.Add $"  direction {direction other}"
+        match model.Direction, plantUml with
+        | FlowDirection.TopToBottom, _ -> ()
+        | FlowDirection.LeftToRight, true -> lines.Add "left to right direction"
+        | other, true -> errors.Add $"PlantUML state diagrams cannot write the direction {direction other}."
+        | other, false -> lines.Add $"  direction {direction other}"
 
         let stack = Collections.Generic.Stack<Choice<string * int, string>>()
         stack.Push(Choice1Of2("root", 1))
@@ -417,18 +449,29 @@ module internal MermaidPrinter =
                 let members = model.States |> Seq.filter (fun state -> state.Region = region) |> Seq.toList
                 let pending = ResizeArray<Choice<string * int, string>>()
 
+                let named (state: DiagramState) =
+                    if state.Label <> state.Id.Value then $"{quoted state.Label} as {state.Id.Value}" else state.Id.Value
+
                 for state in members do
                     match state.Role with
                     | StateRole.Initial
-                    | StateRole.Final -> ()
+                    | StateRole.Final when starForm state.Id -> ()
+                    | StateRole.ShallowHistory
+                    | StateRole.DeepHistory when plantUml && historyForm state.Id -> ()
+                    | StateRole.Initial when plantUml -> lines.Add $"{pad}state {named state} <<start>>"
+                    | StateRole.Final when plantUml -> lines.Add $"{pad}state {named state} <<end>>"
+                    | StateRole.ShallowHistory when plantUml -> lines.Add $"{pad}state {named state} <<history>>"
+                    | StateRole.DeepHistory when plantUml -> lines.Add $"{pad}state {named state} <<history*>>"
                     | StateRole.Simple ->
-                        if state.Label <> state.Id.Value then lines.Add $"{pad}state {quoted state.Label} as {state.Id.Value}"
+                        if state.Label <> state.Id.Value || plantUml then lines.Add $"{pad}state {named state}"
                         else lines.Add $"{pad}{state.Id.Value}"
 
                         for text in state.Descriptions do lines.Add $"{pad}{state.Id.Value} : {text}"
                     | StateRole.Choice
                     | StateRole.Fork
-                    | StateRole.Join -> lines.Add $"{pad}state {state.Id.Value} <<{state.Role.WireValue}>>"
+                    | StateRole.Join -> lines.Add $"{pad}state {named state} <<{state.Role.WireValue}>>"
+                    | StateRole.EntryPoint when plantUml -> lines.Add $"{pad}state {named state} <<entryPoint>>"
+                    | StateRole.ExitPoint when plantUml -> lines.Add $"{pad}state {named state} <<exitPoint>>"
                     | StateRole.Composite ->
                         let regions = model.Regions |> Seq.filter (fun candidate -> candidate.Owner = state.Id) |> Seq.toList
                         let opening = if state.Label <> state.Id.Value then $"state {quoted state.Label} as {state.Id.Value} {{" else $"state {state.Id.Value} {{"
@@ -440,14 +483,17 @@ module internal MermaidPrinter =
                             pending.Add(Choice1Of2(inner.Id, indent + 1)))
 
                         pending.Add(Choice2Of2 $"{pad}}}")
-                    | role -> errors.Add $"Mermaid state diagrams cannot write the {role} state {state.Id}."
+                    | role -> errors.Add $"{language} state diagrams cannot write the {role} state {state.Id}."
 
-                for item in Seq.rev pending do stack.Push item
-
-                // Transitions of this region's [*] come after its states; nested blocks print after them.
+                // Transitions of this region's [*] come after its states and nested blocks, so every state they
+                // name is already declared in its own region.
                 let own = model.Transitions |> Seq.filter (fun transition -> regionOfStar transition = Some region) |> Seq.toList
 
-                for item in own do transition pad item
+                for item in List.rev own do
+                    let label = if item.Label = "" then "" else $" : {item.Label}"
+                    stack.Push(Choice2Of2 $"{pad}{endpoint item.Source} --> {endpoint item.Target}{label}")
+
+                for item in Seq.rev pending do stack.Push item
 
         // The top-level transitions and the notes close the text.
         for item in model.Transitions do
@@ -465,7 +511,11 @@ module internal MermaidPrinter =
             else
                 lines.Add $"  note {side} of {note.Target.Value} : {note.Text}"
 
+        if plantUml then lines.Add "@enduml"
+
         if errors.Count > 0 then Error(List.ofSeq errors) else Ok(String.Join("\n", lines) + "\n")
+
+    let state model = stateText false model
 
     /// Canonical Mermaid text for a flowchart or sequence diagram.
     let print (diagram: Diagram) =

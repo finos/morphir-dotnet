@@ -8,7 +8,7 @@ open System.Collections.Generic
 open System.Text.RegularExpressions
 
 /// Builds a state model statement by statement; shared by the Mermaid and PlantUML readers.
-type internal StateBuilder(language: string) =
+type internal StateBuilder(language: string, moveOnMention: bool) =
     let states = Dictionary<DiagramId, string * StateRole * string * ResizeArray<string>>()
     let order = ResizeArray<DiagramId>()
     let regions = ResizeArray<string * DiagramId option>([ "root", None ])
@@ -37,7 +37,7 @@ type internal StateBuilder(language: string) =
     member this.Mention(id: DiagramId, role: StateRole) =
         match states.TryGetValue id with
         | true, (label, existing, region, descriptions) ->
-            let region = if this.Region <> "root" then this.Region else region
+            let region = if moveOnMention && this.Region <> "root" then this.Region else region
             let role = if role = StateRole.Composite then role else existing
             states[id] <- (label, role, region, descriptions)
         | false, _ ->
@@ -153,7 +153,7 @@ module internal StateReader =
         result
 
     let read (lines: seq<Reading.Line * int>) : Result<Diagram, Diagnostic list> =
-        let builder = StateBuilder "mermaid"
+        let builder = StateBuilder("mermaid", true)
 
         let id (text: string) = DiagramId.Create text
 
