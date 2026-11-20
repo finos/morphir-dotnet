@@ -24,6 +24,11 @@
         "resolved": "3.0.1",
         "contentHash": "scB3+KcxNmEjZK5V8rKCW2gIiL8m8KH91w14FuuExyhi9xTyAJ+jr+DDxGdy12mHmioe2uvjxTfMgM7WmSUFlw=="
       },
+      "System.IO.Hashing": {
+        "type": "Transitive",
+        "resolved": "10.0.11",
+        "contentHash": "OzKDcIRkeNJeC8qAsbn8yJXnfTLP1dtkWILe+T56Gf/z+IkAASi7sMqLqJQat08j5z/mRN5xVtoAwbkMNMoBUQ=="
+      },
       "morphir.compilation": {
         "type": "Project",
         "dependencies": {
@@ -38,7 +43,8 @@
           "Gherkin": "[35.1.0, )",
           "JsonSchema.Net": "[8.0.5, )",
           "Morphir.Compilation": "[1.0.0, )",
-          "Morphir.Mep": "[1.0.0, )"
+          "Morphir.Mep": "[1.0.0, )",
+          "Morphir.Toolchain.IO": "[1.0.0, )"
         }
       },
       "morphir.files": {
@@ -64,6 +70,37 @@
       },
       "morphir.myriad.systemtextjson.annotations": {
         "type": "Project"
+      },
+      "morphir.toolchain": {
+        "type": "Project",
+        "dependencies": {
+          "BouncyCastle.Cryptography": "[2.7.0, )",
+          "CsToml": "[1.8.6, )",
+          "FSharp.Core": "[10.1.403, )",
+          "Semver": "[3.0.0, )"
+        }
+      },
+      "morphir.toolchain.io": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Toolchain": "[1.0.0, )"
+        }
+      },
+      "BouncyCastle.Cryptography": {
+        "type": "CentralTransitive",
+        "requested": "[2.7.0, )",
+        "resolved": "2.7.0",
+        "contentHash": "U+12df8UEWHgBi04YVf/Lgi2dy3SItlIYvHjjEVa/BngCQIzDCDRBk50DDByCfDvSbe5pRNFr3b7UrVK2kMcLw=="
+      },
+      "CsToml": {
+        "type": "CentralTransitive",
+        "requested": "[1.8.6, )",
+        "resolved": "1.8.6",
+        "contentHash": "rHRpAxkpQBDRlUTg+TCfpQbyJ+QDnlZBO1At8HMgHGrfpyQnik0GK17f95zmNK4vQacRNkXz2xvsdfWuC5Z+Ww==",
+        "dependencies": {
+          "System.IO.Hashing": "10.0.11"
+        }
       },
       "Gherkin": {
         "type": "CentralTransitive",
@@ -98,6 +135,12 @@
         "dependencies": {
           "JsonPointer.Net": "6.0.1"
         }
+      },
+      "Semver": {
+        "type": "CentralTransitive",
+        "requested": "[3.0.0, )",
+        "resolved": "3.0.0",
+        "contentHash": "9jZCicsVgTebqkAujRWtC9J1A5EQVlu0TVKHcgoCuv345ve5DYf4D1MjhKEnQjdRZo6x/vdv6QQrYFs7ilGzLA=="
       },
       "YamlDotNet": {
         "type": "CentralTransitive",

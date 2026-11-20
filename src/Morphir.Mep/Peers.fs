@@ -391,7 +391,11 @@ type HostSession
         | ConformanceOperationFailure.LocalLifecycleRefusal cause -> cause
         | ConformanceOperationFailure.Cancelled _ -> RpcErrors.create ErrorCode.RequestCancelled
         | ConformanceOperationFailure.ChannelFailed cause -> RpcErrors.withMessage ErrorCode.InternalError $"The session failed: {cause}"
-        | ConformanceOperationFailure.ConnectionEnded cause -> RpcErrors.withMessage ErrorCode.InternalError $"The connection ended: {cause}"
+        | ConformanceOperationFailure.ConnectionEnded cause ->
+            // An owned transport, such as a worker that has exited, keeps its own reason after end of stream.
+            match channel.OwnedTransportUnavailable() with
+            | Some reason -> RpcErrors.withMessage ErrorCode.InternalError $"The connection ended: {cause}: {reason}"
+            | None -> RpcErrors.withMessage ErrorCode.InternalError $"The connection ended: {cause}"
         | ConformanceOperationFailure.ProbeAlreadyReserved -> RpcErrors.withMessage ErrorCode.InvalidRequest "This conformance probe was already reserved."
         | ConformanceOperationFailure.TransportFailed cause -> RpcErrors.withMessage ErrorCode.InternalError cause.Message
         | ConformanceOperationFailure.CaptureFailed _ -> RpcErrors.withMessage ErrorCode.InternalError "Conformance capture is incomplete."

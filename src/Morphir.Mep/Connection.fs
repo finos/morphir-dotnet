@@ -106,6 +106,23 @@ type Connection
     let pendingGate = obj ()
     let mutable closedReason: string option = None
 
+    /// Why an owned output no longer accepts writes, such as a worker that has exited, or None. Nothing is written.
+    let ownedUnavailable () =
+        match box output with
+        | :? ITransportWriteAvailability as owner ->
+            try
+                owner.EnsureWriteAvailable()
+                None
+            with :? IOException as error ->
+                Some error.Message
+        | _ -> None
+
+    /// A conformance session's local error keeps the owned transport's own reason when it has one.
+    let withOwnedReason (reason: string) =
+        match ownedUnavailable () with
+        | Some owned -> $"{reason.TrimEnd('.')}: {owned}"
+        | None -> reason
+
     let closePending reason =
         lock pendingGate (fun () ->
             if closedReason.IsNone then closedReason <- Some reason
@@ -119,7 +136,7 @@ type Connection
                     |> ignore)
 
     let lifetimeRegistration =
-        capture |> Option.map (fun owned -> owned.Token.Register(fun () -> closePending "The connection closed."))
+        capture |> Option.map (fun owned -> owned.Token.Register(fun () -> closePending (withOwnedReason "The connection closed.")))
 
     let writeCaptured (owned: ConformanceCapture) (admission: ConformanceOperationId option) (message: JsonRpcMessage) =
         task {
@@ -297,7 +314,8 @@ type Connection
                             Some(id, waiter))
                 match registered with
                 | None ->
-                    return { Result = Error(RpcErrors.withMessage ErrorCode.InternalError "The conformance connection is closed."); Exchange = None; Submitted = false }
+                    let reason = withOwnedReason "The conformance connection is closed."
+                    return { Result = Error(RpcErrors.withMessage ErrorCode.InternalError reason); Exchange = None; Submitted = false }
                 | Some(id, waiter) ->
                     let cancellationWrites = ConcurrentQueue<Task>()
                     try
@@ -321,7 +339,12 @@ type Connection
                         pendingOperations.TryRemove id |> ignore
                         owned.Incomplete(ConformanceCaptureFailure.ObservationFailed error)
                         do! Task.WhenAll(cancellationWrites.ToArray())
-                        return { Result = Error(RpcErrors.withMessage ErrorCode.InternalError "The conformance request did not complete."); Exchange = None; Submitted = false }
+                        // Keep the transport's own reason, such as an owned worker that has exited, in the local error.
+                        let reason =
+                            match error with
+                            | :? IOException -> $"The conformance request did not complete: {error.Message}"
+                            | _ -> withOwnedReason "The conformance request did not complete."
+                        return { Result = Error(RpcErrors.withMessage ErrorCode.InternalError reason); Exchange = None; Submitted = false }
             }
 
     /// A connection that also stops when isDone returns true. Ordinary requests start at ID0.
@@ -345,6 +368,9 @@ type Connection
     member internal _.ConformanceSnapshot = capture |> Option.map (fun owned -> owned.Snapshot())
     member internal _.ConformanceToken = capture |> Option.map _.Token |> Option.defaultValue CancellationToken.None
     member internal _.ConformanceEnd = capture |> Option.bind _.EndReason
+
+    /// Why an owned output no longer accepts writes, such as a worker that has exited, or None. Nothing is written.
+    member internal _.OwnedTransportUnavailable() = ownedUnavailable ()
     member internal _.OperationFacts(operation) = capture |> Option.bind (fun owned -> owned.OperationFacts operation)
     member internal _.AdmitOperation() = capture |> Option.bind (fun owned -> owned.AdmitOperation())
     member internal _.LocalRefused(cause) = capture |> Option.iter (fun owned -> owned.LocalRefused cause)
@@ -450,6 +476,7 @@ type Connection
             match finished with
             | Some(ConnectionEnd.FramingFailed(FramingFailure.NegotiatedBodyTooLarge _ as cause)) ->
                 closePending (cause.ToString())
+            | _ when capture.IsSome -> closePending (withOwnedReason "The connection closed.")
             | _ -> closePending "The connection closed."
 
             match failure, finished with

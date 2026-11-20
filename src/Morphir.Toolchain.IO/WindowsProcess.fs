@@ -514,6 +514,29 @@ type internal WindowsChild
     member _.StandardError = errors
     member _.WaitForExitAsync() = exitTask
 
+    /// Whether the root process has exited or is exiting, read from its handle at once rather than from
+    /// WaitForExitAsync, whose task completes on another thread after the exit. A process that has an exit code is
+    /// exiting, although its handle is signalled only once it has ended. True once the handle is released.
+    member _.HasExited =
+        if exitTask.IsCompleted then
+            true
+        else
+            let mutable added = false
+
+            try
+                try
+                    root.DangerousAddRef(&added)
+                    let raw = root.DangerousGetHandle()
+                    let mutable code = 0u
+
+                    ChildNative.WaitForSingleObject(raw, 0u) = 0u
+                    || (ChildNative.GetExitCodeProcess(raw, &code) && code <> 259u)
+                with :? ObjectDisposedException ->
+                    true
+            finally
+                if added then
+                    root.DangerousRelease()
+
     member _.RequestTermination() =
         match job.RequestTermination() with
         | Some error ->

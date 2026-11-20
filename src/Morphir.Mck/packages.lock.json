@@ -43,7 +43,8 @@
           "Gherkin": "[35.1.0, )",
           "JsonSchema.Net": "[8.0.5, )",
           "Morphir.Compilation": "[1.0.0, )",
-          "Morphir.Mep": "[1.0.0, )"
+          "Morphir.Mep": "[1.0.0, )",
+          "Morphir.Toolchain.IO": "[1.0.0, )"
         }
       },
       "morphir.files": {

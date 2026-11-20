@@ -113,6 +113,7 @@ type Reply = Result<JsonValue, int * string>
 type ScriptedChannel(answer: string -> JsonValue -> Reply) =
     let requests = List<string * JsonValue>()
     let notifications = List<string>()
+    let mutable shutDown = false
 
     /// The requests the guest received, as method and params.
     member _.Requests = List.ofSeq requests
@@ -132,7 +133,9 @@ type ScriptedChannel(answer: string -> JsonValue -> Reply) =
             requests.Add((method, parameters))
 
             let body =
-                match answer method parameters with
+                let reply = if shutDown then Error(-32014, "The scripted peer is shut down.") else answer method parameters
+                if method = "morphir.shutdown" && Result.isOk reply then shutDown <- true
+                match reply with
                 | Ok result -> obj [ "jsonrpc", str "2.0"; "id", id; "result", result ]
                 | Error(code, text) ->
                     obj [
@@ -266,7 +269,15 @@ let answer (guest: FakeGuest) (method: string) (parameters: JsonValue) : Reply =
             | JsonValue.String version -> version
             | _ -> failtest "irVersion is not a string"
 
-        Ok(
+        let malformed = kitJson () |> at [ "languages"; "python"; "malformed" ]
+        let isMalformed =
+            match malformed, parameters |> at [ "sources"; "documents" ] with
+            | JsonValue.Array expected, JsonValue.Array actual ->
+                expected |> List.exists (fun source -> actual |> List.exists (fun document -> at [ "text" ] source = at [ "text" ] document))
+            | _ -> false
+        if isMalformed then
+            Ok(obj [ "success", JsonValue.Bool false; "diagnostics", arr [ obj [ "severity", str "error"; "message", str "Malformed fixed source" ] ] ])
+        else Ok(
             obj [
                 "success", JsonValue.Bool true
                 "diagnostics", arr []
@@ -315,7 +326,7 @@ let factory (guest: FakeGuest) (opened: Opened) =
     Func<KitSessionRequest, CancellationToken, Task<HostSession>>(fun request _ ->
         let channel = ScriptedChannel(answer guest)
         opened.Add((request, channel))
-        Task.FromResult(HostSession(channel :> ISingleMessageChannel, host, request.OfferOrNull()))
+        Task.FromResult(request.CreateSession(channel :> ISingleMessageChannel, host))
     )
 
 /// Runs the model tier of the pinned kit on a scripted guest.
