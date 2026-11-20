@@ -154,9 +154,9 @@
       },
       "FsCheck": {
         "type": "CentralTransitive",
-        "requested": "[2.16.5, )",
-        "resolved": "2.16.5",
-        "contentHash": "Tw6Lb/UBqtmUj5porM1rRcAU5xT9NttSlFTaIQ8gn4Fsw2LiZavN/eMAZqSA63laV51t4HRJJAAGeYSWFFxRfA==",
+        "requested": "[2.16.6, )",
+        "resolved": "2.16.6",
+        "contentHash": "8yQlt7HgoigIXIoe7ZouNh551rypxp4WtQnqBlpB9a7gf4IkpdMSnEzsnJS/gFmeNtIf9hEJ37celeCq/6FuHA==",
         "dependencies": {
           "FSharp.Core": "4.2.3"
         }
