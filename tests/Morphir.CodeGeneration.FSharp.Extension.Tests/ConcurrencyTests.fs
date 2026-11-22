@@ -62,9 +62,12 @@ let private converse (guest: Guest) (conversation: HostSession -> unit) =
 let private parameters () =
     JsonSerializer.SerializeToElement(generateRequest "4.0.0", MepJson.Default.GenerateModelRequest)
 
+// Sequenced like the host adapter and process tests: four of these tests block thread-pool threads on a gate for up
+// to 30 seconds. In parallel, on a two-core runner, they starved each other's generator past the 10-second wait.
 [<Tests>]
 let tests =
-    testList
+    testSequenced
+    <| testList
         "F# backend guest concurrency"
         [ testCase "A ping sent while a generateModel runs is answered before the generation ends"
           <| fun _ ->
