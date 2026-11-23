@@ -43,7 +43,7 @@
     <PackageVersion Include="Azure.Security.KeyVault.Certificates" Version="4.10.0" />
     <PackageVersion Include="Azure.Security.KeyVault.Keys" Version="4.10.2" />
     <PackageVersion Include="Azure.Security.KeyVault.Secrets" Version="4.12.0" />
-    <PackageVersion Include="AngleSharp" Version="1.10.3" />
+    <PackageVersion Include="AngleSharp" Version="1.10.5" />
     <PackageVersion Include="Microsoft.AspNetCore.WebUtilities" Version="9.0.23" />
   </ItemGroup>
   <ItemGroup>
@@ -76,7 +76,7 @@
          Microsoft.Build.* 18.1 and later ship only net11.0 and net472 assets, so keep the 18.0 line of the .NET 10 SDK. -->
     <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="18.0.2" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="1.1.0" PrivateAssets="All" />
-    <PackageVersion Include="altcover" Version="9.0.145" />
+    <PackageVersion Include="altcover" Version="9.0.189" />
     <PackageVersion Include="System.CommandLine" Version="2.0.15" />
     <PackageVersion Include="Funcky.DiscriminatedUnion" Version="1.2.2" />
     <PackageVersion Include="MSBuild.StructuredLogger" Version="2.3.269" />
