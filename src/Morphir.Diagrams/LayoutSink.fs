@@ -330,9 +330,16 @@ module internal LayoutSink =
                 | Some(points, style) ->
                     points
                     |> List.map (fun (x, y) -> point (Distance.FromPixels x) (Distance.FromPixels y))
-                    |> List.fold (fun kept (p: LayoutPoint) -> match kept with | last :: _ when last.Equals p -> kept | _ -> p :: kept) []
-                    |> List.rev,
-                    style
+                    |> List.fold (fun (kept: LayoutPoint list) (p: LayoutPoint) ->
+                        match kept with
+                        | last :: _ when last.Equals p -> kept
+                        // A point in the middle of a straight run is not a bend.
+                        | last :: before :: rest when
+                            (last.X - before.X).QuarterEmu * (p.Y - last.Y).QuarterEmu = (last.Y - before.Y).QuarterEmu * (p.X - last.X).QuarterEmu ->
+                            p :: before :: rest
+                        | _ -> p :: kept) []
+                    |> List.rev
+                    |> fun points -> points, (if points.Length <= 2 && style = RouteStyle.Orthogonal then RouteStyle.Straight else style)
                 | None ->
                     let deduped = points |> List.fold (fun kept (p: LayoutPoint) -> match kept with | last :: _ when last.Equals p -> kept | _ -> p :: kept) [] |> List.rev
                     let curved = path.Commands |> Seq.exists (function PathCommand.CubicTo _ | PathCommand.QuadraticTo _ | PathCommand.ArcTo _ -> true | _ -> false)

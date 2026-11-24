@@ -37,6 +37,10 @@ A renderer that declares a line feature SHALL draw it as defined here:
 - **Attached connectors:** line ends that stay bound to shapes, images or containers when those move.
 - **Line targets:** line ends bound to another line, at a fraction of its length.
 
+#### Scenario: Exact routes need no polylines
+- **WHEN** a line with bends is rendered by a renderer that declares exact routes but not polylines
+- **THEN** the renderer receives the line's exact path, and its waypoints only describe that path
+
 #### Scenario: Smooth curves need not match the exact path
 - **WHEN** a curved line is rendered by a renderer that declares smooth curves but not exact routes
 - **THEN** the renderer receives the line's waypoints with the curved route style and no exact path
@@ -229,7 +233,7 @@ Lowering SHALL be a pure function of the pages and the declared features. It SHA
 11. links
 12. paint order
 
-Several fallbacks on one drawable SHALL be one degradation, naming its first feature and its final form.
+Several fallbacks of one pass on one drawable SHALL be one degradation, naming its first feature and its final form.
 
 #### Scenario: A cylinder becomes a rectangle in one degradation
 - **WHEN** a cylinder is lowered for a renderer that declares neither cylinders, paths nor SVG images

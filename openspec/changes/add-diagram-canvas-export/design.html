@@ -253,7 +253,7 @@ type DiagramLayout =
 </tbody>
 </table>
 <p>A test runs every combination of the four line features against a curved, an orthogonal, a bridged and a straight line, and checks the received route and the degradation for each.</p>
-<p>Several fallbacks on one drawable are recorded as one degradation. For example, a cylinder for a renderer without cylinders or paths becomes a rectangle in pass 3, whether or not the renderer declares images, and is recorded once: cylinders become rectangles.</p>
+<p>Several fallbacks of one pass on one drawable are recorded as one degradation; fallbacks of different passes, such as a lost binding and a simpler arrowhead, are each recorded. For example, a cylinder for a renderer without cylinders or paths becomes a rectangle in pass 3, whether or not the renderer declares images, and is recorded once: cylinders become rectangles.</p>
 <p>For the worked example:</p>
 <table>
 <thead><tr><th>Renderer</th><th>Assessment</th><th>What changes</th></tr></thead>

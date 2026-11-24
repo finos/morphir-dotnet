@@ -38,6 +38,8 @@
         <Compile Include="CssColors.fs" />
         <Compile Include="Layout.fs" />
         <Compile Include="LayoutFeatures.fs" />
+        <Compile Include="Lowering.fs" />
+        <Compile Include="Rendering.fs" />
         <Compile Include="Carriage.fs" />
         <Compile Include="Exploration.fs" />
         <Compile Include="LayoutHints.fs" />

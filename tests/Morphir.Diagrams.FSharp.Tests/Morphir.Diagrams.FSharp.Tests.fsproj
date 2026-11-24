@@ -24,6 +24,7 @@
         <Compile Include="DiagramMother.fs" />
         <Compile Include="ReadmeSampleTests.fs" />
         <Compile Include="CssColorTests.fs" />
+        <Compile Include="LoweringProperties.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 </Project>

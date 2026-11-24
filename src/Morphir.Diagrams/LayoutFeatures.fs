@@ -261,9 +261,18 @@ module internal Drawables =
         if own.Length <= 1 then
             true
         else
-            let first = Array.BinarySearch(leaves, own[0])
-            let last = Array.BinarySearch(leaves, own[own.Length - 1])
-            last - first + 1 = own.Length
+            // The number of the page's leaves from the unit's first index to its last, duplicates included.
+            let bound (value: int) (upper: bool) =
+                let mutable low = 0
+                let mutable high = leaves.Length
+
+                while low < high do
+                    let middle = (low + high) / 2
+                    if (if upper then leaves[middle] <= value else leaves[middle] < value) then low <- middle + 1 else high <- middle
+
+                low
+
+            bound own[own.Length - 1] true - bound own[0] false = own.Length
 
     /// The default dash of the baseline: 4 pixels on, 4 off.
     let defaultDash = ImmutableArray.Create(Distance.FromPixels 4.0, Distance.FromPixels 4.0)
