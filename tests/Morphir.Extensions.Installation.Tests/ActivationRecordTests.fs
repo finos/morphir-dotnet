@@ -550,6 +550,126 @@ let sessionAgreement =
                     with _ -> true
                 Expect.isTrue refused $"Malformed modelAccess claims must be refused: {label}"
         }
+        test "installing preview.3 stays on preview.3 and installing preview.4 with modelAccess promotes catalog, lock, journal, and index-record" {
+            use sandbox = TestSandbox.Create()
+            let root = home sandbox
+            let repoRoot = sandbox.PathOf("local-repo")
+            Directory.CreateDirectory(repoRoot) |> ignore
+
+            let wasmBytes = [| 0x00uy; 0x61uy; 0x73uy; 0x6Duy; 0x01uy; 0x00uy; 0x00uy; 0x00uy |]
+            let wasmSha = Digest.ofBytes wasmBytes
+            let wasmPath = sandbox.PathOf("ext.wasm")
+            File.WriteAllBytes(wasmPath, wasmBytes)
+
+            let p3Root = Path.Combine(AppContext.BaseDirectory, "ParentContracts")
+            let p4Root = Path.Combine(AppContext.BaseDirectory, "ParentContractsPreview4")
+
+            let p3Release =
+                Encoding.UTF8.GetBytes(
+                    """{"$schema":"https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/release.schema.json","extensionId":"org.acme.legacy","shortId":"acme-legacy","version":"1.0.0","platformDifferences":"none","artifacts":[{"runtime":"wasm","filename":"legacy.wasm","sha256":"SHA","claims":{"protocolVersions":["0.2.0-draft.1"],"extension":{"id":"org.acme.legacy","name":"Legacy","version":"1.0.0","types":["backend"]},"capabilities":{"backend":{"targets":["text"],"irVersions":["4.0.0"],"generate":true}}}}]}"""
+                        .Replace("SHA", wasmSha)
+                )
+
+            let p3Plan =
+                PackagePlan.Read(p3Release, InstallationPlatform.Create "linux-x64")
+                |> get
+
+            let mutable p3JournalBytes: byte array = [||]
+
+            use p3Captured =
+                InstalledExtensions
+                    .InstallLocalWithObserverAsync(
+                        root,
+                        p3Plan,
+                        wasmPath,
+                        repoRoot,
+                        Array.AsReadOnly [||],
+                        host,
+                        Action<int>(fun phase ->
+                            if phase = 0 then
+                                p3JournalBytes <- File.ReadAllBytes(Path.Combine(root, "locks", "extensions", "org.acme.legacy.json.transaction"))
+                        ),
+                        ct
+                    )
+                    .GetAwaiter()
+                    .GetResult()
+                |> get
+
+            let p3LockBytes = File.ReadAllBytes(Path.Combine(root, "locks", "extensions", "org.acme.legacy.json"))
+            let p3CatalogBytes = File.ReadAllBytes(Path.Combine(root, "catalog", "extensions.json"))
+            let p3IndexBytes = File.ReadAllBytes(Path.Combine(repoRoot, "extensions", "org.acme.legacy.jsonl"))
+
+            for kind, bytes in [
+                "lock", p3LockBytes
+                "catalog", p3CatalogBytes
+                "journal", p3JournalBytes
+                "index-record", p3IndexBytes
+            ] do
+                let text = Encoding.UTF8.GetString bytes
+                Expect.stringContains text $"0.1.0-preview.3/{kind}.schema.json" $"preview.3 {kind} uses preview.3 schema"
+                let ok, err = SharedReaderTests.validateAgainstPinnedSchema p3Root kind bytes
+                Expect.isTrue ok $"preview.3 {kind} validates against pinned preview.3 schema: {err}"
+
+            // Now install a preview.4 extension carrying capabilities.modelAccess into the same home.
+            let modelAccessJson =
+                """{"tuples":[{"protocolVersion":"0.2.0-draft.2","accessVersion":"0.1.0-draft.1","operation":"morphir.backend.generateModel","irVersion":"4.0.0","profile":"morphir-ir","codec":"morphir-json","layout":"document-tree","contextualEncoding":"plain"}],"limits":{"maxFrameBytes":65536,"maxEncodedBytesPerExchange":65536,"maxDecodedBytesPerExchange":32768,"maxDocumentsPerBatch":8,"maxDepth":64,"maxNodes":10000,"maxDiagnosticsPerExchange":16,"maxOutstandingRequests":4,"maxGuestStateBytes":16777216,"maxHostCacheBytes":16777216,"maxArtifactChunkBytes":65536,"maxArtifactBytes":4294967296,"maxTotalArtifactBytes":4294967296,"maxSessionDiskBytes":4294967296,"maxSessionWorkUnits":100000,"maxRounds":100,"maxCallMilliseconds":10000,"maxSessionMilliseconds":60000}}"""
+
+            let p4Release =
+                Encoding.UTF8.GetBytes(
+                    """{"$schema":"https://morphir.finos.org/schemas/extensions/0.1.0-preview.4/release.schema.json","extensionId":"org.acme.bounded","shortId":"acme-bounded","version":"1.0.0","platformDifferences":"none","artifacts":[{"runtime":"wasm","filename":"bounded.wasm","sha256":"SHA","claims":{"protocolVersions":["0.2.0-draft.2"],"extension":{"id":"org.acme.bounded","name":"Bounded","version":"1.0.0","types":["backend"]},"capabilities":{"backend":{"targets":["text"],"irVersions":["4.0.0"],"generate":false},"modelAccess":MA}}}]}"""
+                        .Replace("SHA", wasmSha)
+                        .Replace("MA", modelAccessJson)
+                )
+
+            let p4Plan =
+                PackagePlan.Read(p4Release, InstallationPlatform.Create "linux-x64")
+                |> get
+
+            let mutable p4JournalBytes: byte array = [||]
+
+            use p4Captured =
+                InstalledExtensions
+                    .InstallLocalWithObserverAsync(
+                        root,
+                        p4Plan,
+                        wasmPath,
+                        repoRoot,
+                        Array.AsReadOnly [||],
+                        host,
+                        Action<int>(fun phase ->
+                            if phase = 0 then
+                                p4JournalBytes <- File.ReadAllBytes(Path.Combine(root, "locks", "extensions", "org.acme.bounded.json.transaction"))
+                        ),
+                        ct
+                    )
+                    .GetAwaiter()
+                    .GetResult()
+                |> get
+
+            let p4LockBytes = File.ReadAllBytes(Path.Combine(root, "locks", "extensions", "org.acme.bounded.json"))
+            let p4CatalogBytes = File.ReadAllBytes(Path.Combine(root, "catalog", "extensions.json"))
+            let p4IndexBytes = File.ReadAllBytes(Path.Combine(repoRoot, "extensions", "org.acme.bounded.jsonl"))
+
+            for kind, bytes in [
+                "lock", p4LockBytes
+                "catalog", p4CatalogBytes
+                "journal", p4JournalBytes
+                "index-record", p4IndexBytes
+            ] do
+                let text = Encoding.UTF8.GetString bytes
+                Expect.stringContains text $"0.1.0-preview.4/{kind}.schema.json" $"preview.4 {kind} uses preview.4 schema"
+                let ok, err = SharedReaderTests.validateAgainstPinnedSchema p4Root kind bytes
+                Expect.isTrue ok $"preview.4 {kind} validates against pinned preview.4 schema: {err}"
+
+            // Verify compatibility check passes on the mixed preview.3 lock + preview.4 lock + promoted preview.4 catalog home
+            let compatible =
+                InstalledState.CheckCompatibilityAsync(root, ct).GetAwaiter().GetResult()
+                |> get
+
+            Expect.isTrue compatible "mixed home with preview.3 and preview.4 locks passes compatibility check"
+            ignore p3Captured
+            ignore p4Captured
+        }
     ]
 
 

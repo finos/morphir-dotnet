@@ -4,15 +4,77 @@ module Morphir.Extensions.Installation.Tests.SharedReaderTests
 
 open System
 open System.IO
+open Expecto
+open Json.Schema
 open System.Text
 open System.Text.Json
 open System.Text.Json.Nodes
-open Expecto
 open Morphir.Extensions.Installation
 open Morphir.Toolchain
 
 let private parentRoot = Path.Combine(AppContext.BaseDirectory, "ParentContracts")
 let private parentCommit = "65bbbc961d9eb962ad941a859c9d09fba058f5a0"
+let private parentPreview4Root = Path.Combine(AppContext.BaseDirectory, "ParentContractsPreview4")
+let private parentPreview4Commit = "13c29d962c5907a1ce1da8395f060947b24772ee"
+
+let private schemaFamilies = System.Collections.Concurrent.ConcurrentDictionary<string, Map<string, JsonSchema>>()
+
+let private endAnchored (text: string) =
+    let root = JsonNode.Parse text |> nonNull
+
+    let rec walk (node: JsonNode | null) =
+        match node with
+        | :? JsonObject as o ->
+            for KeyValue(name, child) in List.ofSeq o do
+                match child with
+                | :? JsonValue as v when name = "pattern" ->
+                    let pattern = v.GetValue<string>()
+
+                    if pattern.EndsWith("$", StringComparison.Ordinal) && not (pattern.EndsWith(@"\$", StringComparison.Ordinal)) then
+                        o[name] <- JsonValue.Create(pattern.Substring(0, pattern.Length - 1) + @"\z")
+                | _ -> walk child
+        | :? JsonArray as a ->
+            for child in List.ofSeq a do
+                walk child
+        | _ -> ()
+
+    walk root
+    root.ToJsonString()
+
+let internal validateAgainstPinnedSchema (familyRoot: string) (schemaKind: string) (documentBytes: byte array) : bool * string =
+    let schemas =
+        schemaFamilies.GetOrAdd(
+            familyRoot,
+            fun root ->
+                let registry = SchemaRegistry()
+                let options = BuildOptions(SchemaRegistry = registry)
+                let names = [ "claims"; "release"; "index-record"; "catalog"; "lock"; "journal"; "repositories" ]
+
+                names
+                |> List.map (fun name ->
+                    let text = File.ReadAllText(Path.Combine(root, "schemas", $"{name}.schema.json"))
+                    name, JsonSchema.FromText(endAnchored text, options)
+                )
+                |> Map.ofList
+        )
+
+    use parsed = JsonDocument.Parse documentBytes
+    let results = schemas[schemaKind].Evaluate(parsed.RootElement, EvaluationOptions(OutputFormat = OutputFormat.List))
+
+    let failure =
+        match results.Details with
+        | null -> None
+        | details ->
+            details
+            |> Seq.tryPick (fun detail ->
+                match detail.Errors with
+                | null -> None
+                | errors when not detail.IsValid && errors.Count > 0 ->
+                    Some $"{detail.InstanceLocation}: {Seq.head errors.Values}"
+                | _ -> None
+            )
+
+    results.IsValid, defaultArg failure ""
 
 let private releaseSchema =
     "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/release.schema.json"
@@ -557,6 +619,147 @@ let claimTests =
             editClaims (fun node -> node["requires"] <- JsonNode.Parse "{\"host\":[\">=0.4.0\"]}")
             |> Claims.readStandalone
             |> refused "extension.invalid_document" "critical"
+        }
+        test "all pinned 0.1.0-preview.4 parent schemas have exact offline provenance" {
+            use manifest =
+                JsonDocument.Parse(File.ReadAllBytes(Path.Combine(parentPreview4Root, "manifest.json")))
+
+            let files =
+                manifest.RootElement.GetProperty("files").EnumerateArray()
+                |> Seq.toArray
+
+            Expect.equal files.Length 7 "seven 0.1.0-preview.4 schemas"
+
+            for file in files do
+                Expect.equal (file.GetProperty("repository").GetString()) "https://github.com/finos/morphir" "authority"
+                Expect.equal (file.GetProperty("commit").GetString()) parentPreview4Commit "immutable full commit"
+                let relative = file.GetProperty("file").GetString() |> nonNull
+                let contents = File.ReadAllBytes(Path.Combine(parentPreview4Root, relative))
+                Expect.equal (Digest.ofBytes contents) (file.GetProperty("sha256").GetString()) relative
+        }
+        test "0.1.0-preview.3 rejects capabilities.modelAccess while 0.1.0-preview.4 accepts it across all extension documents" {
+            let modelAccessJson =
+                """{"tuples":[{"protocolVersion":"0.2.0-draft.2","accessVersion":"0.1.0-draft.1","operation":"morphir.backend.generateModel","irVersion":"4.0.0","profile":"morphir-ir","codec":"morphir-json","layout":"document-tree","contextualEncoding":"plain"}],"limits":{"maxFrameBytes":65536,"maxEncodedBytesPerExchange":65536,"maxDecodedBytesPerExchange":32768,"maxDocumentsPerBatch":8,"maxDepth":64,"maxNodes":10000,"maxDiagnosticsPerExchange":16,"maxOutstandingRequests":4,"maxGuestStateBytes":16777216,"maxHostCacheBytes":16777216,"maxArtifactChunkBytes":65536,"maxArtifactBytes":4294967296,"maxTotalArtifactBytes":4294967296,"maxSessionDiskBytes":4294967296,"maxSessionWorkUnits":100000,"maxRounds":100,"maxCallMilliseconds":10000,"maxSessionMilliseconds":60000}}"""
+
+            let embeddedClaims withModelAccess =
+                let ma = if withModelAccess then $",\"modelAccess\":{modelAccessJson}" else ""
+                """{"protocolVersions":["0.2.0-draft.2"],"extension":{"id":"org.acme.orders","name":"Orders","version":"1.0.0","types":["backend"]},"capabilities":{"backend":{"targets":["text"],"irVersions":["4.0.0"],"generate":false}MA}}""".Replace("MA", ma)
+
+            let standaloneClaims family withModelAccess =
+                let ma = if withModelAccess then $",\"modelAccess\":{modelAccessJson}" else ""
+                bytes (
+                    """{"$schema":"https://morphir.finos.org/schemas/extensions/FAMILY/claims.schema.json","protocolVersions":["0.2.0-draft.2"],"extension":{"id":"org.acme.orders","name":"Orders","version":"1.0.0","types":["backend"]},"capabilities":{"backend":{"targets":["text"],"irVersions":["4.0.0"],"generate":false}MA}}"""
+                        .Replace("FAMILY", family)
+                        .Replace("MA", ma)
+                )
+
+            let digest = String.replicate 64 "a"
+
+            let releaseDoc family withModelAccess =
+                bytes (
+                    """{"$schema":"https://morphir.finos.org/schemas/extensions/FAMILY/release.schema.json","extensionId":"org.acme.orders","shortId":"acme-orders","version":"1.0.0","platformDifferences":"none","artifacts":[{"runtime":"wasm","filename":"orders.wasm","sha256":"DIGEST","claims":CLAIMS}]}"""
+                        .Replace("FAMILY", family)
+                        .Replace("DIGEST", digest)
+                        .Replace("CLAIMS", embeddedClaims withModelAccess)
+                )
+
+            let lockDoc family withModelAccess =
+                bytes (
+                    """{"$schema":"https://morphir.finos.org/schemas/extensions/FAMILY/lock.schema.json","extensionId":"org.acme.orders","name":"Orders","version":"1.0.0","runtime":"wasm","args":[],"digest":"DIGEST","capabilities":["backend"],"mepVersions":["0.2.0-draft.2"],"backend":{"targets":["text"],"irVersions":["4.0.0"],"generate":false},"executable":false,"selection":{"kind":"exact","value":"1.0.0"},"index":{"kind":"local-directory","identity":"/repo","revision":"DIGEST","claims":CLAIMS},"source":{"kind":"local-file","path":"artifacts/orders.wasm"}}"""
+                        .Replace("FAMILY", family)
+                        .Replace("DIGEST", digest)
+                        .Replace("CLAIMS", embeddedClaims withModelAccess)
+                )
+
+            let catalogDoc family withModelAccess =
+                bytes (
+                    """{"$schema":"https://morphir.finos.org/schemas/extensions/FAMILY/catalog.schema.json","extensions":[{"extensionId":"org.acme.orders","name":"Orders","version":"1.0.0","runtime":"wasm","args":[],"digest":"DIGEST","storePath":"store/extensions/sha256/DIGEST/orders.wasm","capabilities":["backend"],"mepVersions":["0.2.0-draft.2"],"backend":{"targets":["text"],"irVersions":["4.0.0"],"generate":false},"executable":false,"index":{"kind":"local-directory","identity":"/repo","revision":"DIGEST"},"claims":CLAIMS,"claimCheck":"unchecked"}]}"""
+                        .Replace("FAMILY", family)
+                        .Replace("DIGEST", digest)
+                        .Replace("CLAIMS", embeddedClaims withModelAccess)
+                )
+
+            let indexDoc family withModelAccess =
+                bytes (
+                    """{"$schema":"https://morphir.finos.org/schemas/extensions/FAMILY/index-record.schema.json","id":"org.acme.orders","name":"Orders","version":"1.0.0","channels":["stable"],"artifacts":[{"runtime":"wasm","source":{"kind":"local-file","path":"artifacts/orders.wasm"},"sha256":"DIGEST","filename":"orders.wasm","args":[],"executable":false,"claims":CLAIMS,"claimCheck":"unchecked"}]}"""
+                        .Replace("FAMILY", family)
+                        .Replace("DIGEST", digest)
+                        .Replace("CLAIMS", embeddedClaims withModelAccess)
+                )
+
+            let provenance =
+                Value.Object [
+                    "kind", Value.String "local-directory"
+                    "identity", Value.String "/repo"
+                    "revision", Value.String digest
+                ]
+
+            // preview.3 strictly rejects capabilities.modelAccess everywhere
+            Claims.readStandalone (standaloneClaims "0.1.0-preview.3" true)
+            |> refused "extension.invalid_document" "modelAccess"
+
+            Descriptors.read (releaseDoc "0.1.0-preview.3" true)
+            |> refused "extension.invalid_document" "modelAccess"
+
+            StateDocuments.readLock (lockDoc "0.1.0-preview.3" true)
+            |> refused "extension.invalid_document" "modelAccess"
+
+            StateDocuments.readCatalog (catalogDoc "0.1.0-preview.3" true)
+            |> refused "extension.invalid_document" "modelAccess"
+
+            StateDocuments.readIndex (indexDoc "0.1.0-preview.3" true) provenance
+            |> refused "extension.invalid_document" "modelAccess"
+
+            // preview.3 pinned lock schema itself rejects modelAccess (closed)
+            let p3LockValid, _ = validateAgainstPinnedSchema parentRoot "lock" (lockDoc "0.1.0-preview.3" true)
+            Expect.isFalse p3LockValid "pinned 0.1.0-preview.3 lock schema rejects modelAccess"
+
+            // preview.3 without modelAccess still accepted and schema-valid
+            for kind, doc in [
+                "claims", standaloneClaims "0.1.0-preview.3" false
+                "release", releaseDoc "0.1.0-preview.3" false
+                "lock", lockDoc "0.1.0-preview.3" false
+                "catalog", catalogDoc "0.1.0-preview.3" false
+                "index-record", indexDoc "0.1.0-preview.3" false
+            ] do
+                let ok, err = validateAgainstPinnedSchema parentRoot kind doc
+                Expect.isTrue ok $"preview.3 {kind} without modelAccess validates: {err}"
+
+            // preview.3 refuses critical references to modelAccess
+            let p3CriticalClaims =
+                bytes """{"$schema":"https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/claims.schema.json","protocolVersions":["0.2.0-draft.2"],"extension":{"id":"org.acme.orders","name":"Orders","version":"1.0.0","types":["backend"]},"capabilities":{"backend":{"targets":["text"],"irVersions":["4.0.0"],"generate":false}},"critical":["capabilities.modelAccess"]}"""
+
+            Claims.readStandalone p3CriticalClaims
+            |> refused "extension.unsupported_critical_member" "capabilities.modelAccess"
+
+            // preview.4 accepts capabilities.modelAccess everywhere and validates against pinned preview.4 schemas
+            Claims.readStandalone (standaloneClaims "0.1.0-preview.4" true) |> accepted
+            Descriptors.read (releaseDoc "0.1.0-preview.4" true) |> accepted
+            StateDocuments.readLock (lockDoc "0.1.0-preview.4" true) |> accepted
+            StateDocuments.readCatalog (catalogDoc "0.1.0-preview.4" true) |> accepted
+            StateDocuments.readIndex (indexDoc "0.1.0-preview.4" true) provenance |> accepted
+
+            let p4Repos =
+                bytes """{"$schema":"https://morphir.finos.org/schemas/extensions/0.1.0-preview.4/repositories.schema.json","repositories":[{"name":"local","endpoint":{"kind":"local-directory","path":"/repo"},"state":"enabled"}]}"""
+
+            StateDocuments.readRepositories p4Repos |> accepted
+
+            let p4Journal =
+                bytes """{"$schema":"https://morphir.finos.org/schemas/extensions/0.1.0-preview.4/journal.schema.json","nextLock":null,"nextCatalog":null}"""
+
+            StateDocuments.readJournal p4Journal |> accepted
+
+            for kind, doc in [
+                "claims", standaloneClaims "0.1.0-preview.4" true
+                "release", releaseDoc "0.1.0-preview.4" true
+                "lock", lockDoc "0.1.0-preview.4" true
+                "catalog", catalogDoc "0.1.0-preview.4" true
+                "index-record", indexDoc "0.1.0-preview.4" true
+                "repositories", p4Repos
+                "journal", p4Journal
+            ] do
+                let ok, err = validateAgainstPinnedSchema parentPreview4Root kind doc
+                Expect.isTrue ok $"preview.4 {kind} validates: {err}"
         }
     ]
     |> testLabel "PlatformSpecific"

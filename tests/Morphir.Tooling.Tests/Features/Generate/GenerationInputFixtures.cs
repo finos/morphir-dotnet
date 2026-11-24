@@ -486,6 +486,133 @@ internal static class GenerationInputFixtures
         return directory;
     }
 
+    public static string ClassicOrdersTreeWithOpaqueAttributeAndDecimal(string directory, string profile, string lexeme, bool inPattern)
+    {
+        CopyBoundedOrdersTree("v3.1", profile, directory);
+        var isYaml = profile.EndsWith("yaml", StringComparison.Ordinal);
+        var orderPath = Path.Combine(directory, "pkg", "acme", "orders", "domain", isYaml ? "order.value.yaml" : "order.value.json");
+        const string decimalTypeJson = """["Reference", {}, [[["morphir"], ["s", "d", "k"]], [["decimal"]], ["decimal"]], []]""";
+        const string intTypeJson = """["Reference", {}, [[["morphir"], ["s", "d", "k"]], [["basics"]], ["int"]], []]""";
+        const string opaqueAttrJson = """["Literal", {}, ["DecimalLiteral", "-0.00"]]""";
+        string content;
+        if (isYaml)
+        {
+            content = inPattern
+                ? $$"""
+                formatVersion: 3.1.0
+                name: order
+                def:
+                  access: Public
+                  value:
+                    doc: ""
+                    value:
+                      inputTypes:
+                        - - [x]
+                          - [Literal, {}, [DecimalLiteral, "-0.00"]]
+                          - - Reference
+                            - {}
+                            - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+                            - []
+                      outputType:
+                        - Reference
+                        - {}
+                        - [[[morphir], [s, d, k]], [[basics]], [int]]
+                        - []
+                      body:
+                        - PatternMatch
+                        - [Literal, {}, [DecimalLiteral, "-0.00"]]
+                        - - Variable
+                          - [Literal, {}, [DecimalLiteral, "-0.00"]]
+                          - [x]
+                        - - - - LiteralPattern
+                              - [Literal, {}, [DecimalLiteral, "-0.00"]]
+                              - [DecimalLiteral, "{{lexeme}}"]
+                            - - Literal
+                              - [Literal, {}, [DecimalLiteral, "-0.00"]]
+                              - [WholeNumberLiteral, 1]
+                          - - - WildcardPattern
+                              - [Literal, {}, [DecimalLiteral, "-0.00"]]
+                            - - Literal
+                              - [Literal, {}, [DecimalLiteral, "-0.00"]]
+                              - [WholeNumberLiteral, 0]
+                """
+                : $$"""
+                formatVersion: 3.1.0
+                name: order
+                def:
+                  access: Public
+                  value:
+                    doc: ""
+                    value:
+                      inputTypes: []
+                      outputType:
+                        - Reference
+                        - {}
+                        - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+                        - []
+                      body:
+                        - Literal
+                        - [Literal, {}, [DecimalLiteral, "-0.00"]]
+                        - [DecimalLiteral, "{{lexeme}}"]
+                """;
+        }
+        else
+        {
+            content = inPattern
+                ? $$"""
+                {
+                  "formatVersion": "3.1.0",
+                  "name": "order",
+                  "def": {
+                    "access": "Public",
+                    "value": { "doc": "", "value": {
+                      "inputTypes": [[["x"], {{opaqueAttrJson}}, {{decimalTypeJson}}]],
+                      "outputType": {{intTypeJson}},
+                      "body": ["PatternMatch", {{opaqueAttrJson}}, ["Variable", {{opaqueAttrJson}}, ["x"]], [
+                        [["LiteralPattern", {{opaqueAttrJson}}, ["DecimalLiteral", "{{lexeme}}"]], ["Literal", {{opaqueAttrJson}}, ["WholeNumberLiteral", 1]]],
+                        [["WildcardPattern", {{opaqueAttrJson}}], ["Literal", {{opaqueAttrJson}}, ["WholeNumberLiteral", 0]]]
+                      ]]
+                    } }
+                  }
+                }
+                """
+                : $$"""
+                {
+                  "formatVersion": "3.1.0",
+                  "name": "order",
+                  "def": {
+                    "access": "Public",
+                    "value": { "doc": "", "value": {
+                      "inputTypes": [],
+                      "outputType": {{decimalTypeJson}},
+                      "body": ["Literal", {{opaqueAttrJson}}, ["DecimalLiteral", "{{lexeme}}"]]
+                    } }
+                  }
+                }
+                """;
+        }
+        File.WriteAllText(orderPath, content);
+        return directory;
+    }
+
+    public static (string ProjectRoot, string OutputDir) WriteDraft1Project(string projectRoot, string outputDir, string wasmPath, string projectName)
+    {
+        Directory.CreateDirectory(projectRoot);
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "{projectName}"
+
+            [codegen.text]
+            extension = "draft1"
+
+            [extensions.draft1]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+        return (projectRoot, outputDir);
+    }
+
     private static void CopyBoundedOrdersTree(string versionDir, string profile, string destination)
     {
         var prefix = Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Directory + versionDir + "/" + profile + "/";

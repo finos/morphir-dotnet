@@ -1557,6 +1557,30 @@ module internal BoundedTreeReader =
                 expand location file
                 |> Result.bind (serialize location)
 
+            let checkClassicInlineDecimal location definitions suffix item =
+                match rejectUnrepresentableEnvelope, snapshot.Manifest, suffix with
+                | true, BoundedTreeManifest.Classic _, ".value" ->
+                    match ClassicTreeFiles.findLossyDecimalInInlineValue snapshot.Cancellation definitions item with
+                    | Some lexeme ->
+                        refuse
+                            "data.lossy_conversion"
+                            (Some location)
+                            $"Converting Classic document tree to single-document JSON would lose precision, scale, or sign on decimal literal '{lexeme}' in {location}; lossy conversion is refused by default."
+                    | None -> Ok()
+                | _ -> Ok()
+
+            let checkClassicSplitDecimal location definitions suffix document =
+                match rejectUnrepresentableEnvelope, snapshot.Manifest, suffix with
+                | true, BoundedTreeManifest.Classic _, ".value" ->
+                    match ClassicTreeFiles.findLossyDecimalInSplitValue snapshot.Cancellation definitions document with
+                    | Some lexeme ->
+                        refuse
+                            "data.lossy_conversion"
+                            (Some location)
+                            $"Converting Classic document tree to single-document JSON would lose precision, scale, or sign on decimal literal '{lexeme}' in {location}; lossy conversion is refused by default."
+                    | None -> Ok()
+                | _ -> Ok()
+
             let moduleFile own address location definitions inventory file =
                 let directory = TreeLayout.directoryOf own address
 
@@ -1576,6 +1600,9 @@ module internal BoundedTreeReader =
                             let memberLocation = V4JsonDecoding.memberAt fieldLocation property.Name
 
                             requireInlineOnly snapshot.Work snapshot.Source logical
+                            |> Result.bind (fun () ->
+                                checkClassicInlineDecimal location definitions suffix property.Value
+                            )
                             |> Result.bind (fun () ->
                                 decodeInlineBody
                                     snapshot
@@ -1608,7 +1635,10 @@ module internal BoundedTreeReader =
             let split location definitions suffix name file =
                 expand location file
                 |> Result.bind (fun document ->
-                    decodeSplitBody snapshot location definitions suffix name document
+                    checkClassicSplitDecimal location definitions suffix document
+                    |> Result.bind (fun () ->
+                        decodeSplitBody snapshot location definitions suffix name document
+                    )
                     |> Result.bind (fun _ -> serialize location document)
                 )
 

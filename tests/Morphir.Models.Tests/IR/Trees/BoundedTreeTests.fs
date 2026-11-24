@@ -2413,7 +2413,12 @@ let discoveryCacheTests =
             Expect.equal detected.NameEncoding BoundedTreeEncoding.Plain "detected long-path plain encoding"
         }
         test "TryJoinSnapshot refuses Classic 3.1 JSON and YAML trees with lossy decimal sign or scale and accepts lossless decimals" {
-            let lossyLexemes = [ "-0"; "-0.00"; "1.00000000000000000000000000000" ]
+            let lossyLexemes = [
+                "-0"
+                "-0.00"
+                "1.00000000000000000000000000000"
+                "0.00000000000000000000000000001"
+            ]
             let losslessLexemes = [ "0.00"; "-1.50"; "1.0000000000000000000000000000" ]
 
             for profile in [ "plain-json"; "plain-yaml" ] do
@@ -2444,7 +2449,8 @@ let discoveryCacheTests =
                             )
 
                         Expect.isFalse ok $"Classic 3.1 {profile} (inPattern={inPattern}, lexeme={lexeme}) must be refused as lossy"
-                        Expect.contains (problems |> Seq.map _.Code |> Seq.toList) "data.lossy_conversion" $"Classic 3.1 {profile} ({lexeme}) code"
+                        let codes = problems |> Seq.map _.Code |> Seq.toList
+                        Expect.contains codes "data.lossy_conversion" $"Classic 3.1 {profile} ({lexeme}) must report data.lossy_conversion, got {codes}"
 
                     for lexeme in losslessLexemes do
                         let provider, paths = StoreTestKit.classicOrdersTreeWithDecimal profile lexeme inPattern
@@ -2472,5 +2478,50 @@ let discoveryCacheTests =
                             )
 
                         Expect.isTrue ok $"Classic 3.1 {profile} (inPattern={inPattern}, lexeme={lexeme}) must join losslessly"
+        }
+        test "TryJoinSnapshot preserves Classic 3.1 opaque attributes containing Literal/DecimalLiteral -0.00 verbatim" {
+            for profile in [ "plain-json"; "plain-yaml" ] do
+                for inPattern in [ false; true ] do
+                    let provider, paths = StoreTestKit.classicOrdersTreeWithOpaqueAttribute profile "-1.50" inPattern
+                    let snapshot =
+                        DocumentTreeStore.openDetectedSnapshot(
+                            ReadOptions.defaults, System.Func<string>(fun () -> "r1"), provider)
+                        |> read
+
+                    let mutable model = Unchecked.defaultof<_>
+                    let mutable files = Unchecked.defaultof<_>
+                    let mutable problems = Unchecked.defaultof<_>
+
+                    let ok =
+                        DocumentTreeStore.tryJoinSnapshot(
+                            snapshot,
+                            paths,
+                            ReadOptions.defaults.MaxFiles,
+                            128,
+                            ReadOptions.defaults.MaxFileBytes,
+                            ReadOptions.defaults.MaxFileBytes,
+                            System.Threading.CancellationToken.None,
+                            &model,
+                            &files,
+                            &problems
+                        )
+
+                    Expect.isTrue ok $"Classic 3.1 {profile} (inPattern={inPattern}) with opaque attribute must join losslessly"
+
+                    match model.Distribution with
+                    | Morphir.IR.Model.DistributionModel.Classic classic ->
+                        let json =
+                            Morphir.Json.Classic.ClassicJsonWriter.writeJsonAttributes
+                                Morphir.Json.Classic.ClassicWireProfile.v3
+                                false
+                                classic
+                            |> function
+                                | Ok bytes -> System.Text.Encoding.UTF8.GetString(bytes: byte array)
+                                | Result.Error err -> failtest $"ClassicJsonWriter failed: {err.Message}"
+
+                        Expect.stringContains json """["Literal",{},["DecimalLiteral","-0.00"]]""" "opaque attribute preserved verbatim"
+                        Expect.stringContains json """["DecimalLiteral","-1.50"]""" "lossless decimal preserved verbatim"
+                    | Morphir.IR.Model.DistributionModel.V4 _ ->
+                        failtest "Expected Classic distribution"
         }
     ]

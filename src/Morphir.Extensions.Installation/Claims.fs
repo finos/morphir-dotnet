@@ -12,16 +12,15 @@ type internal ReleaseClaims = {
     Extension: ExtensionInfo
     ProtocolVersions: ProtocolVersion list
     HostRequirements: Comparator list
+    SchemaVersion: ExtensionSchemaVersion
+    HasModelAccess: bool
 }
 
 module internal Claims =
     open SharedJson
 
-    let private schemaUrl =
-        "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/claims.schema.json"
-
     // Array elements use the path of their array, as the published member tables require.
-    let knownPaths =
+    let private baseKnownPaths =
         set [
             "protocolVersions"
             "extension"
@@ -70,6 +69,17 @@ module internal Claims =
             "capabilities.modelTransport.limits.maxDepth"
             "capabilities.modelTransport.limits.maxNodes"
             "capabilities.modelTransport.guarantees"
+            "capabilities.streaming"
+            "capabilities.incremental"
+            "capabilities.cancellation"
+            "capabilities.progress"
+            "requires"
+            "requires.host"
+            "critical"
+        ]
+
+    let private modelAccessKnownPaths =
+        set [
             "capabilities.modelAccess"
             "capabilities.modelAccess.tuples"
             "capabilities.modelAccess.tuples.protocolVersion"
@@ -99,14 +109,16 @@ module internal Claims =
             "capabilities.modelAccess.limits.maxRounds"
             "capabilities.modelAccess.limits.maxCallMilliseconds"
             "capabilities.modelAccess.limits.maxSessionMilliseconds"
-            "capabilities.streaming"
-            "capabilities.incremental"
-            "capabilities.cancellation"
-            "capabilities.progress"
-            "requires"
-            "requires.host"
-            "critical"
         ]
+
+    let private preview4KnownPaths = Set.union baseKnownPaths modelAccessKnownPaths
+
+    let knownPathsFor =
+        function
+        | ExtensionSchemaVersion.Preview3 -> baseKnownPaths
+        | ExtensionSchemaVersion.Preview4 -> preview4KnownPaths
+
+    let knownPaths = preview4KnownPaths
 
     let readCritical path known items =
         match optional "critical" items with
@@ -426,7 +438,7 @@ module internal Claims =
             | Ok _ -> projected
             | Error message -> invalid path message
 
-    let private capabilities path types value =
+    let private capabilities (allowModelAccess: bool) path types value =
         let items = members path value
 
         for kind in types do
@@ -434,6 +446,7 @@ module internal Claims =
             |> ignore
 
         let projected = ResizeArray<string * Value>()
+        let mutable hasModelAccess = false
 
         for name, value in items do
             let location = $"{path}.{name}"
@@ -450,7 +463,12 @@ module internal Claims =
 
                     Some(Value.Object [])
                 | "modelTransport" -> Some(modelTransport location value)
-                | "modelAccess" -> Some(modelAccess location value)
+                | "modelAccess" ->
+                    if not allowModelAccess then
+                        invalid location "capabilities.modelAccess requires extension contract 0.1.0-preview.4 and is not permitted under 0.1.0-preview.3."
+
+                    hasModelAccess <- true
+                    Some(modelAccess location value)
                 | "streaming"
                 | "incremental"
                 | "cancellation"
@@ -461,9 +479,9 @@ module internal Claims =
             | Some parsed -> projected.Add(name, parsed)
             | None -> ()
 
-        Value.Object(List.ofSeq projected)
+        Value.Object(List.ofSeq projected), hasModelAccess
 
-    let private readAt path known value =
+    let private readAt (schemaVersion: ExtensionSchemaVersion) path known value =
         let items = members path value
 
         for forbidden in [ "claimsVersion"; "statementVersion" ] do
@@ -559,9 +577,9 @@ module internal Claims =
                 identity
             @ [ "types", Value.Array(List.map Value.String types) ]
 
-        let capProjection =
+        let capProjection, hasModelAccess =
             required path "capabilities" items
-            |> capabilities $"{path}.capabilities" types
+            |> capabilities (ExtensionSchemas.supportsModelAccess schemaVersion) $"{path}.capabilities" types
 
         let critical = readCritical path known items
 
@@ -621,9 +639,11 @@ module internal Claims =
             Extension = extension
             ProtocolVersions = protocolVersions
             HostRequirements = requirements
+            SchemaVersion = schemaVersion
+            HasModelAccess = hasModelAccess
         }
 
-    let readEmbedded path value =
+    let readEmbeddedFor (schemaVersion: ExtensionSchemaVersion) path value =
         let items = members path value
 
         if
@@ -635,7 +655,10 @@ module internal Claims =
                 $"{path}.$schema"
                 "Embedded claims have no schema or version member."
 
-        readAt path knownPaths value
+        readAt schemaVersion path (knownPathsFor schemaVersion) value
+
+    let readEmbedded path value =
+        readEmbeddedFor ExtensionSchemaVersion.Preview4 path value
 
     let readStandalone (bytes: byte array) : Result<ReleaseClaims, InstallationFailure> =
         match SharedJson.read "claims.json" bytes with
@@ -643,8 +666,8 @@ module internal Claims =
         | Ok value ->
             protect (fun () ->
                 let items = members "claims.json" value
-                schema "claims.json" schemaUrl items
-                readAt "claims.json" (Set.add "$schema" knownPaths) value
+                let schemaVersion = ExtensionSchemas.readVersion "claims.json" "claims" items
+                readAt schemaVersion "claims.json" (Set.add "$schema" (knownPathsFor schemaVersion)) value
             )
 
     let equivalent (left: ReleaseClaims) (right: ReleaseClaims) =

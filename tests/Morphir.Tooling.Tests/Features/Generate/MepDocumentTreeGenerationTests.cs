@@ -1457,35 +1457,25 @@ public sealed class MepDocumentTreeGenerationTests
     [Arguments("plain-json", "-0", false)]
     [Arguments("plain-json", "-0.00", false)]
     [Arguments("plain-json", "1.00000000000000000000000000000", false)]
+    [Arguments("plain-json", "0.00000000000000000000000000001", false)]
     [Arguments("plain-json", "-0", true)]
     [Arguments("plain-json", "-0.00", true)]
     [Arguments("plain-json", "1.00000000000000000000000000000", true)]
+    [Arguments("plain-json", "0.00000000000000000000000000001", true)]
     [Arguments("plain-yaml", "-0", false)]
     [Arguments("plain-yaml", "-0.00", false)]
     [Arguments("plain-yaml", "1.00000000000000000000000000000", false)]
+    [Arguments("plain-yaml", "0.00000000000000000000000000001", false)]
     [Arguments("plain-yaml", "-0", true)]
     [Arguments("plain-yaml", "-0.00", true)]
     [Arguments("plain-yaml", "1.00000000000000000000000000000", true)]
+    [Arguments("plain-yaml", "0.00000000000000000000000000001", true)]
     public async Task Draft1FallbackRefusesClassic31TreeWithLossyDecimalSignOrScale(string profile, string lexeme, bool inPattern)
     {
         using var sandbox = TestSandbox.Create();
-        var projectRoot = sandbox.PathOf("project");
-        Directory.CreateDirectory(projectRoot);
+        var (projectRoot, outputDir) = GenerationInputFixtures.WriteDraft1Project(
+            sandbox.PathOf("project"), sandbox.PathOf("generated"), sandbox.PathOf("draft1.wasm"), "acme/orders");
         var inputPath = GenerationInputFixtures.ClassicOrdersTreeWithDecimal(sandbox.PathOf("input"), profile, lexeme, inPattern);
-        var outputDir = sandbox.PathOf("generated");
-        var wasmPath = sandbox.PathOf("draft1.wasm");
-        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
-        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
-            $"""
-            [project]
-            name = "acme/orders"
-
-            [codegen.text]
-            extension = "draft1"
-
-            [extensions.draft1]
-            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
-            """);
 
         var guest = new Draft1OnlyChannelGuest();
         var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
@@ -1503,6 +1493,38 @@ public sealed class MepDocumentTreeGenerationTests
         failure.Kind.Should().Be(GenerationFailureKind.Semantic);
         failure.Diagnostics.Should().Contain(d => d.Code == "data.lossy_conversion");
         guest.GenerateCalls.Should().Be(0);
+    }
+
+    [Test]
+    [Arguments("plain-json", "-1.50", false)]
+    [Arguments("plain-json", "1.0000000000000000000000000000", true)]
+    [Arguments("plain-yaml", "-1.50", false)]
+    [Arguments("plain-yaml", "0.00", true)]
+    public async Task Draft1FallbackAcceptsClassic31TreeWithOpaqueAttributeAndLosslessDecimal(string profile, string lexeme, bool inPattern)
+    {
+        using var sandbox = TestSandbox.Create();
+        var (projectRoot, outputDir) = GenerationInputFixtures.WriteDraft1Project(
+            sandbox.PathOf("project"), sandbox.PathOf("generated"), sandbox.PathOf("draft1.wasm"), "acme/orders");
+        var inputPath = GenerationInputFixtures.ClassicOrdersTreeWithOpaqueAttributeAndDecimal(sandbox.PathOf("input"), profile, lexeme, inPattern);
+
+        var guest = new Draft1OnlyChannelGuest();
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: inputPath, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        outcome.Should().BeOfType<Outcome<GenerationSuccess>.Success>();
+        guest.GenerateCalls.Should().Be(1);
+        guest.ReceivedIrVersion.Should().Be("3.1.0");
+        guest.ReceivedDecodedJson.Should().NotBeNull();
+        guest.ReceivedDecodedJson.Should().Contain($"""["DecimalLiteral","{lexeme}"]""");
+        guest.ReceivedDecodedJson.Should().Contain("""["Literal",{},["DecimalLiteral","-0.00"]]""");
     }
 
     [Test]
@@ -2071,7 +2093,7 @@ public sealed class MepDocumentTreeGenerationTests
             """;
         var releaseJson = $$"""
             {
-              "$schema": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/release.schema.json",
+              "$schema": "https://morphir.finos.org/schemas/extensions/0.1.0-preview.4/release.schema.json",
               "extensionId": "{{extensionId}}",
               "shortId": "orders",
               "version": "{{version}}",
