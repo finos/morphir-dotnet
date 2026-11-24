@@ -27,8 +27,6 @@ public sealed class CompileDocumentTreeTests
 {
     private const string TreeDirectory = ".morphir/out/compile.dest/morphir-ir";
 
-    private static string GuestAssembly => Path.Combine(AppContext.BaseDirectory, "Morphir.Conformance.FakeWorker.dll");
-
     private static CompileWorkspace Project()
     {
         var workspace = new CompileWorkspace();
@@ -399,6 +397,89 @@ public sealed class CompileDocumentTreeTests
         failed.Diagnostics.Single(d => d.Diagnostic.IsError).Diagnostic.Message.Should().Contain(Dest(workspace));
         scanner.DeletesOf(Dest(workspace)).Should().Be(Morphir.Files.FileReplacement.Attempts, "the begin tries a bounded number of times");
         IsTombstone(workspace).Should().BeTrue("the begin wrote the tombstone before it cleared compile.dest");
+        LockIsFree(workspace).Should().BeTrue("a begin that fails releases compile.lock");
+    }
+
+    /// <summary>Whether <c>compile.lock</c> can be taken exclusively, as a run takes it: no run of this process still holds it.</summary>
+    private static bool LockIsFree(CompileWorkspace workspace)
+    {
+        try
+        {
+            using var taken = new FileStream(workspace.PathOf(".morphir/out/compile.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+    }
+
+    [Test]
+    public async Task ACancellationWhileTheBeginRetriesTheClearExitsWithOneThirtyAndReleasesTheLock()
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs()));
+        LeaveTheTreeAsAStaleStage(workspace, Path.Combine(Dest(workspace), ".morphir-ir.staging"));
+        using var cancellation = new CancellationTokenSource();
+        var deletes = 0;
+        // Every delete meets the handle, and the first wait for it is where the user cancels.
+        var removal = new PathRemoval(_ =>
+        {
+            deletes++;
+            throw new IOException("The process cannot access the file because it is being used by another process.");
+        }, _ => true, _ => cancellation.Cancel());
+
+        var cancelled = await RunWith(workspace, Inputs(), new CompilePublicationHooks(), Quiet with { Removal = removal }, cancellation.Token);
+
+        cancelled.ExitCode.Should().Be(130, "a cancellation before publication is exit code 130, as the compile contract says");
+        deletes.Should().Be(1, "the retries stop at the cancellation");
+        LockIsFree(workspace).Should().BeTrue("a cancelled begin releases compile.lock");
+    }
+
+    /// <summary>A stderr that fails every write, as a closed pipe does.</summary>
+    private sealed class BrokenWriter : TextWriter
+    {
+        public override System.Text.Encoding Encoding => System.Text.Encoding.UTF8;
+        public override void Write(char value) => throw new IOException("The pipe is broken.");
+        public override void Write(string? value) => throw new IOException("The pipe is broken.");
+        public override void WriteLine(string? value) => throw new IOException("The pipe is broken.");
+    }
+
+    [Test]
+    public async Task AWarningThatCannotBeWrittenKeepsTheCancellationAndEveryRemoval()
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs()));
+        using var cancellation = new CancellationTokenSource();
+        var scanner = new ScannedRemoval(failures: int.MaxValue);
+        var target = Path.Combine(Dest(workspace), "morphir-ir");
+
+        var cancelled = await RunWith(workspace, Inputs(), new CompilePublicationHooks
+        {
+            Removal = scanner.Removal,
+            AfterMoved = _ => cancellation.Cancel(),
+        }, Quiet with { Diagnostics = new BrokenWriter() }, cancellation.Token);
+
+        cancelled.ExitCode.Should().Be(130, "a warning that stderr refuses never replaces the cancellation");
+        scanner.DeletesOf(target).Should().Be(Morphir.Files.FileReplacement.Attempts, "every removal runs before any warning is written");
+    }
+
+    [Test]
+    public async Task TheWarningOfARefusedRollbackOfAFirstCompileSaysThatThereIsNoRecord()
+    {
+        using var workspace = Project();
+        using var cancellation = new CancellationTokenSource();
+        var warnings = new StringWriter();
+
+        var cancelled = await RunWith(workspace, Inputs(), new CompilePublicationHooks
+        {
+            Removal = new ScannedRemoval(failures: int.MaxValue).Removal,
+            AfterMoved = _ => cancellation.Cancel(),
+        }, Quiet with { Diagnostics = warnings }, cancellation.Token);
+
+        cancelled.ExitCode.Should().Be(130);
+        File.Exists(workspace.PathOf(".morphir/out/compile.json")).Should().BeFalse();
+        warnings.ToString().Should().Contain("could not be removed").And.Contain("no compile.json").And.NotContain("tombstone");
     }
 
     [Test]
@@ -448,7 +529,8 @@ public sealed class CompileDocumentTreeTests
         {
             scanner.DeletesOf(target).Should().Be(Morphir.Files.FileReplacement.Attempts, "the rollback tries a bounded number of times");
             Directory.Exists(target).Should().BeTrue("the file system refused every delete");
-            warnings.ToString().Should().Contain("warning:").And.Contain(target).And.Contain("could not be removed");
+            warnings.ToString().Should().Contain("warning:").And.Contain(target).And.Contain("could not be removed")
+                .And.Contain("compile.json is the tombstone of the run");
         }
     }
 
@@ -604,32 +686,5 @@ public sealed class CompileDocumentTreeTests
         report.ExitCode.Should().Be(1, report.ToJson());
         report.Diagnostics.Select(d => d.Code).Should().Equal(["unsupported-format"], report.ToJson());
         Directory.Exists(workspace.PathOf("generated")).Should().BeFalse();
-    }
-
-    [Test]
-    [Arguments(false)]
-    [Arguments(true)]
-    public async Task BoundedGenerationReadsTheRecordOfARealDocumentTreeCompile(bool overriddenLayout)
-    {
-        using var workspace = new CompileWorkspace();
-        // An invalid ir.layout that --ir-layout overrides is a warning of the compile, and generate takes the layout from the record.
-        workspace.Write("morphir.toml", overriddenLayout
-            ? ProjectToml.OrdersWithAnInvalidLayout.Build()
-            : Morphir.TestSupport.Drivers.BoundedOrdersRecordMother.DocumentTreeConfiguration);
-        workspace.Write("src/Domain.fs", Morphir.TestSupport.Drivers.BoundedOrdersRecordMother.DomainSource);
-        workspace.Write("bounded-orders.mode", "compiled-orders");
-
-        var compiled = await Command(workspace, overriddenLayout ? "--json=document --ir-layout document-tree" : "--json=document");
-        compiled.Exit.Should().Be(0, compiled.Output.Text);
-
-        using var app = MorphirCli.CreateBuilder([]).AddScenario<GenerationScenario>().Build();
-        var invocation = new GenerateOverrides(Target: "text", Output: workspace.PathOf("generated")) { Extension = GuestAssembly };
-        var outcome = await app.Services.GetRequiredService<IMediator>().InvokeAsync<Outcome<GenerationSuccess>>(
-            new GenerateRequest(invocation, new InvocationContext(workspace.Root) { Environment = workspace.Context().Environment }));
-        var report = GenerationReport.From(outcome, invocation);
-
-        report.ExitCode.Should().Be(0, report.ToJson());
-        report.Representation.Should().Be("DocumentTree");
-        File.ReadAllBytes(workspace.PathOf("generated/order.txt")).Should().Equal("73\n"u8.ToArray());
     }
 }

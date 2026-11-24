@@ -115,7 +115,7 @@ public sealed class RecordGenerationSettingsResolver(
 
     /// <summary>
     /// Loads the configuration of the project that <c>--project</c> and <c>--config</c> select, as compile does. When the run
-    /// reads the compile record (<paramref name="readsRecord"/>), an error of <c>ir.layout</c> or <c>ir.mode</c> does not
+    /// reads the compile record (<paramref name="readsRecord"/>), a schema error of <c>ir.layout</c> or <c>ir.mode</c> does not
     /// refuse it: it takes the layout from the record, and compile reports those keys itself (an overridden value that is
     /// not valid is only a warning of the compile). A run with <c>--input</c> keeps every error of the configuration.
     /// </summary>
@@ -123,7 +123,7 @@ public sealed class RecordGenerationSettingsResolver(
     {
         var loaded = loader.Load(new CompileOverrides { Project = overrides.Project, Config = overrides.Config }, compileContext);
         var errors = loaded.Diagnostics.Where(diagnostic => diagnostic.Severity == ConfigSeverity.Error
-            && !(readsRecord && ProjectCompileSettingsResolver.IsLayoutKey(string.Join('.', diagnostic.KeyPath)))).ToArray();
+            && !(readsRecord && ProjectCompileSettingsResolver.IsLayoutValidation(diagnostic))).ToArray();
         return errors.Length > 0
             ? new Outcome<LoadedCompileConfiguration>.Failure(new GenerationFailure(GenerationFailureKind.Invocation,
                 [.. errors.Select(error => new GenerationDiagnostic(CompileCodes.Configuration.Value,

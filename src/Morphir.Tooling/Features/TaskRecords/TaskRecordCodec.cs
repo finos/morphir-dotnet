@@ -364,8 +364,9 @@ internal static class RecordFile
 /// <summary>
 /// Removes a file or a directory that another handle may hold for a short time. On Windows a virus scanner or a search
 /// indexer opens a file just after it is written, without delete sharing, so a delete that another handle refuses waits
-/// and tries again, up to <see cref="FileReplacement.Attempts"/> times. It never throws, so the failure or the
-/// cancellation of the work that it cleans up after stands; <see cref="TryRemove"/> says whether the path is gone.
+/// and tries again, up to <see cref="FileReplacement.Attempts"/> times. It throws only for a cancellation of the token
+/// that a caller gives it, so the failure or the cancellation of the work that it cleans up after stands;
+/// <see cref="TryRemove"/> says whether the path is gone.
 /// </summary>
 /// <param name="Delete">Deletes the file or the directory with its content.</param>
 /// <param name="IsTransient">Whether a failure of the delete is one that another handle causes, which a later attempt can pass.</param>
@@ -382,8 +383,12 @@ internal sealed record PathRemoval(Action<string> Delete, Func<Exception, bool> 
         else File.Delete(path);
     }
 
-    /// <summary>Removes what is at <paramref name="path"/>, as far as the file system lets it. True when nothing is there after.</summary>
-    public bool TryRemove(string path)
+    /// <summary>
+    /// Removes what is at <paramref name="path"/>, as far as the file system lets it. True when nothing is there after. A
+    /// cancellation of <paramref name="ct"/> during a wait throws <see cref="OperationCanceledException"/>; a cleanup after a
+    /// failure or a cancellation gives no token, so it always runs to its end.
+    /// </summary>
+    public bool TryRemove(string path, CancellationToken ct = default)
     {
         for (var attempt = 1; ; attempt++)
         {
@@ -396,6 +401,7 @@ internal sealed record PathRemoval(Action<string> Delete, Func<Exception, bool> 
             {
                 if (attempt >= FileReplacement.Attempts || !IsTransient(error)) return false;
                 Wait(TimeSpan.FromMilliseconds(Math.Min(20 << (attempt - 1), 500)));
+                ct.ThrowIfCancellationRequested();
             }
         }
     }

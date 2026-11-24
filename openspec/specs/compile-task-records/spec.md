@@ -31,11 +31,18 @@ The IR SHALL be staged beside its place in `compile.dest` and moved into place w
 - **THEN** the later compile fails with `compile.publish_failed` and exit code 2, `compile.dest` is empty, and `compile.json` is the tombstone of the later run
 
 ### Requirement: Cleanup refusals keep the outcome and are reported
-When the file system still refuses to remove a path after the bounded retries, the run SHALL keep its outcome (exit code 130 for a cancellation, its failure otherwise), SHALL write a warning on stderr that names each path that remains, and its record SHALL stay the tombstone. A compile SHALL clear `compile.dest` with the same bounded retries when it starts, and SHALL fail with `compile.prepare_failed` and exit code 2, naming `compile.dest`, when it cannot.
+When the file system still refuses to remove a path after the bounded retries, the run SHALL keep its outcome (exit code 130 for a cancellation, its failure otherwise), SHALL write a warning on stderr that names each path that remains and says whether `compile.json` is the tombstone of the run or absent, and SHALL complete no record. Every removal SHALL run before the warnings, and a warning that stderr refuses SHALL NOT change the outcome.
 
 #### Scenario: Rollback refused after a cancellation
-- **WHEN** a compile is cancelled after its IR moved into place, and every attempt to remove that IR is refused
-- **THEN** the exit code is 130, `compile.json` is the tombstone of the run, and stderr has a warning that names the IR that remains
+- **WHEN** an earlier compile of the project succeeded, and a later compile is cancelled after its IR moved into place, and every attempt to remove that IR is refused
+- **THEN** the exit code is 130, `compile.json` is the tombstone of the later run, and stderr has a warning that names the IR that remains and says so
+
+#### Scenario: Rollback refused on a first compile
+- **WHEN** the first compile of a project is cancelled after its IR moved into place, and every attempt to remove that IR is refused
+- **THEN** the exit code is 130, there is no `compile.json`, and the warning says that there is none
+
+### Requirement: A compile clears compile.dest when it starts
+A compile SHALL clear `compile.dest` with the same bounded retries when it starts. It SHALL fail with `compile.prepare_failed` and exit code 2, naming `compile.dest`, when it cannot, and exit with code 130 when it is cancelled during the retries. Either way it SHALL release `compile.lock`.
 
 #### Scenario: Stale stage of a crashed run
 - **WHEN** a staged IR that a crashed run left is in `compile.dest`, and another handle holds a file below it for longer than the retries

@@ -39,6 +39,20 @@ public sealed record TomlValue
 }
 
 /// <summary>
+/// Configuration files that no reader accepts, by what is wrong with them. A JSON5 reader names the key of a duplicate,
+/// where the TOML parser refuses the whole file first.
+/// </summary>
+public static class MalformedConfiguration
+{
+    /// <summary>The file name of <see cref="DuplicateLayoutJson5"/>, which only <c>--config</c> selects.</summary>
+    public const string DuplicateLayoutJson5File = "morphir.json5";
+
+    /// <summary>A JSON5 configuration of the car-rental project that sets <c>ir.layout</c> twice.</summary>
+    public const string DuplicateLayoutJson5 =
+        "{ project: { name: \"acme/car-rental\" }, frontend: { language: \"fsharp\" }, ir: { layout: \"document-tree\", layout: \"single-file\" } }\n";
+}
+
+/// <summary>
 /// Builds the <c>morphir.toml</c> of a settings test: a project named <c>acme/demo</c>, its frontend language, and the
 /// keys of its <c>[ir]</c> table, in the order they are given.
 /// </summary>

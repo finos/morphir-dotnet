@@ -263,6 +263,18 @@ public sealed class CompileSettingsResolverTests
     }
 
     [Test]
+    public void ADuplicateLayoutKeyStillRefusesTheConfiguration()
+    {
+        // A duplicate key makes the whole file invalid: only the schema check of ir.layout and ir.mode is the resolver's.
+        using var workspace = new CompileWorkspace();
+        var file = workspace.Write(MalformedConfiguration.DuplicateLayoutJson5File, MalformedConfiguration.DuplicateLayoutJson5);
+        var result = Resolver.Resolve(new CompileOverrides { Config = file }, workspace.Context());
+        result.TryGetValue(out _).Should().BeFalse(Listed(result));
+        result.Diagnostics.Should().Contain(d => d.IsError && d.CodeOrNull!.Value == "compile.configuration"
+            && d.Message.Contains("config.duplicate_key"), Listed(result));
+    }
+
+    [Test]
     public void AnInvalidCommandLineLayoutFails()
     {
         using var workspace = new CompileWorkspace();

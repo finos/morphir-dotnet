@@ -191,9 +191,13 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
                 // path that the file system still refuses to remove is named in a warning; the record stays the tombstone,
                 // and the next compile clears compile.dest.
                 var rolledBack = moved && !recorded ? new[] { staging, target } : [staging];
-                foreach (var left in rolledBack)
-                    if (!removal.TryRemove(left))
-                        warnings.WriteLine($"warning: {left} could not be removed after the publication failed; another handle still holds a file below it. The record is a tombstone, and the next compile clears {run.Dest}.");
+                // Every removal runs first; the warnings follow, and a warning that stderr refuses is dropped.
+                var remaining = rolledBack.Where(path => !removal.TryRemove(path)).ToArray();
+                var record = File.Exists(run.Location.Record)
+                    ? "compile.json is the tombstone of the run"
+                    : "there is no compile.json, because no earlier compile succeeded";
+                foreach (var left in remaining)
+                    Warn($"warning: {left} could not be removed after the publication failed; another handle still holds a file below it. {record}, and the next compile clears {run.Dest}.");
             }
 
             if (settings.Output is not { } output) return Checked<PublishedCompile>.Pass(new PublishedCompile(target, []));
@@ -207,6 +211,19 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
         }
 
         public void Dispose() => run.Dispose();
+
+        /// <summary>Writes a warning line to stderr. A stderr that refuses it never replaces the outcome of the run.</summary>
+        private void Warn(string line)
+        {
+            try
+            {
+                warnings.WriteLine(line);
+            }
+            catch (Exception error) when (error is IOException or ObjectDisposedException or UnauthorizedAccessException)
+            {
+                // The warning is lost; the failure or the cancellation of the run stands.
+            }
+        }
 
         private static Task StageFileAsync(string staging, ReadOnlyMemory<byte> bytes, CancellationToken ct) =>
             File.WriteAllBytesAsync(staging, bytes, ct);

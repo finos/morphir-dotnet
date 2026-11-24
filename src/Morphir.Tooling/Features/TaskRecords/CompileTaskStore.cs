@@ -93,8 +93,10 @@ public sealed class CompileTaskStore
                     File.Delete(Location.Record);
                     break;
             }
-            // A run that crashed can leave a staged IR that a scanner still holds: the removal retries a bounded time.
-            if (!(_options.Removal ?? PathRemoval.Default).TryRemove(Location.Dest))
+            // A run that crashed can leave a staged IR that a scanner still holds: the removal retries a bounded time, and a
+            // cancellation during its waits ends the run before publication (exit code 130).
+            ct.ThrowIfCancellationRequested();
+            if (!(_options.Removal ?? PathRemoval.Default).TryRemove(Location.Dest, ct))
             {
                 taskLock.Dispose();
                 return TaskFailures.Io<CompileTaskRun>("compile.prepare_failed", "clear", Location.Dest, new IOException(
@@ -102,6 +104,11 @@ public sealed class CompileTaskStore
             }
             Directory.CreateDirectory(Location.Dest);
             return new Outcome<CompileTaskRun>.Success(new CompileTaskRun(Location, previous, taskLock, _options));
+        }
+        catch (OperationCanceledException)
+        {
+            taskLock.Dispose();
+            return TaskFailures.Cancelled<CompileTaskRun>();
         }
         catch (Exception error) when (TaskFailures.IsIo(error))
         {

@@ -163,6 +163,10 @@ The command SHALL return:
 
 A run with only warnings SHALL succeed. With `--target`, a failure in the generation stages SHALL give the exit code that `morphir generate` gives for the same failure, and the compiled IR SHALL stay published.
 
+#### Scenario: Cancelled while compile.dest is cleared
+- **WHEN** the compile is cancelled while it retries the removal of a staged IR that a crashed run left in `compile.dest`
+- **THEN** the exit code is 130, and `compile.lock` is released
+
 #### Scenario: Source error
 - **WHEN** compilation fails only because of `fsharp.*` errors
 - **THEN** the exit code is 1, and no IR is published or installed

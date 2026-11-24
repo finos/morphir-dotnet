@@ -143,7 +143,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             var key = string.Join('.', diagnostic.KeyPath);
             var text = $"{diagnostic.Source.Path}: {key}: {diagnostic.Message} ({diagnostic.Code})".Replace(": : ", ": ");
             // The resolver checks every value of ir.layout and ir.mode itself, in the order of their precedence (ResolveLayout).
-            if (diagnostic.Severity == ConfigSeverity.Error && IsLayoutKey(key)) continue;
+            if (diagnostic.Severity == ConfigSeverity.Error && IsLayoutValidation(diagnostic)) continue;
             if (diagnostic.Severity == ConfigSeverity.Error) Error(CompileCodes.Configuration, text);
             else warnings.Add(Diagnostic.Create(Severity.Warning, CompileCodes.Configuration, text, null));
         }
@@ -358,11 +358,20 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
     }
 
     private const string CliLayout = "--ir-layout";
+
+    /// <summary>The code of a schema check of a value; a parse or reader error of a file has another code.</summary>
+    private const string SchemaValidation = "config.validation";
+
     /// <summary>
-    /// Whether <paramref name="key"/> (a dotted key path) is <c>ir.layout</c> or <c>ir.mode</c>, whose values the resolver
-    /// checks itself in the order of their precedence, in place of the configuration's validation.
+    /// Whether <paramref name="diagnostic"/> is the schema check of the value of exactly <c>ir.layout</c> or <c>ir.mode</c>,
+    /// which the resolver checks itself in the order of their precedence. Any other diagnostic of those keys, such as
+    /// a duplicate key that makes the whole file invalid, stays an error of the configuration.
     /// </summary>
-    internal static bool IsLayoutKey(string key) => key is LayoutKey or ModeKey;
+    internal static bool IsLayoutValidation(ConfigDiagnostic diagnostic) =>
+        diagnostic.Code == SchemaValidation
+        && diagnostic.KeyPath.Length == 2
+        && diagnostic.KeyPath.Head == "ir"
+        && diagnostic.KeyPath.Tail.Head is "layout" or "mode";
 
     private const string LayoutKey = "ir.layout";
     private const string ModeKey = "ir.mode";
