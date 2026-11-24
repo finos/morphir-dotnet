@@ -39,7 +39,7 @@ public sealed class HostTests
         var action = () => builder.AddMorphirConfiguration(canonical);
         action.Should().Throw<MorphirConfigurationException>().Which.Diagnostics.Should().Contain(d => d.Code == "config.microsoft.collision");
         builder.Sources.ToArray().Should().BeEmpty();
-        ConfigTree.tryFind(global::Microsoft.FSharp.Collections.ListModule.OfSeq(new[] { "custom", "Foo" }), canonical.Effective).Value.Should().Be(ConfigValue.NewInteger(1));
+        ConfigTree.tryFind(global::Microsoft.FSharp.Collections.ListModule.OfSeq(new[] { "custom", "Foo" }), canonical.Effective)!.Value.Should().Be(ConfigValue.NewInteger(1));
     }
 
     [Test]
@@ -75,7 +75,7 @@ public sealed class HostTests
         configuration["custom:credential"].Should().Be("[REDACTED]");
         configuration.GetSection("custom:credential").GetChildren().Should().BeEmpty();
         ConfigTree.tryFind(global::Microsoft.FSharp.Collections.ListModule.OfSeq(new[] { "custom", "credential" }), configuration.GetMorphirConfiguration().Effective)
-            .Value.Should().BeOfType<ConfigValue.SecretReference>();
+            !.Value.Should().BeOfType<ConfigValue.SecretReference>();
     }
 
     [Test]
@@ -118,7 +118,7 @@ public sealed class HostTests
             options: new ProjectLoadOptions { Isolated = true }).Build();
         configuration["custom:when"].Should().Be("1979-05-27");
         ConfigTree.tryFind(global::Microsoft.FSharp.Collections.ListModule.OfSeq(new[] { "custom", "when" }), configuration.GetMorphirConfiguration().Effective)
-            .Value.Should().BeOfType<ConfigValue.Temporal>();
+            !.Value.Should().BeOfType<ConfigValue.Temporal>();
     }
 
     [Test]
@@ -128,7 +128,7 @@ public sealed class HostTests
         using var configuration = (ConfigurationRoot)new ConfigurationBuilder().AddMorphirConfiguration(canonical).Build();
         configuration["custom:password"].Should().Be("[REDACTED]");
         ConfigTree.tryFind(global::Microsoft.FSharp.Collections.ListModule.OfSeq(new[] { "custom", "password" }), configuration.GetMorphirConfiguration().Effective)
-            .Value.Should().Be(ConfigValue.NewString("never-display"));
+            !.Value.Should().Be(ConfigValue.NewString("never-display"));
     }
 
     [Test]

@@ -73,14 +73,44 @@ let tests =
                         [ "ir"; "mode" ], at SourceRole.Defaults "<defaults>"
                         [ "ir"; "format" ], at SourceRole.RootPrimary "morphir.toml" ]
 
+              // The resolution owns the origins: C# passes it, and never holds the F# map.
+              let resolution =
+                  { Effective = DocumentDefaults.emptyValue
+                    Origins = origins
+                    Sources = []
+                    ActiveProfiles = []
+                    OwningWorkspace = None
+                    Diagnostics = [] }
+
               let find (path: string list) =
                   let mutable origin = Unchecked.defaultof<ValueOrigin>
-                  if ConfigValueProjections.TryFindConfiguredOrigin(origins, path, &origin) then Some origin.Source.Path else None
+                  if ConfigValueProjections.TryFindConfiguredOrigin(resolution, path, &origin) then Some origin.Source.Path else None
 
               Expect.equal (find [ "ir"; "format" ]) (Some "morphir.toml") "the key's own origin"
               Expect.equal (find [ "ir"; "layout" ]) (Some "morphir.toml") "the origin of a key below the table"
               Expect.equal (find [ "ir"; "mode" ]) None "a default is not configured"
               Expect.equal (find [ "ir"; "lay" ]) None "a key that only begins the same is not below"
+
+          testCase "Every public member states the nullability of its reference parameters and its result, for C#"
+          <| fun _ ->
+              let context = System.Reflection.NullabilityInfoContext()
+
+              let unknown =
+                  [ for item in typeof<ConfigValueProjections>.GetMethods(System.Reflection.BindingFlags.Public ||| System.Reflection.BindingFlags.Static) do
+                        let reference (t: System.Type) =
+                            let t = if t.IsByRef then t.GetElementType() |> nonNull else t
+                            not t.IsValueType
+
+                        for parameter in item.GetParameters() do
+                            if reference parameter.ParameterType
+                               && context.Create(parameter).ReadState = System.Reflection.NullabilityState.Unknown then
+                                $"{item.Name}({parameter.Name})"
+
+                        if reference item.ReturnType
+                           && context.Create(item.ReturnParameter).ReadState = System.Reflection.NullabilityState.Unknown then
+                            $"{item.Name} result" ]
+
+              Expect.isEmpty unknown "no oblivious reference on the C# surface"
 
           testCase "IsAt compares a diagnostic's key path with one segment for each key"
           <| fun _ ->

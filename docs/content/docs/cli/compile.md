@@ -281,9 +281,10 @@ compile it leaves the tombstone, which keeps the `installed` ledger; a first com
 `compile.json`. A write failure, a cancellation or a record failure removes the staged and moved IR from
 `compile.dest`. While another program (a virus scanner, for example) holds a file, each removal tries again for
 about 2.6 seconds. When a removal is still refused, the run keeps its exit code (130 for a cancellation) and writes
-a warning on stderr that names each path that remains and the file system's reason. The warning says what `compile.json` holds: the tombstone of the
-run, the completed record of an earlier publication of the run, a file that cannot be read, or nothing (on a first
-compile, or after an earlier record that could not be read). The next compile clears `compile.dest`. A compile
+a warning on stderr that names each path that remains and the file system's reason. The warning comes after every removal of the cleanup, the staged
+record `.compile.json.<id>.tmp` included, and says what `compile.json` holds then: a tombstone, a completed record,
+a file that cannot be read, or nothing (on a first compile, or after an earlier record that could not be read). The
+next compile clears `compile.dest` and removes the staged records that earlier runs left. A compile
 that cannot clear `compile.dest` when it starts fails with `compile.prepare_failed` and exit code 2; one that is
 cancelled while it tries exits with 130. Both release `compile.lock`. The compile holds the exclusive lock `compile.lock` until its record and
 its install are written. Another run that waits for the lock writes one line to stderr:

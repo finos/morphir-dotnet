@@ -17,7 +17,11 @@ public sealed class PathRemovalTests
     [Test]
     public void ADeniedLookupIsARefusalWithItsReasonAndNotAMissingPath()
     {
-        if (OperatingSystem.IsWindows()) Skip.Test("A Unix parent without search permission denies the lookup.");
+        if (OperatingSystem.IsWindows())
+        {
+            Skip.Test("A Unix parent without search permission denies the lookup.");
+            return;
+        }
         using var sandbox = TestSandbox.Create("morphir-removal-");
         var parent = sandbox.PathOf("dest");
         var staged = Path.Combine(parent, ".morphir-ir.staging");

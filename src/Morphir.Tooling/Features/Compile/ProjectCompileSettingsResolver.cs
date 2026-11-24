@@ -32,6 +32,13 @@ public sealed record LoadedCompileConfiguration(ConfigValue Effective, FSharpMap
 
     /// <summary>The Morphir home (<c>MORPHIR_HOME</c>, else <c>~/.morphir</c>), or null when it is not known.</summary>
     public string? MorphirHome { get; init; }
+
+    /// <summary>
+    /// The resolution that gave <see cref="Effective"/> and <see cref="Origins"/>, which F# reads for C#
+    /// (<c>ConfigValueProjections.TryFindConfiguredOrigin</c>). Null when no configuration was loaded, which has no
+    /// configured origin.
+    /// </summary>
+    public DocumentResolution? Resolution { get; init; }
 }
 
 /// <summary>Loads the configuration of the project that <c>--project</c> and <c>--config</c> select.</summary>
@@ -105,6 +112,7 @@ public sealed class FileSystemCompileConfigurationLoader : ICompileConfiguration
         {
             WorkspaceRoot = workspaceRoot,
             MorphirHome = Path.GetFullPath(home, working),
+            Resolution = resolution,
         };
     }
 
@@ -421,7 +429,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
                 : null;
 
         private SettingOrigin.Configuration? ConfiguredOrigin(string[] path) =>
-            ConfigValueProjections.TryFindConfiguredOrigin(loaded.Origins, path, out var origin)
+            loaded.Resolution is { } resolution && ConfigValueProjections.TryFindConfiguredOrigin(resolution, path, out var origin)
                 ? new SettingOrigin.Configuration(origin.Source.Path, ConfigValueProjections.KeyText(path))
                 : null;
 

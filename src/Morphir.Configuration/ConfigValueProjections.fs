@@ -43,16 +43,18 @@ type ConfigValueProjections =
             false
 
     /// <summary>
-    /// The origin of a value at a key path that a configuration file sets, for C# callers: the key's own origin, or, for
-    /// a nonempty table whose origins are on the keys below it, the first such key in key order. An origin of the
-    /// defaults is not configured. False when no file sets the value.
+    /// The origin of a value at a key path that a configuration file of <paramref name="resolution"/> sets, for C#
+    /// callers, which pass the resolution and never hold its F# map: the key's own origin, or, for a nonempty table whose
+    /// origins are on the keys below it, the first such key in key order. An origin of the defaults is not configured.
+    /// False when no file sets the value.
     /// </summary>
     static member TryFindConfiguredOrigin
         (
-            origins: Map<string list, ValueOrigin>,
+            resolution: DocumentResolution,
             path: IReadOnlyList<string>,
             [<Out; MaybeNullWhen(false)>] origin: byref<ValueOrigin>
         ) : bool =
+        let origins = resolution.Origins
         let key = List.ofSeq path
         let configured (found: ValueOrigin) = found.Source.Role <> SourceRole.Defaults
 
@@ -150,7 +152,7 @@ type ConfigValueProjections =
             items <-
                 values
                 |> List.choose (fun item ->
-                    let mutable text = null
+                    let mutable text = Unchecked.defaultof<string>
                     if ConfigValueProjections.TryText(item, &text) then Some text else None)
                 |> Array.ofList
                 :> IReadOnlyList<string>

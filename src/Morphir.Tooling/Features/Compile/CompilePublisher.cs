@@ -159,13 +159,12 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
             {
                 rolledBack = true;
                 var paths = moved && !recorded ? new[] { staging, target } : [staging];
-                // Every removal runs first; the warnings follow, and a warning that stderr refuses is dropped.
-                var remaining = new List<(string Path, Exception Reason)>();
+                // Every removal runs first, the staged record's included; the warnings follow, with what compile.json holds
+                // then, and a warning that stderr refuses is dropped.
+                var refusals = new List<CleanupRefusal>(run.TakeCleanupRefusals());
                 foreach (var path in paths)
-                    if (!removal.TryRemove(path, out var reason)) remaining.Add((path, reason));
-                var record = remaining.Count == 0 ? "" : RecordState();
-                foreach (var (left, reason) in remaining)
-                    Warn($"warning: {left} could not be removed after the publication failed ({reason.Message}). {record}, and the next compile clears {run.Dest}.");
+                    if (!removal.TryRemove(path, out var reason)) refusals.Add(new CleanupRefusal(path, reason));
+                CleanupWarnings.Write(warnings, refusals, run.Location.Record, "after the publication failed");
             }
             try
             {
@@ -236,41 +235,6 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
         }
 
         public void Dispose() => run.Dispose();
-
-        /// <summary>
-        /// What <c>compile.json</c> holds now, for a warning: the tombstone of the run, the completed record of an earlier
-        /// publication of the run, a file that cannot be read, or nothing. A read that fails never replaces the outcome.
-        /// </summary>
-        private string RecordState()
-        {
-            try
-            {
-                return RecordFile.Read(run.Location.Record) switch
-                {
-                    RecordReading.Found { Record.Tombstone: true } => "compile.json is the tombstone of the run",
-                    RecordReading.Found => "compile.json is the completed record of an earlier publication of the run",
-                    RecordReading.Unreadable => "compile.json cannot be read",
-                    _ => "there is no compile.json",
-                };
-            }
-            catch (Exception error) when (error is not (OutOfMemoryException or AccessViolationException))
-            {
-                return "compile.json cannot be read";
-            }
-        }
-
-        /// <summary>Writes a warning line to stderr. A stderr that refuses it never replaces the outcome of the run.</summary>
-        private void Warn(string line)
-        {
-            try
-            {
-                warnings.WriteLine(line);
-            }
-            catch (Exception error) when (error is not (OutOfMemoryException or AccessViolationException))
-            {
-                // Any writer failure loses the warning only; the failure or the cancellation of the run stands.
-            }
-        }
 
         private static Task StageFileAsync(string staging, ReadOnlyMemory<byte> bytes, CancellationToken ct) =>
             File.WriteAllBytesAsync(staging, bytes, ct);

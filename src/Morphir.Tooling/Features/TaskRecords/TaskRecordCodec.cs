@@ -316,10 +316,11 @@ internal static class RecordFile
         Write(path, record, afterWait, ct, beforeReplace, PathRemoval.Default);
 
     /// <param name="cleanup">Removes the staged record when the write fails or is cancelled. Tests replace it.</param>
-    /// <param name="warnings">Receives a warning that names a staged record whose removal the file system refuses, with its
-    /// reason. A warning that the writer refuses is dropped; the failure or the cancellation of the write stands.</param>
+    /// <param name="refusals">Receives the staged record when the file system refuses its removal, with its reason, for the
+    /// caller to report after its own cleanup (<see cref="CleanupWarnings"/>); the failure or the cancellation of the write
+    /// stands.</param>
     internal static void Write(string path, TaskRecord record, Action? afterWait, CancellationToken ct, Action? beforeReplace,
-        PathRemoval cleanup, TextWriter? warnings = null)
+        PathRemoval cleanup, ICollection<CleanupRefusal>? refusals = null)
     {
         ct.ThrowIfCancellationRequested();
         var directory = Path.GetDirectoryName(path)!;
@@ -350,17 +351,7 @@ internal static class RecordFile
         {
             // A replaced record moved the staged one; only a failed or cancelled write still has it. Its removal never
             // hides the failure or the cancellation.
-            if (!cleanup.TryRemove(temporary, out var reason) && warnings is not null)
-            {
-                try
-                {
-                    warnings.WriteLine($"warning: the staged record {temporary} could not be removed after its write failed ({reason.Message}). The next run of the task can remove it.");
-                }
-                catch (Exception refused) when (refused is not (OutOfMemoryException or AccessViolationException))
-                {
-                    // The warning is lost; the failure or the cancellation of the write stands.
-                }
-            }
+            if (!cleanup.TryRemove(temporary, out var reason)) refusals?.Add(new CleanupRefusal(temporary, reason));
             // A cancellation that comes with a failed replacement is the outcome, not the failure (exit code 130).
             ct.ThrowIfCancellationRequested();
             throw;
@@ -452,6 +443,53 @@ internal sealed record PathRemoval(Action<string> Delete, Func<Exception, bool> 
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
             return true;
+        }
+    }
+}
+
+/// <summary>A path that a cleanup could not remove, and the file system's reason.</summary>
+internal sealed record CleanupRefusal(string Path, Exception Reason);
+
+/// <summary>
+/// The warnings of cleanup refusals. A caller collects every refusal of its cleanup and writes them after its last
+/// removal, so each warning tells what <c>compile.json</c> holds then. A warning that the writer refuses is dropped.
+/// </summary>
+internal static class CleanupWarnings
+{
+    /// <summary>Writes one warning for each refusal, <paramref name="when"/> the cleanup ran (for example "after the publication failed").</summary>
+    public static void Write(TextWriter writer, IReadOnlyList<CleanupRefusal> refusals, string record, string when)
+    {
+        if (refusals.Count == 0) return;
+        var state = RecordState(record);
+        foreach (var refusal in refusals)
+        {
+            try
+            {
+                writer.WriteLine($"warning: {refusal.Path} could not be removed {when} ({refusal.Reason.Message}). {state}; the next compile removes it.");
+            }
+            catch (Exception error) when (error is not (OutOfMemoryException or AccessViolationException))
+            {
+                // Any writer failure loses the warning only; the failure or the cancellation of the run stands.
+            }
+        }
+    }
+
+    /// <summary>What the record at <paramref name="record"/> holds now. A read that fails never changes the outcome.</summary>
+    public static string RecordState(string record)
+    {
+        try
+        {
+            return RecordFile.Read(record) switch
+            {
+                RecordReading.Found { Record.Tombstone: true } => "compile.json is a tombstone",
+                RecordReading.Found => "compile.json is a completed record",
+                RecordReading.Unreadable => "compile.json cannot be read",
+                _ => "there is no compile.json",
+            };
+        }
+        catch (Exception error) when (error is not (OutOfMemoryException or AccessViolationException))
+        {
+            return "compile.json cannot be read";
         }
     }
 }

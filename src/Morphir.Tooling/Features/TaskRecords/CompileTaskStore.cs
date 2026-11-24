@@ -26,6 +26,9 @@ public sealed record TaskStoreOptions
     /// <summary>For tests: runs before each attempt to replace the record of a completed compile with its staged record.</summary>
     internal Action? BeforeRecordReplace { get; init; }
 
+    /// <summary>For tests: runs before each attempt to replace the record with the staged tombstone when a run begins.</summary>
+    internal Action? BeforeTombstoneReplace { get; init; }
+
     /// <summary>For tests: clears <c>.dest</c> when a run begins, in place of <see cref="PathRemoval.Default"/>.</summary>
     internal PathRemoval? Removal { get; init; }
 }
@@ -78,15 +81,26 @@ public sealed class CompileTaskStore
             return TaskFailures.Io<CompileTaskRun>("compile.lock_failed", "lock", Location.Lock, error);
         }
 
+        var removal = _options.Removal ?? PathRemoval.Default;
+        // Every refusal of the cleanup of the start is reported after its last removal, with what compile.json holds then.
+        var refusals = new List<CleanupRefusal>();
+        Outcome<CompileTaskRun> Stop(Outcome<CompileTaskRun> outcome)
+        {
+            taskLock.Dispose();
+            CleanupWarnings.Write(_options.Diagnostics, refusals, Location.Record, "when the run started");
+            return outcome;
+        }
         try
         {
+            // A staged record that an earlier run left (its cleanup was refused) is removed now that this run holds the lock.
+            RemoveStagedRecords(removal, refusals, ct);
             var previous = ImmutableSortedDictionary.Create<string, ImmutableArray<RecordPath>>(StringComparer.Ordinal);
             switch (RecordFile.Read(Location.Record))
             {
                 case RecordReading.Found found:
                     previous = found.Record.Installed;
                     // The tombstone goes first: if the run stops here, the earlier record still describes .dest.
-                    RecordFile.Write(Location.Record, found.Record.ToTombstone());
+                    RecordFile.Write(Location.Record, found.Record.ToTombstone(), afterWait: null, ct, _options.BeforeTombstoneReplace, removal, refusals);
                     break;
                 case RecordReading.Unreadable unreadable:
                     await _options.Diagnostics.WriteLineAsync($"warning: could not read previous task record at {Location.Record}: {unreadable.Reason}");
@@ -96,24 +110,32 @@ public sealed class CompileTaskStore
             // A run that crashed can leave a staged IR that a scanner still holds: the removal retries a bounded time, and a
             // cancellation during its waits ends the run before publication (exit code 130).
             ct.ThrowIfCancellationRequested();
-            if (!(_options.Removal ?? PathRemoval.Default).TryRemove(Location.Dest, out var notCleared, ct))
-            {
-                taskLock.Dispose();
-                return TaskFailures.Io<CompileTaskRun>("compile.prepare_failed", "clear", Location.Dest, notCleared!);
-            }
+            if (!removal.TryRemove(Location.Dest, out var notCleared, ct))
+                return Stop(TaskFailures.Io<CompileTaskRun>("compile.prepare_failed", "clear", Location.Dest, notCleared));
             Directory.CreateDirectory(Location.Dest);
+            CleanupWarnings.Write(_options.Diagnostics, refusals, Location.Record, "when the run started");
             return new Outcome<CompileTaskRun>.Success(new CompileTaskRun(Location, previous, taskLock, _options));
         }
         catch (OperationCanceledException)
         {
-            taskLock.Dispose();
-            return TaskFailures.Cancelled<CompileTaskRun>();
+            return Stop(TaskFailures.Cancelled<CompileTaskRun>());
         }
         catch (Exception error) when (TaskFailures.IsIo(error))
         {
-            taskLock.Dispose();
-            return TaskFailures.Io<CompileTaskRun>("compile.prepare_failed", "prepare", Location.Dest, error);
+            return Stop(TaskFailures.Io<CompileTaskRun>("compile.prepare_failed", "prepare", Location.Dest, error));
         }
+    }
+
+    /// <summary>
+    /// Removes the staged records (<c>.compile.json.&lt;id&gt;.tmp</c>) that earlier runs left beside the record when the file
+    /// system refused their removal. A refusal now is collected in <paramref name="refusals"/> and does not stop the run.
+    /// </summary>
+    private void RemoveStagedRecords(PathRemoval removal, List<CleanupRefusal> refusals, CancellationToken ct)
+    {
+        var directory = Path.GetDirectoryName(Location.Record)!;
+        if (!Directory.Exists(directory)) return;
+        foreach (var staged in Directory.EnumerateFiles(directory, "." + Path.GetFileName(Location.Record) + ".*.tmp"))
+            if (!removal.TryRemove(staged, out var reason, ct)) refusals.Add(new CleanupRefusal(staged, reason));
     }
 
     /// <summary>
@@ -179,7 +201,19 @@ public sealed class CompileTaskRun : IDisposable
 {
     private readonly TaskLock _lock;
     private readonly TaskStoreOptions _options;
+    private readonly List<CleanupRefusal> _cleanupRefusals = [];
     private bool _disposed;
+
+    /// <summary>
+    /// The staged records whose removal the file system refused since the last call, for the caller to report after its
+    /// own cleanup, with what <c>compile.json</c> holds then.
+    /// </summary>
+    internal IReadOnlyList<CleanupRefusal> TakeCleanupRefusals()
+    {
+        var taken = _cleanupRefusals.ToArray();
+        _cleanupRefusals.Clear();
+        return taken;
+    }
 
     internal CompileTaskRun(TaskLocation location, ImmutableSortedDictionary<string, ImmutableArray<RecordPath>> previousInstalled,
         TaskLock taskLock, TaskStoreOptions options)
@@ -227,7 +261,7 @@ public sealed class CompileTaskRun : IDisposable
         try
         {
             RecordFile.Write(Location.Record, record, afterWait: null, ct, _options.BeforeRecordReplace, _options.Removal ?? PathRemoval.Default,
-                _options.Diagnostics);
+                _cleanupRefusals);
             return new Outcome<TaskRecord>.Success(record);
         }
         catch (Exception error) when (TaskFailures.IsIo(error))

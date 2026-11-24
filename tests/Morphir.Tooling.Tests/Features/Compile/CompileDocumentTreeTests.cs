@@ -611,9 +611,13 @@ public sealed class CompileDocumentTreeTests
             PathRemoval.DeletePath(path);
         }, _ => false, _ => { });
 
+        var target = Path.Combine(Dest(workspace), "morphir-ir");
+        bool? treeAtFirstWarning = null;
+        var stderr = new RecordingWriter(warnings, () => treeAtFirstWarning ??= Directory.Exists(target));
+
         var failed = await RunWith(workspace, Inputs(), new CompilePublicationHooks(), Quiet with
         {
-            Diagnostics = warnings,
+            Diagnostics = stderr,
             Removal = removal,
             BeforeRecordReplace = () => throw new IOException("The record could not be renamed."),
         });
@@ -621,7 +625,60 @@ public sealed class CompileDocumentTreeTests
         failed.ExitCode.Should().Be(2, "the refused cleanup keeps the failure of the record");
         CompileRunners.ErrorCodes(failed).Should().Equal("compile.record_write_failed");
         var staged = Directory.EnumerateFiles(OutRoot(workspace), ".compile.json.*").Should().ContainSingle().Subject;
-        warnings.ToString().Should().Contain(staged).And.Contain("Access to the path is denied.");
+        warnings.ToString().Should().Contain(staged).And.Contain("Access to the path is denied.")
+            .And.Contain("compile.json is a tombstone");
+        treeAtFirstWarning.Should().BeFalse("the rollback of the moved tree runs before the first warning");
+    }
+
+    /// <summary>A stderr that keeps what is written, and runs <paramref name="onWrite"/> before each write.</summary>
+    private sealed class RecordingWriter(StringWriter inner, Action onWrite) : TextWriter
+    {
+        public override System.Text.Encoding Encoding => System.Text.Encoding.UTF8;
+        public override void Write(char value) { onWrite(); inner.Write(value); }
+        public override void Write(string? value) { onWrite(); inner.Write(value); }
+        public override void WriteLine(string? value) { onWrite(); inner.WriteLine(value); }
+    }
+
+    [Test]
+    public async Task ARefusedCleanupOfTheStagedTombstoneIsAWarningOfTheStart()
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs()));
+        var warnings = new StringWriter();
+        var removal = new PathRemoval(path =>
+        {
+            if (Path.GetFileName(path).StartsWith(".compile.json.", StringComparison.Ordinal))
+                throw new UnauthorizedAccessException("Access to the path is denied.");
+            PathRemoval.DeletePath(path);
+        }, _ => false, _ => { });
+
+        var failed = await RunWith(workspace, Inputs(), new CompilePublicationHooks(), Quiet with
+        {
+            Diagnostics = warnings,
+            Removal = removal,
+            BeforeTombstoneReplace = () => throw new IOException("The tombstone could not be renamed."),
+        });
+
+        failed.ExitCode.Should().Be(2);
+        CompileRunners.ErrorCodes(failed).Should().Equal("compile.prepare_failed");
+        var staged = Directory.EnumerateFiles(OutRoot(workspace), ".compile.json.*").Should().ContainSingle().Subject;
+        warnings.ToString().Should().Contain(staged).And.Contain("Access to the path is denied.")
+            .And.Contain("compile.json is a completed record", "the tombstone did not replace the record of the earlier compile");
+        IsTombstone(workspace).Should().BeFalse();
+    }
+
+    [Test]
+    public async Task ACompileRemovesAStagedRecordThatAnEarlierRunLeft()
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs()));
+        var stale = Path.Combine(OutRoot(workspace), ".compile.json." + Guid.NewGuid().ToString("N") + ".tmp");
+        File.Copy(workspace.PathOf(".morphir/out/compile.json"), stale);
+
+        Succeeded(await Run(workspace, Inputs()));
+
+        File.Exists(stale).Should().BeFalse("the start of a run removes the staged records of earlier runs");
+        Directory.EnumerateFiles(OutRoot(workspace), ".compile.json.*").Should().BeEmpty();
     }
 
     [Test]
@@ -724,7 +781,7 @@ public sealed class CompileDocumentTreeTests
         }
 
         IsTombstone(workspace).Should().BeFalse("the first publication completed the record");
-        warnings.ToString().Should().Contain(".morphir-ir.staging").And.Contain("compile.json is the completed record")
+        warnings.ToString().Should().Contain(".morphir-ir.staging").And.Contain("compile.json is a completed record")
             .And.NotContain("tombstone");
     }
 
@@ -795,7 +852,7 @@ public sealed class CompileDocumentTreeTests
             scanner.DeletesOf(target).Should().Be(Morphir.Files.FileReplacement.Attempts, "the rollback tries a bounded number of times");
             Directory.Exists(target).Should().BeTrue("the file system refused every delete");
             warnings.ToString().Should().Contain("warning:").And.Contain(target).And.Contain("could not be removed")
-                .And.Contain("compile.json is the tombstone of the run");
+                .And.Contain("compile.json is a tombstone");
         }
     }
 
