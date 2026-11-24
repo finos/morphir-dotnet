@@ -65,6 +65,16 @@ module IonIrWriter =
                 }
         )
 
+    /// The exact release of a version spelling, or the refusal of one the format does not carry.
+    let private releaseOf (stated: string) : string =
+        match IonIrVersions.release stated with
+        | Some release -> release
+        | None when stated.Split('.')[0] = "3" || stated.Split('.')[0] = "4" ->
+            refuse
+                "unsupported_format_version_minor"
+                $"The Ion IR format carries formatVersion 3.0.0, 3.1.0 and 4.0.0, not {stated}."
+        | None -> refuse "unsupported_format_version_major" $"The Ion IR format carries IR 3 and 4, not {stated}."
+
     /// The exact release a document's header states, or the refusal of a version or kind the format does not carry.
     let private checkVersion (document: IrDocument) : string =
         let stated, isSpecs, isClassic =
@@ -293,6 +303,19 @@ module IonIrWriter =
             | ClassicIr(_, distribution) -> classicFiles pathBudget release distribution
             | V4Ir(_, distribution) -> v4Files pathBudget distribution
 
+        // Two cut stems can share a prefix and a digest; one path for two files would lose one of them. A file
+        // system that ignores case would merge two paths that differ only in case, as the JSON tree writer checks too.
+        match
+            files
+            |> List.groupBy (fun (location, _) -> location.ToUpperInvariant())
+            |> List.tryFind (fun (_, group) -> group.Length > 1)
+        with
+        | Some(_, (location, _) :: _) ->
+            refuse
+                "stem_collision"
+                $"Two documents have one file, {location}, so each document has no file of its own. Give the tree a larger path budget."
+        | _ -> ()
+
         files
         |> List.sortWith (fun (first, _) (second, _) -> String.CompareOrdinal(first, second))
 
@@ -355,21 +378,22 @@ module IonIrWriter =
     /// and its JSON location as <c>Location</c>.
     /// </summary>
     let readJson (json: ReadOnlyMemory<byte>) : Result<IrDocument, IonIrError> =
+        IonIr.withRoom Result.Error (fun () ->
         try
             use parsed = JsonDocument.Parse(json, JsonDocumentOptions(MaxDepth = 1_000_000))
             let root = parsed.RootElement
 
             if isV4Root root then
                 match V4Json.readDistribution root with
-                | Ok read -> Ok(V4Ir(read.FormatVersion, read.Distribution))
+                | Ok read -> Ok(V4Ir(releaseOf read.FormatVersion, read.Distribution))
                 | Result.Error error -> Result.Error(jsonError error.Rule error.Location error.Message)
             else
                 match ClassicJson.readDistribution root with
                 | Ok read ->
-                    // The version keeps the JSON's own spelling, so the release check sees what the document states:
-                    // 3 is 3.0.0 and "3.1.0" stays 3.1.0, and an unsupported release such as "3.0.1" is refused.
+                    // The release check sees the version as the JSON spells it: 3 is 3.0.0 and "3.1.0" stays 3.1.0, and an
+                    // unsupported release such as "3.0.1" is refused here, so no caller can relabel it.
                     let stated = statedVersion root |> Option.defaultValue (string read.Version)
-                    Ok(ClassicIr(IonIrVersions.release stated |> Option.defaultValue stated, read.Distribution))
+                    Ok(ClassicIr(releaseOf stated, read.Distribution))
                 | Result.Error error -> Result.Error(jsonError error.Rule error.Location error.Message)
         with :? JsonException as error ->
             Result.Error {
@@ -377,7 +401,7 @@ module IonIrWriter =
                 Message = error.Message
                 Path = None
                 Location = None
-            }
+            })
 
     /// <summary>Reads Morphir IR JSON and writes it as one canonical Ion datagram.</summary>
     let ofJson (json: ReadOnlyMemory<byte>) : Result<byte array, IonIrError> = readJson json |> Result.bind write
@@ -387,12 +411,14 @@ module IonIrWriter =
     /// place of the JSON's version. A writer that writes a release the JSON profile cannot state, such as a v3 library
     /// at <c>3.1.0</c>, names it here. The release must be one the format carries for the document's family and kind.
     /// </summary>
-    let ofJsonAs (release: string) (json: ReadOnlyMemory<byte>) : Result<byte array, IonIrError> =
+    let ofJsonAs (release: Morphir.IR.Versioning.FormatVersion) (json: ReadOnlyMemory<byte>) : Result<byte array, IonIrError> =
+        let stated = Morphir.IR.Versioning.version release
+
         readJson json
         |> Result.map (fun document ->
             match document with
-            | ClassicIr(_, distribution) -> ClassicIr(release, distribution)
-            | V4Ir(_, distribution) -> V4Ir(release, distribution)
+            | ClassicIr(_, distribution) -> ClassicIr(stated, distribution)
+            | V4Ir(_, distribution) -> V4Ir(stated, distribution)
         )
         |> Result.bind write
 
@@ -437,12 +463,16 @@ type IonIrWriting =
     static member TryWriteJson
         (
             json: ReadOnlyMemory<byte>,
-            formatVersion: string,
+            formatVersion: Morphir.IR.Versioning.FormatVersion,
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)>] ion:
                 byref<byte array>,
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] failure:
                 byref<IonIrError>
         ) : bool =
+        // C# can pass null for a non-nullable reference; that is a caller error, not a decode failure.
+        if isNull (box formatVersion) then
+            nullArg (nameof formatVersion)
+
         IonIrWriting.Assign(IonIrWriter.ofJsonAs formatVersion json, &ion, &failure)
 
     static member private Assign

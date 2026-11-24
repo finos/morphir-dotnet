@@ -79,9 +79,41 @@ let private treeOf (files: (string * byte array) list) =
 let private v4Library (package: string) (modules: string) =
     $"{{\"formatVersion\":4,\"distribution\":{{\"Library\":{{\"packageName\":\"{package}\",\"dependencies\":{{}},\"def\":{{\"modules\":{{{modules}}}}}}}}}}}"
 
+let private parseVersion (text: string) =
+    match Morphir.IR.Versioning.parse text with
+    | Ok version -> version
+    | Result.Error error -> failwithf "%A" error
+
+let private version31 () = parseVersion "3.1.0"
+
 let private readV4Json (json: string) =
     IonIrWriter.readJson (ReadOnlyMemory(Encoding.UTF8.GetBytes json))
     |> ok "Reading the JSON"
+
+/// Named cases: a model the test builds by intent, and the reference bytes the vendored draft states for it.
+module private Cases =
+    open Morphir.IR
+
+    /// The draft's empty v3 library: package example, no dependencies and no modules.
+    let emptyV3Library =
+        ClassicIr(
+            "3.0.0",
+            Morphir.IR.Classic.Distribution.Library(PackageName(Path [ Name [ "example" ] ]), Map.empty, { Modules = Map.empty })
+        )
+
+    /// The fence after "the canonical empty v3 library is:" in the vendored draft, ion-draft.md.
+    let draftEmptyV3Library =
+        let draft = Fixtures.text "ion-draft.md"
+        let fence = Regex.Match(draft, "the canonical empty v3 library is:\\s*```ion\\n(.*?)```", RegexOptions.Singleline)
+
+        if not fence.Success then
+            failwith "The vendored draft has no canonical empty v3 library."
+
+        fence.Groups[1].Value
+
+    /// Two type names whose cut stems in a budget of 64 have one prefix and one digest, 905bb72b.
+    let collidingTypes =
+        "commonprefixcommonprefixcommonprefixcommon-n58445", "commonprefixcommonprefixcommonprefixcommon-n91859"
 
 [<Tests>]
 let tests =
@@ -89,20 +121,10 @@ let tests =
         testList "Canonical text" [
             testCase "The empty v3 library is the draft's example, byte for byte"
             <| fun () ->
-                let document = fromJson "records/v3-library.json"
-
-                let empty =
-                    match document with
-                    | ClassicIr(version, Morphir.IR.Classic.Distribution.Library(package, _, _)) ->
-                        ClassicIr(version, Morphir.IR.Classic.Distribution.Library(package, Map.empty, { Modules = Map.empty }))
-                    | _ -> failtest "The vector is a v3 library"
-
-                let expected =
-                    "morphir::{\n  ionVersion: \"0.1.0-draft.1\",\n  formatVersion: \"3.0.0\",\n  kind: library,\n  packageName: \"example\",\n}\nmorphir_footer::{\n}\n"
-
-                let actual = IonIrWriter.write empty |> ok "Writing" |> text
-                let packageName = Regex.Match(actual, "packageName: \"([^\"]*)\"").Groups[1].Value
-                Expect.equal actual (expected.Replace("\"example\"", $"\"{packageName}\"")) "The canonical empty library"
+                Expect.equal
+                    (IonIrWriter.write Cases.emptyV3Library |> ok "Writing" |> text)
+                    Cases.draftEmptyV3Library
+                    "The canonical empty library of the vendored draft"
 
             testCase "An S-expression puts each operand on its own line, with no commas"
             <| fun () ->
@@ -271,6 +293,21 @@ let tests =
                 | Ok read -> expectSame read document
                 | Result.Error error -> failtestf "The tree was refused: %s: %s" error.Code error.Message
 
+            testCase "Two cut stems that share a prefix and a digest are refused, not written to one path"
+            <| fun () ->
+                let first, second = Cases.collidingTypes
+
+                let alias name =
+                    $"\"{name}\":{{\"Public\":{{\"TypeAliasDefinition\":{{\"typeParams\":[],\"typeExp\":\"morphir/SDK:basics#int\"}}}}}}"
+
+                let json = v4Library "p" $"\"m\":{{\"Public\":{{\"types\":{{{alias first},{alias second}}},\"values\":{{}}}}}}"
+
+                match IonIrWriter.writeTreeFiles 64 (readV4Json json) with
+                | Ok files -> failtestf "The tree has one file for two types: %A" (List.map fst files)
+                | Result.Error error ->
+                    Expect.equal error.Code "stem_collision" error.Message
+                    Expect.stringContains error.Message "__905bb72b.type.ion" "The message names the path"
+
             testCase "A module path over the budget is refused"
             <| fun () ->
                 let segment = String.replicate 12 "segment-" + "end"
@@ -315,17 +352,51 @@ let tests =
                     | true, ion, _ -> failtestf "%s was written as: %s" version ((text ion).Split('\n')[2])
                     | false, _, failure -> Expect.equal failure.Code "unsupported_format_version_minor" failure.Message
 
+                testCase $"readJson refuses formatVersion {version}, so no release can relabel it"
+                <| fun () ->
+                    let json =
+                        ReadOnlyMemory(
+                            Encoding.UTF8.GetBytes(
+                                (Fixtures.text "pairs/v3-daily-rate.json").Replace("{\"formatVersion\":3,", $"{{\"formatVersion\":\"{version}\",")
+                            )
+                        )
+
+                    match IonIrWriter.readJson json with
+                    | Ok document -> failtestf "%s was read as %A" version document
+                    | Result.Error error -> Expect.equal error.Code "unsupported_format_version_minor" error.Message
+
+                    match IonIrWriter.ofJsonAs (version31 ()) json with
+                    | Ok bytes -> failtestf "%s was relabelled: %s" version ((text bytes).Split('\n')[2])
+                    | Result.Error error -> Expect.equal error.Code "unsupported_format_version_minor" error.Message
+
+                    match IonIrWriting.TryWriteJson(json, version31 ()) with
+                    | true, ion, _ -> failtestf "%s was relabelled: %s" version ((text ion).Split('\n')[2])
+                    | false, _, failure -> Expect.equal failure.Code "unsupported_format_version_minor" failure.Message
+
             testCase "TryWriteJson with a stated release writes that release"
             <| fun () ->
                 let json = ReadOnlyMemory(Fixtures.bytes "pairs/v3-daily-rate.json")
 
-                match IonIrWriting.TryWriteJson(json, "3.1.0") with
+                match IonIrWriting.TryWriteJson(json, version31 ()) with
                 | true, ion, _ -> Expect.stringContains (text ion) "  formatVersion: \"3.1.0\",\n" "The stated release"
                 | false, _, failure -> failtestf "%s %s" failure.Code failure.Message
 
-                match IonIrWriting.TryWriteJson(json, "4.0.0") with
+                match IonIrWriting.TryWriteJson(json, parseVersion "4.0.0") with
                 | true, _, _ -> failtest "A v4 release is not a classic release"
                 | false, _, failure -> Expect.equal failure.Code "unsupported_format_version_major" failure.Message
+
+                match IonIrWriting.TryWriteJson(json, parseVersion "2") with
+                | true, _, _ -> failtest "IR 2 is not carried"
+                | false, _, failure -> Expect.equal failure.Code "unsupported_format_version_major" failure.Message
+
+            testCase "TryWriteJson refuses a null format version as an argument error"
+            <| fun () ->
+                Expect.throwsT<ArgumentNullException>
+                    (fun () ->
+                        IonIrWriting.TryWriteJson(ReadOnlyMemory(Fixtures.bytes "pairs/v3-daily-rate.json"), Unchecked.defaultof<Morphir.IR.Versioning.FormatVersion>)
+                        |> ignore
+                    )
+                    "A null version is a caller error, not a decode failure"
 
             testCase "TryWriteJson gives the failure of JSON that is not IR"
             <| fun () ->

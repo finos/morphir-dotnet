@@ -48,9 +48,7 @@ public static class CompileIrFormats
                     ? Checked<byte[]>.Pass(yaml)
                     : Failed($"The IR could not be written as YAML: {yamlFailure}");
             case IrStorageFormat.Ion:
-                if (IonIrWriting.Release(requested) is not { } release)
-                    return Failed($"The Ion IR format does not carry IR version {Morphir.IR.Versioning.version(requested)}.");
-                return IonIrWriting.TryWriteJson(json, release, out var ion, out var ionFailure)
+                return IonIrWriting.TryWriteJson(json, requested, out var ion, out var ionFailure)
                     ? Checked<byte[]>.Pass(ion)
                     : Failed($"The IR could not be written as Ion: {ionFailure.Message} ({ionFailure.Code})");
             default:
