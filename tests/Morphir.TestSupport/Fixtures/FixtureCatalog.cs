@@ -873,6 +873,19 @@ public static class FixtureCatalog
             [Sequence, Flowcharts, States, Swimlanes, Architecture, ZenUml, PlantUmlActivity, PlantUmlState, PlantUml, Bpmn];
     }
 
+    /// <summary>Digests of diagram output recorded before the diagram export refactor, which must not change.</summary>
+    public static class DiagramExport
+    {
+        private const string Provenance = "DiagramExport/PROVENANCE.md";
+
+        /// <summary>The SVG of every pinned corpus diagram under each baseline option set.</summary>
+        public static FixtureEntry SvgDigests { get; } = new(
+            "the SVG digests of every pinned corpus diagram", "DiagramExport/svg-digests.json", "b01892cf062c67f446a7c07563554010eb26205eb89bb1f5bbb88c4e184ea512", Provenance);
+
+        /// <summary>Every digest fixture.</summary>
+        public static IReadOnlyList<FixtureEntry> Files { get; } = [SvgDigests];
+    }
+
     /// <summary>Every file that the catalog owns and serves.</summary>
     public static IReadOnlyCollection<FixtureEntry> All { get; } =
     [
@@ -880,7 +893,7 @@ public static class FixtureCatalog
         .. Models.All, .. BoundedOrders.Files, BoundedOrders.ExpandedV4, .. Trees.AcmeDemo, .. Trees.Written,
         .. UpstreamIr.Documents, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark,
         WasmHost.Corpus, WasmHost.UnknownNamespaceModule, .. Context.Files, .. Context.Policy.Files,
-        .. Context.Naming.Files, .. DiagramsMbt.Files
+        .. Context.Naming.Files, .. DiagramsMbt.Files, .. DiagramExport.Files
     ];
 
     /// <summary>

@@ -4,6 +4,7 @@
 namespace Morphir.Diagrams
 
 open System
+open System.Collections.Generic
 open System.Collections.Immutable
 
 /// Produces standalone, script-free SVG from a diagram model.
@@ -14,7 +15,22 @@ type SvgRenderer private () =
         ArgumentNullException.ThrowIfNull diagram
         ArgumentNullException.ThrowIfNull options
 
-        match RailroadSvg.validate diagram options, Carriage.prepare diagram options with
+        // Mermaid accepts the reserved state `root` as an endpoint but draws no node for it.
+        let reserved =
+            match diagram with
+            | Diagram.State model ->
+                let states = model.States |> Seq.map (fun state -> state.Id) |> HashSet
+
+                model.Transitions
+                |> Seq.collect (fun transition -> [ transition.Source; transition.Target ])
+                |> Seq.filter (fun endpoint -> endpoint.Value = "root" && not (states.Contains endpoint))
+                |> Seq.truncate 1
+                |> Seq.map (fun _ ->
+                    Diagnostic("state/reserved-id", DiagnosticSeverity.Error, "The state identifier root is reserved for the top-level region.", None))
+                |> Seq.toList
+            | _ -> []
+
+        match reserved @ RailroadSvg.validate diagram options, Carriage.prepare diagram options with
         | (_ :: _) as errors, _ -> Error(ImmutableArray.CreateRange errors)
         | [], Error errors -> Error(ImmutableArray.CreateRange errors)
         | [], Ok(metadata, warnings) ->

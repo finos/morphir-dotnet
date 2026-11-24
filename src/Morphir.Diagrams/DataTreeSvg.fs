@@ -177,7 +177,7 @@ module internal DataTreeSvg =
                             writer
                             "tspan"
                             [ "x", n x; "dy", (if index = 0 then "0" else n lineHeight) ]
-                            (fun () -> writer.Add(Morphir.Svg.SvgNode.CreateText line))))
+                            (fun () -> writer.Add(SvgWriting.text line))))
 
         let title = if model.Format = DataFormat.Json then "JSON data tree" else "YAML data tree"
 
@@ -198,7 +198,7 @@ module internal DataTreeSvg =
                         writer
                         "text"
                         [ "x", n margin; "y", n (margin + 14); "font-family", Theme.fontStack; "font-size", "15"; "font-weight", "700"; "fill", Theme.text ]
-                        (fun () -> writer.Add(Morphir.Svg.SvgNode.CreateText value))
+                        (fun () -> writer.Add(SvgWriting.text value))
 
                 for source, x1, y1, target, x2, y2 in links do
                     let middle = x1 + column / 2

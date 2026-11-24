@@ -180,4 +180,13 @@ public class StateDiagramTests
 
         svg.ShouldContain("var(--backend-stroke)");
     }
+
+    [Test]
+    public void ATransitionFromTheReservedRootIsRefused()
+    {
+        var rendered = DiagramSource.RenderSvg("stateDiagram-v2\nroot --> A\n");
+
+        rendered.Output.ShouldBeNull();
+        rendered.Diagnostics.ShouldHaveSingleItem().Code.ShouldBe("state/reserved-id");
+    }
 }

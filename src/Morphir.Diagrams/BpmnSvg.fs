@@ -77,14 +77,14 @@ module internal BpmnSvg =
                                         writer
                                         "tspan"
                                         [ "x", f x; "dy", (if index = 0 then "0" else f step) ]
-                                        (fun () -> writer.Add(Morphir.Svg.SvgNode.CreateText line))))
+                                        (fun () -> writer.Add(SvgWriting.text line))))
 
                 let vertical x y (label: string) =
                     SvgWriting.element
                         writer
                         "text"
                         [ "x", f x; "y", f y; "transform", $"rotate(-90 {pt x y})"; "text-anchor", "middle"; "font-family", Theme.fontStack; "font-size", "12"; "font-weight", "600"; "fill", Theme.text ]
-                        (fun () -> writer.Add(Morphir.Svg.SvgNode.CreateText label))
+                        (fun () -> writer.Add(SvgWriting.text label))
 
                 let reference (box: BpmnBox) =
                     if box.Container then (DiagramElementRef.Group(DiagramId.Create box.Id)).ToString() else (DiagramElementRef.Node(DiagramId.Create box.Id)).ToString()

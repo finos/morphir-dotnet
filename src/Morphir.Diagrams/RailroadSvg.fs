@@ -58,7 +58,7 @@ module internal RailroadSvg =
             writer
             "text"
             [ "x", n x; "y", n y; "font-family", Theme.fontStack; "font-size", n fontSize; "font-weight", n weight; "fill", fill ]
-            (fun () -> writer.Add(Morphir.Svg.SvgNode.CreateText value))
+            (fun () -> writer.Add(SvgWriting.text value))
 
     /// Paints the diagram; trace highlights are separate layers over boxes whose places do not change.
     let render (options: SvgRenderOptions) (metadata: Morphir.Svg.SvgNode list option) (model: RailroadDiagram) =

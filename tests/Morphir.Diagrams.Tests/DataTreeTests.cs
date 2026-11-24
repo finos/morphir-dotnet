@@ -262,4 +262,14 @@ public class DataTreeTests
         data.RootElement.GetProperty("visits").EnumerateArray().Select(visit => visit.GetProperty("ref").GetString())
             .ShouldBe(["node=$", "node=$%2Fa", "node=$%2Fb", "node=$%2Fb%2F0"]);
     }
+
+    [Test]
+    public void TextThatXmlCannotHoldIsDrawnWithReplacementCharacters()
+    {
+        var svg = DiagramSource.RenderSvg("@startjson\n{\"a\":\"\\u0000x\",\"b\":\"\\ud800\"}\n@endjson\n").Output.ShouldNotBeNull();
+        var texts = XDocument.Parse(svg).Descendants().Where(element => element.Name.LocalName == "text").Select(text => text.Value).ToArray();
+
+        texts.ShouldContain("\uFFFDx");
+        texts.ShouldContain("\uFFFD");
+    }
 }
