@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
+        <Description>Exports Morphir.Diagrams layouts as PowerPoint and OpenDocument presentations, Google Slides requests and reveal.js decks.</Description>
+        <PackageTags>$(PackageTags);diagrams;pptx;odp;google-slides;revealjs</PackageTags>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <IsTrimmable>true</IsTrimmable>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsAotCompatible>true</IsAotCompatible>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+    <ItemGroup>
+        <!-- The tests check the package writer and the PNG fallback rules, which have no public surface. -->
+        <InternalsVisibleTo Include="Morphir.Diagrams.Slides.Tests" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <ProjectReference Include="../Morphir.Diagrams/Morphir.Diagrams.fsproj" />
+        <ProjectReference Include="../Morphir.Diagrams.Raster/Morphir.Diagrams.Raster.fsproj" />
+        <Compile Include="SlidePlacement.fs" />
+        <Compile Include="Packaging.fs" />
+    </ItemGroup>
+</Project>

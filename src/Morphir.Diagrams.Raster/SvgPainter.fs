@@ -120,6 +120,27 @@ module internal SvgPainter =
             | true, (r, g, b) -> Some { R = r; G = g; B = b; A = 255 }
             | _ -> None
 
+    /// The paint values of an SVG that this painter approximates: a gradient, which it paints as its first stop, and a
+    /// colour it cannot read, such as a CSS name outside its table. The light palette of an adaptive SVG is used.
+    let approximations (source: string) : string list =
+        let document = load source
+        let vars = variables document false
+        let noGradients = Dictionary<string, string>() :> IDictionary<_, _>
+
+        [
+            for element in document.Descendants() do
+                for name in [ "fill"; "stroke"; "stop-color"; "color" ] do
+                    match attribute element name with
+                    | null -> ()
+                    | value ->
+                        let value = value.Trim()
+
+                        if value.StartsWith("url(", StringComparison.Ordinal) then yield $"gradient {value}"
+                        elif value = "" || value = "none" || value = "transparent" || value = "currentColor" then ()
+                        elif (color vars noGradients "black" value).IsNone then yield value
+        ]
+        |> List.distinct
+
     let private transform (text: string | null) =
         match text with
         | null -> Affine.Identity

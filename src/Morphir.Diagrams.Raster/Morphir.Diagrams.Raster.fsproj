@@ -11,6 +11,10 @@
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
     </PropertyGroup>
     <ItemGroup>
+        <!-- Morphir.Diagrams.Slides warns when its PNG fallbacks approximate paint, with the painter's own check. -->
+        <InternalsVisibleTo Include="Morphir.Diagrams.Slides" />
+    </ItemGroup>
+    <ItemGroup>
         <PackageReference Include="FSharp.Core" />
         <ProjectReference Include="../Morphir.Diagrams/Morphir.Diagrams.fsproj" />
         <Compile Include="Geometry.fs" />

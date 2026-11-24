@@ -135,6 +135,8 @@
     <PackageVersion Include="Thoth.Json.Net" Version="11.0.0" />
     <PackageVersion Include="TUnit" Version="1.85.0" />
     <PackageVersion Include="Eleven19.IonDotnet" Version="0.1.4" />
+    <!-- Test only: Morphir.Diagrams.Slides.Tests validates the presentations that the library writes. -->
+    <PackageVersion Include="DocumentFormat.OpenXml" Version="3.5.1" />
     <PackageVersion Include="Expecto" Version="10.2.3" />
     <PackageVersion Include="Expecto.FsCheck" Version="10.2.3" />
     <!-- The version that Expecto.FsCheck resolves; Morphir.Models.TestSupport builds its generators on it. -->

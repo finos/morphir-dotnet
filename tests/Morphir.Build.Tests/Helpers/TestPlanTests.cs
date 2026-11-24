@@ -192,7 +192,7 @@ public class TestPlanTests
     [Test]
     public void TheSuitesOfTheTestTargetAreUnique()
     {
-        TestPlan.Suites.Should().HaveCount(54);
+        TestPlan.Suites.Should().HaveCount(55);
         TestPlan.Suites.Should().ContainSingle(suite => suite.Project == "Morphir.Mck.Tests" && suite.Framework == TestFramework.TUnit);
         TestPlan.Suites.Select(suite => suite.Name).Should().OnlyHaveUniqueItems();
         TestPlan.Suites.Where(suite => suite.Group is null).Select(suite => suite.Project).Should().OnlyHaveUniqueItems();
