@@ -1145,6 +1145,7 @@ module Invalid =
 module YamlDocuments =
     /// The v4 daily-rate model from <see cref="FixtureCatalog.Models.V4DailyRate"/> encoded as YAML
     /// with the requested <paramref name="formatVersion"/> header.
+    [<CompiledName("V4DailyRateYaml")>]
     let v4DailyRateYaml (formatVersion: string) : string =
         use parsed = JsonDocument.Parse(FixtureCatalog.ReadText FixtureCatalog.Models.V4DailyRate)
         let distributionJson = parsed.RootElement.GetProperty("distribution").GetRawText()
@@ -1153,47 +1154,84 @@ module YamlDocuments =
         $"formatVersion: {header}\ndistribution: {distributionJson}\n"
 
     /// A minimal valid plain YAML document carrying only formatVersion and an empty distribution mapping.
+    [<CompiledName("MinimalV4PlainYaml")>]
     let minimalV4PlainYaml = "formatVersion: 4\ndistribution: {}\n"
 
     /// A malformed YAML document with an unclosed flow sequence.
+    [<CompiledName("MalformedFlowYaml")>]
     let malformedFlowYaml = "formatVersion: [broken\n"
 
+    /// A package metadata YAML payload (<c>package.yaml</c>) ignored by document-tree reads with a notice.
+    [<CompiledName("PackageMetadataYaml")>]
+    let packageMetadataYaml = "formatVersion: 4\nversion: 1.0.0\n"
+
     /// A MEP model-envelope document written in YAML, which bare-IR loading must refuse.
+    [<CompiledName("MepEnvelopeYaml")>]
     let mepEnvelopeYaml = "envelopeVersion: \"0.1.0\"\npayload: {}\n"
 
     /// A MEP model-envelope document written in YAML that also carries a <c>$schema</c> member;
     /// bare-IR loading must classify it as <c>unsupported-profile</c> before IR-context admission.
+    [<CompiledName("MepEnvelopeWithSchemaYaml")>]
     let mepEnvelopeWithSchemaYaml =
         "$schema: \"https://morphir.finos.org/schemas/mep/0.2.0/model-envelope.schema.json\"\nenvelopeVersion: \"0.1.0\"\npayload: {}\n"
 
     /// A MEP model-envelope YAML document whose first key is <c>envelopeVersion:</c> followed by <c>$schema:</c>,
     /// testing extensionless <c>Auto</c> YAML detection and MEP classification.
+    [<CompiledName("MepEnvelopeFirstWithSchemaYaml")>]
     let mepEnvelopeFirstWithSchemaYaml =
         "envelopeVersion: \"0.1.0\"\n$schema: \"https://morphir.finos.org/schemas/mep/0.2.0/model-envelope.schema.json\"\npayload: {}\n"
 
     /// A YAML document starting with the <c>morphir_model:</c> MEP marker key.
+    [<CompiledName("MepMorphirModelYaml")>]
     let mepMorphirModelYaml = "morphir_model:\n  formatVersion: 4\n"
 
     /// A YAML document starting with the <c>jsonrpc:</c> MEP marker key.
+    [<CompiledName("MepJsonRpcYaml")>]
     let mepJsonRpcYaml = "jsonrpc: \"2.0\"\nmethod: \"morphir/model\"\n"
 
     /// A MEP model-envelope YAML document preceded by a leading YAML comment.
+    [<CompiledName("MepCommentedEnvelopeYaml")>]
     let mepCommentedEnvelopeYaml = "# MEP envelope comment\nenvelopeVersion: \"0.1.0\"\npayload: {}\n"
 
     /// A MEP model-envelope YAML document with a double-quoted <c>envelopeVersion</c> key.
+    [<CompiledName("MepDoubleQuotedEnvelopeYaml")>]
     let mepDoubleQuotedEnvelopeYaml = "\"envelopeVersion\": \"0.1.0\"\npayload: {}\n"
 
     /// A MEP model-envelope YAML document with a single-quoted <c>envelopeVersion</c> key.
+    [<CompiledName("MepSingleQuotedEnvelopeYaml")>]
     let mepSingleQuotedEnvelopeYaml = "'envelopeVersion': \"0.1.0\"\npayload: {}\n"
 
     /// A MEP <c>morphir_model</c> YAML document with a leading comment and a double-quoted marker key.
+    [<CompiledName("MepCommentedQuotedMorphirModelYaml")>]
     let mepCommentedQuotedMorphirModelYaml = "# MEP model wrapper\n\"morphir_model\":\n  formatVersion: 4\n"
 
     /// A MEP <c>jsonrpc</c> YAML document with a single-quoted marker key.
+    [<CompiledName("MepSingleQuotedJsonRpcYaml")>]
     let mepSingleQuotedJsonRpcYaml = "'jsonrpc': \"2.0\"\nmethod: \"morphir/model\"\n"
 
     /// A MEP model-envelope YAML document with a document-start marker, comment, and quoted key.
+    [<CompiledName("MepDocumentStartCommentedYaml")>]
     let mepDocumentStartCommentedYaml = "---\n# MEP envelope\n\"envelopeVersion\": \"0.1.0\"\npayload: {}\n"
+
+    /// A MEP model-envelope YAML document with a CR-only leading comment line break.
+    [<CompiledName("MepCrOnlyCommentEnvelopeYaml")>]
+    let mepCrOnlyCommentEnvelopeYaml = "# CR-only comment\renvelopeVersion: \"0.1.0\"\rpayload: {}\r"
+
+    /// A MEP model-envelope YAML document written as a YAML flow mapping (unquoted keys).
+    [<CompiledName("MepFlowMappingEnvelopeYaml")>]
+    let mepFlowMappingEnvelopeYaml = "{envelopeVersion: \"0.1.0\", payload: {}}\n"
+
+    /// A MEP model-envelope YAML document where <c>payload</c> precedes <c>envelopeVersion</c>.
+    [<CompiledName("MepPayloadFirstEnvelopeYaml")>]
+    let mepPayloadFirstEnvelopeYaml = "payload: {}\nenvelopeVersion: \"0.1.0\"\n"
+
+    /// A MEP model-envelope YAML document with a double-quoted Unicode-escaped <c>envelopeVersion</c> key.
+    [<CompiledName("MepEscapedDoubleQuotedEnvelopeYaml")>]
+    let mepEscapedDoubleQuotedEnvelopeYaml = "\"envelope\\u0056ersion\": \"0.1.0\"\npayload: {}\n"
+
+    /// A non-Morphir plain YAML mapping used to ensure extensionless Auto mode keeps non-Morphir inputs as malformed-json.
+    [<CompiledName("NonMorphirPlainYaml")>]
+    let nonMorphirPlainYaml = "foo: bar\n"
 
     /// A minimal v4 manifest-only JSON tree with scalar manifest members, used to test depth parity with YAML.
     let manifestOnlyV4JsonTree () : VFileTree =
@@ -1210,6 +1248,7 @@ module YamlDocuments =
         ]
 
     /// A malformed Ion manifest payload used to test failed Ion tree decoding under cancellation.
+    [<CompiledName("MalformedIonManifest")>]
     let malformedIonManifest = "morphir::{broken"
 
     /// A deeply nested YAML mapping of <paramref name="depth"/> flow levels used to verify iterative
@@ -1226,6 +1265,7 @@ module YamlDocuments =
     /// A small compacted YAML manifest whose expanded output grows via repeated alias references
     /// to a long canonical package path, staying well under a small raw input size while exceeding
     /// tight expansion byte or node budgets.
+    [<CompiledName("CompactedExpandingManifestYaml")>]
     let compactedExpandingManifestYaml (segmentCount: int) (dependencyCount: int) : string =
         let longPath =
             [ for i in 1..segmentCount -> $"segment-{i}" ]
@@ -1244,10 +1284,12 @@ module YamlDocuments =
 
     /// A YAML document with a nested key containing ": " and a disallowed anchor value to test structured
     /// JSON Pointer preservation without splitting on ": ".
+    [<CompiledName("NestedYamlKeyWithColonSpace")>]
     let nestedYamlKeyWithColonSpace =
         "formatVersion: 4\nouter:\n  \"note: detail\": &bad 1\n"
 
     /// A minimal Ion manifest stub used to construct ambiguous multi-manifest tree fixtures.
+    [<CompiledName("MinimalIonManifest")>]
     let minimalIonManifest = "morphir::{}"
 
     /// A contextual YAML manifest whose ignored context field contains quotes that double in size when
@@ -1259,8 +1301,22 @@ module YamlDocuments =
 
     /// A contextual YAML manifest with an invalid alias entry under <c>context.names.bad</c> to test
     /// structured nested context validation locations.
+    [<CompiledName("ContextualYamlWithInvalidAliasEntry")>]
     let contextualYamlWithInvalidAliasEntry =
         $"$schema: \"{MorphirFile.Draft1Schema}\"\ncontext:\n  names:\n    bad: \"Not_A_Canonical_Name\"\ndocument:\n  formatVersion: 4\n  distribution: Library\n  package: \"acme/orders\"\n  pathBudget: 4000\n"
+
+    /// For C# callers: serializes a <see cref="VersionedModel"/> as canonical single-file JSON bytes.
+    [<CompiledName("WriteSingleFileJson")>]
+    let writeSingleFileJson (model: Morphir.IR.Model.VersionedModel) : byte array =
+        match model.Distribution with
+        | Morphir.IR.Model.DistributionModel.Classic dist ->
+            match Morphir.Json.Classic.ClassicJsonWriter.writeJsonAttributes Morphir.Json.Classic.ClassicWireProfile.v3 true dist with
+            | Ok bytes -> bytes
+            | Result.Error err -> failwith $"Failed to write classic single-file JSON: {err}"
+        | Morphir.IR.Model.DistributionModel.V4 dist ->
+            match Morphir.Json.V4.V4JsonWriter.writeDistribution true dist with
+            | Ok bytes -> bytes
+            | Result.Error err -> failwith $"Failed to write v4 single-file JSON: {err}"
 
     /// A valid v4 JSON document tree with two compacted value members whose aliases each expand to
     /// ~3 * longWordLength bytes so each member fits individually under a tight budget while their

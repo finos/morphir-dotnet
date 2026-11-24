@@ -312,8 +312,7 @@ module VFileTree =
     /// </summary>
     /// <param name="files">List of files</param>
     let fromFiles (files: VFile list): VFileTree =
-        files
-        |> List.fold (fun tree file -> addFile file tree) empty
+        { empty with Content = List.map File files }
 
     /// <summary>
     /// Gets all files in the tree (flattened, recursive).
@@ -1055,7 +1054,7 @@ type VFileTree with
     /// For C# callers: builds a flat file tree from a sequence of files, preserving their order.
     /// </summary>
     static member FromFiles(files: System.Collections.Generic.IEnumerable<VFile>) : VFileTree =
-        VFileTree.fromFiles (List.ofSeq files)
+        { VFileTree.empty with Content = [ for file in files -> File file ] }
 
     /// <summary>
     /// For C# callers: a tree of the files, keyed by their relative paths, with their given order as the declared

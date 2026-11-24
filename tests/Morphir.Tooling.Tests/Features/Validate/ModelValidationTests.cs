@@ -261,10 +261,16 @@ public sealed class ModelValidationTests
         var registry = new AnalyzerRegistry([analyzer]);
 
         var yamlFile = Path.Combine(sandbox.Work, "model.yaml");
-        await File.WriteAllTextAsync(yamlFile, Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.v4DailyRateYaml("4.0.0"));
+        await File.WriteAllTextAsync(yamlFile, Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.V4DailyRateYaml("4.0.0"));
         var yamlReport = await Validation(registry).RunAsync(new ValidateOverrides(yamlFile), new InvocationContext(sandbox.Work), default);
         yamlReport.ExitCode.Should().Be(2);
         yamlReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-format");
+
+        var extensionlessYaml = Path.Combine(sandbox.Work, "extensionless-mep");
+        await File.WriteAllTextAsync(extensionlessYaml, Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.MepCrOnlyCommentEnvelopeYaml);
+        var extensionlessReport = await Validation(registry).RunAsync(new ValidateOverrides(extensionlessYaml, "auto"), new InvocationContext(sandbox.Work), default);
+        extensionlessReport.ExitCode.Should().Be(2);
+        extensionlessReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-format");
 
         foreach (var profile in new[] { "plain-json", "plain-yaml" })
         {
@@ -291,7 +297,7 @@ public sealed class ModelValidationTests
         using var cts = new CancellationTokenSource();
         var badIonTree = new RetainedInput.Tree(
             "/virtual/broken-ion-tree",
-            [new RetainedEntry("manifest.ion", System.Text.Encoding.UTF8.GetBytes(Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.malformedIonManifest))]);
+            [new RetainedEntry("manifest.ion", System.Text.Encoding.UTF8.GetBytes(Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.MalformedIonManifest))]);
 
         var outcome = GenerationModelLoader.DecodeLegacy(
             badIonTree,

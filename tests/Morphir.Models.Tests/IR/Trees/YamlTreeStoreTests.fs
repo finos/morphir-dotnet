@@ -185,7 +185,7 @@ let tests =
                             path, text
                     )
                     |> Driver.ofTexts
-                    |> Driver.withFile "pkg/acme/orders/package.yaml" "formatVersion: 4\nversion: 1.0.0\n"
+                    |> Driver.withFile "pkg/acme/orders/package.yaml" YamlDocs.packageMetadataYaml
 
                 let _, report = readOk TreeReadOptions.Defaults renamed
 

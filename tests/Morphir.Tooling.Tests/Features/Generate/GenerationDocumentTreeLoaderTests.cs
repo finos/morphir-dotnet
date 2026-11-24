@@ -131,7 +131,7 @@ public sealed class GenerationDocumentTreeLoaderTests
         var undefinedFormat = (InputFormat)999;
 
         var filePath = Path.Combine(sandbox.Work, "model.yaml");
-        File.WriteAllText(filePath, DocumentTreeMother.YamlDocuments.v4DailyRateYaml("4.0.0"));
+        File.WriteAllText(filePath, DocumentTreeMother.YamlDocuments.V4DailyRateYaml("4.0.0"));
         var fileFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(filePath, undefinedFormat)).Error;
         fileFailure.Kind.Should().Be(GenerationFailureKind.Invocation);
         fileFailure.Diagnostics[0].Code.Should().Be("invalid-input-format");
@@ -155,8 +155,8 @@ public sealed class GenerationDocumentTreeLoaderTests
         File.WriteAllText(
             Path.Combine(treePath, secondManifest),
             secondManifest.EndsWith(".ion", StringComparison.Ordinal)
-                ? DocumentTreeMother.YamlDocuments.minimalIonManifest
-                : DocumentTreeMother.YamlDocuments.minimalV4PlainYaml);
+                ? DocumentTreeMother.YamlDocuments.MinimalIonManifest
+                : DocumentTreeMother.YamlDocuments.MinimalV4PlainYaml);
 
         foreach (var format in new[] { InputFormat.Auto, InputFormat.Json, InputFormat.Yaml, InputFormat.Ion })
         {
@@ -195,7 +195,7 @@ public sealed class GenerationDocumentTreeLoaderTests
     {
         await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
         var yamlPath = Path.Combine(sandbox.Work, "colon-key.yaml");
-        File.WriteAllText(yamlPath, DocumentTreeMother.YamlDocuments.nestedYamlKeyWithColonSpace);
+        File.WriteAllText(yamlPath, DocumentTreeMother.YamlDocuments.NestedYamlKeyWithColonSpace);
 
         var output = Path.Combine(sandbox.Work, "out");
         var overrides = new GenerateOverrides(yamlPath, "fsharp", output, "yaml");
@@ -214,7 +214,7 @@ public sealed class GenerationDocumentTreeLoaderTests
     {
         await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
         var yamlPath = Path.Combine(sandbox.Work, "invalid-context.yaml");
-        File.WriteAllText(yamlPath, DocumentTreeMother.YamlDocuments.contextualYamlWithInvalidAliasEntry);
+        File.WriteAllText(yamlPath, DocumentTreeMother.YamlDocuments.ContextualYamlWithInvalidAliasEntry);
 
         var output = Path.Combine(sandbox.Work, "out");
         var overrides = new GenerateOverrides(yamlPath, "fsharp", output, "yaml");
@@ -278,7 +278,7 @@ public sealed class GenerationDocumentTreeLoaderTests
         // Direct Decode with a cancelled token also returns typed Cancelled outcome.
         var direct = new RetainedInput.File(
             Path.Combine(sandbox.Work, "single.yaml"),
-            new RetainedEntry("single.yaml", Encoding.UTF8.GetBytes(DocumentTreeMother.YamlDocuments.minimalV4PlainYaml)));
+            new RetainedEntry("single.yaml", Encoding.UTF8.GetBytes(DocumentTreeMother.YamlDocuments.MinimalV4PlainYaml)));
         var directCancelled = ((Outcome<LoadedModel>.Failure)GenerationModelLoader.Decode(
             direct, new(direct.SourcePath, InputFormat.Yaml), ModelReadLimits.Default, cts.Token)).Error;
         directCancelled.Kind.Should().Be(GenerationFailureKind.Cancelled);
@@ -318,7 +318,7 @@ public sealed class GenerationDocumentTreeLoaderTests
     {
         await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
         var yamlPath = Path.Combine(sandbox.Work, $"single.{extension}");
-        File.WriteAllText(yamlPath, DocumentTreeMother.YamlDocuments.v4DailyRateYaml("4.0.0"));
+        File.WriteAllText(yamlPath, DocumentTreeMother.YamlDocuments.V4DailyRateYaml("4.0.0"));
 
         var outcome = await LoadAsync(yamlPath, format);
         if (outcome is Outcome<LoadedModel>.Failure failure)
@@ -336,7 +336,7 @@ public sealed class GenerationDocumentTreeLoaderTests
     {
         await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
         var yamlPath = Path.Combine(sandbox.Work, "budget.yaml");
-        File.WriteAllText(yamlPath, DocumentTreeMother.YamlDocuments.v4DailyRateYaml("4"));
+        File.WriteAllText(yamlPath, DocumentTreeMother.YamlDocuments.V4DailyRateYaml("4"));
 
         var nodeFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(yamlPath, InputFormat.Yaml, new(MaxNodes: 1))).Error;
         nodeFailure.Diagnostics[0].Code.Should().Contain("limit");
@@ -345,32 +345,36 @@ public sealed class GenerationDocumentTreeLoaderTests
         depthFailure.Diagnostics[0].Code.Should().Contain("limit");
 
         var mepPath = Path.Combine(sandbox.Work, "mep.yaml");
-        File.WriteAllText(mepPath, DocumentTreeMother.YamlDocuments.mepEnvelopeYaml);
+        File.WriteAllText(mepPath, DocumentTreeMother.YamlDocuments.MepEnvelopeYaml);
         var mepFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(mepPath, InputFormat.Auto)).Error;
         mepFailure.Diagnostics[0].Code.Should().Be("unsupported-profile");
 
         // YAML containing a MEP marker alongside $schema must still report unsupported-profile, not context.undeclared_schema.
         var mepWithSchemaPath = Path.Combine(sandbox.Work, "mep-with-schema.yaml");
-        File.WriteAllText(mepWithSchemaPath, DocumentTreeMother.YamlDocuments.mepEnvelopeWithSchemaYaml);
+        File.WriteAllText(mepWithSchemaPath, DocumentTreeMother.YamlDocuments.MepEnvelopeWithSchemaYaml);
         foreach (var format in new[] { InputFormat.Auto, InputFormat.Yaml })
         {
             var mepSchemaFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(mepWithSchemaPath, format)).Error;
             mepSchemaFailure.Diagnostics[0].Code.Should().Be("unsupported-profile");
         }
 
-        // Extensionless YAML starting with MEP marker keys (unquoted, quoted, or preceded by comments/---)
+        // Extensionless YAML MEP wrappers (unquoted, quoted, escaped, flow mapping, reordered keys, CR/LF comments, ---)
         // must be classified identically as YAML and return unsupported-profile in both Auto and explicit YAML modes.
         foreach (var (name, content) in new[]
         {
-            ("mep-envelope-first", DocumentTreeMother.YamlDocuments.mepEnvelopeFirstWithSchemaYaml),
-            ("mep-morphir-model", DocumentTreeMother.YamlDocuments.mepMorphirModelYaml),
-            ("mep-jsonrpc", DocumentTreeMother.YamlDocuments.mepJsonRpcYaml),
-            ("mep-commented-envelope", DocumentTreeMother.YamlDocuments.mepCommentedEnvelopeYaml),
-            ("mep-double-quoted-envelope", DocumentTreeMother.YamlDocuments.mepDoubleQuotedEnvelopeYaml),
-            ("mep-single-quoted-envelope", DocumentTreeMother.YamlDocuments.mepSingleQuotedEnvelopeYaml),
-            ("mep-commented-quoted-morphir-model", DocumentTreeMother.YamlDocuments.mepCommentedQuotedMorphirModelYaml),
-            ("mep-single-quoted-jsonrpc", DocumentTreeMother.YamlDocuments.mepSingleQuotedJsonRpcYaml),
-            ("mep-document-start-commented", DocumentTreeMother.YamlDocuments.mepDocumentStartCommentedYaml),
+            ("mep-envelope-first", DocumentTreeMother.YamlDocuments.MepEnvelopeFirstWithSchemaYaml),
+            ("mep-morphir-model", DocumentTreeMother.YamlDocuments.MepMorphirModelYaml),
+            ("mep-jsonrpc", DocumentTreeMother.YamlDocuments.MepJsonRpcYaml),
+            ("mep-commented-envelope", DocumentTreeMother.YamlDocuments.MepCommentedEnvelopeYaml),
+            ("mep-double-quoted-envelope", DocumentTreeMother.YamlDocuments.MepDoubleQuotedEnvelopeYaml),
+            ("mep-single-quoted-envelope", DocumentTreeMother.YamlDocuments.MepSingleQuotedEnvelopeYaml),
+            ("mep-commented-quoted-morphir-model", DocumentTreeMother.YamlDocuments.MepCommentedQuotedMorphirModelYaml),
+            ("mep-single-quoted-jsonrpc", DocumentTreeMother.YamlDocuments.MepSingleQuotedJsonRpcYaml),
+            ("mep-document-start-commented", DocumentTreeMother.YamlDocuments.MepDocumentStartCommentedYaml),
+            ("mep-cr-only-comment", DocumentTreeMother.YamlDocuments.MepCrOnlyCommentEnvelopeYaml),
+            ("mep-flow-mapping", DocumentTreeMother.YamlDocuments.MepFlowMappingEnvelopeYaml),
+            ("mep-payload-first", DocumentTreeMother.YamlDocuments.MepPayloadFirstEnvelopeYaml),
+            ("mep-escaped-double-quoted", DocumentTreeMother.YamlDocuments.MepEscapedDoubleQuotedEnvelopeYaml),
         })
         {
             var extensionlessPath = Path.Combine(sandbox.Work, name);
@@ -382,9 +386,15 @@ public sealed class GenerationDocumentTreeLoaderTests
             }
         }
 
+        // Non-Morphir extensionless inputs remain malformed-json in Auto mode rather than reclassifying as YAML.
+        var nonMorphirPath = Path.Combine(sandbox.Work, "non-morphir");
+        File.WriteAllText(nonMorphirPath, DocumentTreeMother.YamlDocuments.NonMorphirPlainYaml);
+        var nonMorphirFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(nonMorphirPath, InputFormat.Auto)).Error;
+        nonMorphirFailure.Diagnostics[0].Code.Should().Be("malformed-json");
+
         // Compacted YAML that fits raw byte capture limits but exceeds MaxBytes on expansion is refused.
         var bombPath = Path.Combine(sandbox.Work, "compacted-bomb.yaml");
-        var bombText = DocumentTreeMother.YamlDocuments.compactedExpandingManifestYaml(20, 12);
+        var bombText = DocumentTreeMother.YamlDocuments.CompactedExpandingManifestYaml(20, 12);
         File.WriteAllText(bombPath, bombText);
         var tightByteLimit = Encoding.UTF8.GetByteCount(bombText) + 32;
         var expansionFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(bombPath, InputFormat.Yaml, new(MaxBytes: tightByteLimit))).Error;
@@ -403,20 +413,7 @@ public sealed class GenerationDocumentTreeLoaderTests
         var baselineLoaded = ((Outcome<LoadedModel>.Success)await LoadAsync(plainJsonTree)).Value;
         var singleFilePath = Path.Combine(sandbox.Work, $"parity-{target}-{version}-single.json");
 
-        var singleFileBytes = baselineLoaded.Model.Distribution.Match(
-            classic: dist =>
-            {
-                var written = Morphir.Json.Classic.ClassicJsonWriter.writeJsonAttributes(
-                    Morphir.Json.Classic.ClassicWireProfileModule.v3, true, dist);
-                written.IsOk.Should().BeTrue();
-                return written.ResultValue;
-            },
-            v4: dist =>
-            {
-                var written = Morphir.Json.V4.V4JsonWriter.writeDistribution(true, dist);
-                written.IsOk.Should().BeTrue();
-                return written.ResultValue;
-            });
+        var singleFileBytes = DocumentTreeMother.YamlDocuments.WriteSingleFileJson(baselineLoaded.Model);
         File.WriteAllBytes(singleFilePath, singleFileBytes);
 
         var singleOut = Path.Combine(sandbox.Work, $"out-{target}-{version}-single");
@@ -486,7 +483,7 @@ public sealed class GenerationDocumentTreeLoaderTests
             }
             else
             {
-                File.WriteAllText(Path.Combine(run.Dest, "morphir-ir.yaml"), DocumentTreeMother.YamlDocuments.v4DailyRateYaml("4"));
+                File.WriteAllText(Path.Combine(run.Dest, "morphir-ir.yaml"), DocumentTreeMother.YamlDocuments.V4DailyRateYaml("4"));
                 var descriptor = new IrDescriptor(
                     RecordPath.Parse("morphir-ir.yaml"),
                     IrLayout.SingleFile,

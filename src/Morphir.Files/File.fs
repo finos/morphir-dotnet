@@ -492,3 +492,11 @@ module VFile =
         | Result.Error (ContentError.ReadFailed (None, cause)) ->
             Result.Error (ContentError.ReadFailed (file.Path, cause))
         | result -> result
+
+/// C# members of VFile, so C# callers do not call F# module helpers.
+type VFile with
+    /// <summary>
+    /// For C# callers: creates a <see cref="VFile"/> holding <paramref name="bytes"/> at <paramref name="path"/>.
+    /// </summary>
+    static member OfBytes(path: string, bytes: ReadOnlyMemory<byte>) : VFile =
+        VFile.ofBytes path bytes
