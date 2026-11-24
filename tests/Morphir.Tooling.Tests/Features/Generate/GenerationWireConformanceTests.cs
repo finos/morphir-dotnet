@@ -61,15 +61,20 @@ public sealed class GenerationWireConformanceTests : IDisposable
     private async Task RunMatrix(BehaviorCase<Generated> template, string[] versions, Func<string, string, string, string> prepare, string? refusal = null)
     {
         var required = ListModule.OfSeq(from version in versions
-                                        from format in new[] { "json", "text", "binary", "tree" }
-                                        select new Representation(version, format, format == "tree" ? "tree" : "file", true));
+                                        from format in new[] { "json", "yaml", "json-tree", "yaml-tree", "text", "binary", "tree" }
+                                        select new Representation(version, format, format is "tree" or "json-tree" or "yaml-tree" ? "tree" : "file", true));
         var variants = new List<Variant<Generated>>();
         var sources = new Dictionary<string, Sources>();
         foreach (var row in required)
         {
-            if (row.Format != "json" && !row.Version.Contains('.'))
+            if (row.Format is "text" or "binary" or "tree" && !row.Version.Contains('.'))
             {
                 variants.Add(new(row, InputExpectation<Generated>.NewUnrepresentable("The Ion IR profile declares exact releases 3.0.0, 3.1.0 or 4.0.0; it has no integer-version spelling or v1/v2 profile.")));
+                continue;
+            }
+            if (row.Format is "json-tree" or "yaml-tree" && row.Version is not ("3.1.0" or "4" or "4.0.0"))
+            {
+                variants.Add(new(row, InputExpectation<Generated>.NewUnrepresentable("The JSON and YAML document-tree specifications define layouts only for IR 3.1.0 and 4/4.0.0; earlier classic versions have no document-tree profile.")));
                 continue;
             }
             var path = prepare(Path.Combine(_root, row.Version, row.Format), row.Version, row.Format);

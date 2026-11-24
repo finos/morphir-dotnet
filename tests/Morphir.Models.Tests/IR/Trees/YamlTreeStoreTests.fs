@@ -142,7 +142,7 @@ let tests =
                 // Legacy DocumentTreeStore.read ignores non-JSON/YAML files including manifest.ion beside a JSON tree.
                 let jsonWithIon =
                     catalogTree "v4" "plain-json"
-                    |> Driver.withFile "manifest.ion" "morphir::{}"
+                    |> Driver.withFile "manifest.ion" YamlDocs.minimalIonManifest
 
                 match DocumentTreeStore.read ReadOptions.defaults jsonWithIon with
                 | Ok _ -> ()
@@ -231,8 +231,8 @@ let tests =
                 for name, files in
                     [
                         "json + yaml", baseJson |> Driver.withFile "manifest.yaml" "formatVersion: 4\n"
-                        "json + ion", baseJson |> Driver.withFile "manifest.ion" "morphir::{}"
-                        "yaml + ion", baseYaml |> Driver.withFile "manifest.ion" "morphir::{}"
+                        "json + ion", baseJson |> Driver.withFile "manifest.ion" YamlDocs.minimalIonManifest
+                        "yaml + ion", baseYaml |> Driver.withFile "manifest.ion" YamlDocs.minimalIonManifest
                         "yaml + yml", baseYaml |> Driver.withFile "manifest.yml" "formatVersion: 4\n"
                     ] do
                     let errors =
@@ -474,6 +474,138 @@ let tests =
 
                 Expect.isTrue joinEntered "Join callback was entered after build"
                 Expect.isFalse joinReturned "Join threw OperationCanceledException instead of returning"
+
+                // 4. Cancellation triggered inside the logical-path sort comparator must propagate OperationCanceledException
+                //    unwrapped (not System.InvalidOperationException from Array.Sort).
+                use sortCts = new CancellationTokenSource()
+                let mutable compared = 0
+
+                Expect.throwsT<OperationCanceledException>
+                    (fun () ->
+                        TreeJoin.joinPackage
+                            sortCts.Token
+                            family
+                            { shape with ModuleOf = fun _ -> Some(fun _ _ -> ()) }
+                            OrderedMap.ofList
+                            Own
+                            (fun address ->
+                                compared <- compared + 1
+                                if compared = 1 then sortCts.Cancel()
+                                DocumentAddress.logicalPath (PackageName(Path [ Name.fromList [ "acme" ] ])) address)
+                            [ Module m1, ModuleDoc emptyMod; Module m2, ModuleDoc emptyMod ]
+                        |> ignore
+                    )
+                    "Cancellation during List.sortWith comparison propagates OperationCanceledException without InvalidOperationException wrapping"
+            }
+
+            test "Rejects contextual YAML whose transcoded envelope exceeds remaining byte budget even when expanded document fits" {
+                let yamlText = YamlDocs.contextualYamlWithEscapedEnvelopeOverhead 300
+                let rawBytes = Encoding.UTF8.GetBytes yamlText
+
+                // Measure the exact transcoded JSON envelope length and expanded document length.
+                let jsonEnvelopeBytes =
+                    match TreeYaml.readCountedDetailed true 64 10_000 None CancellationToken.None "manifest.yaml" rawBytes with
+                    | Ok(_, _, encodedBytes) -> encodedBytes
+                    | Result.Error errs -> failtestf "Expected unbounded YAML parse to succeed: %A" errs
+
+                // Choose a budget strictly above rawBytes (and well above the ~90-byte expanded plain document),
+                // yet strictly below the transcoded JSON envelope length (~600+ bytes from escaped quotes).
+                let tightBudget = int64 rawBytes.Length + 32L
+                Expect.isLessThan tightBudget jsonEnvelopeBytes "Transcoded JSON envelope must exceed tightBudget"
+
+                let mutable doc = Unchecked.defaultof<JsonElement>
+                let mutable errors = Unchecked.defaultof<System.Collections.Generic.IReadOnlyList<TreeDiagnostic>>
+
+                let ok =
+                    DocumentTreeStore.tryReadYamlDocument (
+                        "manifest.yaml",
+                        ReadOnlyMemory rawBytes,
+                        tightBudget,
+                        64,
+                        10_000,
+                        CancellationToken.None,
+                        &doc,
+                        &errors
+                    )
+
+                Expect.isFalse ok "Transcoded YAML envelope exceeding remaining budget must be rejected"
+                Expect.equal (errors[0].Code) "tree.file_too_large" "Exceeding transcoded byte budget reports tree.file_too_large"
+
+                // Whole-tree read with MaxTotalBytes = tightBudget must also reject without clamping overrun to zero.
+                let manifestOnlyTree = Driver.ofTexts [ "manifest.yaml", yamlText ]
+                let treeErrors =
+                    tryReadModelErrors (TreeReadOptions.Defaults.WithMaxTotalBytes tightBudget) manifestOnlyTree
+
+                Expect.isNonEmpty treeErrors "Whole-tree read rejects transcoded YAML envelope overrun"
+                Expect.equal (treeErrors[0].Code) "tree.file_too_large" "Whole-tree overrun reports tree.file_too_large"
+
+                // With sufficient budget for the transcoded envelope, it succeeds cleanly.
+                let generousBudget = jsonEnvelopeBytes + 64L
+                let okGenerous =
+                    DocumentTreeStore.tryReadYamlDocument (
+                        "manifest.yaml",
+                        ReadOnlyMemory rawBytes,
+                        generousBudget,
+                        64,
+                        10_000,
+                        CancellationToken.None,
+                        &doc,
+                        &errors
+                    )
+
+                Expect.isTrue okGenerous "Succeeds when budget covers transcoded YAML envelope"
+            }
+
+            test "Accepts MaxDepth = Int32.MaxValue without integer overflow on JSON and YAML trees" {
+                let maxDepthOptions = TreeReadOptions.Defaults.WithMaxDepth Int32.MaxValue
+
+                for profile in [ "plain-json"; "contextual-json"; "plain-yaml"; "contextual-yaml" ] do
+                    let loaded = tryReadModelOk maxDepthOptions (catalogTree "v4" profile)
+                    Expect.equal loaded.Model.Family ModelFamily.V4 $"v4 {profile} loads with MaxDepth = Int32.MaxValue"
+
+                let mutable doc = Unchecked.defaultof<JsonElement>
+                let mutable errors = Unchecked.defaultof<System.Collections.Generic.IReadOnlyList<TreeDiagnostic>>
+                let ok =
+                    DocumentTreeStore.tryReadYamlDocument (
+                        "manifest.yaml",
+                        ReadOnlyMemory(Encoding.UTF8.GetBytes YamlDocs.contextualManifestYaml),
+                        65536L,
+                        Int32.MaxValue,
+                        10_000,
+                        CancellationToken.None,
+                        &doc,
+                        &errors
+                    )
+
+                Expect.isTrue ok "TryReadYamlDocument succeeds with MaxDepth = Int32.MaxValue"
+            }
+
+            test "Preserves structured JSONPath location for nested context validation errors and keeps legacy StoreError message" {
+                let invalidBytes = ReadOnlyMemory(Encoding.UTF8.GetBytes YamlDocs.contextualYamlWithInvalidAliasEntry)
+                let mutable doc = Unchecked.defaultof<JsonElement>
+                let mutable errors = Unchecked.defaultof<System.Collections.Generic.IReadOnlyList<TreeDiagnostic>>
+
+                let ok =
+                    DocumentTreeStore.tryReadYamlDocument (
+                        "manifest.yaml",
+                        invalidBytes,
+                        65536L,
+                        64,
+                        10_000,
+                        CancellationToken.None,
+                        &doc,
+                        &errors
+                    )
+
+                Expect.isFalse ok "Invalid context alias entry is refused"
+                Expect.equal (errors[0].Code) "context.invalid_entry" "Context invalid entry code"
+                Expect.equal (nonNull errors[0].LocationOrNull) "$.context.names.bad" "Structured JSONPath location preserved"
+                Expect.stringContains errors[0].Message "context.names.bad" "Message describes entry"
+
+                // Converting to legacy StoreError preserves the exact legacy message without duplicating a prefix.
+                let legacy = errors[0].ToStoreError()
+                Expect.isFalse (legacy.Message.StartsWith("$.context.names.bad:")) "Legacy StoreError message keeps original format"
+                Expect.stringStarts legacy.Message "context.names.bad is" "Legacy message starts with context.names.bad"
             }
 
             test "Enforces shared aggregate expansion byte budget across tree members" {

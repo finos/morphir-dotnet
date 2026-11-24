@@ -139,6 +139,7 @@ module internal TreeYaml =
         (maxDepth: int)
         (maxEvents: int)
         (maxNodes: int)
+        (maxOutputBytes: int64 option)
         (ct: CancellationToken)
         (file: string)
         (bytes: byte array)
@@ -241,6 +242,19 @@ module internal TreeYaml =
             use output = new MemoryStream()
             use writer = new Utf8JsonWriter(output, JsonWriterOptions(MaxDepth = maxDepth))
 
+            let checkOutputSize path =
+                match maxOutputBytes with
+                | Some limit when writer.BytesCommitted + int64 writer.BytesPending > limit ->
+                    raise (
+                        TreeYamlFailure(
+                            "tree.file_too_large",
+                            pointer path,
+                            "",
+                            "The transcoded YAML document exceeds the byte limit."
+                        )
+                    )
+                | _ -> ()
+
             let rec node path depth =
                 if depth > maxDepth then
                     fail path cursor "depth_limit_exceeded" "The YAML nesting limit was exceeded."
@@ -260,9 +274,11 @@ module internal TreeYaml =
                     | YamlAtom.Boolean value -> writer.WriteBooleanValue value
                     | YamlAtom.Null -> writer.WriteNullValue()
 
+                    checkOutputSize path
                     advance path
                 | :? MappingStart ->
                     writer.WriteStartObject()
+                    checkOutputSize path
                     advance path
                     let keys = HashSet<string>(StringComparer.Ordinal)
 
@@ -297,13 +313,16 @@ module internal TreeYaml =
                                 fail child keyEvent "duplicate_member" "Duplicate mapping key."
 
                         writer.WritePropertyName key
+                        checkOutputSize child
                         advance child
                         node child (depth + 1)
 
                     writer.WriteEndObject()
+                    checkOutputSize path
                     advance path
                 | :? SequenceStart ->
                     writer.WriteStartArray()
+                    checkOutputSize path
                     advance path
                     let mutable index = 0
 
@@ -316,6 +335,7 @@ module internal TreeYaml =
                         index <- index + 1
 
                     writer.WriteEndArray()
+                    checkOutputSize path
                     advance path
                 | _ -> fail path cursor "invalid_yaml" "Expected a YAML value."
 
@@ -342,6 +362,7 @@ module internal TreeYaml =
                 fail [] cursor "invalid_yaml" "Expected exactly one YAML document."
 
             writer.Flush()
+            checkOutputSize []
             let encoded = ReadOnlyMemory(output.GetBuffer(), 0, int output.Length)
             use document = JsonDocument.Parse(encoded, JsonDocumentOptions(MaxDepth = maxDepth))
             let root = document.RootElement
@@ -380,17 +401,17 @@ module internal TreeYaml =
         | :? DecoderFallbackException -> refused "invalid_yaml" "/" "" "Expected UTF-8 input."
 
     let readLimited maxDepth maxEvents file bytes =
-        readDocumentDetailed false maxDepth maxEvents Int32.MaxValue CancellationToken.None file bytes
+        readDocumentDetailed false maxDepth maxEvents Int32.MaxValue None CancellationToken.None file bytes
         |> Result.map (fun (root, _, _) -> root)
         |> Result.mapError StoreErrors.toStoreErrors
 
     let readCounted contextual maxDepth maxNodes file bytes =
-        readDocumentDetailed contextual maxDepth 1_000_000 maxNodes CancellationToken.None file bytes
+        readDocumentDetailed contextual maxDepth 1_000_000 maxNodes None CancellationToken.None file bytes
         |> Result.map (fun (root, nodes, _) -> root, nodes)
         |> Result.mapError StoreErrors.toStoreErrors
 
-    let readCountedDetailed contextual maxDepth maxNodes ct file bytes =
-        readDocumentDetailed contextual maxDepth 1_000_000 maxNodes ct file bytes
+    let readCountedDetailed contextual maxDepth maxNodes maxOutputBytes ct file bytes =
+        readDocumentDetailed contextual maxDepth 1_000_000 maxNodes maxOutputBytes ct file bytes
 
     let read maxDepth file bytes =
         readLimited maxDepth 1_000_000 file bytes

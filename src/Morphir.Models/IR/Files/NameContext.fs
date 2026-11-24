@@ -10,6 +10,7 @@ open System.Text
 open System.Text.Json
 open Morphir.IR
 open Morphir.IR.Trees
+open Morphir.Json.V4
 
 /// <summary>The IR family of a Morphir file's document: which JSON its typed name positions are written in.</summary>
 [<RequireQualifiedAccess>]
@@ -97,8 +98,8 @@ module internal NameContext =
         "document"
     ]
 
-    let private error code file message : StoreError =
-        StoreErrors.error code (Some file) message
+    let private locatedError code file location message : TreeDiagnostic =
+        StoreErrors.locatedLegacy code (Some file) location message message
 
     /// An alias id: ASCII letters and digits, starting with a letter.
     let isAliasId (id: string) =
@@ -157,8 +158,8 @@ module internal NameContext =
             | _ -> false
         | _ -> false
 
-    /// The members of an object in document order, with each name that appears more than once refused.
-    let membersOnce file (where: string) (element: JsonElement) =
+    /// The members of an object in document order, with each name that appears more than once refused as a structured diagnostic.
+    let membersOnceDetailed file (where: string) (baseLocation: string) (element: JsonElement) =
         let seen = HashSet<string>(StringComparer.Ordinal)
 
         let mutable invalidKey = false
@@ -176,23 +177,32 @@ module internal NameContext =
             |> List.map fst
             |> List.distinct
             |> List.map (fun name ->
-                error "context.duplicate_entry" file $"{where} has the member '{name}' more than once."
+                locatedError
+                    "context.duplicate_entry"
+                    file
+                    (V4JsonDecoding.memberAt baseLocation name)
+                    $"{where} has the member '{name}' more than once."
             )
 
         if invalidKey then
             let code =
                 if where.StartsWith("context.", StringComparison.Ordinal) then "context.invalid_entry"
                 else "context.invalid_envelope"
-            members, error code file $"{where} contains a member name that is not valid Unicode." :: duplicates
+            members, locatedError code file baseLocation $"{where} contains a member name that is not valid Unicode." :: duplicates
         else
             members, duplicates
+
+    /// The members of an object in document order, with each name that appears more than once refused.
+    let membersOnce file (where: string) (element: JsonElement) =
+        let members, diagnostics = membersOnceDetailed file where "$" element
+        members, StoreErrors.toStoreErrors diagnostics
 
     /// <summary>
     /// One table: each id with its spelling, within the limits. A spelling is admitted when
     /// <paramref name="isSpelling"/> accepts it by the grammar of its table's type (<paramref name="kind"/>), and is
     /// kept as written beside the value <paramref name="parse"/> reads it as.
     /// </summary>
-    let private table
+    let private tableDetailed
         (limits: ContextLimits)
         file
         (tableName: string)
@@ -200,43 +210,49 @@ module internal NameContext =
         (isSpelling: string -> bool)
         (parse: string -> Result<'v, string>)
         (element: JsonElement)
-        : Map<string, TableEntry<'v>> * StoreError list =
+        : Map<string, TableEntry<'v>> * TreeDiagnostic list =
         let where = $"context.{tableName}"
+        let tableLocation = V4JsonDecoding.memberAt "$.context" tableName
 
         if
             element.ValueKind
             <> JsonValueKind.Object
         then
-            Map.empty, [ error "context.invalid_entry" file $"{where} is not an object." ]
+            Map.empty, [ locatedError "context.invalid_entry" file tableLocation $"{where} is not an object." ]
         else
             let rawCount = element.EnumerateObject() |> Seq.length
 
             let count =
                 if rawCount > limits.MaxEntries then
                     [
-                        error
+                        locatedError
                             "context.too_many_entries"
                             file
+                            tableLocation
                             $"{where} has {rawCount} entries, and a table holds at most {limits.MaxEntries}."
                     ]
                 else
                     []
 
             let read (id: string, value: JsonElement) =
+                let entryLocation = V4JsonDecoding.memberAt tableLocation id
+
                 if not (isAliasId id) then
                     Error(
-                        error
+                        locatedError
                             "context.invalid_entry"
                             file
+                            entryLocation
                             $"{where} has the alias id '{id}'; an id is ASCII letters and digits, starting with a letter."
                     )
                 else
                     match tryString value with
                     | None ->
                         Error(
-                            error
+                            locatedError
                                 "context.invalid_entry"
                                 file
+                                entryLocation
                                 $"{where}.{id} is not a valid Unicode string."
                         )
                     | Some spelling ->
@@ -244,16 +260,18 @@ module internal NameContext =
 
                         if bytes > limits.MaxNameLength then
                             Error(
-                                error
+                                locatedError
                                     "context.name_too_long"
                                     file
+                                    entryLocation
                                     $"{where}.{id} is {bytes} bytes long, and a spelling has at most {limits.MaxNameLength}."
                             )
                         elif not (isSpelling spelling) then
                             Error(
-                                error
+                                locatedError
                                     "context.invalid_entry"
                                     file
+                                    entryLocation
                                     $"{where}.{id} is '{spelling}', which is not {kind}."
                             )
                         else
@@ -261,9 +279,10 @@ module internal NameContext =
                             | Ok parsed -> Ok(id, { Spelling = spelling; Value = parsed })
                             | Error message ->
                                 Error(
-                                    error
+                                    locatedError
                                         "context.invalid_entry"
                                         file
+                                        entryLocation
                                         $"{where}.{id} is '{spelling}', which is not {kind}: {message}"
                                 )
 
@@ -271,7 +290,7 @@ module internal NameContext =
             if not count.IsEmpty then
                 Map.empty, count
             else
-                let entries, duplicates = membersOnce file where element
+                let entries, duplicates = membersOnceDetailed file where tableLocation element
                 let results =
                     entries
                     |> List.map read
@@ -306,22 +325,21 @@ module internal NameContext =
     }
 
     /// <summary>
-    /// The tables of a context, with the envelope's <paramref name="critical"/> list, and the problems found:
-    /// duplicate members, malformed or over-limit tables, and spellings that are not of their table's type. Unknown
-    /// members of the context are ignored.
+    /// The tables of a context, with the envelope's <paramref name="critical"/> list, and the structured diagnostics
+    /// carrying each entry's JSONPath location. Unknown members of the context are ignored.
     /// </summary>
-    let read (limits: ContextLimits) file (critical: string list) (context: JsonElement) : FileContext * StoreError list =
+    let readDetailed (limits: ContextLimits) file (critical: string list) (context: JsonElement) : FileContext * TreeDiagnostic list =
         if context.ValueKind <> JsonValueKind.Object then
-            empty critical, [ error "context.invalid_envelope" file "The envelope's context is not an object." ]
+            empty critical, [ locatedError "context.invalid_envelope" file "$.context" "The envelope's context is not an object." ]
         else
-            let members, duplicates = membersOnce file "The context" context
+            let members, duplicates = membersOnceDetailed file "The context" "$.context" context
 
             let tableOf name kind isSpelling parse =
                 match
                     members
                     |> List.tryFind (fun (key, _) -> key = name)
                 with
-                | Some(_, element) -> table limits file name kind isSpelling parse element
+                | Some(_, element) -> tableDetailed limits file name kind isSpelling parse element
                 | None -> Map.empty, []
 
             let name = "a name: words and initialisms joined by '-'"
@@ -344,3 +362,12 @@ module internal NameContext =
             @ packageProblems
             @ moduleProblems
             @ fqNameProblems
+
+    /// <summary>
+    /// The tables of a context, with the envelope's <paramref name="critical"/> list, and the problems found:
+    /// duplicate members, malformed or over-limit tables, and spellings that are not of their table's type. Unknown
+    /// members of the context are ignored.
+    /// </summary>
+    let read (limits: ContextLimits) file (critical: string list) (context: JsonElement) : FileContext * StoreError list =
+        let ctx, diagnostics = readDetailed limits file critical context
+        ctx, StoreErrors.toStoreErrors diagnostics

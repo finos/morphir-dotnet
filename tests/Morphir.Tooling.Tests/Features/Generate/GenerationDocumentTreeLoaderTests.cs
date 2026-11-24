@@ -154,7 +154,9 @@ public sealed class GenerationDocumentTreeLoaderTests
         var treePath = CopyOrdersTree(sandbox.Work, "v4", baseProfile, $"ambiguous-{firstManifest}-{secondManifest}");
         File.WriteAllText(
             Path.Combine(treePath, secondManifest),
-            secondManifest.EndsWith(".ion", StringComparison.Ordinal) ? "morphir::{}" : DocumentTreeMother.YamlDocuments.minimalV4PlainYaml);
+            secondManifest.EndsWith(".ion", StringComparison.Ordinal)
+                ? DocumentTreeMother.YamlDocuments.minimalIonManifest
+                : DocumentTreeMother.YamlDocuments.minimalV4PlainYaml);
 
         foreach (var format in new[] { InputFormat.Auto, InputFormat.Json, InputFormat.Yaml, InputFormat.Ion })
         {
@@ -208,11 +210,29 @@ public sealed class GenerationDocumentTreeLoaderTests
     }
 
     [Test]
+    public async Task PreservesStructuredNestedContextValidationLocationInGenerationReport()
+    {
+        await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
+        var yamlPath = Path.Combine(sandbox.Work, "invalid-context.yaml");
+        File.WriteAllText(yamlPath, DocumentTreeMother.YamlDocuments.contextualYamlWithInvalidAliasEntry);
+
+        var output = Path.Combine(sandbox.Work, "out");
+        var overrides = new GenerateOverrides(yamlPath, "fsharp", output, "yaml");
+        var outcome = await RunGenerateAsync(yamlPath, "fsharp", output, "yaml");
+        var report = GenerationReport.From(outcome, overrides);
+
+        report.Success.Should().BeFalse();
+        report.Diagnostics.Should().NotBeEmpty();
+        report.Diagnostics[0].Code.Should().Be("context.invalid_entry");
+        report.Diagnostics[0].Location.Should().Be("$.context.names.bad");
+    }
+
+    [Test]
     public async Task EnforcesSharedAggregateExpansionByteBudgetAcrossTreeMembers()
     {
         await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
         var treePath = Path.Combine(sandbox.Work, "aggregate-expansion");
-        var documents = DocumentTreeMother.YamlDocuments.compactedTwoMemberExpandingTree(400);
+        var documents = DocumentTreeMother.YamlDocuments.CompactedTwoMemberExpandingTree(400);
         foreach (var pair in documents)
         {
             var target = Path.Combine(treePath, pair.Key.Replace('/', Path.DirectorySeparatorChar));

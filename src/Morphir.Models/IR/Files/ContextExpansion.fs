@@ -52,7 +52,10 @@ module internal ContextExpansion =
                     if span.Length >= 3 && span[0] = 0xEFuy && span[1] = 0xBBuy && span[2] = 0xBFuy then
                         span.Slice 3
                     else span
-                let mutable reader = Utf8JsonReader(json, JsonReaderOptions(MaxDepth = maxDepth + 1))
+                let readerMaxDepth =
+                    if maxDepth >= Int32.MaxValue then Int32.MaxValue
+                    else maxDepth + 1
+                let mutable reader = Utf8JsonReader(json, JsonReaderOptions(MaxDepth = readerMaxDepth))
                 let mutable nodes = 0
                 let mutable refusal = None
 
@@ -1361,14 +1364,13 @@ module internal ContextExpansion =
         let written =
             try
                 if maxOutput = Some 0L then raise ContextExpansionLimit
+                let writerMaxDepth =
+                    if limits.MaxDepth >= Int32.MaxValue - 8 then Int32.MaxValue
+                    else limits.MaxDepth + 8
                 use writer =
                     new Utf8JsonWriter(
                         buffer,
-                        JsonWriterOptions(
-                            MaxDepth =
-                                limits.MaxDepth
-                                + 8
-                        )
+                        JsonWriterOptions(MaxDepth = writerMaxDepth)
                     )
 
                 let checkSize additionalBytes =

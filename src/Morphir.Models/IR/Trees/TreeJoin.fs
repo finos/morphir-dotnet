@@ -159,15 +159,24 @@ module internal TreeJoin =
         let byAddress = Map.ofList documents
 
         let byLogicalPath (addressOf: 'a -> ModuleDocumentAddress) (items: 'a list) =
-            items
-            |> List.sortWith (fun a b ->
-                ct.ThrowIfCancellationRequested()
+            ct.ThrowIfCancellationRequested()
 
-                System.String.CompareOrdinal(
-                    logicalPath (scope (addressOf a)),
-                    logicalPath (scope (addressOf b))
+            try
+                items
+                |> List.sortWith (fun a b ->
+                    ct.ThrowIfCancellationRequested()
+
+                    System.String.CompareOrdinal(
+                        logicalPath (scope (addressOf a)),
+                        logicalPath (scope (addressOf b))
+                    )
                 )
-            )
+            with :? System.InvalidOperationException as ex ->
+                match ex.InnerException with
+                | :? System.OperationCanceledException as canceled ->
+                    System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(canceled).Throw()
+                    reraise ()
+                | _ -> reraise ()
 
         /// The members of one kind that a module document lists, each read from its own document.
         let members

@@ -252,7 +252,7 @@ type StoreError =
 /// separately from <see cref="Message"/>, avoiding string splitting on punctuation inside member names.
 /// </summary>
 [<Sealed>]
-type TreeDiagnostic internal (code: string, file: string option, location: string option, position: string, message: string) =
+type TreeDiagnostic internal (code: string, file: string option, location: string option, position: string, message: string, legacyMessage: string option) =
     /// <summary>The stable diagnostic code.</summary>
     member _.Code = code
     /// <summary>The file, as a physical path from the tree's root, or none for an error of the whole tree.</summary>
@@ -270,9 +270,12 @@ type TreeDiagnostic internal (code: string, file: string option, location: strin
     /// <summary>Converts to a legacy <see cref="StoreError"/> preserving the formatted location prefix in <see cref="StoreError.Message"/>.</summary>
     member internal _.ToStoreError() : StoreError =
         let formatted =
-            match location with
-            | Some loc -> $"{loc}{position}: {message}"
-            | None -> if String.IsNullOrEmpty position then message else $"{message}{position}"
+            match legacyMessage with
+            | Some legacy -> legacy
+            | None ->
+                match location with
+                | Some loc -> $"{loc}{position}: {message}"
+                | None -> if String.IsNullOrEmpty position then message else $"{message}{position}"
 
         {
             Code = code
@@ -365,16 +368,19 @@ module internal StoreErrors =
     }
 
     let diagnostic code file message =
-        TreeDiagnostic(code, file, None, "", message)
+        TreeDiagnostic(code, file, None, "", message, None)
 
     let located code file location message =
-        TreeDiagnostic(code, file, Some location, "", message)
+        TreeDiagnostic(code, file, Some location, "", message, None)
+
+    let locatedLegacy code file location message legacyMessage =
+        TreeDiagnostic(code, file, Some location, "", message, Some legacyMessage)
 
     let locatedWithPosition code file location position message =
-        TreeDiagnostic(code, file, Some location, position, message)
+        TreeDiagnostic(code, file, Some location, position, message, None)
 
     let ofStoreError (e: StoreError) =
-        TreeDiagnostic(e.Code, e.File, None, "", e.Message)
+        TreeDiagnostic(e.Code, e.File, None, "", e.Message, None)
 
     let toStoreErrors (diagnostics: TreeDiagnostic list) =
         diagnostics |> List.map (fun d -> d.ToStoreError())

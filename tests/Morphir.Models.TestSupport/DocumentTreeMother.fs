@@ -1178,6 +1178,21 @@ module YamlDocuments =
     let nestedYamlKeyWithColonSpace =
         "formatVersion: 4\nouter:\n  \"note: detail\": &bad 1\n"
 
+    /// A minimal Ion manifest stub used to construct ambiguous multi-manifest tree fixtures.
+    let minimalIonManifest = "morphir::{}"
+
+    /// A contextual YAML manifest whose ignored context field contains quotes that double in size when
+    /// transcoded to JSON, so the transcoded envelope exceeds a tight byte allowance while both raw YAML
+    /// bytes and the expanded plain document fit.
+    let contextualYamlWithEscapedEnvelopeOverhead (quoteCount: int) : string =
+        let quotes = System.String('"', quoteCount)
+        $"$schema: \"{MorphirFile.Draft1Schema}\"\ncontext:\n  ignoredNote: |\n    {quotes}\ndocument:\n  formatVersion: 4\n  distribution: Library\n  package: \"acme/orders\"\n  pathBudget: 4000\n"
+
+    /// A contextual YAML manifest with an invalid alias entry under <c>context.names.bad</c> to test
+    /// structured nested context validation locations.
+    let contextualYamlWithInvalidAliasEntry =
+        $"$schema: \"{MorphirFile.Draft1Schema}\"\ncontext:\n  names:\n    bad: \"Not_A_Canonical_Name\"\ndocument:\n  formatVersion: 4\n  distribution: Library\n  package: \"acme/orders\"\n  pathBudget: 4000\n"
+
     /// A valid v4 JSON document tree with two compacted value members whose aliases each expand to
     /// ~3 * longWordLength bytes so each member fits individually under a tight budget while their
     /// aggregate expanded bytes exceed it.
@@ -1198,3 +1213,14 @@ module YamlDocuments =
             "pkg/acme/orders/domain/alpha.value.json", valueJson "alpha"
             "pkg/acme/orders/domain/beta.value.json", valueJson "beta"
         ]
+
+    /// For C# callers: exposes <see cref="compactedTwoMemberExpandingTree"/> as a .NET read-only dictionary.
+    [<CompiledName("CompactedTwoMemberExpandingTree")>]
+    let compactedTwoMemberExpandingTreeEntries (longWordLength: int) : System.Collections.Generic.IReadOnlyDictionary<string, string> =
+        let entries = System.Collections.Generic.Dictionary<string, string>(System.StringComparer.Ordinal)
+
+        for KeyValue(path, content) in compactedTwoMemberExpandingTree longWordLength do
+            entries[path] <- content
+
+        System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(entries)
+        :> System.Collections.Generic.IReadOnlyDictionary<string, string>

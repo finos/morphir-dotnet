@@ -1,5 +1,10 @@
 using Eleven19.IonDotnet.Builders;
+using System.Text;
 using System.Text.Json;
+using Morphir.Files;
+using Morphir.IR.Trees;
+using Morphir.Json.Classic;
+using Morphir.Json.V4;
 using Morphir.Testing;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
@@ -10,13 +15,13 @@ internal static class GenerationInputFixtures
     {
         var fixtures = Path.Combine(GenerateSteps.RepositoryRoot(), "tests", "Fixtures", "MorphirIon");
         Directory.CreateDirectory(directory);
-        if (format == "json")
+        if (format is "json" or "yaml" or "json-tree" or "yaml-tree")
         {
             var json = version.StartsWith('4') ? GenerateSteps.V4Model :
                 version is "1" or "2" ? File.ReadAllText(Path.Combine(GenerateSteps.RepositoryRoot(), "examples", "car-rental", "models", $"car-rental-v{version}.json")) :
                 File.ReadAllText(Path.Combine(fixtures, "pairs", "v3-daily-rate.json"));
             if (version.Contains('.')) json = json.Replace("\"formatVersion\":3", $"\"formatVersion\":\"{version}\"").Replace("\"formatVersion\":4", $"\"formatVersion\":\"{version}\"");
-            var path = Path.Combine(directory, "model.json"); File.WriteAllText(path, json); return path;
+            return WriteJsonOrYamlRepresentation(directory, version, format, json);
         }
         if (format == "tree")
         {
@@ -56,17 +61,172 @@ internal static class GenerationInputFixtures
             File.WriteAllText(Path.Combine(module, "value.value.ion"), $"public::def::value::{{{value}}}");
             return directory;
         }
-        if (format == "json")
+        if (format is "json" or "yaml" or "json-tree" or "yaml-tree")
         {
-            var path = DailyRate(directory, version, "json");
-            var json = File.ReadAllText(path).Replace("inventory", "literals").Replace("daily-rate", "value").Replace("[\"daily\",\"rate\"]", "[\"value\"]");
+            var jsonPath = DailyRate(directory, version, "json");
+            var json = File.ReadAllText(jsonPath).Replace("inventory", "literals").Replace("daily-rate", "value").Replace("[\"daily\",\"rate\"]", "[\"value\"]");
             if (version.StartsWith('4')) json = json.Replace("\"WholeNumberLiteral\": 5000", $"\"{(isDecimal ? "DecimalLiteral" : "WholeNumberLiteral")}\": {payload}");
             else json = json.Replace("[\"WholeNumberLiteral\",5000]", $"[\"{(isDecimal ? "DecimalLiteral" : "WholeNumberLiteral")}\",{(isDecimal ? ((GenerationScalars.Scalar.Decimal)scalar.Input).Item : payload)}]");
             if (isDecimal) json = json.Replace("morphir/SDK:basics#int", type).Replace("[[\"basics\"]],[\"int\"]", "[[\"decimal\"]],[\"decimal\"]");
-            File.WriteAllText(path, json); return path;
+            return WriteJsonOrYamlRepresentation(directory, version, format, json);
         }
         return WriteIon(directory, format, header + $" public::def::module::{{name:\"literals\"}} public::def::value::{{module:\"literals\",name:\"value\",{value}}} morphir_footer::{{}}");
     }
+
+    private static string WriteJsonOrYamlRepresentation(string directory, string version, string format, string json)
+    {
+        if (format == "json")
+        {
+            var path = Path.Combine(directory, "model.json");
+            File.WriteAllText(path, json);
+            return path;
+        }
+
+        if (format == "yaml")
+        {
+            var path = Path.Combine(directory, "model.yaml");
+            File.WriteAllText(path, JsonToYaml(json));
+            return path;
+        }
+
+        using var parsed = JsonDocument.Parse(json);
+        StoredTree storedTree;
+        if (version.StartsWith('4'))
+        {
+            var decoded = V4Json.readDistribution(parsed.RootElement);
+            if (decoded.IsError) throw new InvalidOperationException($"Failed to read v4 fixture: {decoded.ErrorValue}");
+            storedTree = StoredTree.NewV4Tree(V4DocumentTreeModule.Split(decoded.ResultValue.Distribution));
+        }
+        else
+        {
+            var decoded = ClassicJson.readDistribution(parsed.RootElement);
+            if (decoded.IsError) throw new InvalidOperationException($"Failed to read classic fixture: {decoded.ErrorValue}");
+            storedTree = StoredTree.NewClassicTree(ClassicDocumentTree.Split(decoded.ResultValue.Distribution));
+        }
+
+        var written = DocumentTreeStore.Write(WriteOptionsModule.defaults, storedTree);
+        if (written.IsError) throw new InvalidOperationException($"Failed to write document tree fixture: {string.Join("; ", written.ErrorValue)}");
+
+        var treeRoot = Path.Combine(directory, format);
+        Directory.CreateDirectory(treeRoot);
+        var isYamlTree = format == "yaml-tree";
+
+        foreach (var entry in written.ResultValue.FilesByLocation)
+        {
+            var text = VFileModule.readText(entry.Value).ResultValue;
+            if (entry.Key == "manifest.json" && version == "4.0.0")
+                text = text.Replace("\"formatVersion\":4", "\"formatVersion\":\"4.0.0\"").Replace("\"formatVersion\": 4", "\"formatVersion\": \"4.0.0\"");
+
+            var relativePath = isYamlTree ? Path.ChangeExtension(entry.Key, ".yaml") : entry.Key;
+            var targetPath = Path.Combine(treeRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+            File.WriteAllText(targetPath, isYamlTree ? JsonToYaml(text) : text);
+        }
+
+        return treeRoot;
+    }
+
+    private static string JsonToYaml(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        var builder = new StringBuilder();
+        WriteYamlValue(builder, document.RootElement, 0);
+        builder.Append('\n');
+        return builder.ToString();
+    }
+
+    private static void WriteYamlValue(StringBuilder builder, JsonElement element, int indent)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                {
+                    var properties = element.EnumerateObject().ToArray();
+                    if (properties.Length == 0)
+                    {
+                        builder.Append("{}");
+                        return;
+                    }
+
+                    for (var i = 0; i < properties.Length; i++)
+                    {
+                        if (i > 0)
+                        {
+                            builder.Append('\n');
+                            builder.Append(' ', indent);
+                        }
+
+                        builder.Append(JsonSerializer.Serialize(properties[i].Name));
+                        builder.Append(':');
+                        if (IsBlockContainer(properties[i].Value))
+                        {
+                            builder.Append('\n');
+                            builder.Append(' ', indent + 2);
+                            WriteYamlValue(builder, properties[i].Value, indent + 2);
+                        }
+                        else
+                        {
+                            builder.Append(' ');
+                            WriteYamlValue(builder, properties[i].Value, indent + 2);
+                        }
+                    }
+                    return;
+                }
+            case JsonValueKind.Array:
+                {
+                    var items = element.EnumerateArray().ToArray();
+                    if (items.Length == 0)
+                    {
+                        builder.Append("[]");
+                        return;
+                    }
+
+                    for (var i = 0; i < items.Length; i++)
+                    {
+                        if (i > 0)
+                        {
+                            builder.Append('\n');
+                            builder.Append(' ', indent);
+                        }
+
+                        builder.Append('-');
+                        if (IsBlockContainer(items[i]))
+                        {
+                            builder.Append('\n');
+                            builder.Append(' ', indent + 2);
+                            WriteYamlValue(builder, items[i], indent + 2);
+                        }
+                        else
+                        {
+                            builder.Append(' ');
+                            WriteYamlValue(builder, items[i], indent + 2);
+                        }
+                    }
+                    return;
+                }
+            case JsonValueKind.String:
+                builder.Append(JsonSerializer.Serialize(element.GetString()!));
+                return;
+            case JsonValueKind.Number:
+                builder.Append(element.GetRawText());
+                return;
+            case JsonValueKind.True:
+                builder.Append("true");
+                return;
+            case JsonValueKind.False:
+                builder.Append("false");
+                return;
+            case JsonValueKind.Null:
+                builder.Append("null");
+                return;
+            default:
+                throw new InvalidOperationException($"Unsupported JSON value kind: {element.ValueKind}");
+        }
+    }
+
+    private static bool IsBlockContainer(JsonElement element) =>
+        (element.ValueKind == JsonValueKind.Object && element.EnumerateObject().Any())
+        || (element.ValueKind == JsonValueKind.Array && element.GetArrayLength() > 0);
 
     private static string WriteIon(string directory, string format, string text)
     {
@@ -75,7 +235,7 @@ internal static class GenerationInputFixtures
         if (format == "text") File.WriteAllText(input, text);
         else
         {
-            using var reader = IonReaderBuilder.Build(new MemoryStream(System.Text.Encoding.UTF8.GetBytes(text)));
+            using var reader = IonReaderBuilder.Build(new MemoryStream(Encoding.UTF8.GetBytes(text)));
             using var output = new MemoryStream();
             using var writer = IonBinaryWriterBuilder.Build(output);
             writer.WriteValues(reader); writer.Finish();

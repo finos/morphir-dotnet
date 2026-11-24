@@ -341,7 +341,7 @@ module internal TreeFileSource =
         MaxFileBytes: int64
         EnforceExpansionBytes: bool
         RemainingTotalBytes: unit -> int64 option
-        ConsumeTotalBytes: int64 -> unit
+        TryConsumeTotalBytes: int64 -> bool
         ContextLimits: ContextLimits
         MaxNodes: int option
         RemainingNodes: unit -> int
@@ -365,10 +365,19 @@ module internal TreeFileSource =
             MaxFileBytes = maxFileBytes
             EnforceExpansionBytes = true
             RemainingTotalBytes = fun () -> if maxTotalBytes.IsSome then Some remainingBytes else None
-            ConsumeTotalBytes =
+            TryConsumeTotalBytes =
                 fun used ->
-                    if maxTotalBytes.IsSome then
-                        remainingBytes <- max 0L (remainingBytes - max 0L used)
+                    if maxTotalBytes.IsNone then
+                        true
+                    else
+                        let charge = max 0L used
+
+                        if charge > remainingBytes then
+                            remainingBytes <- 0L
+                            false
+                        else
+                            remainingBytes <- remainingBytes - charge
+                            true
             ContextLimits = ContextLimits.draft1.WithMaxDepth maxDepth
             MaxNodes = maxNodes
             RemainingNodes = fun () -> remainingNodes
@@ -387,7 +396,7 @@ module internal TreeFileSource =
             MaxFileBytes = maxFileBytes
             EnforceExpansionBytes = false
             RemainingTotalBytes = fun () -> None
-            ConsumeTotalBytes = fun _ -> ()
+            TryConsumeTotalBytes = fun _ -> true
             ContextLimits = ContextLimits.draft1
             MaxNodes = None
             RemainingNodes = fun () -> Int32.MaxValue
@@ -487,19 +496,33 @@ module internal TreeFileSource =
         : Result<JsonElement * bool, TreeDiagnostic list> =
         ctx.Cancellation.ThrowIfCancellationRequested()
 
+        let activeByteLimit () =
+            let perFile =
+                if ctx.MaxFileBytes < Int64.MaxValue then
+                    Some ctx.MaxFileBytes
+                else
+                    None
+
+            match perFile, ctx.RemainingTotalBytes () with
+            | Some a, Some b -> Some(min a b)
+            | Some a, None -> Some a
+            | None, Some b -> Some b
+            | None, None -> None
+
+        let aggregateByteError () =
+            Error [
+                StoreErrors.diagnostic
+                    "tree.file_too_large"
+                    (Some location)
+                    "The decoded tree files exceed the aggregate byte limit."
+            ]
+
         let expandFile (rawNodes: int) (plainBytes: int64) (file: MorphirFile<JsonElement>) =
             match file.Context with
             | None ->
-                match ctx.RemainingTotalBytes () with
-                | Some remaining when plainBytes > remaining ->
-                    Error [
-                        StoreErrors.diagnostic
-                            "tree.file_too_large"
-                            (Some location)
-                            "The decoded tree files exceed the aggregate byte limit."
-                    ]
-                | _ ->
-                    ctx.ConsumeTotalBytes plainBytes
+                if not (ctx.TryConsumeTotalBytes plainBytes) then
+                    aggregateByteError ()
+                else
                     ctx.ConsumeNodes rawNodes
                     Ok(file.Document, false)
             | Some context ->
@@ -509,32 +532,29 @@ module internal TreeFileSource =
                     if not ctx.EnforceExpansionBytes then
                         None
                     else
-                        let perFile =
-                            if ctx.MaxFileBytes < Int64.MaxValue then
-                                Some ctx.MaxFileBytes
-                            else
-                                None
+                        activeByteLimit ()
 
-                        match perFile, ctx.RemainingTotalBytes () with
-                        | Some a, Some b -> Some(min a b)
-                        | Some a, None -> Some a
-                        | None, Some b -> Some b
-                        | None, None -> None
+                match ctx.RemainingTotalBytes () with
+                | Some remaining when plainBytes > remaining -> aggregateByteError ()
+                | _ ->
+                    ContextExpansion.expandCountedDetailed
+                        ctx.ContextLimits
+                        byteLimit
+                        expandLimit
+                        ctx.Cancellation
+                        (MorphirFile.familyOf file.Document)
+                        location
+                        context
+                        file.Document
+                    |> Result.bind (fun (expanded, expandedNodes, expandedBytes) ->
+                        let charge = max plainBytes expandedBytes
 
-                ContextExpansion.expandCountedDetailed
-                    ctx.ContextLimits
-                    byteLimit
-                    expandLimit
-                    ctx.Cancellation
-                    (MorphirFile.familyOf file.Document)
-                    location
-                    context
-                    file.Document
-                |> Result.map (fun (expanded, expandedNodes, expandedBytes) ->
-                    ctx.ConsumeTotalBytes(max plainBytes expandedBytes)
-                    ctx.ConsumeNodes(max rawNodes expandedNodes)
-                    expanded, true
-                )
+                        if not (ctx.TryConsumeTotalBytes charge) then
+                            aggregateByteError ()
+                        else
+                            ctx.ConsumeNodes(max rawNodes expandedNodes)
+                            Ok(expanded, true)
+                    )
 
         match ctx.Profile with
         | TreeProfile.Json ->
@@ -549,8 +569,7 @@ module internal TreeFileSource =
                 encoded
             |> Result.mapError (List.map StoreErrors.ofStoreError)
             |> Result.bind (fun rawNodes ->
-                MorphirFile.readEnvelope ctx.ContextLimits location encoded
-                |> Result.mapError (List.map StoreErrors.ofStoreError)
+                MorphirFile.readEnvelopeDetailed ctx.ContextLimits location encoded
                 |> Result.bind (expandFile rawNodes (int64 bytes.Length))
             )
         | TreeProfile.Yaml ->
@@ -563,12 +582,12 @@ module internal TreeFileSource =
                 true
                 ctx.ContextLimits.MaxDepth
                 yamlLimit
+                (activeByteLimit ())
                 ctx.Cancellation
                 location
                 bytes
             |> Result.bind (fun (root, rawNodes, jsonBytes) ->
-                MorphirFile.readEnvelopeRoot ContextOrder.WholeFile ctx.ContextLimits location root
-                |> Result.mapError (List.map StoreErrors.ofStoreError)
+                MorphirFile.readEnvelopeRootDetailed ContextOrder.WholeFile ctx.ContextLimits location root
                 |> Result.bind (expandFile rawNodes (max (int64 bytes.Length) jsonBytes))
             )
 
