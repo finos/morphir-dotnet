@@ -1454,6 +1454,58 @@ public sealed class MepDocumentTreeGenerationTests
     }
 
     [Test]
+    [Arguments("plain-json", "-0", false)]
+    [Arguments("plain-json", "-0.00", false)]
+    [Arguments("plain-json", "1.00000000000000000000000000000", false)]
+    [Arguments("plain-json", "-0", true)]
+    [Arguments("plain-json", "-0.00", true)]
+    [Arguments("plain-json", "1.00000000000000000000000000000", true)]
+    [Arguments("plain-yaml", "-0", false)]
+    [Arguments("plain-yaml", "-0.00", false)]
+    [Arguments("plain-yaml", "1.00000000000000000000000000000", false)]
+    [Arguments("plain-yaml", "-0", true)]
+    [Arguments("plain-yaml", "-0.00", true)]
+    [Arguments("plain-yaml", "1.00000000000000000000000000000", true)]
+    public async Task Draft1FallbackRefusesClassic31TreeWithLossyDecimalSignOrScale(string profile, string lexeme, bool inPattern)
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var inputPath = GenerationInputFixtures.ClassicOrdersTreeWithDecimal(sandbox.PathOf("input"), profile, lexeme, inPattern);
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "acme/orders"
+
+            [codegen.text]
+            extension = "draft1"
+
+            [extensions.draft1]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var guest = new Draft1OnlyChannelGuest();
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: inputPath, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var failure = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+        failure.Kind.Should().Be(GenerationFailureKind.Semantic);
+        failure.Diagnostics.Should().Contain(d => d.Code == "data.lossy_conversion");
+        guest.GenerateCalls.Should().Be(0);
+    }
+
+    [Test]
     public async Task Draft1HostConversionReportsJsonWriterDepthLimitSeparatelyFromLossyConversion()
     {
         using var sandbox = TestSandbox.Create();

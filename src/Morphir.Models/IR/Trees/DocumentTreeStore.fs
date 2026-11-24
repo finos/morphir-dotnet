@@ -483,6 +483,68 @@ module DocumentTreeStore =
 
             let normalizePath (path: string) = path.Replace('\\', '/').Trim('/')
 
+            let findLossyClassicDecimal (root: System.Text.Json.JsonElement) : string option =
+                let stack = System.Collections.Generic.Stack<System.Text.Json.JsonElement>()
+                stack.Push root
+                let mutable lossy: string option = None
+
+                while lossy.IsNone && stack.Count > 0 do
+                    let current = stack.Pop()
+
+                    match current.ValueKind with
+                    | System.Text.Json.JsonValueKind.Object ->
+                        for prop in current.EnumerateObject() do
+                            stack.Push prop.Value
+                    | System.Text.Json.JsonValueKind.Array ->
+                        let length = current.GetArrayLength()
+
+                        if length = 3 && current[0].ValueKind = System.Text.Json.JsonValueKind.String then
+                            let outerTag = current[0].GetString()
+
+                            if
+                                outerTag = "Literal"
+                                || outerTag = "literal"
+                                || outerTag = "LiteralPattern"
+                                || outerTag = "literal_pattern"
+                            then
+                                let litElem = current[2]
+
+                                if
+                                    litElem.ValueKind = System.Text.Json.JsonValueKind.Array
+                                    && litElem.GetArrayLength() = 2
+                                    && litElem[0].ValueKind = System.Text.Json.JsonValueKind.String
+                                then
+                                    let litTag = litElem[0].GetString()
+
+                                    if litTag = "DecimalLiteral" || litTag = "decimal_literal" then
+                                        let data = litElem[1]
+
+                                        let lexeme =
+                                            match data.ValueKind with
+                                            | System.Text.Json.JsonValueKind.String ->
+                                                match data.GetString() with
+                                                | null -> None
+                                                | text -> Some text
+                                            | System.Text.Json.JsonValueKind.Number -> Some(data.GetRawText())
+                                            | _ -> None
+
+                                        match lexeme with
+                                        | Some raw ->
+                                            match Morphir.IR.V4.DecimalLexeme.create raw with
+                                            | Ok _ when not (Morphir.IR.V4.DecimalLexeme.isLosslessClassicDecimal raw) ->
+                                                lossy <- Some raw
+                                            | _ -> ()
+                                        | None -> ()
+
+                        if lossy.IsNone then
+                            for i = length - 1 downto 0 do
+                                stack.Push current[i]
+                    | _ -> ()
+
+                lossy
+
+            let isClassicSnapshot = snapshot.IrVersion <> "4.0.0"
+
             let stageFile (sourceLocation: string) (doc: BoundedTreeExportDocument) =
                 cancellationToken.ThrowIfCancellationRequested()
 
@@ -507,10 +569,25 @@ module DocumentTreeStore =
                                     $"Converting document tree to single-document JSON would drop '$meta' in {sourceLocation}; lossy conversion is refused by default."
                             ]
                         else
-                            consumedSources.Add(normalizePath sourceLocation) |> ignore
-                            staged.Add(doc.File, Morphir.Files.VFile.ofBytes doc.File (System.ReadOnlyMemory bytes))
-                            retained.Add(System.Collections.Generic.KeyValuePair(doc.File, bytes))
-                            Ok()
+                            let lossyDecimal =
+                                if isClassicSnapshot then
+                                    findLossyClassicDecimal parsed.RootElement
+                                else
+                                    None
+
+                            match lossyDecimal with
+                            | Some lexeme ->
+                                Error [
+                                    error
+                                        "data.lossy_conversion"
+                                        (Some sourceLocation)
+                                        $"Converting Classic document tree to single-document JSON would lose precision, scale, or sign on decimal literal '{lexeme}' in {sourceLocation}; lossy conversion is refused by default."
+                                ]
+                            | None ->
+                                consumedSources.Add(normalizePath sourceLocation) |> ignore
+                                staged.Add(doc.File, Morphir.Files.VFile.ofBytes doc.File (System.ReadOnlyMemory bytes))
+                                retained.Add(System.Collections.Generic.KeyValuePair(doc.File, bytes))
+                                Ok()
                     with :? System.Text.Json.JsonException ->
                         Error [
                             error

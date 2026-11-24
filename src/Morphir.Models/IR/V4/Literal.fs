@@ -212,6 +212,60 @@ module DecimalLexeme =
             (exponent
              - BigInteger fractionLength) = held
 
+    /// <summary>
+    /// Whether a Classic decimal literal lexeme round-trips through <see cref="Decimal"/> and its invariant
+    /// string representation without losing sign (such as <c>-0</c> or <c>-0.00</c>), precision, or scale
+    /// (such as scale greater than 28). The lexeme must satisfy the decimal grammar.
+    /// </summary>
+    let isLosslessClassicDecimal (lexeme: string) : bool =
+        let mutable number = 0m
+
+        let parsed =
+            Decimal.TryParse(
+                lexeme,
+                NumberStyles.Number
+                ||| NumberStyles.AllowExponent,
+                CultureInfo.InvariantCulture,
+                &number
+            )
+
+        if not parsed || not (holdsExactly lexeme number) then
+            false
+        else
+            let isNegative = lexeme.StartsWith("-", StringComparison.Ordinal)
+            let unsigned = lexeme.TrimStart('+', '-')
+            let exponentAt = unsigned.IndexOfAny [| 'e'; 'E' |]
+
+            let mantissa, exponent =
+                if exponentAt < 0 then
+                    unsigned, BigInteger.Zero
+                else
+                    unsigned.Substring(0, exponentAt),
+                    BigInteger.Parse(
+                        unsigned.Substring(exponentAt + 1),
+                        NumberStyles.AllowLeadingSign,
+                        CultureInfo.InvariantCulture
+                    )
+
+            let pointAt = mantissa.IndexOf '.'
+
+            let fractionLength =
+                if pointAt < 0 then
+                    0
+                else
+                    mantissa.Length - pointAt - 1
+
+            let exactScale = BigInteger fractionLength - exponent
+            let bits = Decimal.GetBits number
+            let decimalScale = BigInteger((bits[3] >>> 16) &&& 0xFF)
+            let decimalNegative = (bits[3] &&& 0x80000000) <> 0
+            let emitted = number.ToString(CultureInfo.InvariantCulture)
+            let emittedNegative = emitted.StartsWith("-", StringComparison.Ordinal)
+
+            exactScale = decimalScale
+            && isNegative = decimalNegative
+            && isNegative = emittedNegative
+
 /// <summary>A literal constant. A <see cref="DocumentLiteral"/> cannot appear in a literal pattern.</summary>
 type Literal =
     /// <summary>A boolean.</summary>

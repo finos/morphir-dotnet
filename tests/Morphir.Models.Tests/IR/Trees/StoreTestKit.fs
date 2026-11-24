@@ -256,3 +256,160 @@ let ordersTreeWithUndeclaredSchema (version: string) (profile: string) (targetFi
     |> Map.ofSeq
     |> Morphir.Files.VFileTree.fromFileMap
     |> Morphir.Files.VFileProviders.asFileProvider
+
+/// A frozen Classic 3.1 bounded orders tree (plain-json or plain-yaml) with a decimal literal
+/// injected into either an expression or a literal pattern inside pkg/acme/orders/domain/order.value.{json,yaml}.
+let classicOrdersTreeWithDecimal (profile: string) (lexeme: string) (inPattern: bool) =
+    let isYaml = profile.EndsWith("yaml", System.StringComparison.Ordinal)
+    let prefix = Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Directory + "v3.1/" + profile + "/"
+
+    let targetFile =
+        if isYaml then
+            "pkg/acme/orders/domain/order.value.yaml"
+        else
+            "pkg/acme/orders/domain/order.value.json"
+
+    let decimalTypeJson =
+        """["Reference",{},[[["morphir"],["s","d","k"]],[["decimal"]],["decimal"]],[]]"""
+
+    let intTypeJson =
+        """["Reference",{},[[["morphir"],["s","d","k"]],[["basics"]],["int"]],[]]"""
+
+    let valueJson =
+        let quotedLexeme = "\"" + lexeme + "\""
+
+        if inPattern then
+            """{"formatVersion":"3.1.0","name":"order","def":{"access":"Public","value":{"doc":"","value":{"inputTypes":[[["x"],"""
+            + decimalTypeJson
+            + ","
+            + decimalTypeJson
+            + """]],"outputType":"""
+            + intTypeJson
+            + ""","body":["PatternMatch","""
+            + intTypeJson
+            + """,["Variable","""
+            + decimalTypeJson
+            + """,["x"]],[[["LiteralPattern","""
+            + decimalTypeJson
+            + """,["DecimalLiteral","""
+            + quotedLexeme
+            + """]],["Literal","""
+            + intTypeJson
+            + """,["WholeNumberLiteral",1]]],[["WildcardPattern","""
+            + decimalTypeJson
+            + """],["Literal","""
+            + intTypeJson
+            + """,["WholeNumberLiteral",0]]]]]}}}}"""
+        else
+            """{"formatVersion":"3.1.0","name":"order","def":{"access":"Public","value":{"doc":"","value":{"inputTypes":[],"outputType":"""
+            + decimalTypeJson
+            + ""","body":["Literal","""
+            + decimalTypeJson
+            + """,["DecimalLiteral","""
+            + quotedLexeme
+            + """]]}}}}"""
+
+    let valueYaml =
+        if inPattern then
+            $"""formatVersion: 3.1.0
+name: order
+def:
+  access: Public
+  value:
+    doc: ""
+    value:
+      inputTypes:
+        - - [x]
+          - - Reference
+            - {{}}
+            - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+            - []
+          - - Reference
+            - {{}}
+            - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+            - []
+      outputType:
+        - Reference
+        - {{}}
+        - [[[morphir], [s, d, k]], [[basics]], [int]]
+        - []
+      body:
+        - PatternMatch
+        - - Reference
+          - {{}}
+          - [[[morphir], [s, d, k]], [[basics]], [int]]
+          - []
+        - - Variable
+          - - Reference
+            - {{}}
+            - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+            - []
+          - [x]
+        - - - - LiteralPattern
+              - - Reference
+                - {{}}
+                - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+                - []
+              - [DecimalLiteral, "{lexeme}"]
+            - - Literal
+              - - Reference
+                - {{}}
+                - [[[morphir], [s, d, k]], [[basics]], [int]]
+                - []
+              - [WholeNumberLiteral, 1]
+          - - - WildcardPattern
+              - - Reference
+                - {{}}
+                - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+                - []
+            - - Literal
+              - - Reference
+                - {{}}
+                - [[[morphir], [s, d, k]], [[basics]], [int]]
+                - []
+              - [WholeNumberLiteral, 0]
+"""
+        else
+            $"""formatVersion: 3.1.0
+name: order
+def:
+  access: Public
+  value:
+    doc: ""
+    value:
+      inputTypes: []
+      outputType:
+        - Reference
+        - {{}}
+        - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+        - []
+      body:
+        - Literal
+        - - Reference
+          - {{}}
+          - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+          - []
+        - [DecimalLiteral, "{lexeme}"]
+"""
+
+    let files =
+        Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Files
+        |> Seq.filter (fun entry -> entry.RelativePath.StartsWith(prefix, System.StringComparison.Ordinal))
+        |> Seq.map (fun entry ->
+            let location = entry.RelativePath.Substring(prefix.Length)
+
+            if location = targetFile then
+                location, Morphir.Files.VFile.ofText location (if isYaml then valueYaml else valueJson)
+            else
+                let bytes = Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes entry
+                location, Morphir.Files.VFile.ofBytes location (System.ReadOnlyMemory bytes)
+        )
+        |> Map.ofSeq
+
+    let paths =
+        files
+        |> Map.keys
+        |> Seq.toArray
+        :> System.Collections.Generic.IReadOnlyList<string>
+
+    Morphir.Files.VFileProviders.asFileProvider (Morphir.Files.VFileTree.fromFileMap files), paths

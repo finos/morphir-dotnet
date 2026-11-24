@@ -354,6 +354,138 @@ internal static class GenerationInputFixtures
         return directory;
     }
 
+    public static string ClassicOrdersTreeWithDecimal(string directory, string profile, string lexeme, bool inPattern)
+    {
+        CopyBoundedOrdersTree("v3.1", profile, directory);
+        var isYaml = profile.EndsWith("yaml", StringComparison.Ordinal);
+        var orderPath = Path.Combine(directory, "pkg", "acme", "orders", "domain", isYaml ? "order.value.yaml" : "order.value.json");
+        const string decimalTypeJson = """["Reference", {}, [[["morphir"], ["s", "d", "k"]], [["decimal"]], ["decimal"]], []]""";
+        const string intTypeJson = """["Reference", {}, [[["morphir"], ["s", "d", "k"]], [["basics"]], ["int"]], []]""";
+        string content;
+        if (isYaml)
+        {
+            content = inPattern
+                ? $$"""
+                formatVersion: 3.1.0
+                name: order
+                def:
+                  access: Public
+                  value:
+                    doc: ""
+                    value:
+                      inputTypes:
+                        - - [x]
+                          - - Reference
+                            - {}
+                            - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+                            - []
+                          - - Reference
+                            - {}
+                            - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+                            - []
+                      outputType:
+                        - Reference
+                        - {}
+                        - [[[morphir], [s, d, k]], [[basics]], [int]]
+                        - []
+                      body:
+                        - PatternMatch
+                        - - Reference
+                          - {}
+                          - [[[morphir], [s, d, k]], [[basics]], [int]]
+                          - []
+                        - - Variable
+                          - - Reference
+                            - {}
+                            - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+                            - []
+                          - [x]
+                        - - - - LiteralPattern
+                              - - Reference
+                                - {}
+                                - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+                                - []
+                              - [DecimalLiteral, "{{lexeme}}"]
+                            - - Literal
+                              - - Reference
+                                - {}
+                                - [[[morphir], [s, d, k]], [[basics]], [int]]
+                                - []
+                              - [WholeNumberLiteral, 1]
+                          - - - WildcardPattern
+                              - - Reference
+                                - {}
+                                - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+                                - []
+                            - - Literal
+                              - - Reference
+                                - {}
+                                - [[[morphir], [s, d, k]], [[basics]], [int]]
+                                - []
+                              - [WholeNumberLiteral, 0]
+                """
+                : $$"""
+                formatVersion: 3.1.0
+                name: order
+                def:
+                  access: Public
+                  value:
+                    doc: ""
+                    value:
+                      inputTypes: []
+                      outputType:
+                        - Reference
+                        - {}
+                        - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+                        - []
+                      body:
+                        - Literal
+                        - - Reference
+                          - {}
+                          - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+                          - []
+                        - [DecimalLiteral, "{{lexeme}}"]
+                """;
+        }
+        else
+        {
+            content = inPattern
+                ? $$"""
+                {
+                  "formatVersion": "3.1.0",
+                  "name": "order",
+                  "def": {
+                    "access": "Public",
+                    "value": { "doc": "", "value": {
+                      "inputTypes": [[["x"], {{decimalTypeJson}}, {{decimalTypeJson}}]],
+                      "outputType": {{intTypeJson}},
+                      "body": ["PatternMatch", {{intTypeJson}}, ["Variable", {{decimalTypeJson}}, ["x"]], [
+                        [["LiteralPattern", {{decimalTypeJson}}, ["DecimalLiteral", "{{lexeme}}"]], ["Literal", {{intTypeJson}}, ["WholeNumberLiteral", 1]]],
+                        [["WildcardPattern", {{decimalTypeJson}}], ["Literal", {{intTypeJson}}, ["WholeNumberLiteral", 0]]]
+                      ]]
+                    } }
+                  }
+                }
+                """
+                : $$"""
+                {
+                  "formatVersion": "3.1.0",
+                  "name": "order",
+                  "def": {
+                    "access": "Public",
+                    "value": { "doc": "", "value": {
+                      "inputTypes": [],
+                      "outputType": {{decimalTypeJson}},
+                      "body": ["Literal", {{decimalTypeJson}}, ["DecimalLiteral", "{{lexeme}}"]]
+                    } }
+                  }
+                }
+                """;
+        }
+        File.WriteAllText(orderPath, content);
+        return directory;
+    }
+
     private static void CopyBoundedOrdersTree(string versionDir, string profile, string destination)
     {
         var prefix = Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Directory + versionDir + "/" + profile + "/";

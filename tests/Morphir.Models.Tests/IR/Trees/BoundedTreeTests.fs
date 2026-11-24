@@ -2412,4 +2412,65 @@ let discoveryCacheTests =
             Expect.equal detected.Syntax BoundedTreeSyntax.Json "detected long-path JSON syntax"
             Expect.equal detected.NameEncoding BoundedTreeEncoding.Plain "detected long-path plain encoding"
         }
+        test "TryJoinSnapshot refuses Classic 3.1 JSON and YAML trees with lossy decimal sign or scale and accepts lossless decimals" {
+            let lossyLexemes = [ "-0"; "-0.00"; "1.00000000000000000000000000000" ]
+            let losslessLexemes = [ "0.00"; "-1.50"; "1.0000000000000000000000000000" ]
+
+            for profile in [ "plain-json"; "plain-yaml" ] do
+                for inPattern in [ false; true ] do
+                    for lexeme in lossyLexemes do
+                        let provider, paths = StoreTestKit.classicOrdersTreeWithDecimal profile lexeme inPattern
+                        let snapshot =
+                            DocumentTreeStore.openDetectedSnapshot(
+                                ReadOptions.defaults, System.Func<string>(fun () -> "r1"), provider)
+                            |> read
+
+                        let mutable model = Unchecked.defaultof<_>
+                        let mutable files = Unchecked.defaultof<_>
+                        let mutable problems = Unchecked.defaultof<_>
+
+                        let ok =
+                            DocumentTreeStore.tryJoinSnapshot(
+                                snapshot,
+                                paths,
+                                ReadOptions.defaults.MaxFiles,
+                                128,
+                                ReadOptions.defaults.MaxFileBytes,
+                                ReadOptions.defaults.MaxFileBytes,
+                                System.Threading.CancellationToken.None,
+                                &model,
+                                &files,
+                                &problems
+                            )
+
+                        Expect.isFalse ok $"Classic 3.1 {profile} (inPattern={inPattern}, lexeme={lexeme}) must be refused as lossy"
+                        Expect.contains (problems |> Seq.map _.Code |> Seq.toList) "data.lossy_conversion" $"Classic 3.1 {profile} ({lexeme}) code"
+
+                    for lexeme in losslessLexemes do
+                        let provider, paths = StoreTestKit.classicOrdersTreeWithDecimal profile lexeme inPattern
+                        let snapshot =
+                            DocumentTreeStore.openDetectedSnapshot(
+                                ReadOptions.defaults, System.Func<string>(fun () -> "r1"), provider)
+                            |> read
+
+                        let mutable model = Unchecked.defaultof<_>
+                        let mutable files = Unchecked.defaultof<_>
+                        let mutable problems = Unchecked.defaultof<_>
+
+                        let ok =
+                            DocumentTreeStore.tryJoinSnapshot(
+                                snapshot,
+                                paths,
+                                ReadOptions.defaults.MaxFiles,
+                                128,
+                                ReadOptions.defaults.MaxFileBytes,
+                                ReadOptions.defaults.MaxFileBytes,
+                                System.Threading.CancellationToken.None,
+                                &model,
+                                &files,
+                                &problems
+                            )
+
+                        Expect.isTrue ok $"Classic 3.1 {profile} (inPattern={inPattern}, lexeme={lexeme}) must join losslessly"
+        }
     ]

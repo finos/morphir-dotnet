@@ -491,49 +491,11 @@ module IonIr =
                 match Morphir.IR.V4.DecimalLexeme.create lexeme with
                 | Error _ -> Ok()
                 | Ok _ ->
-                    let mutable number = 0m
-
-                    let parsed =
-                        Decimal.TryParse(
-                            lexeme,
-                            NumberStyles.Number ||| NumberStyles.AllowExponent,
-                            CultureInfo.InvariantCulture,
-                            &number
-                        )
-
-                    if not parsed || not (Morphir.IR.V4.DecimalLexeme.holdsExactly lexeme number) then
-                        lossyError
-                            $"Classic Ion decimal literal '{lexeme}' in {location} cannot be represented without losing precision in JSON IR."
+                    if Morphir.IR.V4.DecimalLexeme.isLosslessClassicDecimal lexeme then
+                        Ok()
                     else
-                        let isNegative = lexeme.StartsWith("-", StringComparison.Ordinal)
-                        let unsigned = lexeme.TrimStart('+', '-')
-                        let exponentAt = unsigned.IndexOfAny [| 'e'; 'E' |]
-
-                        let mantissa, exponent =
-                            if exponentAt < 0 then
-                                unsigned, 0I
-                            else
-                                unsigned.Substring(0, exponentAt),
-                                BigInteger.Parse(
-                                    unsigned.Substring(exponentAt + 1),
-                                    NumberStyles.AllowLeadingSign,
-                                    CultureInfo.InvariantCulture
-                                )
-
-                        let pointAt = mantissa.IndexOf '.'
-                        let fractionLength = if pointAt < 0 then 0 else mantissa.Length - pointAt - 1
-                        let exactScale = BigInteger fractionLength - exponent
-                        let bits = Decimal.GetBits number
-                        let decimalScale = BigInteger((bits[3] >>> 16) &&& 0xFF)
-                        let decimalNegative = (bits[3] &&& 0x80000000) <> 0
-                        let emitted = number.ToString(CultureInfo.InvariantCulture)
-                        let emittedNegative = emitted.StartsWith("-", StringComparison.Ordinal)
-
-                        if exactScale <> decimalScale || isNegative <> decimalNegative || isNegative <> emittedNegative then
-                            lossyError
-                                $"Classic Ion decimal literal '{lexeme}' in {location} loses decimal scale or sign when converted to JSON IR."
-                        else
-                            Ok()
+                        lossyError
+                            $"Classic Ion decimal literal '{lexeme}' in {location} loses precision, scale, or sign when converted to JSON IR."
             | _ -> Ok()
         )
 
