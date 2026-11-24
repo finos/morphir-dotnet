@@ -1410,6 +1410,9 @@ module internal ContextExpansion =
         expandPart limits None None None file context Projection.Complete "$" (rootOf family) document
         |> Result.map fst
 
+    let expandCounted limits maxNodes family file context document =
+        expandPart limits None maxNodes None file context Projection.Complete "$" (rootOf family) document
+
     let expandBounded limits limit maxNodes work family file context projection document =
         expandPart
             limits

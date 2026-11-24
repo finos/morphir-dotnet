@@ -59,8 +59,10 @@ public class GenerationSettingsTests
     [Test]
     public async Task ExplicitFormatIsValidatedWithoutOpeningTheInput()
     {
+        (await Resolve(Valid with { InputFormat = "json" })).Input.Format.Should().Be(InputFormat.Json);
+        (await Resolve(Valid with { InputFormat = "yaml" })).Input.Format.Should().Be(InputFormat.Yaml);
         (await Resolve(Valid with { InputFormat = "ion" })).Input.Format.Should().Be(InputFormat.Ion);
-        var result = await new CliGenerationSettingsResolver().ResolveAsync(Valid with { InputFormat = "yaml" }, Context, CancellationToken.None);
+        var result = await new CliGenerationSettingsResolver().ResolveAsync(Valid with { InputFormat = "toml" }, Context, CancellationToken.None);
         ((Outcome<GenerationSettings>.Failure)result).Error.Diagnostics[0].Code.Should().Be("invalid-input-format");
     }
 

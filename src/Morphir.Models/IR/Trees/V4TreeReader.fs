@@ -15,17 +15,19 @@ module internal V4TreeReader =
         Listed = fun (m: V4ModuleDocument) -> m.TypeNames, m.ValueNames
     }
 
-    let readV4
+    let readV4With
+        (ctx: TreeFileSource.TreeDecodeContext)
+        (manifestLocation: string)
         (manifestCompacted: bool)
-        (options: ReadOptions)
         (manifestFile: V4ManifestFile)
         (files: (string * Morphir.Files.VFile) list)
-        : Result<StoredTree * ReadReport, StoreError list> =
+        : Result<StoredTree * Distribution * ReadReport, StoreError list> =
         let manifest = manifestFile.Manifest
 
-        TreeReader.readTree
+        TreeReader.readTreeWith
+            ctx
+            manifestLocation
             manifestCompacted
-            options
             manifestFile.PathBudget
             manifest.Package
             (V4DocumentTree.holdsDefinitions manifest.Kind)
@@ -41,3 +43,20 @@ module internal V4TreeReader =
             V4Tree
             manifestFile.Dropped
             files
+
+    let readV4
+        (manifestCompacted: bool)
+        (options: ReadOptions)
+        (manifestFile: V4ManifestFile)
+        (files: (string * Morphir.Files.VFile) list)
+        : Result<StoredTree * ReadReport, StoreError list> =
+        let ctx =
+            TreeFileSource.createDecodeContext
+                TreeProfile.Json
+                options.MaxFileBytes
+                Morphir.IR.Files.ContextLimits.draft1.MaxDepth
+                None
+                System.Threading.CancellationToken.None
+
+        readV4With ctx TreeLayout.ManifestFile manifestCompacted manifestFile files
+        |> Result.map (fun (tree, _, report) -> tree, report)

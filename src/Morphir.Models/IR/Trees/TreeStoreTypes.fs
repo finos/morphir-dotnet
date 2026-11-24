@@ -27,6 +27,49 @@ type WriteOptions = {
     Compact: CompactMode option
 }
 
+/// <summary>The serialization profile of a document tree.</summary>
+[<RequireQualifiedAccess>]
+type TreeProfile =
+    /// <summary>The JSON profile (<c>manifest.json</c>, <c>module.json</c>, <c>*.type.json</c>, <c>*.value.json</c>).</summary>
+    | Json
+    /// <summary>The YAML profile (<c>manifest.yaml</c>, <c>module.yaml</c>, <c>*.type.yaml</c>, <c>*.value.yaml</c>).</summary>
+    | Yaml
+
+    /// <summary>The canonical profile name (<c>json</c> or <c>yaml</c>), for C# callers.</summary>
+    member this.WireValue =
+        match this with
+        | Json -> "json"
+        | Yaml -> "yaml"
+
+    /// <summary>For C# callers: branches exhaustively on the serialization profile.</summary>
+    member this.Match<'R>(json: Func<'R>, yaml: Func<'R>) : 'R =
+        match this with
+        | Json -> json.Invoke()
+        | Yaml -> yaml.Invoke()
+
+    /// <summary>The wire value.</summary>
+    override this.ToString() = this.WireValue
+
+/// <summary>Which serialization profiles a whole-tree read accepts.</summary>
+[<RequireQualifiedAccess>]
+type TreeProfileSelection =
+    /// <summary>Accepts only the JSON profile.</summary>
+    | JsonOnly
+    /// <summary>Accepts only the YAML profile.</summary>
+    | YamlOnly
+    /// <summary>Accepts either a homogeneous JSON tree or a homogeneous YAML tree.</summary>
+    | Any
+
+    /// <summary>The canonical selection name (<c>json</c>, <c>yaml</c>, or <c>auto</c>), for C# callers.</summary>
+    member this.WireValue =
+        match this with
+        | JsonOnly -> "json"
+        | YamlOnly -> "yaml"
+        | Any -> "auto"
+
+    /// <summary>The wire value.</summary>
+    override this.ToString() = this.WireValue
+
 /// <summary>The limits of a read.</summary>
 type ReadOptions = {
     /// <summary>The most tree files (JSON or YAML) that a read accepts.</summary>
@@ -34,6 +77,118 @@ type ReadOptions = {
     /// <summary>The most bytes of one file that a read accepts.</summary>
     MaxFileBytes: int64
 }
+
+/// <summary>
+/// Options for reading a whole document tree across profiles with explicit file, byte, nesting-depth and node
+/// budgets. Construct via <see cref="Defaults"/> and the <c>With*</c> members, or <see cref="Create"/>.
+/// </summary>
+type TreeReadOptions =
+    private
+        {
+            MaxFilesValue: int
+            MaxFileBytesValue: int64
+            MaxDepthValue: int
+            MaxNodesValue: int
+            ProfilesValue: TreeProfileSelection
+        }
+
+    /// <summary>The most tree files (JSON or YAML) that a read accepts.</summary>
+    member this.MaxFiles = this.MaxFilesValue
+    /// <summary>The most bytes of one file that a read accepts.</summary>
+    member this.MaxFileBytes = this.MaxFileBytesValue
+    /// <summary>The deepest JSON or YAML nesting accepted for any file in the tree.</summary>
+    member this.MaxDepth = this.MaxDepthValue
+    /// <summary>The most decoded JSON or YAML nodes accepted across the entire tree.</summary>
+    member this.MaxNodes = this.MaxNodesValue
+    /// <summary>Which serialization profile(s) the read accepts.</summary>
+    member this.Profiles = this.ProfilesValue
+
+    /// <summary>Creates validated options. Throws <see cref="ArgumentOutOfRangeException"/> if any limit is not positive.</summary>
+    static member Create
+        (
+            maxFiles: int,
+            maxFileBytes: int64,
+            maxDepth: int,
+            maxNodes: int,
+            profiles: TreeProfileSelection
+        ) : TreeReadOptions =
+        if maxFiles <= 0 then
+            raise (ArgumentOutOfRangeException(nameof maxFiles, "MaxFiles must be positive."))
+
+        if maxFileBytes <= 0L then
+            raise (ArgumentOutOfRangeException(nameof maxFileBytes, "MaxFileBytes must be positive."))
+
+        if maxDepth <= 0 then
+            raise (ArgumentOutOfRangeException(nameof maxDepth, "MaxDepth must be positive."))
+
+        if maxNodes <= 0 then
+            raise (ArgumentOutOfRangeException(nameof maxNodes, "MaxNodes must be positive."))
+
+        {
+            MaxFilesValue = maxFiles
+            MaxFileBytesValue = maxFileBytes
+            MaxDepthValue = maxDepth
+            MaxNodesValue = maxNodes
+            ProfilesValue = profiles
+        }
+
+    /// <summary>Default limits accepting both JSON and YAML profiles.</summary>
+    static member Defaults: TreeReadOptions =
+        TreeReadOptions.Create(
+            1_000_000,
+            256L * 1024L * 1024L,
+            Morphir.Json.V4.V4JsonDecoding.MaxDepth,
+            Int32.MaxValue,
+            TreeProfileSelection.Any
+        )
+
+    /// <summary>Returns a copy with <paramref name="profiles"/>. For F# and C# callers.</summary>
+    member this.WithProfiles(profiles: TreeProfileSelection) : TreeReadOptions =
+        { this with ProfilesValue = profiles }
+
+    /// <summary>Returns a copy with <paramref name="maxFiles"/>. For F# and C# callers.</summary>
+    member this.WithMaxFiles(maxFiles: int) : TreeReadOptions =
+        TreeReadOptions.Create(
+            maxFiles,
+            this.MaxFileBytesValue,
+            this.MaxDepthValue,
+            this.MaxNodesValue,
+            this.ProfilesValue
+        )
+
+    /// <summary>Returns a copy with <paramref name="maxFileBytes"/>. For F# and C# callers.</summary>
+    member this.WithMaxFileBytes(maxFileBytes: int64) : TreeReadOptions =
+        TreeReadOptions.Create(
+            this.MaxFilesValue,
+            maxFileBytes,
+            this.MaxDepthValue,
+            this.MaxNodesValue,
+            this.ProfilesValue
+        )
+
+    /// <summary>Returns a copy with <paramref name="maxDepth"/>. For F# and C# callers.</summary>
+    member this.WithMaxDepth(maxDepth: int) : TreeReadOptions =
+        TreeReadOptions.Create(
+            this.MaxFilesValue,
+            this.MaxFileBytesValue,
+            maxDepth,
+            this.MaxNodesValue,
+            this.ProfilesValue
+        )
+
+    /// <summary>Returns a copy with <paramref name="maxNodes"/>. For F# and C# callers.</summary>
+    member this.WithMaxNodes(maxNodes: int) : TreeReadOptions =
+        TreeReadOptions.Create(
+            this.MaxFilesValue,
+            this.MaxFileBytesValue,
+            this.MaxDepthValue,
+            maxNodes,
+            this.ProfilesValue
+        )
+
+    /// <summary>A summary of the options.</summary>
+    override this.ToString() =
+        $"TreeReadOptions(Profiles={this.ProfilesValue}, MaxFiles={this.MaxFilesValue}, MaxFileBytes={this.MaxFileBytesValue}, MaxDepth={this.MaxDepthValue}, MaxNodes={this.MaxNodesValue})"
 
 /// The shared work allowance for one bounded operation.
 [<Sealed>]
@@ -103,6 +258,29 @@ type StoredTree =
     | V4Tree of V4DocumentTree
     /// <summary>A classic v3 tree, with the attributes as <c>ClassicJson</c> reads them.</summary>
     | ClassicTree of ClassicDocumentTree<JsonElement, JsonElement>
+
+/// <summary>
+/// A whole document tree that was read and joined into a <see cref="Morphir.IR.Model.VersionedModel"/>,
+/// together with the serialization profile it was read from and its read report. For C# callers.
+/// </summary>
+[<Sealed>]
+type LoadedTreeModel internal
+    (
+        model: Morphir.IR.Model.VersionedModel,
+        profile: TreeProfile,
+        tree: StoredTree,
+        report: ReadReport
+    ) =
+    /// <summary>The joined model with its exact declared manifest <c>formatVersion</c>.</summary>
+    member _.Model = model
+    /// <summary>The serialization profile of the tree (<c>json</c> or <c>yaml</c>).</summary>
+    member _.Profile = profile
+    /// <summary>The underlying stored tree.</summary>
+    member _.Tree = tree
+    /// <summary>The read report (notices and compacted files).</summary>
+    member _.Report = report
+    /// <summary>The profile and declared format version.</summary>
+    override _.ToString() = $"LoadedTreeModel({profile.WireValue}, {model.SourceVersion.Text})"
 
 /// <summary>Functions for <see cref="WriteOptions"/>.</summary>
 [<RequireQualifiedAccess>]

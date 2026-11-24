@@ -8,6 +8,7 @@ open System
 open System.Collections.Generic
 open System.IO
 open System.Text.Json
+open System.Threading
 open Microsoft.Extensions.FileProviders
 open Morphir.IR
 open Morphir.IR.Files
@@ -324,6 +325,49 @@ module internal TreeFileSource =
         || name.EndsWith(".type.json", StringComparison.Ordinal)
         || name.EndsWith(".value.json", StringComparison.Ordinal)
 
+    let isNodeFileNameFor (profile: TreeProfile) (name: string) =
+        match profile with
+        | TreeProfile.Json -> isNodeFileName name
+        | TreeProfile.Yaml ->
+            name = "module.yaml"
+            || name = "module.yml"
+            || name.EndsWith(".type.yaml", StringComparison.Ordinal)
+            || name.EndsWith(".type.yml", StringComparison.Ordinal)
+            || name.EndsWith(".value.yaml", StringComparison.Ordinal)
+            || name.EndsWith(".value.yml", StringComparison.Ordinal)
+
+    type internal TreeDecodeContext = {
+        Profile: TreeProfile
+        MaxFileBytes: int64
+        ContextLimits: ContextLimits
+        MaxNodes: int option
+        RemainingNodes: unit -> int
+        ConsumeNodes: int -> unit
+        Cancellation: CancellationToken
+    }
+
+    let createDecodeContext
+        (profile: TreeProfile)
+        (maxFileBytes: int64)
+        (maxDepth: int)
+        (maxNodes: int option)
+        (ct: CancellationToken)
+        : TreeDecodeContext =
+        let mutable remaining = defaultArg maxNodes Int32.MaxValue
+
+        {
+            Profile = profile
+            MaxFileBytes = maxFileBytes
+            ContextLimits = ContextLimits.draft1.WithMaxDepth maxDepth
+            MaxNodes = maxNodes
+            RemainingNodes = fun () -> remaining
+            ConsumeNodes =
+                fun used ->
+                    if maxNodes.IsSome then
+                        remaining <- max 0 (remaining - used)
+            Cancellation = ct
+        }
+
     /// The bytes of a file, refusing one over the limit after at most one lookahead byte.
     let contentBytes
         (limit: int64)
@@ -400,6 +444,112 @@ module internal TreeFileSource =
             Error(error "tree.unreadable_file" (Some location) ex.Message)
 
     /// <summary>
+    /// Decodes a file's JSON or YAML into its plain expanded <see cref="JsonElement"/> under the active profile,
+    /// depth, node, and cancellation limits. Gives the expanded root and whether the file was compacted.
+    /// </summary>
+    let decodeRaw
+        (ctx: TreeDecodeContext)
+        (location: string)
+        (bytes: byte array)
+        : Result<JsonElement * bool, StoreError list> =
+        ctx.Cancellation.ThrowIfCancellationRequested()
+
+        let expandFile (rawNodes: int) (file: MorphirFile<JsonElement>) =
+            match file.Context with
+            | None ->
+                ctx.ConsumeNodes rawNodes
+                Ok(file.Document, false)
+            | Some context ->
+                let expandLimit = ctx.MaxNodes |> Option.map (fun _ -> ctx.RemainingNodes ())
+
+                ContextExpansion.expandCounted
+                    ctx.ContextLimits
+                    expandLimit
+                    (MorphirFile.familyOf file.Document)
+                    location
+                    context
+                    file.Document
+                |> Result.map (fun (expanded, expandedNodes) ->
+                    ctx.ConsumeNodes(max rawNodes expandedNodes)
+                    expanded, true
+                )
+
+        match ctx.Profile with
+        | TreeProfile.Json ->
+            let encoded = ReadOnlyMemory bytes
+            let nodeLimit = ctx.MaxNodes |> Option.map (fun _ -> ctx.RemainingNodes ())
+
+            ContextExpansion.countJsonNodes ctx.ContextLimits.MaxDepth nodeLimit location encoded
+            |> Result.bind (fun rawNodes ->
+                MorphirFile.readEnvelope ctx.ContextLimits location encoded
+                |> Result.bind (expandFile rawNodes)
+            )
+        | TreeProfile.Yaml ->
+            let yamlLimit =
+                ctx.MaxNodes
+                |> Option.map (fun _ -> ctx.RemainingNodes ())
+                |> Option.defaultValue Int32.MaxValue
+
+            TreeYaml.readCounted true ctx.ContextLimits.MaxDepth yamlLimit location bytes
+            |> Result.bind (fun (root, rawNodes) ->
+                MorphirFile.readEnvelopeRoot ContextOrder.WholeFile ctx.ContextLimits location root
+                |> Result.bind (expandFile rawNodes)
+            )
+
+    let decodeWith
+        (ctx: TreeDecodeContext)
+        (location: string)
+        (read: JsonElement -> Result<'a, V4JsonError>)
+        (bytes: byte array)
+        : Result<'a * bool, StoreError list> =
+        decodeRaw ctx location bytes
+        |> Result.bind (fun (document, compacted) ->
+            read document
+            |> Result.map (fun value -> value, compacted)
+            |> Result.mapError (fun e -> [
+                error e.Rule (Some location) $"{e.Location}: {e.Message}"
+            ])
+        )
+
+    let readFileWith
+        (ctx: TreeDecodeContext)
+        (location: string)
+        (file: Morphir.Files.VFile)
+        (read: JsonElement -> Result<'a, V4JsonError>)
+        =
+        ctx.Cancellation.ThrowIfCancellationRequested()
+
+        contentBytes ctx.MaxFileBytes location file
+        |> Result.mapError List.singleton
+        |> Result.bind (decodeWith ctx location read)
+
+    /// <summary>
+    /// Decodes a single YAML document (plain or contextual) into its expanded <see cref="JsonElement"/>
+    /// under explicit depth and node limits.
+    /// </summary>
+    let readSingleYamlDocument
+        (file: string)
+        (bytes: ReadOnlyMemory<byte>)
+        (maxDepth: int)
+        (maxNodes: int)
+        : Result<JsonElement, StoreError list> =
+        let ctx = createDecodeContext TreeProfile.Yaml (int64 bytes.Length + 1L) maxDepth (Some maxNodes) CancellationToken.None
+        decodeRaw ctx file (bytes.ToArray()) |> Result.map fst
+
+    /// <summary>
+    /// The exact declared <c>formatVersion</c> text of an already-decoded manifest object.
+    /// </summary>
+    let declaredFormatVersion (root: JsonElement) : string =
+        let mutable version = Unchecked.defaultof<JsonElement>
+
+        if root.ValueKind = JsonValueKind.Object && root.TryGetProperty("formatVersion", &version) then
+            match version.ValueKind with
+            | JsonValueKind.String -> nonNull (version.GetString())
+            | _ -> version.GetRawText()
+        else
+            ""
+
+    /// <summary>
     /// Decodes a file's JSON, skipping a UTF-8 byte order mark: a plain file as it is, and a compacted file
     /// (<c>ir/name-compaction</c>) after its context is checked and its document expanded, for the IR family that the
     /// document's own <c>formatVersion</c> gives. Gives the decoded value and whether the file was compacted.
@@ -409,21 +559,15 @@ module internal TreeFileSource =
         (read: JsonElement -> Result<'a, V4JsonError>)
         (bytes: byte array)
         : Result<'a * bool, StoreError list> =
-        MorphirFile.readEnvelope ContextLimits.draft1 location (ReadOnlyMemory bytes)
-        |> Result.bind (fun file ->
-            MorphirFile.expand
-                ContextLimits.draft1
-                (MorphirFile.familyOf file.Document)
-                location
-                file
-            |> Result.bind (fun document ->
-                read document
-                |> Result.map (fun value -> value, file.Context.IsSome)
-                |> Result.mapError (fun e -> [
-                    error e.Rule (Some location) $"{e.Location}: {e.Message}"
-                ])
-            )
-        )
+        let ctx =
+            createDecodeContext
+                TreeProfile.Json
+                Int64.MaxValue
+                ContextLimits.draft1.MaxDepth
+                None
+                CancellationToken.None
+
+        decodeWith ctx location read bytes
 
     let readFile limit location file read =
         contentBytes limit location file
@@ -459,47 +603,77 @@ module internal TreeFileSource =
         |> Result.mapError List.singleton
 
     /// <summary>
-    /// The tree files of a tree, by location: its one JSON manifest and every other JSON file. A tree with too many
-    /// files, no manifest, two manifests or a YAML file is refused.
+    /// The tree files of a tree, by location: its active profile, its one manifest, and every other file of that
+    /// profile. Refuses too many files, no manifest, ambiguous manifests (including <c>manifest.ion</c>), or files of
+    /// a disallowed or mixed profile.
     /// </summary>
-    let discover
-        (options: ReadOptions)
+    let discoverWithOptions
+        (maxFiles: int)
+        (selection: TreeProfileSelection)
         (files: Morphir.Files.VFileTree)
-        : Result<(string * Morphir.Files.VFile) * (string * Morphir.Files.VFile) list, StoreError list> =
-        let treeFiles =
+        : Result<TreeProfile * (string * Morphir.Files.VFile) * (string * Morphir.Files.VFile) list, StoreError list> =
+        let allFiles =
             Morphir.Files.VFileTree.toFileMap files
             |> Map.toList
+
+        let treeFiles =
+            allFiles
             |> List.choose (fun (location, file) ->
                 profileOf location
                 |> Option.map (fun profile -> location, file, profile)
             )
 
-        if treeFiles.Length > options.MaxFiles then
+        if treeFiles.Length > maxFiles then
             Error [
                 error
                     "tree.too_many_files"
                     None
-                    $"The tree has {treeFiles.Length} files, and a read accepts at most {options.MaxFiles}."
+                    $"The tree has {treeFiles.Length} files, and a read accepts at most {maxFiles}."
             ]
         else
+            let ionManifest =
+                allFiles
+                |> List.tryFind (fun (location, _) -> location = "manifest.ion")
+
             let manifests =
                 treeFiles
                 |> List.filter (fun (location, _, _) -> isManifestName location)
+
+            let manifestNames =
+                (manifests |> List.map (fun (location, _, _) -> location))
+                @ (match ionManifest with
+                   | Some(location, _) -> [ location ]
+                   | None -> [])
+                |> List.sortWith (fun left right -> String.CompareOrdinal(left, right))
+
+            let jsonFiles =
+                treeFiles
+                |> List.filter (fun (_, _, profile) -> profile = Json)
 
             let yamlFiles =
                 treeFiles
                 |> List.filter (fun (_, _, profile) -> profile = Yaml)
 
-            match manifests with
-            | [] ->
+            match manifests, ionManifest with
+            | [], None ->
+                let expected =
+                    match selection with
+                    | TreeProfileSelection.JsonOnly -> "manifest.json"
+                    | TreeProfileSelection.YamlOnly -> "manifest.yaml"
+                    | TreeProfileSelection.Any -> "manifest.json or manifest.yaml"
+
                 Error [
-                    error "tree.missing_manifest" None "The tree has no manifest.json at its root."
+                    error "tree.missing_manifest" None $"The tree has no {expected} at its root."
                 ]
-            | _ :: _ :: _ ->
-                let named =
-                    manifests
-                    |> List.map (fun (location, _, _) -> location)
-                    |> String.concat " and "
+            | [], Some(location, _) ->
+                Error [
+                    error
+                        "tree.unsupported_profile"
+                        (Some location)
+                        "This store reads JSON and YAML trees, and the manifest is in the Ion profile."
+                ]
+            | _, _ when manifestNames.Length > 1 ->
+                let named = String.concat " and " manifestNames
 
                 Error [
                     error
@@ -507,8 +681,7 @@ module internal TreeFileSource =
                         None
                         $"The tree has more than one manifest, {named}; a reader does not choose one."
                 ]
-            | [ (_, _, Yaml) ]
-            | [ (_, _, Json) ] when not yamlFiles.IsEmpty ->
+            | [ (_, _, Yaml) ], None when selection = TreeProfileSelection.JsonOnly ->
                 Error(
                     yamlFiles
                     |> List.map (fun (location, _, _) ->
@@ -518,7 +691,37 @@ module internal TreeFileSource =
                             "This store reads the JSON profile of a tree, and the file is in the YAML profile."
                     )
                 )
-            | [ (manifestLocation, manifestFile, _) ] ->
+            | [ (_, _, Json) ], None when selection = TreeProfileSelection.YamlOnly ->
+                Error(
+                    jsonFiles
+                    |> List.map (fun (location, _, _) ->
+                        error
+                            "tree.unsupported_profile"
+                            (Some location)
+                            "This store reads the YAML profile of a tree, and the file is in the JSON profile."
+                    )
+                )
+            | [ (_, _, Json) ], None when not yamlFiles.IsEmpty ->
+                Error(
+                    yamlFiles
+                    |> List.map (fun (location, _, _) ->
+                        error
+                            "tree.unsupported_profile"
+                            (Some location)
+                            "This store reads the JSON profile of a tree, and the file is in the YAML profile."
+                    )
+                )
+            | [ (_, _, Yaml) ], None when not jsonFiles.IsEmpty ->
+                Error(
+                    jsonFiles
+                    |> List.map (fun (location, _, _) ->
+                        error
+                            "tree.unsupported_profile"
+                            (Some location)
+                            "This tree uses the YAML profile, and the file is in the JSON profile."
+                    )
+                )
+            | [ (manifestLocation, manifestFile, profile) ], None ->
                 let others =
                     treeFiles
                     |> List.filter (fun (location, _, _) ->
@@ -527,4 +730,27 @@ module internal TreeFileSource =
                     )
                     |> List.map (fun (location, file, _) -> location, file)
 
-                Ok((manifestLocation, manifestFile), others)
+                let treeProfile =
+                    match profile with
+                    | Json -> TreeProfile.Json
+                    | Yaml -> TreeProfile.Yaml
+
+                Ok(treeProfile, (manifestLocation, manifestFile), others)
+            | _ ->
+                Error [
+                    error
+                        "tree.ambiguous_profile"
+                        None
+                        "The tree has more than one manifest; a reader does not choose one."
+                ]
+
+    /// <summary>
+    /// The tree files of a tree, by location: its one JSON manifest and every other JSON file. A tree with too many
+    /// files, no manifest, two manifests or a YAML file is refused.
+    /// </summary>
+    let discover
+        (options: ReadOptions)
+        (files: Morphir.Files.VFileTree)
+        : Result<(string * Morphir.Files.VFile) * (string * Morphir.Files.VFile) list, StoreError list> =
+        discoverWithOptions options.MaxFiles TreeProfileSelection.JsonOnly files
+        |> Result.map (fun (_, manifest, others) -> manifest, others)

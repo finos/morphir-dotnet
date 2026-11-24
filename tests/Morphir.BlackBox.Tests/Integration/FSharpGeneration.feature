@@ -72,7 +72,7 @@ Feature: Generate F# libraries from Morphir models
 
     Examples:
       | arguments           |
-      | --input-format yaml |
+      | --input-format toml |
       | --unavailable       |
       | --option            |
 

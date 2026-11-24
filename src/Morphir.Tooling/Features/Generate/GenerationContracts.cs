@@ -9,8 +9,8 @@ using Morphir.IR.Model;
 namespace Morphir.Tooling.Features.Generate;
 
 public enum GenerationFailureKind { Semantic, Invocation, Operational, Cancelled }
-public enum InputFormat { Auto, Json, Ion }
-public enum ModelRepresentation { Json, IonText, IonBinary, IonTree }
+public enum InputFormat { Auto, Json, Yaml, Ion }
+public enum ModelRepresentation { Json, Yaml, JsonTree, YamlTree, IonText, IonBinary, IonTree }
 
 /// <summary>A zero-based position: a line, and a character in UTF-16 code units, as in MEP and LSP.</summary>
 public sealed record DiagnosticPosition(int Line, int Character);

@@ -121,8 +121,8 @@ Typed classic and v4 Morphir IR models with source-version preservation for in-m
         <Compile Include="IR/Trees/V4TreeFiles.fs" />
         <Compile Include="IR/Trees/ClassicTreeFiles.fs" />
         <Compile Include="IR/Trees/TreeLayout.fs" />
-        <Compile Include="IR/Trees/TreeFileSource.fs" />
         <Compile Include="IR/Trees/TreeYaml.fs" />
+        <Compile Include="IR/Trees/TreeFileSource.fs" />
         <Compile Include="IR/Trees/BoundedTreeReader.fs" />
         <Compile Include="IR/Trees/TreeReader.fs" />
         <Compile Include="IR/Trees/TreeWriter.fs" />

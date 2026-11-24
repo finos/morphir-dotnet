@@ -15,17 +15,19 @@ module internal ClassicTreeReader =
         Listed = fun (m: ClassicModuleDocument) -> m.TypeNames, m.ValueNames
     }
 
-    let readClassic
+    let readClassicWith
+        (ctx: TreeFileSource.TreeDecodeContext)
+        (manifestLocation: string)
         (manifestCompacted: bool)
-        (options: ReadOptions)
         (manifestFile: ClassicManifestFile)
         (files: (string * Morphir.Files.VFile) list)
-        : Result<StoredTree * ReadReport, StoreError list> =
+        : Result<StoredTree * Morphir.IR.Classic.Distribution.Distribution<JsonElement, JsonElement> * ReadReport, StoreError list> =
         let manifest = manifestFile.Manifest
 
-        TreeReader.readTree
+        TreeReader.readTreeWith
+            ctx
+            manifestLocation
             manifestCompacted
-            options
             manifestFile.PathBudget
             manifest.Package
             (ClassicDocumentTree.holdsDefinitions manifest.Kind)
@@ -41,3 +43,20 @@ module internal ClassicTreeReader =
             ClassicTree
             []
             files
+
+    let readClassic
+        (manifestCompacted: bool)
+        (options: ReadOptions)
+        (manifestFile: ClassicManifestFile)
+        (files: (string * Morphir.Files.VFile) list)
+        : Result<StoredTree * ReadReport, StoreError list> =
+        let ctx =
+            TreeFileSource.createDecodeContext
+                TreeProfile.Json
+                options.MaxFileBytes
+                Morphir.IR.Files.ContextLimits.draft1.MaxDepth
+                None
+                System.Threading.CancellationToken.None
+
+        readClassicWith ctx TreeLayout.ManifestFile manifestCompacted manifestFile files
+        |> Result.map (fun (tree, _, report) -> tree, report)

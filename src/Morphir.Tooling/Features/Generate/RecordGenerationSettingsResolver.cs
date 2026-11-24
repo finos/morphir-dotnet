@@ -86,7 +86,7 @@ public sealed class RecordGenerationSettingsResolver(
         var format = output.Ir.Format switch
         {
             IrStorageFormat.Json => InputFormat.Json,
-            IrStorageFormat.Yaml when output.Ir.Layout == IrLayout.DocumentTree => InputFormat.Auto,
+            IrStorageFormat.Yaml => InputFormat.Yaml,
             IrStorageFormat.Ion => InputFormat.Ion,
             _ => (InputFormat?)null,
         };

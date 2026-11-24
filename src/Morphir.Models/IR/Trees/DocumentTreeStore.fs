@@ -4,7 +4,14 @@ namespace Morphir.IR.Trees
 open Morphir.Compat
 #endif
 
+open System
+open System.Collections.Generic
+open System.Diagnostics.CodeAnalysis
+open System.Runtime.InteropServices
+open System.Text.Json
+open System.Threading
 open Morphir.IR
+open Morphir.IR.Model
 
 
 /// <summary>
@@ -145,6 +152,133 @@ module DocumentTreeStore =
                     )
             )
         )
+
+    let private readModelCore
+        (options: TreeReadOptions)
+        (enforceNodes: bool)
+        (ct: CancellationToken)
+        (files: Morphir.Files.VFileTree)
+        : Result<LoadedTreeModel, StoreError list> =
+        ct.ThrowIfCancellationRequested()
+
+        TreeFileSource.discoverWithOptions options.MaxFiles options.Profiles files
+        |> Result.bind (fun (profile, (manifestLocation, manifestFile), others) ->
+            let maxNodes = if enforceNodes then Some options.MaxNodes else None
+            let ctx = TreeFileSource.createDecodeContext profile options.MaxFileBytes options.MaxDepth maxNodes ct
+
+            TreeFileSource.contentBytes options.MaxFileBytes manifestLocation manifestFile
+            |> TreeFileSource.one
+            |> Result.bind (TreeFileSource.decodeRaw ctx manifestLocation)
+            |> Result.bind (fun (manifestRoot, compacted) ->
+                let declaredText = TreeFileSource.declaredFormatVersion manifestRoot
+                let classic = TreeFileSource.isClassicManifest manifestRoot
+
+                let decodeManifestResult reader =
+                    reader manifestRoot
+                    |> Result.mapError (fun (e: Morphir.Json.V4.V4JsonError) -> [
+                        error e.Rule (Some manifestLocation) $"{e.Location}: {e.Message}"
+                    ])
+
+                let buildModel (distribution: DistributionModel) (storedTree: StoredTree) (report: ReadReport) =
+                    match SourceFormatVersion.parse declaredText with
+                    | Ok sourceVersion ->
+                        let versioned: VersionedModel = {
+                            SourceVersion = sourceVersion
+                            Distribution = distribution
+                        }
+
+                        Ok(LoadedTreeModel(versioned, profile, storedTree, report))
+                    | Error _ ->
+                        Error [
+                            error
+                                "version_mismatch"
+                                (Some manifestLocation)
+                                $"$.formatVersion: '{declaredText}' is not a supported formatVersion."
+                        ]
+
+                if classic then
+                    decodeManifestResult ClassicTreeFiles.readManifest
+                    |> Result.bind (fun manifest ->
+                        ClassicTreeReader.readClassicWith ctx manifestLocation compacted manifest others
+                        |> Result.bind (fun (storedTree, joined, report) ->
+                            buildModel (DistributionModel.Classic joined) storedTree report
+                        )
+                    )
+                else
+                    decodeManifestResult V4TreeFiles.readManifest
+                    |> Result.bind (fun manifest ->
+                        V4TreeReader.readV4With ctx manifestLocation compacted manifest others
+                        |> Result.bind (fun (storedTree, joined, report) ->
+                            buildModel (DistributionModel.V4 joined) storedTree report
+                        )
+                    )
+            )
+        )
+
+    /// <summary>
+    /// Reads a tree from files in any profile allowed by <paramref name="options"/> (JSON or YAML, plain or
+    /// contextual, v3.1.0 or v4.0.0), enforcing file, byte, nesting-depth, and total node limits. Refuses mixed
+    /// profile files and ambiguous multi-manifest trees (including <c>manifest.ion</c>). C# calls this
+    /// <c>ReadAnyProfile</c>.
+    /// </summary>
+    [<CompiledName("ReadAnyProfile")>]
+    let readAnyProfile
+        (options: TreeReadOptions)
+        (files: Morphir.Files.VFileTree)
+        : Result<StoredTree * ReadReport, StoreError list> =
+        readModelCore options true CancellationToken.None files
+        |> Result.map (fun loaded -> loaded.Tree, loaded.Report)
+
+    /// <summary>
+    /// For C# callers: reads a whole document tree (JSON or YAML, plain or contextual, v3.1.0 or v4.0.0) under
+    /// <paramref name="options"/> and <paramref name="ct"/>, joins it into a <see cref="VersionedModel"/> keeping
+    /// the exact declared manifest <c>formatVersion</c>, and returns it with its <see cref="TreeProfile"/>.
+    /// Sets exactly one of <paramref name="loaded"/> and <paramref name="errors"/>. C# calls this
+    /// <c>TryReadModel</c>.
+    /// </summary>
+    [<CompiledName("TryReadModel")>]
+    let tryReadModel
+        (
+            options: TreeReadOptions,
+            files: Morphir.Files.VFileTree,
+            ct: CancellationToken,
+            [<Out; MaybeNullWhen(false)>] loaded: byref<LoadedTreeModel>,
+            [<Out; MaybeNullWhen(true)>] errors: byref<IReadOnlyList<StoreError>>
+        ) : bool =
+        match readModelCore options true ct files with
+        | Ok model ->
+            loaded <- model
+            errors <- Unchecked.defaultof<_>
+            true
+        | Error found ->
+            loaded <- Unchecked.defaultof<_>
+            errors <- List.toArray found :> IReadOnlyList<StoreError>
+            false
+
+    /// <summary>
+    /// For C# callers: reads a single Morphir YAML document (plain or contextual envelope) under explicit depth and
+    /// node limits, returning its expanded <see cref="JsonElement"/> value tree. Sets exactly one of
+    /// <paramref name="document"/> and <paramref name="errors"/>. C# calls this <c>TryReadYamlDocument</c>.
+    /// </summary>
+    [<CompiledName("TryReadYamlDocument")>]
+    let tryReadYamlDocument
+        (
+            file: string,
+            bytes: ReadOnlyMemory<byte>,
+            maxDepth: int,
+            maxNodes: int,
+            [<Out>] document: byref<JsonElement>,
+            [<Out; MaybeNullWhen(true)>] errors: byref<IReadOnlyList<StoreError>>
+        ) : bool =
+        match TreeFileSource.readSingleYamlDocument file bytes maxDepth maxNodes with
+        | Ok root ->
+            document <- root
+            errors <- Unchecked.defaultof<_>
+            true
+        | Error found ->
+            document <- Unchecked.defaultof<_>
+            errors <- List.toArray found :> IReadOnlyList<StoreError>
+            false
 
     /// <summary>
     /// For C# callers that check a tree and need no model: each error of <see cref="read"/>, in the order the read
