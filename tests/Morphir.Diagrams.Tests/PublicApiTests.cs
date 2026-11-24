@@ -51,13 +51,7 @@ public class PublicApiTests
     public void ThePublicApiMatchesTheApprovedListing()
     {
         var current = Listing(typeof(Diagram).Assembly);
-        var record = Environment.GetEnvironmentVariable("MORPHIR_RECORD_BASELINES");
-
-        if (!string.IsNullOrEmpty(record))
-        {
-            File.WriteAllText(Path.Combine(record, Path.GetFileName(FixtureCatalog.DiagramExport.PublicApi.RelativePath)), current, new UTF8Encoding(false));
-            return;
-        }
+        DigestBaseline.Record(FixtureCatalog.DiagramExport.PublicApi, current).ShouldBeNull();
 
         var approved = FixtureCatalog.ReadText(FixtureCatalog.DiagramExport.PublicApi).Split('\n');
         var lines = current.Split('\n');

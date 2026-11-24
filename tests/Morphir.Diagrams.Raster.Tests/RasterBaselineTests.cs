@@ -16,6 +16,7 @@ namespace Morphir.Diagrams.Raster.Tests;
 /// decoded pixels, and the player by its HTML with each embedded PNG replaced by its pixel digest. The JPEG and GIF
 /// encoders are the library's own, so their bytes are pinned.
 /// </summary>
+[Category("PlatformSpecific")]
 public partial class RasterBaselineTests
 {
     /// <summary>The width, height and RGBA rows of an 8-bit RGBA PNG, unfiltered.</summary>

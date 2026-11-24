@@ -95,29 +95,6 @@ let private lowers (index: PositiveInt) (bits: int) =
     .&. (identity |@ "keeps identity")
     .&. (eligible |@ "binds only eligible drawables")
 
-let private point x y = LayoutPoint.Create(Distance.FromPixels x, Distance.FromPixels y)
-
-let private paint: LayoutPaint =
-    let black: LayoutColor = { color = Color.FromRgb(0, 0, 0); source = ColorSource.Authored }
-    { fill = None; stroke = Some black; ink = black; strokeWidth = Distance.FromPixels 1.0; dash = ImmutableArray.Empty; cap = LineCap.Butt; join = LineJoin.Miter }
-
-let private line id (points: (float * float) list) (target: LineBinding option) : Drawable =
-    let points = points |> List.map (fun (x, y) -> point x y)
-
-    { id = DrawableId.Create id
-      reference = None
-      paintOrder = int (id.Substring 1)
-      kind =
-        DrawableKind.Line
-            { source = { point = List.head points; head = EdgeHead.None; binding = None }
-              target = { point = List.last points; head = EdgeHead.Arrow; binding = target }
-              waypoints = ImmutableArray.CreateRange points
-              route = (if points.Length > 2 then RouteStyle.Orthogonal else RouteStyle.Straight)
-              exactPath = None
-              paint = paint
-              label = None }
-      links = ImmutableArray.Empty }
-
 [<Tests>]
 let tests =
     testList "lowering" [
@@ -127,9 +104,7 @@ let tests =
             lowers
 
         test "a binding to a line that would be split is removed" {
-            let bent = line "d1" [ 0.0, 0.0; 50.0, 0.0; 50.0, 50.0; 100.0, 50.0 ] None
-            let bound = line "d2" [ 50.0, 100.0; 50.0, 25.0 ] (Some { target = DrawableId.Create "d1"; anchor = LineAnchor.Along Fraction.Half })
-            let page = DiagramLayout(LayoutBox.Create(Distance.Zero, Distance.Zero, Distance.FromPixels 100.0, Distance.FromPixels 100.0), Color.FromRgb(255, 255, 255), ImmutableArray.Create(bent, bound), SvgDocument.Create([||], [||]))
+            let page = DiagramMother.lineBoundToABentLine
 
             let lowered, degradations = Lowering.lower (LayoutFeatures.Of(LayoutFeature.AttachedConnectors, LayoutFeature.LineTargets)) page
             let target = (byId lowered).[DrawableId.Create "d2"]

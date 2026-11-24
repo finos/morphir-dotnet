@@ -10,7 +10,8 @@ namespace Morphir.TestSupport.Fixtures;
 /// <summary>
 /// A fixture of named SHA-256 digests that pins output which must not change. A test computes the digests of the
 /// current output and compares them with the fixture. To record a new fixture on unchanged code, set
-/// <c>MORPHIR_RECORD_BASELINES</c> to a directory: the test then writes the file there under its fixture name.
+/// <c>MORPHIR_RECORD_BASELINES</c> to a directory: the test then writes the file there under its fixture name and
+/// fails, so that a variable left set never turns a comparison into a pass.
 /// </summary>
 public static class DigestBaseline
 {
@@ -43,19 +44,26 @@ public static class DigestBaseline
     }
 
     /// <summary>
-    /// The names whose digest differs from the fixture, is missing from it or is not in the current output. Writes
-    /// the current digests instead, and reports no difference, when <c>MORPHIR_RECORD_BASELINES</c> is set.
+    /// When <c>MORPHIR_RECORD_BASELINES</c> is set, writes the text as the fixture's file in that directory and
+    /// returns a message for the test to fail with; otherwise returns null.
+    /// </summary>
+    public static string? Record(FixtureEntry fixture, string text)
+    {
+        var record = Environment.GetEnvironmentVariable("MORPHIR_RECORD_BASELINES");
+        if (string.IsNullOrEmpty(record)) return null;
+
+        var path = Path.Combine(record, Path.GetFileName(fixture.RelativePath));
+        File.WriteAllText(path, text, new UTF8Encoding(false));
+        return $"Recorded {path}; unset MORPHIR_RECORD_BASELINES to compare.";
+    }
+
+    /// <summary>
+    /// The names whose digest differs from the fixture, is missing from it or is not in the current output. When
+    /// <c>MORPHIR_RECORD_BASELINES</c> is set, writes the current digests instead and reports that as the difference.
     /// </summary>
     public static IReadOnlyList<string> Differences(FixtureEntry fixture, IReadOnlyDictionary<string, string> current)
     {
-        var record = Environment.GetEnvironmentVariable("MORPHIR_RECORD_BASELINES");
-
-        if (!string.IsNullOrEmpty(record))
-        {
-            var path = Path.Combine(record, Path.GetFileName(fixture.RelativePath));
-            File.WriteAllText(path, Format(current));
-            return [];
-        }
+        if (Record(fixture, Format(current)) is { } recorded) return [recorded];
 
         var pinned = Read(fixture);
 

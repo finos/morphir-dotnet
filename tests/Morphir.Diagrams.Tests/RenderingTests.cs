@@ -170,7 +170,7 @@ public class RenderingTests
     [Test]
     public async Task RotatedTextArrivesRotated()
     {
-        var layout = Layout(DiagramLayoutTestsCollaboration.Source);
+        var layout = Layout(DiagramMother.SalesPoolWithClerkLane);
         var (_, rotated) = await Render(layout, LayoutFeatures.Of(LayoutFeature.RotatedText, LayoutFeature.Containers));
         var (_, upright) = await Render(layout, LayoutFeatures.Of(LayoutFeature.Containers));
 
@@ -367,7 +367,7 @@ public class RenderingTests
     [Test]
     public void ABpmnDataObjectLosesItsRole()
     {
-        var layout = Layout(DiagramLayoutTestsCollaboration.WithDataObject);
+        var layout = Layout(DiagramMother.TaskWithDataObject);
         var assessment = DiagramExport.Assess([layout], new RecordingRenderer(AllBut(LayoutFeature.FamilyRoles)));
 
         Degradations(assessment).ShouldContain(item => item.Feature.Equals(LayoutFeature.FamilyRoles) && item.References.Contains(DiagramElementRef.Create("node=Doc")));
@@ -587,36 +587,4 @@ public class RenderingTests
         renderers.Renderers.Count.ShouldBe(1);
         DiagramRenderers.Empty.Renderers.ShouldBeEmpty();
     }
-}
-
-/// <summary>BPMN sources shared by the layout and rendering scenarios.</summary>
-internal static class DiagramLayoutTestsCollaboration
-{
-    public const string Source = """
-        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="D" targetNamespace="urn:t">
-          <bpmn:collaboration id="C"><bpmn:participant id="Pool" name="Sales" processRef="P"/></bpmn:collaboration>
-          <bpmn:process id="P">
-            <bpmn:laneSet id="LS"><bpmn:lane id="Lane" name="Clerk"><bpmn:flowNodeRef>T</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet>
-            <bpmn:task id="T" name="Check"/>
-          </bpmn:process>
-          <bpmndi:BPMNDiagram id="DI"><bpmndi:BPMNPlane id="PL" bpmnElement="C">
-            <bpmndi:BPMNShape id="S0" bpmnElement="Pool" isHorizontal="true"><dc:Bounds x="10" y="10" width="400" height="160"/></bpmndi:BPMNShape>
-            <bpmndi:BPMNShape id="S1" bpmnElement="Lane" isHorizontal="true"><dc:Bounds x="40" y="10" width="370" height="160"/></bpmndi:BPMNShape>
-            <bpmndi:BPMNShape id="S2" bpmnElement="T"><dc:Bounds x="100" y="50" width="100" height="80"/></bpmndi:BPMNShape>
-          </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
-        </bpmn:definitions>
-        """;
-
-    public const string WithDataObject = """
-        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="D" targetNamespace="urn:t">
-          <bpmn:process id="P">
-            <bpmn:task id="T" name="Check"/>
-            <bpmn:dataObjectReference id="Doc" name="Order"/>
-          </bpmn:process>
-          <bpmndi:BPMNDiagram id="DI"><bpmndi:BPMNPlane id="PL" bpmnElement="P">
-            <bpmndi:BPMNShape id="S2" bpmnElement="T"><dc:Bounds x="100" y="50" width="100" height="80"/></bpmndi:BPMNShape>
-            <bpmndi:BPMNShape id="S3" bpmnElement="Doc"><dc:Bounds x="250" y="60" width="36" height="50"/></bpmndi:BPMNShape>
-          </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
-        </bpmn:definitions>
-        """;
 }

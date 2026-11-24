@@ -219,21 +219,11 @@ public class DiagramLayoutTests
         roles.ShouldContain(FamilyRole.Final);
     }
 
-    private const string Exchange = """
-        sequenceDiagram
-          participant A
-          participant B
-          A->>B: hi
-          B-->>A: ok
-          A->>A: self
-          create participant C
-          A->>C: new
-        """;
 
     [Test]
     public void AParticipantIsACompositeElementThatOwnsItsLifeline()
     {
-        var layout = Layout(Exchange);
+        var layout = Layout(DiagramMother.ExchangeWithSelfAndCreation);
         var children = ElementOf(Find(layout, "participant=A"));
 
         children.Length.ShouldBe(3);
@@ -248,7 +238,7 @@ public class DiagramLayoutTests
     [Test]
     public void AMessageAnchorsAlongTheLifelinesAtItsRow()
     {
-        var layout = Layout(Exchange);
+        var layout = Layout(DiagramMother.ExchangeWithSelfAndCreation);
         var message = LineOf(Find(layout, "message=A/B/0"));
         var lifeline = ElementOf(Find(layout, "participant=B")).Single(IsLine);
         var line = LineOf(lifeline);
@@ -261,7 +251,7 @@ public class DiagramLayoutTests
     [Test]
     public void ASelfMessageBindsOneLifelineTwiceAtDifferentAnchors()
     {
-        var layout = Layout(Exchange);
+        var layout = Layout(DiagramMother.ExchangeWithSelfAndCreation);
         var message = LineOf(Find(layout, "message=A/A/0"));
 
         message.Source.Binding!.Target.ShouldBe(message.Target.Binding!.Target);
@@ -271,7 +261,7 @@ public class DiagramLayoutTests
     [Test]
     public void ACreationMessageBindsTheNewParticipantsHead()
     {
-        var layout = Layout(Exchange);
+        var layout = Layout(DiagramMother.ExchangeWithSelfAndCreation);
         var message = LineOf(Find(layout, "message=A/C/0"));
         var head = ElementOf(Find(layout, "participant=C")).First(child => !IsLine(child));
 
@@ -283,7 +273,7 @@ public class DiagramLayoutTests
     [Test]
     public void ADashedReplyKeepsItsDash()
     {
-        var reply = LineOf(Find(Layout(Exchange), "message=B/A/0"));
+        var reply = LineOf(Find(Layout(DiagramMother.ExchangeWithSelfAndCreation), "message=B/A/0"));
 
         reply.Paint.Dash.ShouldNotBeEmpty();
         reply.Paint.StrokeWidth.ShouldBe(Distance.FromPixels(1.4));
@@ -324,33 +314,11 @@ public class DiagramLayoutTests
         All(layout.Drawables).Count(drawable => drawable.Reference?.ToString() == "node=$%2Fb").ShouldBe(2);
     }
 
-    private const string Collaboration = """
-        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="D" targetNamespace="urn:t">
-          <bpmn:collaboration id="C"><bpmn:participant id="Pool" name="Sales" processRef="P"/></bpmn:collaboration>
-          <bpmn:process id="P">
-            <bpmn:laneSet id="LS"><bpmn:lane id="Lane" name="Clerk"><bpmn:flowNodeRef>T</bpmn:flowNodeRef><bpmn:flowNodeRef>G</bpmn:flowNodeRef><bpmn:flowNodeRef>U</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet>
-            <bpmn:task id="T" name="Check"/>
-            <bpmn:exclusiveGateway id="G"/>
-            <bpmn:userTask id="U" name="Approve"/>
-            <bpmn:sequenceFlow id="F1" sourceRef="T" targetRef="G"/>
-            <bpmn:sequenceFlow id="F2" sourceRef="G" targetRef="U"/>
-          </bpmn:process>
-          <bpmndi:BPMNDiagram id="DI"><bpmndi:BPMNPlane id="PL" bpmnElement="C">
-            <bpmndi:BPMNShape id="S0" bpmnElement="Pool" isHorizontal="true"><dc:Bounds x="10" y="10" width="600" height="200"/></bpmndi:BPMNShape>
-            <bpmndi:BPMNShape id="S1" bpmnElement="Lane" isHorizontal="true"><dc:Bounds x="40" y="10" width="570" height="200"/></bpmndi:BPMNShape>
-            <bpmndi:BPMNShape id="S2" bpmnElement="T"><dc:Bounds x="100.02" y="70.5" width="100" height="80"/></bpmndi:BPMNShape>
-            <bpmndi:BPMNShape id="S3" bpmnElement="G" isMarkerVisible="true"><dc:Bounds x="250" y="85" width="50" height="50"/></bpmndi:BPMNShape>
-            <bpmndi:BPMNShape id="S4" bpmnElement="U"><dc:Bounds x="350" y="70" width="100" height="80"/></bpmndi:BPMNShape>
-            <bpmndi:BPMNEdge id="E1" bpmnElement="F1"><di:waypoint x="200.02" y="110"/><di:waypoint x="250" y="110"/></bpmndi:BPMNEdge>
-            <bpmndi:BPMNEdge id="E2" bpmnElement="F2"><di:waypoint x="300" y="110"/><di:waypoint x="348" y="110"/></bpmndi:BPMNEdge>
-          </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
-        </bpmn:definitions>
-        """;
 
     [Test]
     public void FractionalBpmnCoordinatesAgree()
     {
-        var task = ShapeOf(Find(Layout(Collaboration), "node=T"));
+        var task = ShapeOf(Find(Layout(DiagramMother.SalesPoolWithGatewayAndUserTask), "node=T"));
 
         task.Box.X.ShouldBe(Distance.FromPixels(100.02));
         task.Box.X.QuarterEmu.ShouldBe(3_810_762L);
@@ -361,7 +329,7 @@ public class DiagramLayoutTests
     [Test]
     public void PoolsAndLanesAreContainersWithRotatedHeaders()
     {
-        var layout = Layout(Collaboration);
+        var layout = Layout(DiagramMother.SalesPoolWithGatewayAndUserTask);
         var pool = ContainerOf(Find(layout, "group=Pool"));
         var lane = ContainerOf(Find(layout, "group=Lane"));
 
@@ -375,7 +343,7 @@ public class DiagramLayoutTests
     [Test]
     public void ABpmnGatewayIsADiamondWithItsRole()
     {
-        var gateway = ElementOf(Find(Layout(Collaboration), "node=G")).Select(ShapeOf).First();
+        var gateway = ElementOf(Find(Layout(DiagramMother.SalesPoolWithGatewayAndUserTask), "node=G")).Select(ShapeOf).First();
 
         gateway.Kind.ShouldBe(ShapeKind.Diamond);
         gateway.Role.ShouldBe(FamilyRole.Gateway);
@@ -384,7 +352,7 @@ public class DiagramLayoutTests
     [Test]
     public void ABpmnUserTaskIconKeepsItsRoundJoins()
     {
-        var shapes = ElementOf(Find(Layout(Collaboration), "node=U"))
+        var shapes = ElementOf(Find(Layout(DiagramMother.SalesPoolWithGatewayAndUserTask), "node=U"))
             .Select(child => child.Kind.Match<LayoutShape?>(shape: shape => shape, line: _ => null, text: _ => null, image: _ => null, element: _ => null, container: _ => null, group: _ => null))
             .OfType<LayoutShape>().ToList();
 
@@ -394,7 +362,7 @@ public class DiagramLayoutTests
     [Test]
     public void ABpmnWaypointOutsideItsTargetKeepsItsPoint()
     {
-        var layout = Layout(Collaboration);
+        var layout = Layout(DiagramMother.SalesPoolWithGatewayAndUserTask);
         var flow = LineOf(Find(layout, "edge=G/U/0"));
 
         flow.Target.Point.X.ShouldBe(Distance.FromPixels(348));

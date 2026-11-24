@@ -873,6 +873,16 @@ public static class FixtureCatalog
             [Sequence, Flowcharts, States, Swimlanes, Architecture, ZenUml, PlantUmlActivity, PlantUmlState, PlantUml, Bpmn];
     }
 
+    /// <summary>Reference data of CSS Color Module Level 4.</summary>
+    public static class CssColor
+    {
+        private const string Provenance = "CssColor/PROVENANCE.md";
+
+        /// <summary>The 148 CSS named colours and their hex values.</summary>
+        public static FixtureEntry NamedColors { get; } = new(
+            "the CSS named colours", "CssColor/named-colors.json", "02c347487d439770060574ccabb2d7957ebc218599617753d11587569c6a1e8e", Provenance);
+    }
+
     /// <summary>Digests of diagram output recorded before the diagram export refactor, which must not change.</summary>
     public static class DiagramExport
     {
@@ -894,8 +904,12 @@ public static class FixtureCatalog
         public static FixtureEntry PublicApi { get; } = new(
             "the approved public API of Morphir.Diagrams", "DiagramExport/public-api.txt", "0f4c8270bd9ba0755ed48d461b8e16887f2e15cfb6a2105f25c3d40aa9989734", Provenance);
 
+        /// <summary>The draw.io, Excalidraw and Obsidian output of one diagram of each family.</summary>
+        public static FixtureEntry CanvasDigests { get; } = new(
+            "the canvas export digests of one diagram of each family", "DiagramExport/canvas-digests.json", "8c1fea9aee84d198d0e3cbb935983053d4acfb77d6658947c583ea56da0c44d5", Provenance);
+
         /// <summary>Every digest fixture.</summary>
-        public static IReadOnlyList<FixtureEntry> Files { get; } = [SvgDigests, PlayerDigests, RasterDigests, PublicApi];
+        public static IReadOnlyList<FixtureEntry> Files { get; } = [SvgDigests, PlayerDigests, RasterDigests, PublicApi, CanvasDigests];
     }
 
     /// <summary>Every file that the catalog owns and serves.</summary>
@@ -905,7 +919,7 @@ public static class FixtureCatalog
         .. Models.All, .. BoundedOrders.Files, BoundedOrders.ExpandedV4, .. Trees.AcmeDemo, .. Trees.Written,
         .. UpstreamIr.Documents, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark,
         WasmHost.Corpus, WasmHost.UnknownNamespaceModule, .. Context.Files, .. Context.Policy.Files,
-        .. Context.Naming.Files, .. DiagramsMbt.Files, .. DiagramExport.Files
+        .. Context.Naming.Files, .. DiagramsMbt.Files, .. DiagramExport.Files, CssColor.NamedColors
     ];
 
     /// <summary>

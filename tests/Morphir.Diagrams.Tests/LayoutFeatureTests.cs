@@ -13,16 +13,6 @@ public class LayoutFeatureTests
     private static LayoutFeatures Features(string source, SvgRenderOptions? options = null) =>
         DiagramExport.Layout(DiagramLayoutTests.Parse(source), options ?? SvgRenderOptions.Default).Layout.ShouldNotBeNull().Features;
 
-    private const string Lane = """
-        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="D" targetNamespace="urn:t">
-          <bpmn:collaboration id="C"><bpmn:participant id="Pool" name="Sales" processRef="P"/></bpmn:collaboration>
-          <bpmn:process id="P"><bpmn:task id="T" name="Check the order before it ships"/></bpmn:process>
-          <bpmndi:BPMNDiagram id="DI"><bpmndi:BPMNPlane id="PL" bpmnElement="C">
-            <bpmndi:BPMNShape id="S0" bpmnElement="Pool" isHorizontal="true"><dc:Bounds x="10" y="10" width="400" height="160"/></bpmndi:BPMNShape>
-            <bpmndi:BPMNShape id="S1" bpmnElement="T"><dc:Bounds x="100" y="50" width="100" height="80"/></bpmndi:BPMNShape>
-          </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
-        </bpmn:definitions>
-        """;
 
     /// <summary>For each feature, a diagram that uses it.</summary>
     public static IEnumerable<Func<(LayoutFeature Feature, string Source, SvgRenderOptions? Options)>> Uses()
@@ -46,8 +36,8 @@ public class LayoutFeatureTests
         yield return () => (LayoutFeature.LineTargets, "sequenceDiagram\n  A->>B: hi\n", null);
         yield return () => (LayoutFeature.OpenAndCircleHeads, "flowchart LR\n  A --o B\n", null);
         yield return () => (LayoutFeature.MessageHeads, "sequenceDiagram\n  A-xB: lost\n", null);
-        yield return () => (LayoutFeature.WrappedText, Lane, null);
-        yield return () => (LayoutFeature.RotatedText, Lane, null);
+        yield return () => (LayoutFeature.WrappedText, DiagramMother.SalesPoolWithLongTask, null);
+        yield return () => (LayoutFeature.RotatedText, DiagramMother.SalesPoolWithLongTask, null);
         yield return () => (LayoutFeature.Containers, "flowchart LR\n  subgraph S\n    A\n  end\n", null);
         yield return () => (LayoutFeature.FamilyRoles, "stateDiagram-v2\n  [*] --> A\n", null);
         yield return () => (LayoutFeature.InterleavedPainting, "sequenceDiagram\n  A->>B: hi\n", null);
