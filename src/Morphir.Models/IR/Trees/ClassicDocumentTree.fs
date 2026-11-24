@@ -1,5 +1,6 @@
 namespace Morphir.IR.Trees
 
+open System.Threading
 open Morphir.IR
 open Morphir.IR.Classic.AccessControlled
 open Morphir.IR.Classic.Documented
@@ -295,11 +296,12 @@ module ClassicDocumentTree =
     }
 
     /// The modules of one package, or every error of its documents in the ordinal order of their logical paths.
-    let private joinPackage shape scope logicalPath documents =
-        TreeJoin.joinPackage family shape mapOf scope logicalPath documents
+    let private joinPackage ct shape scope logicalPath documents =
+        TreeJoin.joinPackage ct family shape mapOf scope logicalPath documents
 
     /// The errors of the manifest itself, and of documents that belong to no package of it.
     let private manifestErrors
+        (ct: CancellationToken)
         (tree: ClassicDocumentTree<'ta, 'va>)
         (logicalPath: DocumentAddress -> string)
         =
@@ -328,16 +330,13 @@ module ClassicDocumentTree =
                         $"The manifest of a {kind} tree records the single-file formatVersion {text manifest.SingleFileVersion}, and a {kind} joins to {text wanted}."
                 ]
 
-        TreeJoin.manifestErrors manifest.Dependencies mismatchedLabel tree.Documents logicalPath
+        TreeJoin.manifestErrors ct manifest.Dependencies mismatchedLabel tree.Documents logicalPath
 
-    /// <summary>
-    /// Joins a tree into a model. Types, values, modules and dependencies are maps in a classic model, so their
-    /// order is the model's own. An inconsistent tree is refused with every error found, its document errors in
-    /// the ordinal order of their logical paths; the remarks of this module list the codes. The single file the
-    /// model belongs in has the label <c>tree.Manifest.SingleFileVersion</c>. C# calls this <c>Join</c>.
-    /// </summary>
-    [<CompiledName("Join")>]
-    let join (tree: ClassicDocumentTree<'ta, 'va>) : Result<Distribution<'ta, 'va>, TreeError list> =
+    let internal joinCancellable
+        (ct: CancellationToken)
+        (tree: ClassicDocumentTree<'ta, 'va>)
+        : Result<Distribution<'ta, 'va>, TreeError list> =
+        ct.ThrowIfCancellationRequested()
         let manifest = tree.Manifest
         let logicalPath = DocumentAddress.logicalPath manifest.Package
         let documents = Map.toList tree.Documents
@@ -345,8 +344,10 @@ module ClassicDocumentTree =
 
         let dependencies =
             TreeJoin.joinDependencies
+                ct
                 (fun package ->
                     joinPackage
+                        ct
                         specifications
                         (fun inner -> Dependency(package, inner))
                         logicalPath
@@ -360,8 +361,8 @@ module ClassicDocumentTree =
 
         let assemble ownResult build =
             TreeJoin.assemble
-                (manifestErrors tree logicalPath
-                 @ TreeJoin.documentErrors family (holdsDefinitions manifest.Kind) tree.Documents)
+                (manifestErrors ct tree logicalPath
+                 @ TreeJoin.documentErrors ct family (holdsDefinitions manifest.Kind) tree.Documents)
                 ownResult
                 dependencies
                 build
@@ -369,7 +370,7 @@ module ClassicDocumentTree =
         match manifest.Kind with
         | ClassicDistributionKind.LibraryKind ->
             assemble
-                (joinPackage definitions Own logicalPath own)
+                (joinPackage ct definitions Own logicalPath own)
                 (fun ownModules dependencyMap ->
                     Library(
                         manifest.Package,
@@ -379,7 +380,7 @@ module ClassicDocumentTree =
                 )
         | ClassicDistributionKind.SpecsKind ->
             assemble
-                (joinPackage specifications Own logicalPath own)
+                (joinPackage ct specifications Own logicalPath own)
                 (fun ownModules dependencyMap ->
                     Specs(
                         manifest.Package,
@@ -387,3 +388,13 @@ module ClassicDocumentTree =
                         ({ Modules = ownModules }: Classic.Package.PackageSpecification<'ta>)
                     )
                 )
+
+    /// <summary>
+    /// Joins a tree into a model. Types, values, modules and dependencies are maps in a classic model, so their
+    /// order is the model's own. An inconsistent tree is refused with every error found, its document errors in
+    /// the ordinal order of their logical paths; the remarks of this module list the codes. The single file the
+    /// model belongs in has the label <c>tree.Manifest.SingleFileVersion</c>. C# calls this <c>Join</c>.
+    /// </summary>
+    [<CompiledName("Join")>]
+    let join (tree: ClassicDocumentTree<'ta, 'va>) : Result<Distribution<'ta, 'va>, TreeError list> =
+        joinCancellable CancellationToken.None tree

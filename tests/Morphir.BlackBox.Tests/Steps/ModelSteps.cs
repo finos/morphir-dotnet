@@ -181,6 +181,35 @@ public sealed class ModelSteps(IScenarioWorkspace workspace, ScenarioRun run)
     /// <summary>Writes a catalog tree to the directory <c>model</c> of the workspace, as the model of the scenario.</summary>
     private void TheCatalogTree(FixtureTree tree) => run.ModelTree = workspace.WriteTree(tree, "model");
 
+    /// <summary>
+    /// The frozen bounded Orders document tree of IR <paramref name="version"/> (3 for <c>v3.1</c>, or 4 for <c>v4</c>)
+    /// and <paramref name="profile"/> (<c>plain-json</c>, <c>plain-yaml</c>, <c>contextual-json</c>, or <c>contextual-yaml</c>),
+    /// from <see cref="FixtureCatalog.BoundedOrders"/>.
+    /// </summary>
+    [Given("the bounded Orders v{int} {string} document tree")]
+    public void TheBoundedOrdersDocumentTree(int version, string profile)
+    {
+        var versionPrefix = version switch
+        {
+            3 => "v3.1",
+            4 => "v4",
+            _ => throw new ArgumentOutOfRangeException(nameof(version), version, "Use v3 or v4."),
+        };
+        var prefix = $"{FixtureCatalog.BoundedOrders.Directory}{versionPrefix}/{profile}/";
+        var entries = FixtureCatalog.BoundedOrders.Files
+            .Where(entry => entry.RelativePath.StartsWith(prefix, StringComparison.Ordinal))
+            .ToArray();
+        if (entries.Length == 0)
+            throw new ArgumentOutOfRangeException(nameof(profile), profile, $"No bounded Orders tree files exist for {versionPrefix}/{profile}.");
+        var tree = workspace.Directory("model");
+        foreach (var entry in entries)
+        {
+            var relative = entry.RelativePath[prefix.Length..];
+            workspace.WriteBytes(tree.File(relative), FixtureCatalog.ReadBytes(entry));
+        }
+        run.ModelTree = tree;
+    }
+
     [Given("an IR model with no format version")]
     public void AModelWithNoFormatVersion() => TheCatalogModel(FixtureCatalog.Models.NoFormatVersion);
 

@@ -23,11 +23,12 @@ public sealed class CliGenerationSettingsResolver : IGenerationSettingsResolver
         {
             null or "auto" => InputFormat.Auto,
             "json" => InputFormat.Json,
+            "yaml" => InputFormat.Yaml,
             "ion" => InputFormat.Ion,
             _ => (InputFormat?)null
         };
         if (format is null)
-            return ValueTask.FromResult(Fail("invalid-input-format", "Input format must be auto, json or ion."));
+            return ValueTask.FromResult(Fail("invalid-input-format", "Input format must be auto, json, yaml or ion."));
 
         if (overrides.Extension is { } extension && string.IsNullOrWhiteSpace(extension))
             return ValueTask.FromResult(Fail("invalid-extension", "The backend extension from --extension is empty."));

@@ -1,16 +1,22 @@
 namespace Morphir.Json.V4
 
 open System
+open System.Diagnostics.CodeAnalysis
+open System.Runtime.InteropServices
 open System.Text.Json
 open Morphir.IR.V4
 
 /// <summary>A complete IR v4 document.</summary>
-type V4Document = {
-    /// <summary>The exact release. Integer <c>4</c> and string <c>"4.0.0"</c> both give <c>"4.0.0"</c>.</summary>
-    FormatVersion: string
-    /// <summary>The distribution.</summary>
-    Distribution: Distribution
-}
+type V4Document =
+    {
+        /// <summary>The exact release. Integer <c>4</c> and string <c>"4.0.0"</c> both give <c>"4.0.0"</c>.</summary>
+        FormatVersion: string
+        /// <summary>The distribution.</summary>
+        Distribution: Distribution
+    }
+
+    /// <summary>A readable summary of the v4 document.</summary>
+    override this.ToString() = $"V4Document({this.FormatVersion})"
 
 /// <summary>
 /// Reads IR v4 JSON into the typed model, accepting every compact, expanded and legacy spelling and
@@ -48,6 +54,28 @@ module V4Json =
                 Distribution = distribution
             }
         )
+
+    /// <summary>
+    /// For C# callers: reads a complete v4 document holding a Library, Specs, or Application distribution from
+    /// <paramref name="root"/>, setting either <paramref name="document"/> or <paramref name="error"/>.
+    /// C# calls this <c>TryReadDistribution</c>.
+    /// </summary>
+    [<CompiledName("TryReadDistribution")>]
+    let tryReadDistribution
+        (
+            root: JsonElement,
+            [<Out; MaybeNullWhen(false)>] document: byref<V4Document>,
+            [<Out; MaybeNullWhen(true)>] error: byref<V4JsonError>
+        ) : bool =
+        match readDistribution root with
+        | Result.Ok loaded ->
+            document <- loaded
+            error <- Unchecked.defaultof<_>
+            true
+        | Result.Error failure ->
+            document <- Unchecked.defaultof<_>
+            error <- failure
+            false
 
     /// <summary>
     /// For C# callers that check a document and need no model: the error of <see cref="readDistribution"/>, or null

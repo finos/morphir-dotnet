@@ -357,6 +357,26 @@ public static class FixtureCatalog
             Document("mep/fixtures/plain-ir.json", "fd49ad8b0cab49216323beb969c08f91a888925dbb995838c57a05b48a80bb2f"),
         ];
 
+        /// <summary>The Ion text daily-rate pair fixture (<c>pairs/v3-daily-rate.ion</c>).</summary>
+        public static FixtureEntry V3DailyRateIon { get; } =
+            Document("pairs/v3-daily-rate.ion", "057ff48219c0280173e42ae9649907cf8c3e6a30586a007f5fd6c71e57d982e0");
+
+        /// <summary>The Ion text MEP rich-model wrapper fixture (<c>mep/fixtures/rich-model.ion</c>).</summary>
+        public static FixtureEntry RichModelIon { get; } =
+            Document("mep/fixtures/rich-model.ion", "3c314a4e29bb3e1477171aff632fecec35257d0835c2e18549c732c609dfa664");
+
+        /// <summary>The Ion document-tree files of <c>trees/v3-daily-rate/</c>.</summary>
+        public static IReadOnlyList<FixtureEntry> V3DailyRateIonTreeFiles { get; } =
+        [
+            Document("trees/v3-daily-rate/manifest.ion", "655a8604be8cd2db6488ce45cd3152aabbe62b870f93fdcd4af94f1c90fa50a1"),
+            Document("trees/v3-daily-rate/pkg/car/rental/inventory/daily-rate.value.ion", "754ce7627f3db7199a6f7ad514a064e5368c50471eabfd0348af1a755d2aa196"),
+            Document("trees/v3-daily-rate/pkg/car/rental/inventory/module.ion", "80f3802f6bd8134981575b708e23a8174ae375f0905f4d0b0f68545a0396b6af"),
+        ];
+
+        /// <summary><see cref="V3DailyRateIonTreeFiles"/> as a tree: the Ion document tree for <c>v3-daily-rate</c>.</summary>
+        public static FixtureTree V3DailyRateIonTree { get; } =
+            FixtureTree.Below("the Ion document tree for v3-daily-rate", Directory + "trees/v3-daily-rate/", V3DailyRateIonTreeFiles);
+
         /// <summary>The path of a document below <see cref="Directory"/>, such as <c>pairs/v3-specs.json</c>.</summary>
         public static string NameOf(FixtureEntry document) => document.RelativePath[Directory.Length..];
 
@@ -921,7 +941,7 @@ public static class FixtureCatalog
     [
         .. Kit.Files, Mep.BoundedGenerationSession, .. BoundedWasmLimits.Files, OrdersScale.Guest, .. BoundedGenerationReceipts.Files,
         .. Models.All, .. BoundedOrders.Files, BoundedOrders.ExpandedV4, .. Trees.AcmeDemo, .. Trees.Written,
-        .. UpstreamIr.Documents, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark,
+        .. UpstreamIr.Documents, UpstreamIr.V3DailyRateIon, UpstreamIr.RichModelIon, .. UpstreamIr.V3DailyRateIonTreeFiles, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark,
         WasmHost.Corpus, WasmHost.UnknownNamespaceModule, .. Context.Files, .. Context.Policy.Files,
         .. Context.Naming.Files, .. DiagramsMbt.Files, .. DiagramExport.Files, CssColor.NamedColors
     ];

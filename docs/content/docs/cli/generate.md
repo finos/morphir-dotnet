@@ -16,7 +16,7 @@ input is an explicit `--input`, or else the IR of the most recent
 
 ```text
 morphir generate [--input <file-or-directory>] --target <fsharp|csharp> --output <directory>
-  [--input-format auto|json|ion] [--option KEY=VALUE ...] [--json[=stream|document]]
+  [--input-format auto|json|yaml|ion] [--option KEY=VALUE ...] [--json[=stream|document]]
   [--extension <path-or-command>] [--project <path-or-name>] [--config <file>] [--out-dir <directory>]
 ```
 
@@ -24,10 +24,10 @@ morphir generate [--input <file-or-directory>] --target <fsharp|csharp> --output
 
 | Option | Meaning |
 | --- | --- |
-| `--input` | JSON/Ion model file or Ion tree directory. Without it, the IR of the most recent compile |
+| `--input` | JSON, YAML, or Ion model file or document tree directory. Without it, the IR of the most recent compile |
 | `--target` | Required exact target ID. The built-in targets are `fsharp` and `csharp`. An extension declares its own targets. |
 | `--output` | Required output directory with owned generated files |
-| `--input-format` | `auto` by default; `json` or `ion` constrains the reader |
+| `--input-format` | `auto` by default; `json`, `yaml`, or `ion` constrains the reader |
 | `--option` | Repeatable backend option, described below |
 | `--json[=stream\|document]` | Write the structured report to stdout: a bare `--json` writes one `completed` record that holds it, `--json=document` the report alone. See [Machine output](_index.md#machine-output) |
 | `--extension` | A backend extension: a command name, a path, or a `.dll`. Overrides `[codegen.<target>].extension`. See [Backend extensions](#backend-extensions). |
@@ -85,10 +85,24 @@ references. Relative source paths retain the original package identity.
 
 ## Inputs and target profile
 
-JSON accepts classic integer versions 1, 2 and 3, their supported semantic
-release declarations, and v4. Ion text, binary and trees support releases
-3.0.0, 3.1.0 and 4.0.0. Automatic detection recognizes the binary marker even
-without an Ion suffix. An Ion tree has `manifest.ion` at its root.
+JSON and YAML single-file models accept classic integer versions 1, 2 and 3,
+their supported semantic release declarations, and v4. JSON document trees
+(`manifest.json`) and YAML document trees (`manifest.yaml` / `manifest.yml`),
+both plain and name-compacted (contextual envelopes), support IR `3.1.0` and
+`4` / `4.0.0`. Ion text, binary and trees support releases 3.0.0, 3.1.0 and
+4.0.0. Automatic detection recognizes the binary marker even without an Ion
+suffix. For single files without a `.json`, `.yaml`, `.yml`, `.ion`, or `.ionb`
+suffix, `auto` classifies the file syntactically before decoding (with no
+cross-codec fallback): Ion binary/text markers route to Ion; YAML comments
+(`#`), directives (`%YAML`/`%TAG`), document markers (`---`), YAML block
+mappings, and YAML flow mappings with non-double-quoted first keys route to
+YAML; and JSON objects (`{"...`, `{}`) and arrays (`[`) route to JSON so
+malformed JSON reports `malformed-json` instead of decoding as YAML (pass
+`--input-format yaml` or a `.yaml`/`.yml` suffix for YAML flow syntax with a
+double-quoted first key). An Ion tree has `manifest.ion` at its root. Trees with more than one
+manifest (for example `manifest.json` alongside `manifest.yaml` or
+`manifest.ion`) are refused as ambiguous, and an explicit `--input-format`
+must match the tree's manifest profile.
 
 The F# target supports Library implementations at exact versions 1, 2, 3,
 3.0.0, 3.1.0, 4 and 4.0.0. It emits types, values and mapped SDK operations.
@@ -98,10 +112,10 @@ Integers use Int32, floats finite doubles, decimals exact .NET decimal values
 with retained scale up to 28, and characters one BMP scalar. Unsupported or
 lossy representations fail before publication.
 
-The whole-model loader accepts neither YAML nor JSON/YAML trees. A recorded
-plain JSON or YAML tree can be served to a compatible backend by
-[bounded generation](#bounded-generation-from-a-compile-record). The CLI
-does not accept a MEP envelope as an input file.
+A recorded plain JSON or YAML tree can also be served to a compatible external
+backend by [bounded generation](#bounded-generation-from-a-compile-record), or
+loaded directly by built-in targets (`fsharp`, `csharp`). The CLI does not
+accept a MEP envelope as an input file.
 Generation produces source files and their ownership manifest. It does not
 create an F# project or compile and execute the output.
 

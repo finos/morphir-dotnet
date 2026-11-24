@@ -34,6 +34,17 @@ module BoundedOrders =
         |> Seq.map (fun entry -> entry.RelativePath.Substring(prefix.Length), entry)
         |> Map.ofSeq
 
+    /// For C# callers: exposes <see cref="catalogDocuments"/> as a .NET read-only dictionary.
+    [<CompiledName("CatalogDocuments")>]
+    let catalogDocumentEntries version profile : System.Collections.Generic.IReadOnlyDictionary<string, FixtureEntry> =
+        let entries = System.Collections.Generic.Dictionary<string, FixtureEntry>(System.StringComparer.Ordinal)
+
+        for KeyValue(path, entry) in catalogDocuments version profile do
+            entries[path] <- entry
+
+        System.Collections.ObjectModel.ReadOnlyDictionary<string, FixtureEntry>(entries)
+        :> System.Collections.Generic.IReadOnlyDictionary<string, FixtureEntry>
+
     let private plainJson version locations =
         let documents = catalogDocuments version "plain-json"
 
@@ -1129,3 +1140,525 @@ module Invalid =
     let v3TypeFileOutsideTheTree () : VFileTree =
         v3Files ()
         |> Driver.copied v3InvoiceTypeFile "invoice.type.json"
+
+/// Named single-file and contextual YAML cases for model-loader and store tests.
+module YamlDocuments =
+    /// The v4 daily-rate model from <see cref="FixtureCatalog.Models.V4DailyRate"/> encoded as YAML
+    /// with the requested <paramref name="formatVersion"/> header.
+    [<CompiledName("V4DailyRateYaml")>]
+    let v4DailyRateYaml (formatVersion: string) : string =
+        use parsed = JsonDocument.Parse(FixtureCatalog.ReadText FixtureCatalog.Models.V4DailyRate)
+        let distributionJson = parsed.RootElement.GetProperty("distribution").GetRawText()
+        let header =
+            if formatVersion.Contains('.') then $"\"{formatVersion}\"" else formatVersion
+        $"formatVersion: {header}\ndistribution: {distributionJson}\n"
+
+    /// A minimal valid plain YAML document carrying only formatVersion and an empty distribution mapping.
+    [<CompiledName("MinimalV4PlainYaml")>]
+    let minimalV4PlainYaml = "formatVersion: 4\ndistribution: {}\n"
+
+    /// A malformed YAML document with an unclosed flow sequence.
+    [<CompiledName("MalformedFlowYaml")>]
+    let malformedFlowYaml = "formatVersion: [broken\n"
+
+    /// A malformed YAML document starting with <c>formatVersion: 4</c> and an unclosed <c>distribution</c> sequence.
+    [<CompiledName("MalformedDistributionSequenceYaml")>]
+    let malformedDistributionSequenceYaml = "formatVersion: 4\ndistribution: [broken\n"
+
+    /// A malformed YAML document with an unclosed flow mapping followed by a block key,
+    /// which triggers <see cref="System.InvalidOperationException"/> inside YamlDotNet unless caught at the parser boundary.
+    [<CompiledName("UnclosedFlowMappingThenBlockKeyYaml")>]
+    let unclosedFlowMappingThenBlockKeyYaml = "formatVersion: 4\ndistribution: {key: value\nfoo: bar\n"
+
+    /// A YAML flow mapping header with an unterminated single-quoted value, which Auto must classify as YAML (<c>invalid_yaml</c>).
+    [<CompiledName("UnterminatedFlowValueYaml")>]
+    let unterminatedFlowValueYaml = "{formatVersion: 'unterminated"
+
+    /// A valid YAML mapping header followed by invalid UTF-8 bytes in the body, which Auto must classify as YAML (<c>invalid_yaml</c>).
+    [<CompiledName("InvalidUtf8AfterYamlHeaderBytes")>]
+    let invalidUtf8AfterYamlHeaderBytes: byte array =
+        Array.append (System.Text.Encoding.UTF8.GetBytes "formatVersion: 4\ndistribution: ") [| 0xFFuy; 0xFEuy; 0x0Auy |]
+
+    /// A simple custom plain YAML mapping (<c>custom: value</c>) used to verify extensionless <c>validate</c> parity.
+    [<CompiledName("CustomMappingYaml")>]
+    let customMappingYaml = "custom: value\n"
+
+    /// The standard Amazon Ion 1.0 binary version marker (IVM) bytes.
+    [<CompiledName("BinaryIonVersionMarker")>]
+    let binaryIonVersionMarker: byte array = [| 0xE0uy; 0x01uy; 0x00uy; 0xEAuy |]
+
+    /// Generates a large valid plain YAML body of approximately <paramref name="approxBytes"/> bytes for O(1) prefix-classification tests.
+    [<CompiledName("LargePlainYamlBytes")>]
+    let largePlainYamlBytes (approxBytes: int) : byte array =
+        let header = "formatVersion: 4\ndistribution:\n"
+        let line = "  entry: \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"\n"
+        let sb = System.Text.StringBuilder(max approxBytes (header.Length + line.Length))
+        sb.Append(header) |> ignore
+
+        while sb.Length < approxBytes do
+            sb.Append(line) |> ignore
+
+        System.Text.Encoding.UTF8.GetBytes(sb.ToString())
+
+    /// A YAML document carrying an undeclared <c>$schema</c> URI without any MEP marker.
+    [<CompiledName("UndeclaredSchemaYaml")>]
+    let undeclaredSchemaYaml =
+        "$schema: \"https://example.com/unknown.schema.json\"\ncontext: {}\ndocument: {}\n"
+
+    /// A block YAML document whose first plain key contains <c>::</c>, followed by an undeclared <c>$schema</c>
+    /// member, verifying Auto routes it to YAML rather than stopping at <c>::</c>.
+    [<CompiledName("BlockColonColonKeyWithUndeclaredSchemaYaml")>]
+    let blockColonColonKeyWithUndeclaredSchemaYaml =
+        "custom::key: ignored\n$schema: \"https://example.com/unknown.schema.json\"\ncontext: {}\ndocument: {}\n"
+
+    /// A flow YAML mapping whose first plain key contains <c>::</c>, followed by an undeclared <c>$schema</c>
+    /// member, verifying Auto routes it to YAML rather than stopping at <c>::</c>.
+    [<CompiledName("FlowColonColonKeyWithUndeclaredSchemaYaml")>]
+    let flowColonColonKeyWithUndeclaredSchemaYaml =
+        "{custom::key: ignored, \"$schema\": \"https://example.com/unknown.schema.json\", context: {}, document: {}}\n"
+
+    /// A block YAML document whose first plain key contains <c>::(key)</c>, followed by an undeclared <c>$schema</c>.
+    [<CompiledName("BlockColonColonParenKeyWithUndeclaredSchemaYaml")>]
+    let blockColonColonParenKeyWithUndeclaredSchemaYaml =
+        "custom::(key): ignored\n$schema: \"https://example.com/unknown.schema.json\"\ncontext: {}\ndocument: {}\n"
+
+    /// A flow YAML mapping whose first plain key contains <c>::(key)</c>, followed by an undeclared <c>$schema</c>.
+    [<CompiledName("FlowColonColonParenKeyWithUndeclaredSchemaYaml")>]
+    let flowColonColonParenKeyWithUndeclaredSchemaYaml =
+        "{custom::(key): ignored, \"$schema\": \"https://example.com/unknown.schema.json\", context: {}, document: {}}\n"
+
+    /// A block YAML document whose first plain key starts with <c>morphir::key:</c>, followed by an undeclared <c>$schema</c>.
+    [<CompiledName("BlockMorphirColonColonKeyWithUndeclaredSchemaYaml")>]
+    let blockMorphirColonColonKeyWithUndeclaredSchemaYaml =
+        "morphir::key: ignored\n$schema: \"https://example.com/unknown.schema.json\"\ncontext: {}\ndocument: {}\n"
+
+    /// An Ion-annotated string literal containing <c>: </c> inside quotes, which Auto must NOT classify as YAML.
+    [<CompiledName("IonAnnotatedQuotedStringWithColonSpace")>]
+    let ionAnnotatedQuotedStringWithColonSpace = "custom::\"hello: world\"\n"
+
+    /// An Ion document using stacked <c>morphir::v4::</c> annotations.
+    [<CompiledName("IonStackedMorphirAnnotationStub")>]
+    let ionStackedMorphirAnnotationStub = "morphir::v4::{}\n"
+
+    /// An Ion document using a bare <c>morphir::bare</c> symbol annotation.
+    [<CompiledName("IonBareMorphirAnnotationStub")>]
+    let ionBareMorphirAnnotationStub = "morphir::bare\n"
+
+    /// A single-line YAML mapping whose key ends with a colon (<c>formatVersion:</c>) separated by <c>:: </c>.
+    [<CompiledName("FormatVersionDoubleColonYaml")>]
+    let formatVersionDoubleColonYaml = "formatVersion:: ignored\n"
+
+    /// A single-line YAML mapping whose key ends with a colon (<c>formatVersion:</c>) with a quoted value.
+    [<CompiledName("FormatVersionDoubleColonQuotedYaml")>]
+    let formatVersionDoubleColonQuotedYaml = "formatVersion:: \"ignored\"\n"
+
+    /// A valid v4 Ion daily-rate document with a block comment containing <c>: </c> between <c>morphir::</c> and <c>{</c>.
+    [<CompiledName("V4DailyRateIonWithBlockCommentAfterAnnotation")>]
+    let v4DailyRateIonWithBlockCommentAfterAnnotation =
+        let v4Ion =
+            (FixtureCatalog.ReadText FixtureCatalog.UpstreamIr.V3DailyRateIon)
+                .Replace("3.0.0", "4.0.0")
+
+        v4Ion.Replace("morphir::{", "morphir::/* note: details */{")
+
+    /// A valid contextual v4 YAML daily-rate envelope preceded by an optional <c>morphir::[key]: ignored</c> entry.
+    [<CompiledName("V4DailyRateYamlWithMorphirBracketKey")>]
+    let v4DailyRateYamlWithMorphirBracketKey =
+        use parsed = JsonDocument.Parse(FixtureCatalog.ReadText FixtureCatalog.Models.V4DailyRate)
+        let distributionJson = parsed.RootElement.GetProperty("distribution").GetRawText()
+        $"morphir::[key]: ignored\n$schema: \"{MorphirFile.Draft1Schema}\"\ncontext: {{}}\ndocument:\n  formatVersion: 4\n  distribution: {distributionJson}\n"
+
+    /// A valid contextual v4 YAML daily-rate envelope preceded by an optional <c>custom:: "ignored"</c> entry.
+    [<CompiledName("V4DailyRateYamlWithCustomDoubleColonQuotedValue")>]
+    let v4DailyRateYamlWithCustomDoubleColonQuotedValue =
+        use parsed = JsonDocument.Parse(FixtureCatalog.ReadText FixtureCatalog.Models.V4DailyRate)
+        let distributionJson = parsed.RootElement.GetProperty("distribution").GetRawText()
+        $"custom:: \"ignored\"\n$schema: \"{MorphirFile.Draft1Schema}\"\ncontext: {{}}\ndocument:\n  formatVersion: 4\n  distribution: {distributionJson}\n"
+
+    /// The <see cref="FixtureCatalog.Models.V4DailyRate"/> JSON document with an invalid trailing comma
+    /// before the closing brace, which JSON must refuse as <c>malformed-json</c> and never silently decode as YAML.
+    [<CompiledName("TrailingCommaV4DailyRateJson")>]
+    let trailingCommaV4DailyRateJson =
+        let text = (FixtureCatalog.ReadText FixtureCatalog.Models.V4DailyRate).TrimEnd()
+        let lastBrace = text.LastIndexOf('}')
+        text.Substring(0, lastBrace).TrimEnd() + ",\n}\n"
+
+    /// A truncated malformed JSON object payload.
+    [<CompiledName("MalformedJsonBrace")>]
+    let malformedJsonBrace = "{broken"
+
+    /// An empty JSON object payload used to construct mixed-profile tree fixtures.
+    [<CompiledName("EmptyJsonObject")>]
+    let emptyJsonObject = "{}"
+
+    /// A plain YAML manifest carrying a disallowed YAML anchor on <c>formatVersion</c>.
+    [<CompiledName("AnchoredManifestYaml")>]
+    let anchoredManifestYaml =
+        "formatVersion: &v 4\ndistribution: Library\npackage: acme/orders\npathBudget: 4000\n"
+
+    /// A package metadata YAML payload (<c>package.yaml</c>) ignored by document-tree reads with a notice.
+    [<CompiledName("PackageMetadataYaml")>]
+    let packageMetadataYaml = "formatVersion: 4\nversion: 1.0.0\n"
+
+    /// A MEP model-envelope document written in YAML, which bare-IR loading must refuse.
+    [<CompiledName("MepEnvelopeYaml")>]
+    let mepEnvelopeYaml = "envelopeVersion: \"0.1.0\"\npayload: {}\n"
+
+    /// A MEP model-envelope document written in YAML that also carries a <c>$schema</c> member;
+    /// bare-IR loading must classify it as <c>unsupported-profile</c> before IR-context admission.
+    [<CompiledName("MepEnvelopeWithSchemaYaml")>]
+    let mepEnvelopeWithSchemaYaml =
+        "$schema: \"https://morphir.finos.org/schemas/mep/0.2.0/model-envelope.schema.json\"\nenvelopeVersion: \"0.1.0\"\npayload: {}\n"
+
+    /// A MEP model-envelope YAML document whose first key is <c>envelopeVersion:</c> followed by <c>$schema:</c>,
+    /// testing extensionless <c>Auto</c> YAML detection and MEP classification.
+    [<CompiledName("MepEnvelopeFirstWithSchemaYaml")>]
+    let mepEnvelopeFirstWithSchemaYaml =
+        "envelopeVersion: \"0.1.0\"\n$schema: \"https://morphir.finos.org/schemas/mep/0.2.0/model-envelope.schema.json\"\npayload: {}\n"
+
+    /// A YAML document starting with the <c>morphir_model:</c> MEP marker key.
+    [<CompiledName("MepMorphirModelYaml")>]
+    let mepMorphirModelYaml = "morphir_model:\n  formatVersion: 4\n"
+
+    /// A YAML document starting with the <c>jsonrpc:</c> MEP marker key.
+    [<CompiledName("MepJsonRpcYaml")>]
+    let mepJsonRpcYaml = "jsonrpc: \"2.0\"\nmethod: \"morphir/model\"\n"
+
+    /// A MEP model-envelope YAML document preceded by a leading YAML comment.
+    [<CompiledName("MepCommentedEnvelopeYaml")>]
+    let mepCommentedEnvelopeYaml = "# MEP envelope comment\nenvelopeVersion: \"0.1.0\"\npayload: {}\n"
+
+    /// A MEP model-envelope YAML document with a double-quoted <c>envelopeVersion</c> key.
+    [<CompiledName("MepDoubleQuotedEnvelopeYaml")>]
+    let mepDoubleQuotedEnvelopeYaml = "\"envelopeVersion\": \"0.1.0\"\npayload: {}\n"
+
+    /// A MEP model-envelope YAML document with a single-quoted <c>envelopeVersion</c> key.
+    [<CompiledName("MepSingleQuotedEnvelopeYaml")>]
+    let mepSingleQuotedEnvelopeYaml = "'envelopeVersion': \"0.1.0\"\npayload: {}\n"
+
+    /// A MEP <c>morphir_model</c> YAML document with a leading comment and a double-quoted marker key.
+    [<CompiledName("MepCommentedQuotedMorphirModelYaml")>]
+    let mepCommentedQuotedMorphirModelYaml = "# MEP model wrapper\n\"morphir_model\":\n  formatVersion: 4\n"
+
+    /// A MEP <c>jsonrpc</c> YAML document with a single-quoted marker key.
+    [<CompiledName("MepSingleQuotedJsonRpcYaml")>]
+    let mepSingleQuotedJsonRpcYaml = "'jsonrpc': \"2.0\"\nmethod: \"morphir/model\"\n"
+
+    /// A MEP model-envelope YAML document with a document-start marker, comment, and quoted key.
+    [<CompiledName("MepDocumentStartCommentedYaml")>]
+    let mepDocumentStartCommentedYaml = "---\n# MEP envelope\n\"envelopeVersion\": \"0.1.0\"\npayload: {}\n"
+
+    /// A MEP model-envelope YAML document with a CR-only leading comment line break.
+    [<CompiledName("MepCrOnlyCommentEnvelopeYaml")>]
+    let mepCrOnlyCommentEnvelopeYaml = "# CR-only comment\renvelopeVersion: \"0.1.0\"\rpayload: {}\r"
+
+    /// A MEP model-envelope YAML document written as a YAML flow mapping (unquoted keys).
+    [<CompiledName("MepFlowMappingEnvelopeYaml")>]
+    let mepFlowMappingEnvelopeYaml = "{envelopeVersion: \"0.1.0\", payload: {}}\n"
+
+    /// A MEP model-envelope YAML document where <c>payload</c> precedes <c>envelopeVersion</c>.
+    [<CompiledName("MepPayloadFirstEnvelopeYaml")>]
+    let mepPayloadFirstEnvelopeYaml = "payload: {}\nenvelopeVersion: \"0.1.0\"\n"
+
+    /// A MEP model-envelope YAML document with a double-quoted Unicode-escaped <c>envelopeVersion</c> key.
+    [<CompiledName("MepEscapedDoubleQuotedEnvelopeYaml")>]
+    let mepEscapedDoubleQuotedEnvelopeYaml = "\"envelope\\u0056ersion\": \"0.1.0\"\npayload: {}\n"
+
+    /// A non-Morphir plain YAML mapping used to ensure extensionless Auto mode keeps non-Morphir inputs as malformed-json.
+    [<CompiledName("NonMorphirPlainYaml")>]
+    let nonMorphirPlainYaml = "foo: bar\n"
+
+    /// A minimal v4 manifest-only JSON tree with scalar manifest members, used to test depth parity with YAML.
+    let manifestOnlyV4JsonTree () : VFileTree =
+        Driver.ofTexts [
+            "manifest.json",
+            """{"formatVersion":4,"distribution":"Library","package":"acme/orders","pathBudget":4000}"""
+        ]
+
+    /// A minimal v4 manifest-only YAML tree with scalar manifest members, used to test depth parity with JSON.
+    let manifestOnlyV4YamlTree () : VFileTree =
+        Driver.ofTexts [
+            "manifest.yaml",
+            "formatVersion: 4\ndistribution: Library\npackage: acme/orders\npathBudget: 4000\n"
+        ]
+
+    /// A malformed Ion manifest payload used to test failed Ion tree decoding under cancellation.
+    [<CompiledName("MalformedIonManifest")>]
+    let malformedIonManifest = "morphir::{broken"
+
+    /// A deeply nested YAML mapping of <paramref name="depth"/> flow levels used to verify iterative
+    /// YAML decoding does not exhaust the process stack when <c>MaxDepth = Int32.MaxValue</c>.
+    let deepNestedYaml (depth: int) : string =
+        let opens = String.replicate depth "{\"a\":"
+        let closes = String.replicate depth "}"
+        opens + "1" + closes + "\n"
+
+    /// A valid contextual YAML manifest envelope using the draft.1 name-compaction schema.
+    let contextualManifestYaml =
+        $"$schema: \"{MorphirFile.Draft1Schema}\"\ncontext:\n  packagePaths:\n    p0: \"acme/orders\"\ndocument:\n  formatVersion: 4\n  distribution: Library\n  package:\n    $name: p0\n  pathBudget: 4000\n"
+
+    /// A small compacted YAML manifest whose expanded output grows via repeated alias references
+    /// to a long canonical package path, staying well under a small raw input size while exceeding
+    /// tight expansion byte or node budgets.
+    [<CompiledName("CompactedExpandingManifestYaml")>]
+    let compactedExpandingManifestYaml (segmentCount: int) (dependencyCount: int) : string =
+        let longPath =
+            [ for i in 1..segmentCount -> $"segment-{i}" ]
+            |> String.concat "/"
+
+        let deps =
+            [ for _ in 1..dependencyCount -> "    - $name: p0" ]
+            |> String.concat "\n"
+
+        $"$schema: \"{MorphirFile.Draft1Schema}\"\ncontext:\n  packagePaths:\n    p0: \"{longPath}\"\ndocument:\n  formatVersion: 4\n  distribution: Library\n  package: \"acme/orders\"\n  pathBudget: 4000\n  dependencies:\n{deps}\n"
+
+    /// A single classic v3.1.0 contextual YAML type document whose raw node count is modest while expanding
+    /// its FQName references into nested classic word arrays pushes the expanded node count well past raw nodes.
+    let compactedClassicExpandingTypeYaml =
+        $"$schema: \"{MorphirFile.Draft1Schema}\"\ncontext:\n  fqNames:\n    q: \"acme-corp/billing-core:invoice-line/rate-table#daily-discount-rate\"\ndocument:\n  formatVersion: \"3.1.0\"\n  name: \"sample\"\n  def:\n    access: \"Public\"\n    value:\n      doc: null\n      value:\n        - \"TypeAliasDefinition\"\n        - []\n        - - \"Tuple\"\n          - {{}}\n          - - - \"Reference\"\n              - {{}}\n              - $name: q\n              - []\n            - - \"Reference\"\n              - {{}}\n              - $name: q\n              - []\n            - - \"Reference\"\n              - {{}}\n              - $name: q\n              - []\n"
+
+    /// A YAML document with a nested key containing ": " and a disallowed anchor value to test structured
+    /// JSON Pointer preservation without splitting on ": ".
+    [<CompiledName("NestedYamlKeyWithColonSpace")>]
+    let nestedYamlKeyWithColonSpace =
+        "formatVersion: 4\nouter:\n  \"note: detail\": &bad 1\n"
+
+    /// A minimal Ion manifest stub used to construct ambiguous multi-manifest tree fixtures.
+    [<CompiledName("MinimalIonManifest")>]
+    let minimalIonManifest = "morphir::{}"
+
+    /// A contextual YAML manifest whose ignored context field contains quotes that double in size when
+    /// transcoded to JSON, so the transcoded envelope exceeds a tight byte allowance while both raw YAML
+    /// bytes and the expanded plain document fit.
+    let contextualYamlWithEscapedEnvelopeOverhead (quoteCount: int) : string =
+        let quotes = System.String('"', quoteCount)
+        $"$schema: \"{MorphirFile.Draft1Schema}\"\ncontext:\n  ignoredNote: |\n    {quotes}\ndocument:\n  formatVersion: 4\n  distribution: Library\n  package: \"acme/orders\"\n  pathBudget: 4000\n"
+
+    /// A contextual YAML manifest with an invalid alias entry under <c>context.names.bad</c> to test
+    /// structured nested context validation locations.
+    [<CompiledName("ContextualYamlWithInvalidAliasEntry")>]
+    let contextualYamlWithInvalidAliasEntry =
+        $"$schema: \"{MorphirFile.Draft1Schema}\"\ncontext:\n  names:\n    bad: \"Not_A_Canonical_Name\"\ndocument:\n  formatVersion: 4\n  distribution: Library\n  package: \"acme/orders\"\n  pathBudget: 4000\n"
+
+    /// For C# callers: serializes a <see cref="VersionedModel"/> as canonical single-file JSON bytes.
+    [<CompiledName("WriteSingleFileJson")>]
+    let writeSingleFileJson (model: Morphir.IR.Model.VersionedModel) : byte array =
+        match model.Distribution with
+        | Morphir.IR.Model.DistributionModel.Classic dist ->
+            match Morphir.Json.Classic.ClassicJsonWriter.writeJsonAttributes Morphir.Json.Classic.ClassicWireProfile.v3 true dist with
+            | Ok bytes -> bytes
+            | Result.Error err -> failwith $"Failed to write classic single-file JSON: {err}"
+        | Morphir.IR.Model.DistributionModel.V4 dist ->
+            match Morphir.Json.V4.V4JsonWriter.writeDistribution true dist with
+            | Ok bytes -> bytes
+            | Result.Error err -> failwith $"Failed to write v4 single-file JSON: {err}"
+
+    /// Builds a v4 bounded Orders tree for <paramref name="profile"/> with its manifest <c>formatVersion</c>
+    /// rewritten to the explicit quoted string <paramref name="explicitVersion"/>.
+    let v4OrdersTreeWithExplicitVersion (profile: string) (explicitVersion: string) : VFileTree =
+        let manifestName =
+            if profile.EndsWith("-yaml", System.StringComparison.Ordinal) then "manifest.yaml" else "manifest.json"
+
+        BoundedOrders.catalogDocuments "v4" profile
+        |> Map.map (fun location fixture ->
+            if location = manifestName then
+                let original = FixtureCatalog.ReadText fixture
+
+                let updated =
+                    if manifestName = "manifest.yaml" then
+                        original.Replace("formatVersion: 4", $"formatVersion: \"{explicitVersion}\"")
+                    else
+                        original
+                            .Replace("\"formatVersion\": 4", $"\"formatVersion\": \"{explicitVersion}\"")
+                            .Replace("\"formatVersion\":4", $"\"formatVersion\":\"{explicitVersion}\"")
+
+                VFile.ofText location updated
+            else
+                VFile.ofBytes location (System.ReadOnlyMemory(FixtureCatalog.ReadBytes fixture))
+        )
+        |> VFileTree.fromFileMap
+
+    /// For C# callers: returns the files (relative path -> UTF-8 bytes) of the v4 bounded Orders tree for
+    /// <paramref name="profile"/> with its manifest <c>formatVersion</c> set to <paramref name="explicitVersion"/>.
+    [<CompiledName("OrdersTreeWithExplicitVersion")>]
+    let ordersTreeWithExplicitVersion (profile: string) (explicitVersion: string) : System.Collections.Generic.IReadOnlyDictionary<string, byte array> =
+        let tree = v4OrdersTreeWithExplicitVersion profile explicitVersion
+        let entries = System.Collections.Generic.Dictionary<string, byte array>(System.StringComparer.Ordinal)
+
+        for KeyValue(location, file) in VFileTree.toFileMap tree do
+            match VFile.readText file with
+            | Ok text -> entries[location] <- System.Text.Encoding.UTF8.GetBytes text
+            | Result.Error err -> failwith $"Failed to read mother tree entry '{location}': {err}"
+
+        System.Collections.ObjectModel.ReadOnlyDictionary<string, byte array>(entries)
+        :> System.Collections.Generic.IReadOnlyDictionary<string, byte array>
+
+    /// Builds a v4 plain YAML Orders tree with both <c>order.value.yaml</c> and <c>order.value.yml</c> backed
+    /// by guarded streams that invoke <paramref name="onOpen"/> and fail if either ambiguous sibling is opened.
+    let v4YamlOrdersTreeWithGuardedAmbiguousSiblings (onOpen: string -> unit) : VFileTree * string * string =
+        let yamlPath = "pkg/acme/orders/domain/order.value.yaml"
+        let ymlPath = "pkg/acme/orders/domain/order.value.yml"
+
+        let guardedFile path =
+            VFile.ofStream
+                path
+                (StreamSource(fun () ->
+                    onOpen path
+                    failwith $"Should not open {path} when ambiguous siblings exist."
+                ))
+
+        let tree =
+            BoundedOrders.catalogDocuments "v4" "plain-yaml"
+            |> Map.map (fun location fixture -> VFile.ofBytes location (System.ReadOnlyMemory(FixtureCatalog.ReadBytes fixture)))
+            |> Map.add yamlPath (guardedFile yamlPath)
+            |> Map.add ymlPath (guardedFile ymlPath)
+            |> VFileTree.fromFileMap
+
+        tree, yamlPath, ymlPath
+
+    /// Builds a v4 plain YAML Orders tree whose <c>pkg/acme/orders/domain/module.yaml</c> file invokes
+    /// <paramref name="onOpenModule"/> before returning its bytes, used to test mid-decode cancellation.
+    let v4YamlOrdersTreeWithOnOpenModule (onOpenModule: unit -> unit) : VFileTree =
+        let moduleLocation = "pkg/acme/orders/domain/module.yaml"
+        let docs = BoundedOrders.catalogDocuments "v4" "plain-yaml"
+        let moduleBytes = FixtureCatalog.ReadBytes docs[moduleLocation]
+
+        docs
+        |> Map.map (fun location fixture ->
+            if location = moduleLocation then
+                VFile.ofStream
+                    location
+                    (StreamSource(fun () ->
+                        onOpenModule ()
+                        new System.IO.MemoryStream(moduleBytes, writable = false) :> System.IO.Stream
+                    ))
+            else
+                VFile.ofBytes location (System.ReadOnlyMemory(FixtureCatalog.ReadBytes fixture))
+        )
+        |> VFileTree.fromFileMap
+
+    /// A valid v4 JSON document tree whose single compacted <c>pkg/acme/orders/domain/module.json</c> envelope
+    /// holds two inline value definitions (<c>alpha</c> and <c>beta</c>), used to verify physical path deduplication
+    /// in <see cref="LoadedTreeModel.CompactedFiles"/> while preserving all logical entries in <c>ReadReport</c>.
+    let compactedInlineTwoValuesModuleTree () : VFileTree =
+        let manifest =
+            """{"formatVersion":4,"distribution":"Library","package":"acme/orders","pathBudget":4000}"""
+
+        let valueDef =
+            """{"Public":{"ExpressionBody":{"inputTypes":{},"outputType":{"$name":"i"},"body":{"Literal":{"IntegerLiteral":1}}}}}"""
+
+        let compactedModule =
+            $"{{\"$schema\":\"{MorphirFile.Draft1Schema}\",\"context\":{{\"fqNames\":{{\"i\":\"morphir/SDK:basics#int\"}}}},\"document\":{{\"formatVersion\":4,\"path\":\"domain\",\"values\":{{\"alpha\":{valueDef},\"beta\":{valueDef}}}}}}}"
+
+        Driver.ofTexts [
+            "manifest.json", manifest
+            "pkg/acme/orders/domain/module.json", compactedModule
+        ]
+
+    /// For C# callers: returns the files (relative path -> UTF-8 bytes) of the v4 bounded Orders tree for
+    /// <paramref name="profile"/> with an unknown <c>UnknownBodyTag</c> inside <c>order.value</c>.
+    [<CompiledName("OrdersTreeWithUnknownBodyTag")>]
+    let ordersTreeWithUnknownBodyTag (profile: string) : System.Collections.Generic.IReadOnlyDictionary<string, byte array> =
+        let ext = if profile.EndsWith("-yaml", System.StringComparison.Ordinal) then ".yaml" else ".json"
+        let memberPath = $"pkg/acme/orders/domain/order.value{ext}"
+        let entries = System.Collections.Generic.Dictionary<string, byte array>(System.StringComparer.Ordinal)
+
+        for KeyValue(location, fixture) in BoundedOrders.catalogDocuments "v4" profile do
+            if location = memberPath then
+                let mutated = (FixtureCatalog.ReadText fixture).Replace("ExpressionBody", "UnknownBodyTag")
+                entries[location] <- System.Text.Encoding.UTF8.GetBytes mutated
+            else
+                entries[location] <- FixtureCatalog.ReadBytes fixture
+
+        System.Collections.ObjectModel.ReadOnlyDictionary<string, byte array>(entries)
+        :> System.Collections.Generic.IReadOnlyDictionary<string, byte array>
+
+    /// A valid v4 JSON document tree with two compacted value members whose aliases each expand to
+    /// ~3 * longWordLength bytes so each member fits individually under a tight budget while their
+    /// aggregate expanded bytes exceed it.
+    let compactedTwoMemberExpandingTree (longWordLength: int) : Map<string, string> =
+        let longName = String.replicate longWordLength "n"
+        let manifest =
+            """{"formatVersion":4,"distribution":"Library","package":"acme/orders","pathBudget":4000}"""
+
+        let moduleJson =
+            """{"formatVersion":4,"path":"domain","values":["alpha","beta"]}"""
+
+        let valueJson name =
+            $"{{\"$schema\":\"{MorphirFile.Draft1Schema}\",\"context\":{{\"fqNames\":{{\"q\":\"acme/orders:domain#{longName}\"}}}},\"document\":{{\"formatVersion\":4,\"name\":\"{name}\",\"def\":{{\"Public\":{{\"ExpressionBody\":{{\"inputTypes\":{{}},\"outputType\":{{\"Tuple\":[{{\"$name\":\"q\"}},{{\"$name\":\"q\"}},{{\"$name\":\"q\"}}]}},\"body\":{{\"Literal\":{{\"IntegerLiteral\":1}}}}}}}}}}}}}}"
+
+        Map.ofList [
+            "manifest.json", manifest
+            "pkg/acme/orders/domain/module.json", moduleJson
+            "pkg/acme/orders/domain/alpha.value.json", valueJson "alpha"
+            "pkg/acme/orders/domain/beta.value.json", valueJson "beta"
+        ]
+
+    /// For C# callers: exposes <see cref="compactedTwoMemberExpandingTree"/> as a .NET read-only dictionary.
+    [<CompiledName("CompactedTwoMemberExpandingTree")>]
+    let compactedTwoMemberExpandingTreeEntries (longWordLength: int) : System.Collections.Generic.IReadOnlyDictionary<string, string> =
+        let entries = System.Collections.Generic.Dictionary<string, string>(System.StringComparer.Ordinal)
+
+        for KeyValue(path, content) in compactedTwoMemberExpandingTree longWordLength do
+            entries[path] <- content
+
+        System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(entries)
+        :> System.Collections.Generic.IReadOnlyDictionary<string, string>
+
+    /// For C# callers: projects a classic v3 single-file JSON distribution to classic wire profile v1 or v2.
+    [<CompiledName("ProjectClassicJsonToVersion")>]
+    let projectClassicJsonToVersion (version: string) (v3Json: string) : string =
+        use parsed = JsonDocument.Parse v3Json
+
+        match Morphir.Json.Classic.ClassicJson.readDistribution parsed.RootElement with
+        | Result.Error err -> failwith $"Failed to decode classic fixture: {err}"
+        | Ok loaded ->
+            let profile =
+                if version = "1" then Morphir.Json.Classic.ClassicWireProfile.v1
+                else Morphir.Json.Classic.ClassicWireProfile.v2
+
+            match Morphir.Json.Classic.ClassicJsonWriter.writeJsonAttributes profile true loaded.Distribution with
+            | Result.Error err -> failwith $"Failed to project classic fixture to v{version}: {err}"
+            | Ok bytes -> System.Text.Encoding.UTF8.GetString bytes
+
+    /// For C# callers: splits a v3.1.0 or v4 single-file JSON distribution into its document-tree files
+    /// (relative path -> JSON text) as a .NET read-only dictionary, keeping F# list/Result handling inside F#.
+    [<CompiledName("SplitJsonModelToTreeFiles")>]
+    let splitJsonModelToTreeFiles (version: string) (json: string) : System.Collections.Generic.IReadOnlyDictionary<string, string> =
+        use parsed = JsonDocument.Parse json
+
+        let storedTree =
+            if version.StartsWith("4", System.StringComparison.Ordinal) then
+                match Morphir.Json.V4.V4Json.readDistribution parsed.RootElement with
+                | Ok loaded -> V4Tree(V4DocumentTree.split loaded.Distribution)
+                | Result.Error err -> failwith $"Failed to read v4 fixture: {err}"
+            else
+                match Morphir.Json.Classic.ClassicJson.readDistribution parsed.RootElement with
+                | Ok loaded -> ClassicTree(ClassicDocumentTree.split loaded.Distribution)
+                | Result.Error err -> failwith $"Failed to read classic fixture: {err}"
+
+        match DocumentTreeStore.write WriteOptions.defaults storedTree with
+        | Result.Error errors ->
+            let joined = errors |> List.map string |> String.concat "; "
+            failwith $"Failed to write document tree fixture: {joined}"
+        | Ok tree ->
+            let entries = System.Collections.Generic.Dictionary<string, string>(System.StringComparer.Ordinal)
+
+            for KeyValue(location, file) in VFileTree.toFileMap tree do
+                let text =
+                    match VFile.readText file with
+                    | Ok value -> value
+                    | Result.Error err -> failwith $"Failed to read written tree file '{location}': {err}"
+
+                let adjusted =
+                    if location = "manifest.json" && version = "4.0.0" then
+                        text
+                            .Replace("\"formatVersion\":4", "\"formatVersion\":\"4.0.0\"")
+                            .Replace("\"formatVersion\": 4", "\"formatVersion\": \"4.0.0\"")
+                    else
+                        text
+
+                entries[location] <- adjusted
+
+            System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(entries)
+            :> System.Collections.Generic.IReadOnlyDictionary<string, string>

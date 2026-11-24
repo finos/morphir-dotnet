@@ -95,6 +95,7 @@ two steps have the same pattern.
 | Model | `When I remove the module {string} from the model` |
 | Model | `Given the model has the problem {string}` |
 | Model | `Given the model fixture {string} as {string}` |
+| Model | `Given the bounded Orders v{int} {string} document tree` |
 | Model verification | `When I verify the model` |
 | Model verification | `When I verify the model with the schema version {int}` |
 | Model verification | `When I verify the model as JSON` |
@@ -107,6 +108,7 @@ two steps have the same pattern.
 | Generation | `When I generate {string} from the model as text` |
 | Generation | `When I generate {string} from the model with the option {string}` |
 | Generation | `When I generate {string} from the model with the options` |
+| Generation | `When I generate {string} from the model with the input format {string}` |
 | Generation | `Then the generation report says that the generation succeeded` |
 | Generation | `Then the generation report says that the generation failed with the kind {string}` |
 | Generation | `Then the generation report has the backend {string}` |

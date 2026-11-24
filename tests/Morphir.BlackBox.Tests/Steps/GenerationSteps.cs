@@ -210,6 +210,10 @@ public sealed class GenerationSteps(IGenerationDriver generation, IExtensionDriv
     public Task GenerateWithTheArguments(string target, string arguments) =>
         Generate(target, new GenerationOptions { Arguments = arguments.Split(' ', StringSplitOptions.RemoveEmptyEntries) });
 
+    [When("I generate {string} from the model with the input format {string}")]
+    public Task GenerateWithTheInputFormat(string target, string format) =>
+        Generate(target, new GenerationOptions { InputFormat = format });
+
     [When("I generate {string} from the model with the input format {string} and the options")]
     public Task GenerateWithTheInputFormatAndTheOptions(string target, string format, Table options) =>
         Generate(target, new GenerationOptions { InputFormat = format, Options = [.. options.Rows.Select(row => row["option"])] });

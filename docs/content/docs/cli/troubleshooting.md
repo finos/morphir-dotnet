@@ -645,9 +645,13 @@ of the most recent `morphir compile` of the project. Use exact target `fsharp` a
 `--option optimize=false` to disable folding. Unknown options and quoted strings
 where Booleans are required return exit 2.
 
-Use JSON/Ion bare IR, or an Ion tree rooted at `manifest.ion`. YAML models,
-JSON/YAML trees and MEP envelopes have explicit unsupported-format/profile
-diagnostics. A codec error identifies the input or tree member and logical
+Use JSON, YAML, or Ion bare IR, or a document tree rooted at `manifest.json`,
+`manifest.yaml` (or `manifest.yml`), or `manifest.ion`. Plain and name-compacted
+JSON and YAML document trees are supported for IR `3.1.0` and `4`/`4.0.0`.
+Trees with multiple root manifests fail with `tree.ambiguous_profile`, an
+explicit `--input-format` that contradicts a tree's manifest fails with
+`unsupported-format`, and MEP envelopes fail with `unsupported-profile`. A
+codec error identifies the input or tree member and its nested logical
 location. A semantic refusal returns exit 1 and preserves previous output.
 
 Keep input and output paths separate and remove links from output paths.

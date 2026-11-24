@@ -13,6 +13,23 @@ namespace Morphir.Tooling.Tests.Features.Generate;
 public class GenerationContractsTests
 {
     [Test]
+    public void ReleasedEnumNumericValuesArePinnedForAbiCompatibility()
+    {
+        ((int)InputFormat.Auto).Should().Be(0);
+        ((int)InputFormat.Json).Should().Be(1);
+        ((int)InputFormat.Ion).Should().Be(2);
+        ((int)InputFormat.Yaml).Should().Be(3);
+
+        ((int)ModelRepresentation.Json).Should().Be(0);
+        ((int)ModelRepresentation.IonText).Should().Be(1);
+        ((int)ModelRepresentation.IonBinary).Should().Be(2);
+        ((int)ModelRepresentation.IonTree).Should().Be(3);
+        ((int)ModelRepresentation.Yaml).Should().Be(4);
+        ((int)ModelRepresentation.JsonTree).Should().Be(5);
+        ((int)ModelRepresentation.YamlTree).Should().Be(6);
+    }
+
+    [Test]
     public void RetainedEntryOwnsItsBytes()
     {
         byte[] bytes = [1, 2, 3];

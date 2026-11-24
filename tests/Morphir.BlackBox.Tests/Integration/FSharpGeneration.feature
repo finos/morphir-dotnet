@@ -72,7 +72,7 @@ Feature: Generate F# libraries from Morphir models
 
     Examples:
       | arguments           |
-      | --input-format yaml |
+      | --input-format toml |
       | --unavailable       |
       | --option            |
 
@@ -118,4 +118,23 @@ Feature: Generate F# libraries from Morphir models
     When I generate "fsharp" from the model
     Then the exit code is 2
     And the generation report says that the generation failed with the kind "operational"
+    And the output directory is not there
+
+  Scenario: A JSON document tree generates F# with one JSON report
+    Given the bounded Orders v4 "plain-json" document tree
+    When I generate "fsharp" from the model
+    Then generation exits with 0 and one JSON report
+    And each artifact of the generation report is a file of the output
+
+  Scenario: A YAML document tree with explicit YAML input format generates F#
+    Given the bounded Orders v4 "plain-yaml" document tree
+    When I generate "fsharp" from the model with the input format "yaml"
+    Then generation exits with 0 and one JSON report
+    And each artifact of the generation report is a file of the output
+
+  Scenario: A document-tree input format mismatch exits with 1 and publishes nothing
+    Given the bounded Orders v4 "plain-yaml" document tree
+    When I generate "fsharp" from the model with the input format "json"
+    Then generation exits with 1 and one JSON report
+    And the first diagnostic of the generation report has the code "unsupported-format"
     And the output directory is not there

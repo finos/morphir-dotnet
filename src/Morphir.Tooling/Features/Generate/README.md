@@ -112,6 +112,9 @@ These delivered combinations load through the public adapter:
 | --- | --- | --- |
 | JSON file | 1, 2, 3, 3.0.0, 3.1.0 | Shared classic JSON reader |
 | JSON file | 4, 4.0.0 | Shared v4 JSON reader |
+| YAML file | 1, 2, 3, 3.0.0, 3.1.0, 4, 4.0.0 | `DocumentTreeStore.TryReadYamlDocument` + shared JSON readers |
+| JSON tree rooted at `manifest.json` (plain or compacted) | 3.1.0, 4, 4.0.0 | `DocumentTreeStore.TryReadModel` |
+| YAML tree rooted at `manifest.yaml` (plain or compacted) | 3.1.0, 4, 4.0.0 | `DocumentTreeStore.TryReadModel` |
 | Ion text or binary file | 3.0.0, 3.1.0, 4.0.0 | `IonIr.read` |
 | Ion tree rooted at `manifest.ion` | 3.0.0, 3.1.0, 4.0.0 | `IonIrTree.readDetailed` |
 
@@ -120,14 +123,18 @@ a generator or turn specifications into implementations. Backend compatibility
 is a separate check; see the F# generator's exact supported version list.
 
 Automatic detection checks the Ion binary marker before textual names or hints.
-Ion suffixes and header annotations select Ion; other supported text selects
-JSON. An explicit format constrains parser selection. A malformed recognized
-Ion document keeps its Ion rule, and tree errors name the relative member and
-logical location. There is no parser fallback and no JSON write/reparse bridge.
+Ion suffixes and header annotations select Ion; YAML suffixes and YAML mapping
+headers select YAML; other supported text selects JSON. For directories,
+discovery inspects `manifest.json`, `manifest.yaml`/`manifest.yml`, and
+`manifest.ion`, refusing ambiguous multi-manifest trees with
+`tree.ambiguous_profile`. An explicit format constrains parser selection and
+refuses mismatched tree profiles with `unsupported-format`. A malformed
+recognized Ion or YAML document keeps its codec rule, and tree errors name the
+relative member and logical location. There is no parser fallback.
 
-YAML models and JSON/YAML trees return `unsupported-format`. MEP JSON envelopes
-and text/binary `morphir_model` wrappers return `unsupported-profile` because
-admission is unavailable. YAML configuration discovery is also future work.
+MEP JSON/YAML envelopes and text/binary `morphir_model` wrappers return
+`unsupported-profile` because admission is unavailable. YAML configuration
+discovery is also future work.
 
 ## Capture limits and retention
 

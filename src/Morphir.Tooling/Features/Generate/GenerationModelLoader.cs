@@ -1,8 +1,10 @@
+using System.Collections.Immutable;
 using System.Text.Json;
-using Microsoft.FSharp.Collections;
 using Morphir.Files;
 using Morphir.IR.Model;
+using Morphir.IR.Trees;
 using Morphir.Ion;
+using Morphir.Tooling.Infrastructure;
 
 namespace Morphir.Tooling.Features.Generate;
 
@@ -19,6 +21,67 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
     }
 
     /// <summary>
+    /// Loads a model under the released JSON/Ion-only policy used by <c>morphir validate</c>: refuses YAML files
+    /// and JSON/YAML document trees even in <see cref="InputFormat.Auto"/> mode.
+    /// </summary>
+    internal async ValueTask<Outcome<LoadedModel>> LoadWithoutYamlOrDocumentTreesAsync(ModelInput input, ModelReadLimits limits, CancellationToken ct)
+    {
+        var captured = await capture.CaptureAsync(input, limits, ct);
+        if (captured is Outcome<RetainedInput>.Failure failed) return new Outcome<LoadedModel>.Failure(failed.Error);
+        var original = ((Outcome<RetainedInput>.Success)captured).Value;
+        return DecodeLegacy(original, input, limits, ct);
+    }
+
+    internal static Outcome<LoadedModel> DecodeLegacy(
+        RetainedInput original,
+        ModelInput input,
+        ModelReadLimits limits,
+        CancellationToken ct,
+        Func<RetainedInput.Tree, ModelReadLimits, Outcome<LoadedModel>>? ionTreeDecoder = null)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            if (CheckLimits(limits, original.SourcePath) is { } invalidLimits)
+                return invalidLimits;
+            if (input.Format is not (InputFormat.Auto or InputFormat.Json or InputFormat.Ion))
+                return Failure("invalid-input-format", $"Unsupported input format '{input.Format}'.", original.SourcePath, kind: GenerationFailureKind.Invocation);
+
+            if (original is RetainedInput.File candidate)
+            {
+                if (input.Format == InputFormat.Ion)
+                    return Decode(candidate, new(candidate.SourcePath, InputFormat.Ion), limits, ct);
+                if (input.Format == InputFormat.Json)
+                    return Decode(candidate, new(candidate.SourcePath, InputFormat.Json), limits, ct);
+
+                // InputFormat.Auto: preserve released validate refusal policy.
+                if (IsBinary(candidate.Entry.Memory.Span))
+                    return Decode(candidate, new(candidate.SourcePath, InputFormat.Ion), limits, ct);
+                if (IsLegacyYaml(candidate))
+                    return Failure("unsupported-format", "YAML model input is unsupported; use JSON or Ion IR.", original.SourcePath);
+                if (IsLegacyIon(candidate))
+                    return Decode(candidate, new(candidate.SourcePath, InputFormat.Ion), limits, ct);
+                return Decode(candidate, new(candidate.SourcePath, InputFormat.Json), limits, ct);
+            }
+
+            if (original is RetainedInput.Tree tree)
+            {
+                if (input.Format == InputFormat.Json)
+                    return Failure("unsupported-format", "JSON document trees are unsupported; use a JSON file or Ion tree.", original.SourcePath);
+                if (!tree.Entries.Any(entry => entry.RelativePath == "manifest.ion")
+                    && tree.Entries.Any(entry => entry.RelativePath is "manifest.json" or "manifest.yaml" or "manifest.yml" or "morphir-ir.json" or "morphir-ir.yaml" or "morphir-ir.yml"))
+                    return Failure("unsupported-format", "JSON and YAML model trees are unsupported; use an Ion tree with manifest.ion.", tree.SourcePath);
+                var decoded = (ionTreeDecoder ?? DecodeIonTree)(tree, limits);
+                ct.ThrowIfCancellationRequested();
+                return decoded;
+            }
+
+            return Decode(original, input, limits, ct);
+        }
+        catch (OperationCanceledException) { return Failure("cancelled", "Model loading was cancelled.", original.SourcePath, kind: GenerationFailureKind.Cancelled); }
+    }
+
+    /// <summary>
     /// Decodes an owned capture exactly as <see cref="LoadAsync"/> decodes the capture of <paramref name="input"/>.
     /// <c>compile --target</c> gives it the bytes that the compile wrote (CLI-2), so the backend sees the same
     /// <see cref="LoadedModel"/> as <c>generate --input</c> on the published file.
@@ -28,14 +91,15 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         try
         {
             ct.ThrowIfCancellationRequested();
-            if (input.Format == InputFormat.Auto && original is RetainedInput.File candidate && !IsBinary(candidate.Entry.Memory.Span) && IsYaml(candidate))
-                return Failure("unsupported-format", "YAML model input is unsupported; use JSON or Ion IR.", original.SourcePath);
+            if (CheckLimits(limits, original.SourcePath) is { } invalidLimits)
+                return invalidLimits;
+            if (input.Format is not (InputFormat.Auto or InputFormat.Json or InputFormat.Yaml or InputFormat.Ion))
+                return Failure("invalid-input-format", $"Unsupported input format '{input.Format}'.", original.SourcePath, kind: GenerationFailureKind.Invocation);
+
             var result = original switch
             {
-                RetainedInput.Tree tree when input.Format != InputFormat.Json => DecodeIonTree(tree, limits),
-                RetainedInput.Tree => Failure("unsupported-format", "JSON document trees are unsupported; use a JSON file or Ion tree.", original.SourcePath),
-                RetainedInput.File file when input.Format == InputFormat.Ion || input.Format == InputFormat.Auto && IsIon(file) => DecodeIon(file, limits),
-                RetainedInput.File file => DecodeJson(file, limits, ct),
+                RetainedInput.Tree tree => DecodeTree(tree, input.Format, limits, ct),
+                RetainedInput.File file => DecodeFile(file, input.Format, limits, ct),
                 _ => Failure("unsupported-format", "Unsupported input capture.", original.SourcePath)
             };
             ct.ThrowIfCancellationRequested();
@@ -46,41 +110,230 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         catch (JsonException error) { return Failure("malformed-json", "The input is not a complete JSON document.", original.SourcePath, error.Path ?? "$"); }
     }
 
+    private static Outcome<LoadedModel> DecodeFile(RetainedInput.File file, InputFormat format, ModelReadLimits limits, CancellationToken ct) =>
+        format switch
+        {
+            InputFormat.Json => DecodeJson(file, limits, ct),
+            InputFormat.Yaml => DecodeYaml(file, limits, ct),
+            InputFormat.Ion => DecodeIon(file, limits),
+            InputFormat.Auto => DecodeAutoFile(file, limits, ct),
+            _ => Failure("invalid-input-format", $"Unsupported input format '{format}'.", file.SourcePath, kind: GenerationFailureKind.Invocation)
+        };
+
+    private static Outcome<LoadedModel> DecodeAutoFile(RetainedInput.File file, ModelReadLimits limits, CancellationToken ct)
+    {
+        if (IsBinary(file.Entry.Memory.Span) || HasIonExtension(file)) return DecodeIon(file, limits);
+        if (HasYamlExtension(file)) return DecodeYaml(file, limits, ct);
+        if (HasJsonExtension(file)) return DecodeJson(file, limits, ct);
+
+        return ClassifyExtensionlessAuto(file, ct) switch
+        {
+            InputFormat.Ion => DecodeIon(file, limits),
+            InputFormat.Yaml => DecodeYaml(file, limits, ct),
+            _ => DecodeJson(file, limits, ct),
+        };
+    }
+
+    private static Outcome<LoadedModel> DecodeTree(RetainedInput.Tree tree, InputFormat format, ModelReadLimits limits, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        if (format is not (InputFormat.Auto or InputFormat.Json or InputFormat.Yaml or InputFormat.Ion))
+            return Failure("invalid-input-format", $"Unsupported input format '{format}'.", tree.SourcePath, kind: GenerationFailureKind.Invocation);
+
+        var manifestFiles = tree.Entries
+            .Where(entry => entry.RelativePath is "manifest.json" or "manifest.yaml" or "manifest.yml" or "manifest.ion")
+            .Select(entry => entry.RelativePath)
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .ToArray();
+
+        if (manifestFiles.Length > 1)
+        {
+            return Failure(
+                "tree.ambiguous_profile",
+                $"The tree has more than one manifest, {string.Join(" and ", manifestFiles)}; a reader does not choose one.",
+                tree.SourcePath);
+        }
+
+        var hasJson = manifestFiles.Length == 1 && manifestFiles[0] == "manifest.json";
+        var hasYaml = manifestFiles.Length == 1 && manifestFiles[0] is "manifest.yaml" or "manifest.yml";
+        var hasIon = manifestFiles.Length == 1 && manifestFiles[0] == "manifest.ion";
+
+        return format switch
+        {
+            InputFormat.Json when hasYaml || hasIon =>
+                Failure("unsupported-format", "Expected a JSON document tree with manifest.json.", tree.SourcePath),
+            InputFormat.Json =>
+                DecodeDocumentTree(tree, TreeProfileSelection.JsonOnly, limits, ct),
+            InputFormat.Yaml when hasJson || hasIon =>
+                Failure("unsupported-format", "Expected a YAML document tree with manifest.yaml.", tree.SourcePath),
+            InputFormat.Yaml =>
+                DecodeDocumentTree(tree, TreeProfileSelection.YamlOnly, limits, ct),
+            InputFormat.Ion when hasJson || hasYaml =>
+                Failure("unsupported-format", "Expected an Ion document tree with manifest.ion.", tree.SourcePath),
+            InputFormat.Ion =>
+                DecodeIonTree(tree, limits),
+            InputFormat.Auto when hasJson =>
+                DecodeDocumentTree(tree, TreeProfileSelection.JsonOnly, limits, ct),
+            InputFormat.Auto when hasYaml =>
+                DecodeDocumentTree(tree, TreeProfileSelection.YamlOnly, limits, ct),
+            InputFormat.Auto when hasIon =>
+                DecodeIonTree(tree, limits),
+            InputFormat.Auto =>
+                DecodeDocumentTree(tree, TreeProfileSelection.Any, limits, ct),
+            _ =>
+                Failure("invalid-input-format", $"Unsupported input format '{format}'.", tree.SourcePath, kind: GenerationFailureKind.Invocation)
+        };
+    }
+
+    private static Outcome<LoadedModel> DecodeDocumentTree(
+        RetainedInput.Tree tree,
+        TreeProfileSelection profiles,
+        ModelReadLimits limits,
+        CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var files = tree.Entries.Select(entry => VFile.OfBytes(entry.RelativePath, entry.Memory));
+        var vfileTree = VFileTree.FromFiles(files);
+        var options = TreeReadOptions.Create(
+                limits.MaxEntries,
+                limits.MaxBytes,
+                limits.MaxDepth,
+                limits.MaxNodes,
+                profiles)
+            .WithMaxTotalBytes(limits.MaxBytes);
+
+        if (!DocumentTreeStore.TryReadModel(options, vfileTree, ct, out var loaded, out var errors))
+            return StoreFailure(errors, tree.SourcePath);
+
+        var representation = loaded.Profile.Match(
+            json: () => ModelRepresentation.JsonTree,
+            yaml: () => ModelRepresentation.YamlTree);
+        return new Outcome<LoadedModel>.Success(new(loaded.Model, ModelDescriptor.From(loaded.Model), representation, tree));
+    }
+
     private static bool IsBinary(ReadOnlySpan<byte> bytes) => bytes.StartsWith(new byte[] { 0xE0, 0x01, 0x00, 0xEA });
 
-    private static bool IsIon(RetainedInput.File file)
+    private static bool HasIonExtension(RetainedInput.File file) =>
+        Path.GetExtension(file.SourcePath).ToLowerInvariant() is ".ion" or ".ionb";
+
+    private static bool HasYamlExtension(RetainedInput.File file) =>
+        Path.GetExtension(file.SourcePath).ToLowerInvariant() is ".yaml" or ".yml";
+
+    private static bool HasJsonExtension(RetainedInput.File file) =>
+        Path.GetExtension(file.SourcePath).Equals(".json", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Legacy YAML detection used by <c>morphir validate</c> Auto mode to preserve released refusal codes.</summary>
+    private static bool IsLegacyYaml(RetainedInput.File file)
+    {
+        if (HasYamlExtension(file)) return true;
+        var span = file.Entry.Memory.Span;
+        var prefix = System.Text.Encoding.UTF8.GetString(span[..Math.Min(256, span.Length)]).TrimStart('\uFEFF', ' ', '\t', '\r', '\n');
+        return prefix.StartsWith("---", StringComparison.Ordinal)
+            || prefix.StartsWith("formatVersion:", StringComparison.Ordinal)
+            || prefix.StartsWith("distribution:", StringComparison.Ordinal);
+    }
+
+    /// <summary>Legacy Ion detection used by <c>morphir validate</c> Auto mode.</summary>
+    private static bool IsLegacyIon(RetainedInput.File file)
     {
         var bytes = file.Entry.Memory.Span;
-        if (IsBinary(bytes)) return true;
-        if (Path.GetExtension(file.SourcePath).ToLowerInvariant() is ".ion" or ".ionb") return true;
+        if (IsBinary(bytes) || HasIonExtension(file)) return true;
         if (bytes.StartsWith(new byte[] { 0xEF, 0xBB, 0xBF })) bytes = bytes[3..];
-        // Content hints may follow arbitrarily long comments. Scan within the already bounded capture.
-        while (!bytes.IsEmpty)
+        var index = SkipIonTrivia(bytes, 0, CancellationToken.None);
+        if (index >= bytes.Length) return false;
+        var rest = bytes[index..];
+        return rest.StartsWith("$ion_"u8)
+            || rest.StartsWith("morphir::"u8)
+            || rest.StartsWith("'morphir'::"u8)
+            || rest.StartsWith("morphir_model::"u8);
+    }
+
+    /// <summary>
+    /// Parser-backed Auto classifier for extensionless non-binary single files.
+    /// Uses bounded, cancellable <see cref="IonReader.LooksLikeAnnotatedIonPrefix"/> inspection for Ion-annotated
+    /// inputs and O(1) prefix <see cref="DocumentTreeStore.LooksLikeYamlDocument"/> inspection for YAML.
+    /// </summary>
+    private static InputFormat ClassifyExtensionlessAuto(RetainedInput.File file, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var bytes = file.Entry.Memory.Span;
+        if (bytes.StartsWith(new byte[] { 0xEF, 0xBB, 0xBF })) bytes = bytes[3..];
+
+        var index = SkipIonTrivia(bytes, 0, ct);
+        if (index >= bytes.Length) return InputFormat.Json;
+        var content = bytes[index..];
+
+        if (content.StartsWith("$ion_"u8) || content.StartsWith("'morphir'::"u8))
+            return InputFormat.Ion;
+
+        if (content.StartsWith("morphir::"u8) || content.StartsWith("morphir_model::"u8))
         {
-            if (bytes[0] is 9 or 10 or 13 or 32) { bytes = bytes[1..]; continue; }
-            if (bytes.StartsWith("//"u8))
-            {
-                var end = bytes.IndexOf((byte)'\n'); if (end < 0) return false;
-                bytes = bytes[(end + 1)..]; continue;
-            }
-            if (bytes.StartsWith("/*"u8))
-            {
-                var end = bytes[2..].IndexOf("*/"u8); if (end < 0) return false;
-                bytes = bytes[(end + 4)..]; continue;
-            }
-            return bytes.StartsWith("$ion_"u8) || bytes.StartsWith("morphir::"u8) || bytes.StartsWith("'morphir'::"u8) || bytes.StartsWith("morphir_model::"u8);
+            if (IonReader.LooksLikeAnnotatedIonPrefix(file.Entry.Memory, ct))
+                return InputFormat.Ion;
+
+            return DocumentTreeStore.LooksLikeYamlDocument(file.Entry.Memory, ct)
+                ? InputFormat.Yaml
+                : InputFormat.Ion;
         }
-        return false;
+
+        if (FirstLineContainsColonColon(content)
+            && IonReader.LooksLikeAnnotatedIonPrefix(file.Entry.Memory, ct))
+            return InputFormat.Json;
+
+        return DocumentTreeStore.LooksLikeYamlDocument(file.Entry.Memory, ct)
+            ? InputFormat.Yaml
+            : InputFormat.Json;
+    }
+
+    private static int SkipIonTrivia(ReadOnlySpan<byte> bytes, int index, CancellationToken ct)
+    {
+        while (index < bytes.Length)
+        {
+            if ((index & 1023) == 0) ct.ThrowIfCancellationRequested();
+            var b = bytes[index];
+            if (b is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
+            {
+                index++;
+                continue;
+            }
+            if (bytes[index..].StartsWith("//"u8))
+            {
+                index += 2;
+                while (index < bytes.Length && bytes[index] is not ((byte)'\n' or (byte)'\r'))
+                {
+                    if ((index & 1023) == 0) ct.ThrowIfCancellationRequested();
+                    index++;
+                }
+                continue;
+            }
+            if (bytes[index..].StartsWith("/*"u8))
+            {
+                var close = bytes[(index + 2)..].IndexOf("*/"u8);
+                if (close < 0) return bytes.Length;
+                index += close + 4;
+                continue;
+            }
+            break;
+        }
+        return index;
+    }
+
+    private static bool FirstLineContainsColonColon(ReadOnlySpan<byte> bytes)
+    {
+        var lineEnd = bytes.IndexOfAny((byte)'\r', (byte)'\n');
+        var firstLine = lineEnd < 0 ? bytes : bytes[..lineEnd];
+        return firstLine.IndexOf("::"u8) >= 0;
     }
 
     private static IonReadLimits IonLimits(ModelReadLimits limits) =>
         new((int)Math.Min(limits.MaxBytes, int.MaxValue), limits.MaxDepth, limits.MaxNodes);
 
-    private static bool IsYaml(RetainedInput.File file)
+    private static Outcome<LoadedModel>? CheckLimits(ModelReadLimits limits, string path)
     {
-        if (Path.GetExtension(file.SourcePath).ToLowerInvariant() is ".yaml" or ".yml") return true;
-        var prefix = System.Text.Encoding.UTF8.GetString(file.Entry.Memory.Span[..Math.Min(256, file.Entry.Memory.Length)]).TrimStart('\uFEFF', ' ', '\t', '\r', '\n');
-        return prefix.StartsWith("---", StringComparison.Ordinal) || prefix.StartsWith("formatVersion:", StringComparison.Ordinal) || prefix.StartsWith("distribution:", StringComparison.Ordinal);
+        if (limits.MaxBytes <= 0 || limits.MaxEntries <= 0 || limits.MaxDepth <= 0 || limits.MaxNodes <= 0 || limits.MaxPathLength <= 0)
+            return Failure("invalid-input-limits", BoundedCapture.InvalidLimitsMessage, path, kind: GenerationFailureKind.Invocation);
+        return null;
     }
 
     private static Outcome<LoadedModel> DecodeIon(RetainedInput.File file, ModelReadLimits limits)
@@ -99,12 +352,10 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         return IonModel(result.ResultValue, file, IsBinary(file.Entry.Memory.Span) ? ModelRepresentation.IonBinary : ModelRepresentation.IonText);
     }
 
-    private static Outcome<LoadedModel> DecodeIonTree(RetainedInput.Tree tree, ModelReadLimits limits)
+    internal static Outcome<LoadedModel> DecodeIonTree(RetainedInput.Tree tree, ModelReadLimits limits)
     {
-        if (!tree.Entries.Any(entry => entry.RelativePath == "manifest.ion") && tree.Entries.Any(entry => entry.RelativePath is "manifest.json" or "manifest.yaml" or "manifest.yml" or "morphir-ir.json" or "morphir-ir.yaml" or "morphir-ir.yml"))
-            return Failure("unsupported-format", "JSON and YAML model trees are unsupported; use an Ion tree with manifest.ion.", tree.SourcePath);
-        var files = tree.Entries.Select(entry => VFileModule.ofBytes(entry.RelativePath, entry.Memory));
-        var result = IonIrTree.readDetailed(IonLimits(limits), VFileTreeModule.fromFiles(ListModule.OfSeq(files)));
+        var files = tree.Entries.Select(entry => VFile.OfBytes(entry.RelativePath, entry.Memory));
+        var result = IonIrTree.readDetailed(IonLimits(limits), VFileTree.FromFiles(files));
         if (result.IsOk) return IonModel(result.ResultValue, tree, ModelRepresentation.IonTree);
         return result.ErrorValue switch
         {
@@ -130,37 +381,49 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
     private static Outcome<LoadedModel> IonFailure(IonIrError error, string path) =>
         Failure(error.Code, error.Message, path, error.Location?.Value ?? error.Path?.Value ?? "$");
 
+    private static Outcome<LoadedModel> DecodeYaml(RetainedInput.File file, ModelReadLimits limits, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (!DocumentTreeStore.TryReadYamlDocument(file.SourcePath, file.Entry.Memory, limits.MaxBytes, limits.MaxDepth, limits.MaxNodes, ct, out var root, out var errors))
+            return StoreFailure(errors, file.SourcePath);
+        ct.ThrowIfCancellationRequested();
+        return DecodeJsonElement(root, file, ModelRepresentation.Yaml);
+    }
+
     private static Outcome<LoadedModel> DecodeJson(RetainedInput.File file, ModelReadLimits limits, CancellationToken ct)
     {
         var bytes = file.Entry.Memory;
         if (bytes.Span.StartsWith(new byte[] { 0xEF, 0xBB, 0xBF })) bytes = bytes[3..];
         CheckJsonBudget(bytes.Span, limits, ct);
         using var document = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = limits.MaxDepth });
-        var root = document.RootElement;
+        return DecodeJsonElement(document.RootElement, file, ModelRepresentation.Json);
+    }
+
+    private static Outcome<LoadedModel> DecodeJsonElement(JsonElement root, RetainedInput.File file, ModelRepresentation representation)
+    {
         if (root.ValueKind == JsonValueKind.Object && (root.TryGetProperty("envelopeVersion", out _) || root.TryGetProperty("morphir_model", out _) || root.TryGetProperty("jsonrpc", out _)))
             return Failure("unsupported-profile", "MEP model-envelope admission is unavailable; supply bare IR.", file.SourcePath);
         if (root.ValueKind == JsonValueKind.Object && root.EnumerateObject().Count(property => property.NameEquals("formatVersion")) > 1)
             return Failure("duplicate_format_version", "The model declares formatVersion more than once.", file.SourcePath, "$.formatVersion");
         var text = root.ValueKind == JsonValueKind.Object && root.TryGetProperty("formatVersion", out var version)
             ? version.ValueKind == JsonValueKind.String ? version.GetString()! : version.GetRawText() : "";
-        var parsedVersion = SourceFormatVersionModule.parse(text);
-        if (parsedVersion.IsError)
+        if (!SourceFormatVersion.TryParse(text, out var parsedVersion, out _))
             return Failure("unsupported-version", "The model requires an explicit supported formatVersion.", file.SourcePath, "$.formatVersion");
         DistributionModel distribution;
         if (text == "4" || text.StartsWith("4.", StringComparison.Ordinal))
         {
-            var decoded = Morphir.Json.V4.V4Json.readDistribution(root);
-            if (decoded.IsError) return Failure(decoded.ErrorValue.Rule, decoded.ErrorValue.Message, file.SourcePath, decoded.ErrorValue.Location);
-            distribution = DistributionModel.NewV4(decoded.ResultValue.Distribution);
+            if (!Morphir.Json.V4.V4Json.TryReadDistribution(root, out var decoded, out var error))
+                return Failure(error.Rule, error.Message, file.SourcePath, error.Location);
+            distribution = DistributionModel.NewV4(decoded.Distribution);
         }
         else
         {
-            var decoded = Morphir.Json.Classic.ClassicJson.readDistribution(root);
-            if (decoded.IsError) return Failure(decoded.ErrorValue.Rule, decoded.ErrorValue.Message, file.SourcePath, decoded.ErrorValue.Location);
-            distribution = DistributionModel.NewClassic(decoded.ResultValue.Distribution);
+            if (!Morphir.Json.Classic.ClassicJson.TryReadDistribution(root, out var decoded, out var error))
+                return Failure(error.Rule, error.Message, file.SourcePath, error.Location);
+            distribution = DistributionModel.NewClassic(decoded.Distribution);
         }
-        var model = new VersionedModel(parsedVersion.ResultValue, distribution);
-        return new Outcome<LoadedModel>.Success(new(model, ModelDescriptor.From(model), ModelRepresentation.Json, file));
+        var model = new VersionedModel(parsedVersion, distribution);
+        return new Outcome<LoadedModel>.Success(new(model, ModelDescriptor.From(model), representation, file));
     }
 
     private static void CheckJsonBudget(ReadOnlySpan<byte> bytes, ModelReadLimits limits, CancellationToken ct)
@@ -174,6 +437,21 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
             if (reader.TokenType is JsonTokenType.EndArray or JsonTokenType.EndObject or JsonTokenType.PropertyName) continue;
             if (++nodes > limits.MaxNodes || reader.CurrentDepth + 1 > limits.MaxDepth) throw new InputLimitException();
         }
+    }
+
+    private static Outcome<LoadedModel> StoreFailure(IReadOnlyList<TreeDiagnostic> errors, string defaultPath)
+    {
+        var kind = errors.Any(error => error.Code == "tree.unreadable_file")
+            ? GenerationFailureKind.Operational
+            : GenerationFailureKind.Semantic;
+        var diagnostics = errors
+            .Select(error => new GenerationDiagnostic(
+                error.Code,
+                error.Message,
+                error.File ?? defaultPath,
+                error.Location ?? "$"))
+            .ToImmutableArray();
+        return new Outcome<LoadedModel>.Failure(new GenerationFailure(kind, diagnostics));
     }
 
     private static Outcome<LoadedModel> Failure(string code, string message, string path, string location = "$", GenerationFailureKind kind = GenerationFailureKind.Semantic) =>
