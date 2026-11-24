@@ -134,6 +134,20 @@ public sealed class CompileTargetTests
     }
 
     [Test]
+    public void TheReleasedRunAsyncTakesDefaultForItsOptionalArguments()
+    {
+        // A compile check: each call binds to the released six-parameter overload, with no CS0121 ambiguity.
+        Func<CompileGenerationStages, CompileTarget, CompileSuccess, CompileSettings, ReadOnlyMemory<byte>, IAsyncEnumerable<CompileEvent>>[] calls =
+        [
+            (stages, target, success, settings, ir) => stages.RunAsync(target, success, settings, ir),
+            (stages, target, success, settings, ir) => stages.RunAsync(target, success, settings, ir, default),
+            (stages, target, success, settings, ir) => stages.RunAsync(target, success, settings, ir, default, default),
+            (stages, target, success, settings, ir) => stages.RunAsync(target, success, settings, ir, null, CancellationToken.None),
+        ];
+        calls.Should().HaveCount(4);
+    }
+
+    [Test]
     public async Task TheBackendGetsTheExactWrittenBytesAsAJsonFileInput()
     {
         using var workspace = Project();

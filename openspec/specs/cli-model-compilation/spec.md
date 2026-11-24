@@ -34,7 +34,7 @@ Each setting SHALL come from the first source that supplies it:
 - **THEN** it selects the same writer as `4`, and the report records `4.0.0` as requested
 
 ### Requirement: The IR format selects the serialization of the written IR
-`--ir-format` and `ir.format` SHALL accept `json`, `yaml` or `ion`; the flag overrides the key, and the default is `json`. The command SHALL write `morphir-ir.json`, the IR JSON of the writer; `morphir-ir.yaml`, the canonical YAML of that JSON under the v4 YAML profile; or `morphir-ir.ion`, the canonical Ion text of the same distribution under Ion IR draft `0.1.0-draft.1`. Each format SHALL read back as the same IR value. Ion SHALL be accepted only for the format versions the Ion writer carries (`3`, `3.0.0`, `3.1.0`, `4` and `4.0.0`); any other version with Ion SHALL fail before compilation with `compile.unsupported_setting` and exit code 2. A value that is not one of the three SHALL fail with exit code 2: a configured value once, as a configuration error, and a flag value with `compile.invalid_setting`. A write the format cannot hold SHALL fail the write stage with `compile.ir_format_failed`. The JSON report SHALL give the origin of the setting as `irFormat`.
+`--ir-format` and `ir.format` SHALL accept `json`, `yaml` or `ion`; the flag overrides the key, and the default is `json`. The command SHALL write `morphir-ir.json`, the IR JSON of the writer; `morphir-ir.yaml`, the canonical YAML of that JSON under the v4 YAML profile; or `morphir-ir.ion`, the canonical Ion text of the same distribution under Ion IR draft `0.1.0-draft.1`. Each format SHALL read back as the same IR value. Ion SHALL be accepted only for the format versions the Ion writer carries (`3`, `3.0.0`, `3.1.0`, `4` and `4.0.0`), and the Ion header and the task record SHALL state the requested release: Ion at `3.1.0` SHALL write the v3 library that the IR 3 writer gives, with `formatVersion: "3.1.0"` and record version `v3.1.0`, while JSON and YAML at `3.1.0` SHALL fail with `compile.unsupported_ir_version`; any other version with Ion SHALL fail before compilation with `compile.unsupported_setting` and exit code 2. A value that is not one of the three SHALL fail with exit code 2: a configured value once, as a configuration error, and a flag value with `compile.invalid_setting`. A write the format cannot hold SHALL fail the write stage with `compile.ir_format_failed`. The JSON report SHALL give the origin of the setting as `irFormat`.
 
 #### Scenario: YAML from the configuration
 - **WHEN** `morphir.toml` sets `ir.format = "yaml"` and the command passes no `--ir-format`
@@ -43,6 +43,10 @@ Each setting SHALL come from the first source that supplies it:
 #### Scenario: Ion from the flag
 - **WHEN** `morphir.toml` sets `ir.format = "yaml"` and the command passes `--ir-format ion --ir-version 3`
 - **THEN** the compile publishes `compile.dest/morphir-ir.ion`, whose header states `formatVersion: "3.0.0"`, and the report gives `--ir-format` as the origin of `irFormat`
+
+#### Scenario: Ion at IR 3.1.0
+- **WHEN** the command passes `--ir-format ion --ir-version 3.1.0`
+- **THEN** `compile.dest/morphir-ir.ion` states `formatVersion: "3.1.0"`, and the record's `ir.version` is `v3.1.0`
 
 #### Scenario: Ion before IR 3
 - **WHEN** the command passes `--ir-format ion --ir-version 2`

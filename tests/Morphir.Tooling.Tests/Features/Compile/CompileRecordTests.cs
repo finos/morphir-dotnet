@@ -126,6 +126,35 @@ public sealed class CompileRecordTests
     }
 
     [Test]
+    public async Task IonAtIrVersionThreePointOneStatesThreePointOneInTheHeaderAndTheRecord()
+    {
+        using var workspace = Project();
+        var result = await Run(workspace, Inputs("dist") with { IrVersion = "3.1.0", IrFormat = "ion" });
+        result.ExitCode.Should().Be(0, string.Join("\n", result.Diagnostics.Select(d => d.Diagnostic)));
+        var bytes = File.ReadAllBytes(workspace.PathOf(".morphir/out/compile.dest/morphir-ir.ion"));
+        Encoding.UTF8.GetString(bytes).Should().StartWith("morphir::{\n  ionVersion: \"0.1.0-draft.1\",\n  formatVersion: \"3.1.0\",\n  kind: library,\n");
+        var read = Morphir.Ion.IonIr.read(Morphir.Ion.IonReadLimitsModule.defaults, bytes);
+        read.IsOk.Should().BeTrue(read.IsError ? read.ErrorValue.Message : "");
+        read.ResultValue.Should().BeOfType<Morphir.Ion.IrDocument.ClassicIr>().Which.formatVersion.Should().Be("3.1.0");
+        File.ReadAllBytes(workspace.PathOf("dist/morphir-ir.ion")).Should().Equal(bytes);
+        using var record = Record(workspace);
+        record.RootElement.GetProperty("ir").GetProperty("version").GetString().Should().Be("v3.1.0");
+        record.RootElement.GetProperty("ir").GetProperty("format").GetString().Should().Be("ion");
+        ((CompileConclusion.Succeeded)result.Conclusion).Value.IrVersion.Text.Should().Be("3.1.0");
+    }
+
+    [Test]
+    [Arguments("json")]
+    [Arguments("yaml")]
+    public async Task IrVersionThreePointOneIsServedOnlyByIon(string format)
+    {
+        using var workspace = Project();
+        var result = await Run(workspace, Inputs() with { IrVersion = "3.1.0", IrFormat = format });
+        result.ExitCode.Should().Be(2);
+        result.Diagnostics.Select(d => d.Diagnostic.CodeOrNull?.Value).Should().Contain("compile.unsupported_ir_version");
+    }
+
+    [Test]
     public async Task IonForIrVersionTwoFailsBeforeCompilationAndWritesNoIr()
     {
         using var workspace = Project();

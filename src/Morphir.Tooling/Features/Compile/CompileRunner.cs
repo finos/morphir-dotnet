@@ -120,7 +120,8 @@ public sealed class CompileRunner(
             byte[] json = [];
             var writeRun = await Guard(CompileStage.Write,
                 () => Task.FromResult(CompileIrFormats.Encode(settings.IrFormat.Value,
-                    writer.Writer.Write(writer.Target, PublishedLayout, compiled.Package.Model), written => json = written)), ct);
+                    writer.Writer.Write(writer.Target, PublishedLayout, compiled.Package.Model), settings.IrVersion.Value.Version,
+                    written => json = written)), ct);
             foreach (var e in Report(CompileStage.Write, writeRun)) yield return e;
             if (!writeRun.Passed(out var bytes))
             {
@@ -130,7 +131,7 @@ public sealed class CompileRunner(
 
             yield return new CompileEvent.StageStarted(CompileStage.Publish);
             var publishRun = await Guard(CompileStage.Publish, () => publication.PublishAsync(new CompilePublishRequest(
-                compiled.Frontend.Language.Value, writer.Target.Version, sources.Selection.ProjectFileOrNull, bytes)
+                compiled.Frontend.Language.Value, settings.IrVersion.Value.Version, sources.Selection.ProjectFileOrNull, bytes)
             { Format = settings.IrFormat.Value }, ct), ct);
             foreach (var e in Report(CompileStage.Publish, publishRun)) yield return e;
             if (!publishRun.Passed(out var published))
@@ -185,7 +186,8 @@ public sealed class CompileRunner(
         if (!settings.TryGetValue(out var value)) return Checked<ResolvedRun>.Fail(settings.Diagnostics);
         resolved(value);
         var diagnostics = new List<Diagnostic>(settings.Diagnostics);
-        var writer = writers.Resolve(value.IrVersion.Value.Version);
+        // The writer of the JSON that every format starts from. Ion at 3.1.0 starts from the JSON of IR 3.
+        var writer = writers.Resolve(CompileIrFormats.WriterVersion(value.IrFormat.Value, value.IrVersion.Value.Version));
         diagnostics.AddRange(writer.Diagnostics);
         if (!writer.TryGetValue(out var resolvedWriter)) return Checked<ResolvedRun>.Fail(diagnostics);
 
