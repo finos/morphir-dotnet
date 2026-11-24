@@ -29,6 +29,9 @@ Status: In Progress
 | Comments, links and statements in RDF, embedded in the SVG and shown in the offline player | Implemented |
 | Playback route exploration, rounded and bridged connector styling, trace evidence, and raster export (`Morphir.Diagrams.Raster`) | Implemented |
 | Tree queries over BPMN documents (`Morphir.Diagrams.Query`) | Implemented |
+| A renderer-neutral layout, layout features with fallbacks, and renderers from other assemblies (`DiagramExport`) | Implemented |
+| Editable draw.io, Excalidraw and Obsidian Excalidraw export (`Morphir.Diagrams.Canvas`) | Implemented |
+| Slide export: PowerPoint, OpenDocument, Google Slides and reveal.js | Planned ([#706](https://github.com/finos/morphir-dotnet/issues/706)) |
 
 ## Implementation notes
 
@@ -42,3 +45,4 @@ Status: In Progress
 - Viewport controls transform the SVG and its motion overlay together. Fullscreen uses the browser API with an HTML dialog fallback, and print styles restore the fitted static diagram.
 - Diagram-linked metadata ([#689](https://github.com/finos/morphir-dotnet/issues/689)) gives each element a reference from its authored identifier and a per-kind ordinal, so references survive layout changes. A dataset about the diagram's document is embedded canonically (RDFC-1.0) in the SVG's `metadata`, so the same inputs give identical bytes. The player receives a JSON projection of it and never reads RDF.
 - [The upstream animation specification](https://github.com/moonrockz/diagrams.mbt/blob/60a8dd19f386b6fc65e9ddf5ddccec213c622d07/openspec/specs/diagram-animation/spec.md) defines the remaining playback and structural exploration behavior. Matching the rounded and bridged connector styling is part of rendering parity.
+- The layout of a page ([#705](https://github.com/finos/morphir-dotnet/issues/705)) comes from the same drawing pass as its SVG: the final pass records hints beside its SVG tree, and the layout sink turns each painted primitive into part of a drawable, so the SVG is unchanged and a test checks that every corpus layout paints what its SVG paints. Renderers declare the layout features they draw, and the library lowers the rest through fallbacks in a fixed order before a renderer receives a plan. See [Layouts and renderers](../../../../../src/Morphir.Diagrams/README.md#layouts-and-renderers) and [Morphir.Diagrams.Canvas](../../../../../src/Morphir.Diagrams.Canvas/README.md).
