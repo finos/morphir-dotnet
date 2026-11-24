@@ -145,10 +145,10 @@ public partial class LayoutAgreementTests
 
         void Text(LayoutText text, int order, ref int part, string? reference)
         {
-            if (text.Background is { } background)
+            if (text.Chip is { } chip)
             {
-                var box = text.BackgroundBox;
-                entries.Add((order, part++, new Painted($"rect {N(box.X)},{N(box.Y)} {N(box.Width)}x{N(box.Height)} fill {Colour(Of(background))} stroke none 0", reference)));
+                var box = chip.Box;
+                entries.Add((order, part++, new Painted($"rect {N(box.X)},{N(box.Y)} {N(box.Width)}x{N(box.Height)} fill {Colour(Of(chip.Color))} stroke none 0", reference)));
             }
 
             entries.Add((order, part++, new Painted(TextLine(text), reference)));

@@ -96,7 +96,6 @@ public class LayoutUnitTests
     [Test]
     public void AnOutOfRangeFractionIsRefused()
     {
-        Fraction.Parse(1.5).IsError.ShouldBeTrue();
         Fraction.TryParse(1.5, out var result, out var failure).ShouldBeFalse();
         result.ShouldBeNull();
         failure.Code.ShouldBe("layout/fraction-out-of-range");
@@ -135,7 +134,7 @@ public class LayoutUnitTests
         Scale.One.Value.ShouldBe(1.0);
         Scale.TryParse(0, out _, out var failure).ShouldBeFalse();
         failure.Code.ShouldBe("layout/scale-out-of-range");
-        Scale.Parse(double.PositiveInfinity).IsError.ShouldBeTrue();
+        Scale.TryParse(double.PositiveInfinity, out _, out _).ShouldBeFalse();
         Should.Throw<ArgumentException>(() => Scale.Create(-1));
         Scale.Create(0.5).ShouldBe(Scale.Create(0.5));
     }

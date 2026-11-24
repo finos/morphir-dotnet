@@ -70,7 +70,8 @@ public class RenderingTests
     private static ImmutableArray<Degradation> Degradations(Assessment assessment) =>
         assessment.Match(native: () => ImmutableArray<Degradation>.Empty, degraded: degradations => degradations, unsupported: _ => []);
 
-    private static bool Is(ShapeKind kind, string wire) => kind.WireValue == wire;
+    private static bool IsPath(ShapeKind kind) =>
+        kind.Match(rectangle: () => false, roundedRectangle: _ => false, ellipse: () => false, diamond: () => false, cylinder: _ => false, hexagon: _ => false, path: _ => true);
 
     private static LayoutFeatures AllBut(params LayoutFeature[] missing) =>
         missing.Aggregate(LayoutFeatures.All, (set, feature) => set.Remove(feature));
@@ -85,7 +86,7 @@ public class RenderingTests
         var (_, renderer) = await Render(Layout("flowchart LR\n  C[(Ledger)]\n"), LayoutFeatures.Of(LayoutFeature.Paths));
         var shape = DiagramLayoutTests.ShapeOf(Find(renderer.Page, "node=C"));
 
-        Is(shape.Kind, "path").ShouldBeTrue();
+        IsPath(shape.Kind).ShouldBeTrue();
         shape.Box.ShouldBe(DiagramLayoutTests.ShapeOf(Find(Layout("flowchart LR\n  C[(Ledger)]\n"), "node=C")).Box);
     }
 
@@ -317,7 +318,7 @@ public class RenderingTests
             DiagramLayoutTests.LineOf(lowered).ExactPath.ShouldBe(original.ExactPath);
             degraded.Any().ShouldBe(unbound);
         }
-        else if (declared.Contains(LayoutFeature.SmoothCurves) && original.Route == RouteStyle.Curved)
+        else if (declared.Contains(LayoutFeature.SmoothCurves) && original.Route.Equals(RouteStyle.Curved))
         {
             (DiagramLayoutTests.LineOf(lowered).Route, DiagramLayoutTests.LineOf(lowered).ExactPath).ShouldBe((RouteStyle.Curved, null));
             degraded.Any().ShouldBe(unbound);

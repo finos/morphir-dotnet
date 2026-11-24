@@ -35,7 +35,7 @@ Each task writes its tests first and confirms they fail for the stated reason, t
 - [x] 4.5 Write a test for each policy scenario, including `layout/pictured`, and that nothing is written for strict or unsupported renders. Then implement `DiagramExport.RenderAsync`, assessing before writing and flushing without closing.
 - [x] 4.6 Write the longest-extension and replacement scenarios, and a nullable-enabled C# test project with warnings as errors that compiles the lookup. Then add the immutable `DiagramRenderers` registry, with `TryFind` annotated for C# nullable analysis (design API-2).
 - [x] 4.7 Add the approved public API listing for Morphir.Diagrams as a fixture with its catalog entry and provenance row, and a test that compares the assembly's public surface against it. Verify that a deliberately removed member fails the test.
-- [ ] 4.8 Document the layout, units, features and their meanings, the policies, the modes, the compatibility policy, diagnostic codes and how to write a renderer that calls `EnsureFor` in `src/Morphir.Diagrams/README.md`, with a C# example compiled by `ReadmeTests`. Verify `ReadmeTests` passes, and run the `fsharp-csharp-interop-reviewer` agent over the diff and fix its findings.
+- [x] 4.8 Document the layout, units, features and their meanings, the policies, the modes, the compatibility policy, diagnostic codes and how to write a renderer that calls `EnsureFor` in `src/Morphir.Diagrams/README.md`, with a C# example compiled by `ReadmeTests`. Verify `ReadmeTests` passes, and run the `fsharp-csharp-interop-reviewer` agent over the diff and fix its findings.
 
 ## 5. The Morphir.Diagrams.Canvas package and draw.io
 

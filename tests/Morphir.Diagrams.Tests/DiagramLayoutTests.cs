@@ -388,7 +388,7 @@ public class DiagramLayoutTests
             .Select(child => child.Kind.Match<LayoutShape?>(shape: shape => shape, line: _ => null, text: _ => null, image: _ => null, element: _ => null, container: _ => null, group: _ => null))
             .OfType<LayoutShape>().ToList();
 
-        shapes.Skip(1).ShouldContain(shape => shape.Paint.Join == LineJoin.Round);
+        shapes.Skip(1).ShouldContain(shape => shape.Paint.Join.Equals(LineJoin.Round));
     }
 
     [Test]

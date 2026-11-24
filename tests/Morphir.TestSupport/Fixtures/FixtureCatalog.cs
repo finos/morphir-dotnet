@@ -892,7 +892,7 @@ public static class FixtureCatalog
 
         /// <summary>The approved public API of Morphir.Diagrams.</summary>
         public static FixtureEntry PublicApi { get; } = new(
-            "the approved public API of Morphir.Diagrams", "DiagramExport/public-api.txt", "29d6c0856feb2ad9b4412c48002abea5bbe11d25c10d42c163fa093957a3edc0", Provenance);
+            "the approved public API of Morphir.Diagrams", "DiagramExport/public-api.txt", "0f4c8270bd9ba0755ed48d461b8e16887f2e15cfb6a2105f25c3d40aa9989734", Provenance);
 
         /// <summary>Every digest fixture.</summary>
         public static IReadOnlyList<FixtureEntry> Files { get; } = [SvgDigests, PlayerDigests, RasterDigests, PublicApi];

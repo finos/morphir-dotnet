@@ -451,7 +451,7 @@ type PathData private (commands: ImmutableArray<PathCommand>) =
 
     /// The path as SVG path data, with coordinates in pixels.
     override _.ToString() =
-        commands |> Seq.map string |> String.concat " "
+        commands |> Seq.map (fun command -> command.ToString()) |> String.concat " "
 
     override _.Equals(other: obj | null) =
         match other with

@@ -203,7 +203,7 @@ type LayoutFeatures private (bits: int64) =
         LayoutFeature.All |> Seq.filter this.Contains |> Seq.toArray :> IReadOnlyList<_>
 
     override this.ToString() =
-        if bits = 0L then "none" else this.Items |> Seq.map string |> String.concat ", "
+        if bits = 0L then "none" else this.Items |> Seq.map (fun feature -> feature.WireValue) |> String.concat ", "
 
     override _.Equals(other: obj | null) =
         match other with
@@ -342,9 +342,8 @@ module internal Drawables =
             if text.Rotation <> 0 then LayoutFeature.RotatedText
             if text.Wraps then LayoutFeature.WrappedText
             if not text.Ink.IsOpaque then LayoutFeature.StrokeAndTextOpacity
-            match text.Background with
-            | null -> ()
-            | background when not background.IsOpaque -> LayoutFeature.FillOpacity
+            match text.chip with
+            | Some chip when not chip.chipColor.IsOpaque -> LayoutFeature.FillOpacity
             | _ -> ()
         ]
 

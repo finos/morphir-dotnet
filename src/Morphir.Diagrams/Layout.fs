@@ -31,6 +31,13 @@ type DrawableId private (value: string) =
             | null -> 1
             | other -> String.CompareOrdinal(value, other.Value)
 
+    interface IComparable with
+        member _.CompareTo(other: obj | null) =
+            match other with
+            | :? DrawableId as other -> String.CompareOrdinal(value, other.Value)
+            | null -> 1
+            | _ -> invalidArg (nameof other) "Expected a DrawableId."
+
     /// An identifier of one to 64 ASCII letters, digits, hyphens and underscores, or the reason the text is not one.
     static member Parse(text: string | null) : Result<DrawableId, Diagnostic> =
         match text with
@@ -259,11 +266,14 @@ type LineCap =
     /// Ends with a half square beyond the end point.
     | Square
 
-    override this.ToString() =
+    /// The value as SVG and documentation write it, such as round.
+    member this.WireValue =
         match this with
         | LineCap.Butt -> "butt"
         | LineCap.Round -> "round"
         | LineCap.Square -> "square"
+
+    override this.ToString() = this.WireValue
 
 /// How the corners of a stroke are drawn. Advisory.
 [<RequireQualifiedAccess>]
@@ -275,11 +285,14 @@ type LineJoin =
     /// Cut-off corners.
     | Bevel
 
-    override this.ToString() =
+    /// The value as SVG and documentation write it, such as miter.
+    member this.WireValue =
         match this with
         | LineJoin.Miter -> "miter"
         | LineJoin.Round -> "round"
         | LineJoin.Bevel -> "bevel"
+
+    override this.ToString() = this.WireValue
 
 /// The colours and stroke of a drawable. A missing fill or stroke is none.
 [<NoComparison>]
@@ -315,7 +328,7 @@ type LayoutPaint =
     member this.Join = this.join
 
     override this.ToString() =
-        let show = Option.map string >> Option.defaultValue "none"
+        let show (color: LayoutColor option) = color |> Option.map (fun color -> color.ToString()) |> Option.defaultValue "none"
         $"fill {show this.fill}, stroke {show this.stroke} {this.strokeWidth}"
 
 /// The horizontal alignment of text at its origin.
@@ -328,11 +341,33 @@ type TextAlign =
     /// The origin is at the end of each line.
     | End
 
-    override this.ToString() =
+    /// The value as SVG and documentation write it, such as middle.
+    member this.WireValue =
         match this with
         | TextAlign.Start -> "start"
         | TextAlign.Middle -> "middle"
         | TextAlign.End -> "end"
+
+    override this.ToString() = this.WireValue
+
+/// An opaque chip painted behind text, such as the mask under an edge label.
+[<NoComparison>]
+type TextChip =
+    internal
+        { chipColor: LayoutColor
+          chipBox: LayoutBox
+          chipRadius: Distance }
+
+    /// The chip's colour.
+    member this.Color = this.chipColor
+
+    /// The chip's box.
+    member this.Box = this.chipBox
+
+    /// The chip's corner radius.
+    member this.Radius = this.chipRadius
+
+    override this.ToString() = $"chip {this.chipColor.ToString()} at {this.chipBox.ToString()}"
 
 /// Text with its lines, baseline origin and measured box.
 [<NoComparison>]
@@ -348,9 +383,7 @@ type LayoutText =
           box: LayoutBox
           wraps: bool
           ink: LayoutColor
-          background: LayoutColor option
-          backgroundBox: LayoutBox
-          backgroundRadius: Distance }
+          chip: TextChip option }
 
     /// The lines, top to bottom.
     member this.Lines = this.lines
@@ -382,14 +415,8 @@ type LayoutText =
     /// The text colour.
     member this.Ink = this.ink
 
-    /// The colour of an opaque chip behind the text, or null for none.
-    member this.Background: LayoutColor | null = Option.toObj this.background
-
-    /// The chip's box, when there is a background.
-    member this.BackgroundBox = this.backgroundBox
-
-    /// The chip's corner radius, when there is a background.
-    member this.BackgroundRadius = this.backgroundRadius
+    /// The chip painted behind the text, or null for none.
+    member this.Chip: TextChip | null = Option.toObj this.chip
 
     override this.ToString() = "text " + String.Join(" / ", this.lines)
 
@@ -458,11 +485,14 @@ type RouteStyle =
     /// A smooth curve through the waypoints.
     | Curved
 
-    override this.ToString() =
+    /// The value as SVG and documentation write it, such as orthogonal.
+    member this.WireValue =
         match this with
         | RouteStyle.Straight -> "straight"
         | RouteStyle.Orthogonal -> "orthogonal"
         | RouteStyle.Curved -> "curved"
+
+    override this.ToString() = this.WireValue
 
 /// A line with its ends, routing waypoints and exact final path.
 [<NoComparison>]
@@ -649,12 +679,12 @@ and [<RequireQualifiedAccess; NoComparison>] DrawableKind =
 
     override this.ToString() =
         match this with
-        | DrawableKind.Shape value -> string value
-        | DrawableKind.Line value -> string value
-        | DrawableKind.Text value -> string value
-        | DrawableKind.Image value -> string value
+        | DrawableKind.Shape value -> value.ToString()
+        | DrawableKind.Line value -> value.ToString()
+        | DrawableKind.Text value -> value.ToString()
+        | DrawableKind.Image value -> value.ToString()
         | DrawableKind.Element children -> $"element of {children.Length}"
-        | DrawableKind.Container value -> string value
+        | DrawableKind.Container value -> value.ToString()
         | DrawableKind.Group children -> $"group of {children.Length}"
 
 /// A container's frame, header and children.

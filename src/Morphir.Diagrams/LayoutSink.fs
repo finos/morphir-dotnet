@@ -303,9 +303,7 @@ module internal LayoutSink =
                 box = LayoutBox.Create(left, origin.Y - size, width, height)
                 wraps = primitive.Hints |> List.contains LayoutHint.Wraps
                 ink = ink |> Option.defaultValue ({ color = palette.Background; source = ColorSource.Authored }: LayoutColor)
-                background = None
-                backgroundBox = LayoutBox.At origin
-                backgroundRadius = Distance.Zero
+                chip = None
             }
 
         let pathPoints (path: PathData) =
@@ -524,7 +522,10 @@ module internal LayoutSink =
                         underlays ({ next with Drawable = { next.Drawable with id = mask.Drawable.id; paintOrder = mask.Drawable.paintOrder; kind = DrawableKind.Shape merged } } :: rest)
                     | DrawableKind.Shape chip, DrawableKind.Text label ->
                         let radius = match chip.kind with ShapeKind.RoundedRectangle radius -> radius | _ -> Distance.Zero
-                        let label = { label with background = chip.paint.fill; backgroundBox = chip.box; backgroundRadius = radius }
+                        let label =
+                            match chip.paint.fill with
+                            | Some color -> { label with chip = Some { chipColor = color; chipBox = chip.box; chipRadius = radius } }
+                            | None -> label
                         underlays ({ next with Drawable = { next.Drawable with id = mask.Drawable.id; paintOrder = mask.Drawable.paintOrder; kind = DrawableKind.Text label } } :: rest)
                     | _ -> mask :: underlays (next :: rest)
                 | body :: cap :: rest when unitShape = Some "cylinder" && List.contains "decoration" cap.Classes ->
@@ -542,9 +543,9 @@ module internal LayoutSink =
                 match items with
                 | first :: next :: rest ->
                     match first.Drawable.Kind, next.Drawable.Kind with
-                    | DrawableKind.Shape shape, DrawableKind.Text label when body first && shape.text.IsNone && label.background.IsNone && inside shape.box label.origin ->
+                    | DrawableKind.Shape shape, DrawableKind.Text label when body first && shape.text.IsNone && label.chip.IsNone && inside shape.box label.origin ->
                         labels ({ first with Drawable = { first.Drawable with kind = DrawableKind.Shape { shape with text = Some label } } } :: rest)
-                    | DrawableKind.Line line, DrawableKind.Text label when line.label.IsNone && (label.background.IsSome || ends.ContainsKey first.Drawable.id) ->
+                    | DrawableKind.Line line, DrawableKind.Text label when line.label.IsNone && (label.chip.IsSome || ends.ContainsKey first.Drawable.id) ->
                         labels ({ first with Drawable = { first.Drawable with kind = DrawableKind.Line { line with label = Some label } } } :: rest)
                     | _ -> first :: labels (next :: rest)
                 | other -> other

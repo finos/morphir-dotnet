@@ -48,7 +48,6 @@ public class PathDataTests
     {
         PathData.TryParse(text, out _, out var failure).ShouldBeFalse();
         failure.Code.ShouldBe("layout/invalid-path");
-        PathData.Parse(text).IsError.ShouldBeTrue();
         Should.Throw<ArgumentException>(() => PathData.Create(text));
     }
 

@@ -17,7 +17,7 @@ type Degradation internal (feature: LayoutFeature, fallback: string, drawables: 
     /// The feature that the renderer does not declare.
     member _.Feature = feature
 
-    /// What the drawables became, such as rectangle.
+    /// What the drawables became, such as rectangle or free end. It is display text for people, not a value to match.
     member _.Fallback = fallback
 
     /// The identifiers of the drawables it affects.
@@ -27,8 +27,11 @@ type Degradation internal (feature: LayoutFeature, fallback: string, drawables: 
     member _.References = references
 
     override _.ToString() =
-        let named = if references.IsEmpty then $"{drawables.Length} drawables" else references |> Seq.map string |> String.concat ", "
-        $"{feature} becomes {fallback}: {named}"
+        let named =
+            if references.IsEmpty then $"{drawables.Length} drawables"
+            else references |> Seq.map (fun reference -> reference.ToString()) |> String.concat ", "
+
+        $"{feature.WireValue} becomes {fallback}: {named}"
 
     override _.Equals(other: obj | null) =
         match other with
@@ -562,7 +565,10 @@ module internal Lowering =
                     let ink = if value.ink.IsOpaque || has LayoutFeature.StrokeAndTextOpacity then value.ink else opaque value.ink background
                     { value with fill = fill value.fill under; stroke = value.stroke |> Option.map line; ink = ink }
 
-                let text (value: LayoutText) = { value with ink = line value.ink; background = fill value.background None }
+                let text (value: LayoutText) =
+                    { value with
+                        ink = line value.ink
+                        chip = value.chip |> Option.map (fun chip -> { chip with chipColor = (fill (Some chip.chipColor) None).Value }) }
 
                 match drawable.Kind with
                 | DrawableKind.Shape shape ->

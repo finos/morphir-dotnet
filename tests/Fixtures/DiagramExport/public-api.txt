@@ -1056,6 +1056,7 @@ sealed class Morphir.Diagrams.Export.DegradationPolicy
   method Morphir.Diagrams.Export.DegradationPolicy get_PictureFallback()
   method Morphir.Diagrams.Export.DegradationPolicy get_Strict()
   method System.String ToString()
+  method System.String get_WireValue()
   property Boolean IsAllowDegraded
   property Boolean IsPictureFallback
   property Boolean IsStrict
@@ -1063,6 +1064,7 @@ sealed class Morphir.Diagrams.Export.DegradationPolicy
   property Morphir.Diagrams.Export.DegradationPolicy AllowDegraded
   property Morphir.Diagrams.Export.DegradationPolicy PictureFallback
   property Morphir.Diagrams.Export.DegradationPolicy Strict
+  property System.String WireValue
 static class Morphir.Diagrams.Export.DegradationPolicy+Tags
   field Int32 AllowDegraded
   field Int32 PictureFallback
@@ -1120,12 +1122,14 @@ sealed class Morphir.Diagrams.Export.RenderMode
   method Morphir.Diagrams.Export.RenderMode get_Drawables()
   method Morphir.Diagrams.Export.RenderMode get_OriginalSvg()
   method System.String ToString()
+  method System.String get_WireValue()
   method T Match[T](System.Func`1[T], System.Func`1[T])
   property Boolean IsDrawables
   property Boolean IsOriginalSvg
   property Int32 Tag
   property Morphir.Diagrams.Export.RenderMode Drawables
   property Morphir.Diagrams.Export.RenderMode OriginalSvg
+  property System.String WireValue
 static class Morphir.Diagrams.Export.RenderMode+Tags
   field Int32 Drawables
   field Int32 OriginalSvg
@@ -2084,28 +2088,24 @@ sealed class Morphir.Diagrams.Layout.LayoutText
   method Int32 get_Rotation()
   method Int32 get_Weight()
   method Morphir.Diagrams.Layout.Distance get_Advance()
-  method Morphir.Diagrams.Layout.Distance get_BackgroundRadius()
   method Morphir.Diagrams.Layout.Distance get_Size()
-  method Morphir.Diagrams.Layout.LayoutBox get_BackgroundBox()
   method Morphir.Diagrams.Layout.LayoutBox get_Box()
-  method Morphir.Diagrams.Layout.LayoutColor get_Background()
   method Morphir.Diagrams.Layout.LayoutColor get_Ink()
   method Morphir.Diagrams.Layout.LayoutPoint get_Origin()
   method Morphir.Diagrams.Layout.TextAlign get_Align()
+  method Morphir.Diagrams.Layout.TextChip get_Chip()
   method System.Collections.Immutable.ImmutableArray`1[System.String] get_Lines()
   method System.String ToString()
   property Boolean Wraps
   property Int32 Rotation
   property Int32 Weight
   property Morphir.Diagrams.Layout.Distance Advance
-  property Morphir.Diagrams.Layout.Distance BackgroundRadius
   property Morphir.Diagrams.Layout.Distance Size
-  property Morphir.Diagrams.Layout.LayoutBox BackgroundBox
   property Morphir.Diagrams.Layout.LayoutBox Box
-  property Morphir.Diagrams.Layout.LayoutColor Background
   property Morphir.Diagrams.Layout.LayoutColor Ink
   property Morphir.Diagrams.Layout.LayoutPoint Origin
   property Morphir.Diagrams.Layout.TextAlign Align
+  property Morphir.Diagrams.Layout.TextChip Chip
   property System.Collections.Immutable.ImmutableArray`1[System.String] Lines
 abstract class Morphir.Diagrams.Layout.LineAnchor
   method Boolean Equals(Morphir.Diagrams.Layout.LineAnchor)
@@ -2163,6 +2163,7 @@ sealed class Morphir.Diagrams.Layout.LineCap
   method Morphir.Diagrams.Layout.LineCap get_Round()
   method Morphir.Diagrams.Layout.LineCap get_Square()
   method System.String ToString()
+  method System.String get_WireValue()
   property Boolean IsButt
   property Boolean IsRound
   property Boolean IsSquare
@@ -2170,6 +2171,7 @@ sealed class Morphir.Diagrams.Layout.LineCap
   property Morphir.Diagrams.Layout.LineCap Butt
   property Morphir.Diagrams.Layout.LineCap Round
   property Morphir.Diagrams.Layout.LineCap Square
+  property System.String WireValue
 static class Morphir.Diagrams.Layout.LineCap+Tags
   field Int32 Butt
   field Int32 Round
@@ -2206,6 +2208,7 @@ sealed class Morphir.Diagrams.Layout.LineJoin
   method Morphir.Diagrams.Layout.LineJoin get_Miter()
   method Morphir.Diagrams.Layout.LineJoin get_Round()
   method System.String ToString()
+  method System.String get_WireValue()
   property Boolean IsBevel
   property Boolean IsMiter
   property Boolean IsRound
@@ -2213,6 +2216,7 @@ sealed class Morphir.Diagrams.Layout.LineJoin
   property Morphir.Diagrams.Layout.LineJoin Bevel
   property Morphir.Diagrams.Layout.LineJoin Miter
   property Morphir.Diagrams.Layout.LineJoin Round
+  property System.String WireValue
 static class Morphir.Diagrams.Layout.LineJoin+Tags
   field Int32 Bevel
   field Int32 Miter
@@ -2318,6 +2322,7 @@ sealed class Morphir.Diagrams.Layout.RouteStyle
   method Morphir.Diagrams.Layout.RouteStyle get_Orthogonal()
   method Morphir.Diagrams.Layout.RouteStyle get_Straight()
   method System.String ToString()
+  method System.String get_WireValue()
   property Boolean IsCurved
   property Boolean IsOrthogonal
   property Boolean IsStraight
@@ -2325,6 +2330,7 @@ sealed class Morphir.Diagrams.Layout.RouteStyle
   property Morphir.Diagrams.Layout.RouteStyle Curved
   property Morphir.Diagrams.Layout.RouteStyle Orthogonal
   property Morphir.Diagrams.Layout.RouteStyle Straight
+  property System.String WireValue
 static class Morphir.Diagrams.Layout.RouteStyle+Tags
   field Int32 Curved
   field Int32 Orthogonal
@@ -2415,6 +2421,7 @@ sealed class Morphir.Diagrams.Layout.TextAlign
   method Morphir.Diagrams.Layout.TextAlign get_Middle()
   method Morphir.Diagrams.Layout.TextAlign get_Start()
   method System.String ToString()
+  method System.String get_WireValue()
   property Boolean IsEnd
   property Boolean IsMiddle
   property Boolean IsStart
@@ -2422,10 +2429,25 @@ sealed class Morphir.Diagrams.Layout.TextAlign
   property Morphir.Diagrams.Layout.TextAlign End
   property Morphir.Diagrams.Layout.TextAlign Middle
   property Morphir.Diagrams.Layout.TextAlign Start
+  property System.String WireValue
 static class Morphir.Diagrams.Layout.TextAlign+Tags
   field Int32 End
   field Int32 Middle
   field Int32 Start
+sealed class Morphir.Diagrams.Layout.TextChip
+  method Boolean Equals(Morphir.Diagrams.Layout.TextChip)
+  method Boolean Equals(Morphir.Diagrams.Layout.TextChip, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Morphir.Diagrams.Layout.Distance get_Radius()
+  method Morphir.Diagrams.Layout.LayoutBox get_Box()
+  method Morphir.Diagrams.Layout.LayoutColor get_Color()
+  method System.String ToString()
+  property Morphir.Diagrams.Layout.Distance Radius
+  property Morphir.Diagrams.Layout.LayoutBox Box
+  property Morphir.Diagrams.Layout.LayoutColor Color
 abstract class Morphir.Diagrams.LinkEndpoint
   method Boolean Equals(System.Object)
   method Boolean get_IsDiagram()

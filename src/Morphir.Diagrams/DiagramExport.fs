@@ -116,6 +116,14 @@ type DiagramExport private () =
 
                 task {
                     let! diagnostics = renderer.RenderAsync(plan, output, cancellationToken)
+
+                    // A renderer in another assembly can return a default array or null items.
+                    if diagnostics.IsDefault then
+                        invalidOp $"The renderer {renderer.GetType().Name} returned a default diagnostics array; return an empty one instead."
+
+                    if diagnostics |> Seq.exists (fun diagnostic -> obj.ReferenceEquals(diagnostic, null)) then
+                        invalidOp $"The renderer {renderer.GetType().Name} returned a null diagnostic."
+
                     do! output.FlushAsync(cancellationToken)
                     return RenderResult(plan.Assessment, ImmutableArray.CreateRange(Seq.append notes diagnostics), true)
                 }

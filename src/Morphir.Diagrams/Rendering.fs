@@ -28,10 +28,13 @@ type RenderMode =
         | RenderMode.Drawables -> drawables.Invoke()
         | RenderMode.OriginalSvg -> originalSvg.Invoke()
 
-    override this.ToString() =
+    /// The mode as documentation writes it: drawables or original-svg.
+    member this.WireValue =
         match this with
         | RenderMode.Drawables -> "drawables"
-        | RenderMode.OriginalSvg -> "original SVG"
+        | RenderMode.OriginalSvg -> "original-svg"
+
+    override this.ToString() = this.WireValue
 
 /// How a list of pages renders for a renderer.
 [<RequireQualifiedAccess; CustomEquality; NoComparison>]
@@ -54,10 +57,10 @@ type Assessment =
         match this with
         | Assessment.Native -> "native"
         | Assessment.Degraded degradations ->
-            let listed = degradations |> Seq.map string |> String.concat "; "
+            let listed = degradations |> Seq.map (fun degradation -> degradation.ToString()) |> String.concat "; "
             $"degraded: {listed}"
         | Assessment.Unsupported features ->
-            let listed = features |> Seq.map string |> String.concat ", "
+            let listed = features |> Seq.map (fun feature -> feature.WireValue) |> String.concat ", "
             $"unsupported: {listed}"
 
     override this.Equals(other: obj | null) =
@@ -88,11 +91,14 @@ type DegradationPolicy =
     /// layout/pictured warning; otherwise as AllowDegraded.
     | PictureFallback
 
-    override this.ToString() =
+    /// The policy as documentation writes it, such as allow-degraded.
+    member this.WireValue =
         match this with
         | DegradationPolicy.Strict -> "strict"
-        | DegradationPolicy.AllowDegraded -> "allow degraded"
-        | DegradationPolicy.PictureFallback -> "picture fallback"
+        | DegradationPolicy.AllowDegraded -> "allow-degraded"
+        | DegradationPolicy.PictureFallback -> "picture-fallback"
+
+    override this.ToString() = this.WireValue
 
 /// Draws render plans into a format. Subclass it in any assembly; the library creates the plans.
 [<AbstractClass>]
@@ -222,9 +228,17 @@ type DiagramRenderers private (renderers: ImmutableList<DiagramRenderer>) =
     /// The renderers, in the order they were registered.
     member _.Renderers: IReadOnlyList<DiagramRenderer> = renderers
 
-    /// The registry with a renderer added. A renderer for the same extension, ignoring case, is replaced.
+    /// The registry with a renderer added. A renderer for the same extension, ignoring case, is replaced. Throws an
+    /// argument error for an extension that does not start with a dot followed by at least one character.
     member _.Add(renderer: DiagramRenderer) =
         ArgumentNullException.ThrowIfNull renderer
+
+        // A C# subclass can return null despite the signature.
+        match renderer.FileExtension with
+        | extension when obj.ReferenceEquals(extension, null) -> invalidArg (nameof renderer) "The renderer has no file extension."
+        | extension when extension.Length < 2 || extension[0] <> '.' || String.IsNullOrWhiteSpace(extension.Substring 1) ->
+            invalidArg (nameof renderer) $"The file extension '{extension}' must be a dot followed by a name, such as .drawio."
+        | _ -> ()
 
         let kept =
             renderers.RemoveAll(fun existing -> String.Equals(existing.FileExtension, renderer.FileExtension, StringComparison.OrdinalIgnoreCase))
