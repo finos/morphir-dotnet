@@ -73,6 +73,92 @@ module internal SlideItems =
         |> Seq.map (fun (_, _, item) -> item)
         |> List.ofSeq
 
+/// The connection sites of the ECMA-376 presets, which PowerPoint and Google Slides share.
+[<RequireQualifiedAccess>]
+module internal PresetSites =
+    /// The connection sites of the preset that draws a shape, as fractions of its box, in the order of ECMA-376
+    /// presetShapeDefinitions.xml; none for custom geometry, which has no sites.
+    let ofShape (shape: LayoutShape) =
+        let width, height =
+            max 1e-9 (shape.Box.Width.ToPixels()), max 1e-9 (shape.Box.Height.ToPixels())
+        // The 45-degree points of an ellipse.
+        let inset =
+            0.5
+            * (1.0
+               - Math.Sqrt 0.5)
+        // The default hexagon's corners lie a quarter of the shorter side in from its left and right.
+        let corner =
+            min width height
+            / 4.0
+            / width
+
+        match shape.Kind with
+        | ShapeKind.Rectangle
+        | ShapeKind.RoundedRectangle _
+        | ShapeKind.Diamond -> [ 0.5, 0.0; 0.0, 0.5; 0.5, 1.0; 1.0, 0.5 ]
+        | ShapeKind.Ellipse -> [
+            0.5, 0.0
+            inset, inset
+            0.0, 0.5
+            inset,
+            1.0
+            - inset
+            0.5, 1.0
+            1.0
+            - inset,
+            1.0
+            - inset
+            1.0, 0.5
+            1.0
+            - inset,
+            inset
+          ]
+        // Site 0 is the lower edge of the lid; it is never the nearest to an anchor on the outline of the box.
+        | ShapeKind.Cylinder _ -> [ 0.5, nan; 0.5, 0.0; 0.0, 0.5; 0.5, 1.0; 1.0, 0.5 ]
+        | ShapeKind.Hexagon _ -> [
+            1.0, 0.5
+            1.0
+            - corner,
+            1.0
+            corner, 1.0
+            0.0, 0.5
+            corner, 0.0
+            1.0
+            - corner,
+            0.0
+          ]
+        | _ -> []
+
+    /// The index of the site of a shape nearest an anchor across its box, or none.
+    let nearest (shape: LayoutShape) (binding: LineBinding) =
+        let width, height = shape.Box.Width.ToPixels(), shape.Box.Height.ToPixels()
+
+        binding.Anchor.Match(
+            (fun point ->
+                let x, y =
+                    point.X.Value
+                    * width,
+                    point.Y.Value
+                    * height
+
+                ofShape shape
+                |> List.indexed
+                |> List.filter (fun (_, (_, cy)) -> not (Double.IsNaN cy))
+                |> List.sortBy (fun (_, (cx, cy)) ->
+                    (cx * width
+                     - x)
+                    ** 2.0
+                    + (cy
+                       * height
+                       - y)
+                      ** 2.0
+                )
+                |> List.tryHead
+                |> Option.map fst
+            ),
+            (fun _ -> None)
+        )
+
 /// Builds deterministic ZIP packages and PNG fallbacks for the slide renderers.
 [<RequireQualifiedAccess>]
 module internal Packaging =

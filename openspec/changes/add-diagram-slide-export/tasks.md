@@ -24,8 +24,8 @@ Each task writes its scenarios as failing tests first and confirms they fail for
 
 ## 4. Google Slides
 
-- [ ] 4.1 Write the request, existing-slide, new-slides, ID, invalid-namespace, page-limit and request-order scenarios, and tests for `SlideObjectNamespace` and `SlideObjectId` `Parse`, `TryParse` and `Create` with each `Create` literal. Then implement the options and the request writer: `createSlide` for new slides, the ID scheme, the limits, shapes, text, styles in whole EMU and points with fill alpha, and the first web link, with no groups (design GSL-1).
-- [ ] 4.2 Before recording goldens, check the connection site order for each shape type by sending requests to a test presentation through the API. Then write the connection and arrow-style scenarios, and implement lines with `updateLineProperties` connections and arrow styles. Record a digest for one diagram of each family.
+- [x] 4.1 Write the request, existing-slide, new-slides, ID, invalid-namespace, page-limit and request-order scenarios, and tests for `SlideObjectNamespace` and `SlideObjectId` `Parse`, `TryParse` and `Create` with each `Create` literal. Then implement the options and the request writer: `createSlide` for new slides, the ID scheme, the limits, shapes, text, styles in whole EMU and points with fill alpha, and the first web link, with no groups (design GSL-1). (No live presentation was available, so every family's request body was checked offline against the Slides API v1 discovery schema: field names, nested types and enum values.)
+- [x] 4.2 Before recording goldens, check the connection site order for each shape type by sending requests to a test presentation through the API. Then write the connection and arrow-style scenarios, and implement lines with `updateLineProperties` connections and arrow styles. Record a digest for one diagram of each family. (Not checked through the API, because no credentials or test presentation were available here. The site order is the ECMA-376 `presetShapeDefinitions.xml` order, which Google's shape types follow and which PowerPoint shares; send the smoke requests to a test presentation in 6.2 to confirm it.)
 
 ## 5. reveal.js
 

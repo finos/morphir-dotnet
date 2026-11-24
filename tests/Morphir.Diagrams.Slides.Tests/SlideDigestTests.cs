@@ -23,11 +23,17 @@ public class SlideDigestTests
         ("exact", () => new PowerPointRenderer()),
         ("glued", () => new PowerPointRenderer(SlidePlacement.Widescreen, PowerPointConnectors.Glued)),
         ("impress", () => new OpenDocumentRenderer()),
+        ("requests", () => new GoogleSlidesRenderer(GoogleSlidesOptions.Create(SlidePlacement.Widescreen, SlideObjectNamespace.Create("morphir")))),
     ];
 
-    /// <summary>The digest of a package: each entry's name and the digest of its contents, in order.</summary>
+    /// <summary>
+    /// The digest of an output: for a package, each entry's name and the digest of its contents, in order; for a single
+    /// text file, its bytes.
+    /// </summary>
     public static string EntryDigest(byte[] package)
     {
+        if (package is not [0x50, 0x4B, ..]) return DigestBaseline.Digest(package);
+
         var text = new StringBuilder();
 
         foreach (var (name, contents) in SlideRendering.Entries(package))

@@ -22,5 +22,6 @@
         <Compile Include="Packaging.fs" />
         <Compile Include="PowerPoint.fs" />
         <Compile Include="OpenDocument.fs" />
+        <Compile Include="GoogleSlides.fs" />
     </ItemGroup>
 </Project>
