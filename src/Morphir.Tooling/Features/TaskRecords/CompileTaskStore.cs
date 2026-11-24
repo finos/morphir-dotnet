@@ -22,6 +22,9 @@ public sealed record TaskStoreOptions
 
     /// <summary>How often a waiting run tries the lock again.</summary>
     public TimeSpan PollInterval { get; init; } = TimeSpan.FromMilliseconds(50);
+
+    /// <summary>For tests: runs before each attempt to replace the record of a completed compile with its staged record.</summary>
+    internal Action? BeforeRecordReplace { get; init; }
 }
 
 /// <summary>What a successful compile produced.</summary>
@@ -185,7 +188,14 @@ public sealed class CompileTaskRun : IDisposable
     /// Writes the full record of a successful compile. It replaces the tombstone, keeps the earlier
     /// <c>installed</c> ledger, and lists the project file in <c>inputs</c>, relative to the workspace root.
     /// </summary>
-    public Outcome<TaskRecord> Complete(CompileProduct product)
+    public Outcome<TaskRecord> Complete(CompileProduct product) => Complete(product, CancellationToken.None);
+
+    /// <summary>
+    /// Writes the full record of a successful compile, as <see cref="Complete(CompileProduct)"/> does. A cancellation of
+    /// <paramref name="ct"/> before the staged record replaces the tombstone throws <see cref="OperationCanceledException"/>
+    /// and leaves the tombstone; it is checked again before each attempt of the replacement.
+    /// </summary>
+    public Outcome<TaskRecord> Complete(CompileProduct product, CancellationToken ct)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         var record = new TaskRecord
@@ -201,7 +211,7 @@ public sealed class CompileTaskRun : IDisposable
         };
         try
         {
-            RecordFile.Write(Location.Record, record);
+            RecordFile.Write(Location.Record, record, afterWait: null, ct, _options.BeforeRecordReplace);
             return new Outcome<TaskRecord>.Success(record);
         }
         catch (Exception error) when (TaskFailures.IsIo(error))

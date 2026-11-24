@@ -4,12 +4,14 @@ using System.Text.Json;
 using FluentAssertions;
 using Foundatio.Mediator;
 using Microsoft.Extensions.DependencyInjection;
+using Morphir.Compilation;
 using Morphir.Files;
 using Morphir.Frontend.FSharp;
 using Morphir.IR.Trees;
 using Morphir.TestSupport;
 using Morphir.Tooling.Features.Compile;
 using Morphir.Tooling.Features.Generate;
+using Morphir.Tooling.Features.TaskRecords;
 using Morphir.Tooling.Scenarios;
 using GenerationReport = Morphir.Tooling.Features.Generate.GenerationReport;
 
@@ -112,11 +114,14 @@ public sealed class CompileDocumentTreeTests
 
     private static string Dest(CompileWorkspace workspace) => workspace.PathOf(".morphir/out/compile.dest");
 
-    private static async Task<CompileResult> RunWithHook(CompileWorkspace workspace, CompileOverrides overrides, Action<string> afterStaged,
-        CancellationToken ct = default)
+    private static string OutRoot(CompileWorkspace workspace) => workspace.PathOf(".morphir/out");
+
+    private static TaskStoreOptions Quiet => new() { Diagnostics = TextWriter.Null };
+
+    private static async Task<CompileResult> RunWith(CompileWorkspace workspace, CompileOverrides overrides, CompilePublicationHooks hooks,
+        TaskStoreOptions? options = null, CancellationToken ct = default)
     {
-        var publisher = new TaskRecordCompilePublisher(
-            new Morphir.Tooling.Features.TaskRecords.TaskStoreOptions { Diagnostics = TextWriter.Null }, afterStaged);
+        var publisher = new TaskRecordCompilePublisher(options ?? Quiet, hooks);
         return CompileHandler.Fold(await CompileRunners.Events(CompileRunners.Create([FSharpFrontend.Registration], publisher: publisher),
             overrides, workspace.Context(), ct));
     }
@@ -127,60 +132,153 @@ public sealed class CompileDocumentTreeTests
         return record.RootElement.TryGetProperty("tombstone", out var tombstone) && tombstone.GetBoolean();
     }
 
+    /// <summary>Neither the IR, a staged IR nor a staged record stays: <c>compile.dest</c> is empty, and only the record is beside it.</summary>
+    private static void NothingIsLeft(CompileWorkspace workspace)
+    {
+        Directory.EnumerateFileSystemEntries(Dest(workspace)).Should().BeEmpty("neither the staged nor a partial IR stays");
+        Directory.EnumerateFiles(OutRoot(workspace), ".compile.json.*").Should().BeEmpty("no staged record stays");
+    }
+
+    /// <summary>A stage that writes part of the IR and then fails, as a full disk does.</summary>
+    private static CompilePublicationHooks FailingStage(string layout) => layout == "document-tree"
+        ? new CompilePublicationHooks
+        {
+            StageTree = (staging, _) =>
+            {
+                Directory.CreateDirectory(Path.Combine(staging, "pkg", "acme"));
+                File.WriteAllText(Path.Combine(staging, "manifest.json"), "{\"formatVersion\": 4");
+                throw new IOException("The disk is full.");
+            },
+        }
+        : new CompilePublicationHooks
+        {
+            StageFile = async (staging, bytes, ct) =>
+            {
+                await File.WriteAllBytesAsync(staging, bytes[..16], ct);
+                throw new IOException("The disk is full.");
+            },
+        };
+
     [Test]
     [Arguments("document-tree")]
     [Arguments("single-file")]
-    public async Task AWriteFailureOfTheStagedIrLeavesNoPartialIrAndKeepsTheTombstone(string layout)
+    public async Task AFailureDuringStagingRemovesThePartlyStagedIrAndKeepsTheTombstone(string layout)
     {
         using var workspace = Project();
         Succeeded(await Run(workspace, Inputs(layout: layout)));
-        string? staged = null;
 
-        var failed = await RunWithHook(workspace, Inputs(layout: layout), path =>
-        {
-            staged = path;
-            throw new IOException("The disk is full.");
-        });
+        var failed = await RunWith(workspace, Inputs(layout: layout), FailingStage(layout));
 
         failed.ExitCode.Should().Be(2);
         CompileRunners.ErrorCodes(failed).Should().Equal("compile.publish_failed");
-        staged.Should().NotBeNull().And.StartWith(Dest(workspace));
-        Directory.EnumerateFileSystemEntries(Dest(workspace)).Should().BeEmpty("neither the staged nor a partial IR stays");
+        NothingIsLeft(workspace);
         IsTombstone(workspace).Should().BeTrue("the record of the failed run stays a tombstone");
     }
 
     [Test]
     [Arguments("document-tree")]
     [Arguments("single-file")]
-    public async Task ACancellationDuringPublicationLeavesNoPartialIrAndKeepsTheTombstone(string layout)
+    public async Task ACancellationBeforeTheMoveLeavesNoPartialIrAndKeepsTheTombstone(string layout)
     {
         using var workspace = Project();
         Succeeded(await Run(workspace, Inputs(layout: layout)));
         using var cancellation = new CancellationTokenSource();
 
-        var cancelled = await RunWithHook(workspace, Inputs(layout: layout), _ => cancellation.Cancel(), cancellation.Token);
+        var cancelled = await RunWith(workspace, Inputs(layout: layout), new CompilePublicationHooks { AfterStaged = _ => cancellation.Cancel() },
+            ct: cancellation.Token);
 
         cancelled.ExitCode.Should().Be(130);
-        Directory.EnumerateFileSystemEntries(Dest(workspace)).Should().BeEmpty("a cancelled run commits no IR");
+        NothingIsLeft(workspace);
         IsTombstone(workspace).Should().BeTrue("a cancelled run completes no record");
     }
 
     [Test]
-    public async Task ARecordWriteFailureRemovesTheMovedTree()
+    [Arguments("document-tree")]
+    [Arguments("single-file")]
+    public async Task ACancellationAfterTheMoveRemovesTheMovedIrAndKeepsTheTombstone(string layout)
     {
         using var workspace = Project();
-        var record = workspace.PathOf(".morphir/out/compile.json");
+        Succeeded(await Run(workspace, Inputs(layout: layout)));
+        using var cancellation = new CancellationTokenSource();
+        string? moved = null;
 
-        var failed = await RunWithHook(workspace, Inputs(), _ =>
+        var cancelled = await RunWith(workspace, Inputs(layout: layout), new CompilePublicationHooks
         {
-            // The record cannot be written where a directory is.
-            File.Delete(record);
-            Directory.CreateDirectory(record);
-        });
+            AfterMoved = target =>
+            {
+                moved = target;
+                cancellation.Cancel();
+            },
+        }, ct: cancellation.Token);
+
+        cancelled.ExitCode.Should().Be(130);
+        moved.Should().StartWith(Dest(workspace));
+        NothingIsLeft(workspace);
+        IsTombstone(workspace).Should().BeTrue("a cancelled run completes no record");
+    }
+
+    [Test]
+    public async Task ACancellationJustBeforeTheRecordReplacementKeepsTheTombstone()
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs()));
+        using var cancellation = new CancellationTokenSource();
+
+        var cancelled = await RunWith(workspace, Inputs(), new CompilePublicationHooks(),
+            Quiet with { BeforeRecordReplace = cancellation.Cancel }, cancellation.Token);
+
+        cancelled.ExitCode.Should().Be(130);
+        NothingIsLeft(workspace);
+        IsTombstone(workspace).Should().BeTrue("the record is not replaced after the cancellation");
+    }
+
+    [Test]
+    [Arguments("document-tree")]
+    [Arguments("single-file")]
+    public async Task ARecordReplacementFailureRemovesTheMovedIrAndKeepsTheTombstone(string layout)
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs(layout: layout)));
+
+        var failed = await RunWith(workspace, Inputs(layout: layout), new CompilePublicationHooks(),
+            Quiet with { BeforeRecordReplace = () => throw new IOException("The disk is full.") });
 
         failed.ExitCode.Should().Be(2);
         CompileRunners.ErrorCodes(failed).Should().Equal("compile.record_write_failed");
-        Directory.EnumerateFileSystemEntries(Dest(workspace)).Should().BeEmpty("a tree whose record failed is not published");
+        NothingIsLeft(workspace);
+        IsTombstone(workspace).Should().BeTrue("the tombstone of the run stays when its record cannot replace it");
+    }
+
+    [Test]
+    [Arguments("document-tree")]
+    [Arguments("single-file")]
+    public async Task ASecondPublicationThatCannotMoveLeavesTheFirstIrInPlace(string layout)
+    {
+        using var workspace = Project();
+        var written = File.ReadAllBytes(Succeeded(await Run(workspace, Inputs(layout: "single-file"))).Publication.IrPath);
+        var version = Morphir.IR.Versioning.parse("4").ResultValue;
+        var request = layout == "document-tree"
+            ? CompilePublishRequest.ForDocumentTree("fsharp", version, null, written, Passed(CompileDocumentTree.Write(written)))
+            : new CompilePublishRequest("fsharp", version, null, written);
+        var settings = Passed(new ProjectCompileSettingsResolver().Resolve(Inputs(layout: layout), workspace.Context()));
+
+        using var publication = Passed(await new TaskRecordCompilePublisher(Quiet).BeginAsync(settings, default));
+        var first = Passed(await publication.PublishAsync(request, default));
+        var second = await publication.PublishAsync(request, default);
+
+        second.IsPassed.Should().BeFalse("the first IR is already at the target");
+        second.Diagnostics.Select(d => d.CodeOrNull?.Value).Should().Equal("compile.publish_failed");
+        (File.Exists(first.IrPath) || Directory.Exists(first.IrPath)).Should().BeTrue("the second attempt did not move anything, so it removes nothing");
+        if (layout == "document-tree") ReadTree(first.IrPath).IrVersion.Should().Be("4");
+        else File.ReadAllBytes(first.IrPath).Should().Equal(written);
+        IsTombstone(workspace).Should().BeFalse("the record of the first publication stays");
+        Directory.EnumerateFileSystemEntries(Dest(workspace)).Should().ContainSingle("no staged IR stays");
+    }
+
+    private static T Passed<T>(Checked<T> result)
+    {
+        result.TryGetValue(out var value).Should().BeTrue(string.Join("\n", result.Diagnostics));
+        return value!;
     }
 
     [Test]

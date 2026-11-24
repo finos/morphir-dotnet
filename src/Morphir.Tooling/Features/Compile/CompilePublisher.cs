@@ -103,17 +103,17 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
     public const string IrDirectory = "morphir-ir";
 
     private readonly TaskStoreOptions _options;
-    private readonly Action<string>? _afterStaged;
+    private readonly CompilePublicationHooks _hooks;
 
     /// <summary>A publisher with the given task store options.</summary>
-    public TaskRecordCompilePublisher(TaskStoreOptions options) : this(options, null) { }
+    public TaskRecordCompilePublisher(TaskStoreOptions options) : this(options, CompilePublicationHooks.None) { }
 
     /// <summary>A publisher whose waiting line and warnings go to stderr.</summary>
     public TaskRecordCompilePublisher() : this(new TaskStoreOptions()) { }
 
-    /// <summary>For tests: <paramref name="afterStaged"/> runs with the staged path, before the IR moves into place.</summary>
-    internal TaskRecordCompilePublisher(TaskStoreOptions options, Action<string>? afterStaged) =>
-        (_options, _afterStaged) = (options, afterStaged);
+    /// <summary>For tests: a publisher whose publications run <paramref name="hooks"/>.</summary>
+    internal TaskRecordCompilePublisher(TaskStoreOptions options, CompilePublicationHooks hooks) =>
+        (_options, _hooks) = (options, hooks);
 
     /// <inheritdoc />
     public async Task<Checked<ICompilePublication>> BeginAsync(CompileSettings settings, CancellationToken ct)
@@ -122,13 +122,13 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
         var place = new CompileTaskPlace(settings.OutRoot, settings.Member, settings.MorphirHome);
         return await place.Store(_options).BeginAsync(ct) switch
         {
-            Outcome<CompileTaskRun>.Success started => Checked<ICompilePublication>.Pass(new Publication(started.Value, settings, _afterStaged)),
+            Outcome<CompileTaskRun>.Success started => Checked<ICompilePublication>.Pass(new Publication(started.Value, settings, _hooks)),
             Outcome<CompileTaskRun>.Failure failed => Checked<ICompilePublication>.Fail(TaskDiagnostics.Of(failed.Error, ct)),
             _ => throw new System.Diagnostics.UnreachableException(),
         };
     }
 
-    private sealed class Publication(CompileTaskRun run, CompileSettings settings, Action<string>? afterStaged) : ICompilePublication
+    private sealed class Publication(CompileTaskRun run, CompileSettings settings, CompilePublicationHooks hooks) : ICompilePublication
     {
         public async Task<Checked<PublishedCompile>> PublishAsync(CompilePublishRequest request, CancellationToken ct)
         {
@@ -137,18 +137,27 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
             var name = tree is null ? IrFile : IrDirectory;
             var target = Path.Combine(run.Dest, name);
             var staging = Path.Combine(run.Dest, $".{name}.staging-{Guid.NewGuid():N}");
+            // Only what this attempt moved into place is rolled back: a target that was there before stays.
+            var moved = false;
             var recorded = false;
             try
             {
                 string? failure;
                 try
                 {
-                    failure = tree is null ? await StageFileAsync(staging, request.Ir, ct) : StageTree(staging, tree.Files);
+                    if (tree is null)
+                    {
+                        await (hooks.StageFile ?? StageFileAsync)(staging, request.Ir, ct);
+                        failure = null;
+                    }
+                    else failure = (hooks.StageTree ?? StageTree)(staging, tree.Files);
                     if (failure is null)
                     {
-                        afterStaged?.Invoke(staging);
+                        hooks.AfterStaged?.Invoke(staging);
                         ct.ThrowIfCancellationRequested();
                         MoveIntoPlace(staging, target, tree is not null);
+                        moved = true;
+                        hooks.AfterMoved?.Invoke(target);
                     }
                 }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException)
@@ -163,7 +172,7 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
                 var ir = tree is null
                     ? IrDescriptor.Create(RecordPath.Parse(name), IrLayout.SingleFile, IrStorageFormat.Json, request.IrVersion)
                     : IrDescriptor.Create(RecordPath.Parse(name), IrLayout.DocumentTree, IrStorageFormat.Json, tree.FormatVersion);
-                if (run.Complete(new CompileProduct(request.Language, ir, request.ProjectFile)) is Outcome<TaskRecord>.Failure recordFailure)
+                if (run.Complete(new CompileProduct(request.Language, ir, request.ProjectFile), ct) is Outcome<TaskRecord>.Failure recordFailure)
                     return Checked<PublishedCompile>.Fail(TaskDiagnostics.Of(recordFailure.Error, ct));
                 recorded = true;
             }
@@ -171,7 +180,7 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
             {
                 // The run holds compile.lock: no reader sees the IR of a run whose record is not complete.
                 Remove(staging);
-                if (!recorded) Remove(target);
+                if (moved && !recorded) Remove(target);
             }
 
             if (settings.Output is not { } output) return Checked<PublishedCompile>.Pass(new PublishedCompile(target, []));
@@ -186,11 +195,8 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
 
         public void Dispose() => run.Dispose();
 
-        private static async Task<string?> StageFileAsync(string staging, ReadOnlyMemory<byte> bytes, CancellationToken ct)
-        {
-            await File.WriteAllBytesAsync(staging, bytes, ct);
-            return null;
-        }
+        private static Task StageFileAsync(string staging, ReadOnlyMemory<byte> bytes, CancellationToken ct) =>
+            File.WriteAllBytesAsync(staging, bytes, ct);
 
         /// <summary>Writes the tree into the new directory <paramref name="staging"/>; the reason when it fails.</summary>
         private static string? StageTree(string staging, VFileTree files) =>
@@ -221,6 +227,28 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
             }
         }
     }
+}
+
+/// <summary>
+/// Test seams of a compile publication: writers that replace the stage of the IR, and actions after the stage and after
+/// the move into place. <see cref="None"/> has none.
+/// </summary>
+internal sealed record CompilePublicationHooks
+{
+    /// <summary>No seam: the publication as it runs in the product.</summary>
+    public static CompilePublicationHooks None { get; } = new();
+
+    /// <summary>Writes the staged tree in place of the tree writer: the staged path and the files; the reason of a failure, or null.</summary>
+    public Func<string, VFileTree, string?>? StageTree { get; init; }
+
+    /// <summary>Writes the staged single file in place of the file writer.</summary>
+    public Func<string, ReadOnlyMemory<byte>, CancellationToken, Task>? StageFile { get; init; }
+
+    /// <summary>Runs with the staged path, before the IR moves into place.</summary>
+    public Action<string>? AfterStaged { get; init; }
+
+    /// <summary>Runs with the target, after the IR moved into place and before the record is written.</summary>
+    public Action<string>? AfterMoved { get; init; }
 }
 
 /// <summary>Turns task record failures into compile diagnostics.</summary>

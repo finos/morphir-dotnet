@@ -34,11 +34,15 @@ Each setting SHALL come from the first source that supplies it:
 - **THEN** it selects the same writer as `4`, and the report records `4.0.0` as requested
 
 ### Requirement: Compile resolves the IR layout
-The IR layout SHALL come from `--ir-layout`, else `ir.layout`, else the deprecated `ir.mode` (`classic` is `single-file`, `vfs` is `document-tree`), else `single-file`. A configured `ir.mode` SHALL give the warning `compile.deprecated_setting`, and a layout that is also set SHALL win. Any other value SHALL fail with exit code 2 and one `compile.invalid_setting` error.
+The IR layout SHALL come from `--ir-layout`, else `ir.layout`, else the deprecated `ir.mode` (`classic` is `single-file`, `vfs` is `document-tree`), else `single-file`. A configured `ir.mode` SHALL give the warning `compile.deprecated_setting`, and a layout that is also set SHALL win. A selected value that is not valid SHALL fail with exit code 2 and one `compile.invalid_setting` error; an overridden one SHALL give that code as a warning and be ignored.
 
 #### Scenario: Deprecated mode
 - **WHEN** the configuration sets `ir.mode = "vfs"` and no layout
 - **THEN** the compile writes a document tree, and the report has the warning `compile.deprecated_setting`
+
+#### Scenario: Overridden invalid mode
+- **WHEN** the configuration sets `ir.layout = "document-tree"` and `ir.mode = "folder"`
+- **THEN** the compile writes a document tree, with the warnings `compile.deprecated_setting` and `compile.invalid_setting`
 
 #### Scenario: Invalid configured layout
 - **WHEN** the configuration sets `ir.layout = "folder"`

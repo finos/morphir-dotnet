@@ -121,9 +121,10 @@ in every file. The report keeps `irVersion` as you wrote it (`3`).
 
 `ir.mode` is the deprecated name of the layout: `classic` is `single-file`, and `vfs` is `document-tree`. A
 configured `ir.mode` always gives the warning `compile.deprecated_setting`. When `--ir-layout` or `ir.layout`
-is also set, that layout is used and `ir.mode` is ignored. A layout or a mode that is not one of these words
-fails with `compile.invalid_setting` and exit code 2. The report gives the origin of the layout in
-`origins.irLayout`.
+is also set, that layout is used and `ir.mode` is ignored. The selected value (the first of `--ir-layout`,
+`ir.layout` and `ir.mode` that is set) fails with one `compile.invalid_setting` error and exit code 2 when it is
+not one of these words or not a string. An overridden value that is not valid gives the warning
+`compile.invalid_setting` and is ignored. The report gives the origin of the layout in `origins.irLayout`.
 
 ```text
 dotnet-morphir compile --language fsharp --input src/Rates.fs --package-name acme/demo --ir-layout document-tree

@@ -22,6 +22,10 @@ The member path SHALL be the member's declared path relative to the workspace ro
 ### Requirement: Compile output is published whole
 The IR SHALL be staged beside its place in `compile.dest` and moved into place whole before the record is written. A write failure, a cancellation or a record failure before the record is complete SHALL leave no staged or partial IR in `compile.dest`, and the tombstone of the run SHALL stay.
 
+#### Scenario: Second move onto an existing IR
+- **WHEN** a publication cannot move its staged IR because an IR is already at the target
+- **THEN** it fails with `compile.publish_failed` and removes only its staged IR, and the IR at the target stays
+
 #### Scenario: Write failure of a document tree
 - **WHEN** writing the staged tree fails
 - **THEN** the compile fails with `compile.publish_failed` and exit code 2, `compile.dest` is empty, and `compile.json` is the tombstone of the run

@@ -306,8 +306,15 @@ internal static class RecordFile
 
     /// <param name="afterWait">Runs after each wait for another handle, before the record is checked again. Tests
     /// use it to release or change the record without timing.</param>
-    internal static void Write(string path, TaskRecord record, Action? afterWait)
+    internal static void Write(string path, TaskRecord record, Action? afterWait) =>
+        Write(path, record, afterWait, CancellationToken.None, beforeReplace: null);
+
+    /// <param name="ct">Checked before the record is staged and immediately before each attempt to replace the record: a
+    /// cancellation throws <see cref="OperationCanceledException"/>, removes the staged record and leaves the record.</param>
+    /// <param name="beforeReplace">Runs before each attempt to replace the record, for tests.</param>
+    internal static void Write(string path, TaskRecord record, Action? afterWait, CancellationToken ct, Action? beforeReplace)
     {
+        ct.ThrowIfCancellationRequested();
         var directory = Path.GetDirectoryName(path)!;
         Directory.CreateDirectory(directory);
         var temporary = Path.Combine(directory, "." + Path.GetFileName(path) + "." + Guid.NewGuid().ToString("N") + ".tmp");
@@ -319,7 +326,12 @@ internal static class RecordFile
                 stream.Flush(flushToDisk: true);
             }
             var before = Snapshot(path);
-            var replaced = FileReplacement.Replace(() => File.Move(temporary, path, overwrite: true), () =>
+            var replaced = FileReplacement.Replace(() =>
+            {
+                beforeReplace?.Invoke();
+                ct.ThrowIfCancellationRequested();
+                File.Move(temporary, path, overwrite: true);
+            }, () =>
             {
                 afterWait?.Invoke();
                 var now = Snapshot(path);

@@ -23,6 +23,11 @@ public interface IBoundedGenerationDriver
     WorkspaceDirectory RecordTree(int order, int? reserve = null);
     Task<CommandResult> GenerateAsync(string output, params string[] extra);
     Task<CommandResult> GenerateAsync(string output, bool configured);
+    /// <summary>
+    /// Bounded generation with the orders guest from the record of the last compile, in the out root that the compile used
+    /// by default: no <c>--out-dir</c> and no <c>--input</c>.
+    /// </summary>
+    Task<CommandResult> GenerateFromLastCompileAsync(string output);
     void ConfigureWasmLimits(int stateBytes, int frameBytes);
     void ConfigureMemoryLimitGuest();
     void ConfigureSharedOrdersGuest(string module);
@@ -96,8 +101,9 @@ public sealed class BoundedGenerationDriver(IScenarioWorkspace workspace, IGener
 
     public Task<CommandResult> GenerateAsync(string output, params string[] extra) => Generate(output, false, extra);
     public Task<CommandResult> GenerateAsync(string output, bool configured) => Generate(output, configured, []);
+    public Task<CommandResult> GenerateFromLastCompileAsync(string output) => Generate(output, false, [], outDir: false);
 
-    private Task<CommandResult> Generate(string output, bool configured, string[] extra) => generation.GenerateAsync(new GenerationRequest
+    private Task<CommandResult> Generate(string output, bool configured, string[] extra, bool outDir = true) => generation.GenerateAsync(new GenerationRequest
     {
         Target = "text",
         Output = workspace.Directory(output),
@@ -105,7 +111,7 @@ public sealed class BoundedGenerationDriver(IScenarioWorkspace workspace, IGener
         {
             Json = JsonOutputArgument.Document,
             Extension = configured ? null : extensions.BuiltExtension(BuiltExtension.BoundedOrders),
-            Arguments = ["--out-dir", OutDir, .. extra],
+            Arguments = outDir ? ["--out-dir", OutDir, .. extra] : extra,
         },
     });
 

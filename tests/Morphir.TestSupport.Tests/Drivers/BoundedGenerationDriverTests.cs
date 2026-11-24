@@ -71,6 +71,16 @@ public sealed class BoundedGenerationDriverTests
     }
 
     [Test]
+    public async Task GenerationFromTheLastCompileReadsTheOutRootOfTheCompile()
+    {
+        await using var workspace = ScenarioWorkspace.Create("");
+        var cli = new RecordingCli();
+        await Driver(workspace, cli).GenerateFromLastCompileAsync("generated");
+        cli.Arguments.Should().Equal("generate", "--target", "text", "--output", workspace.Directory("generated").Path,
+            "--json=document", "--extension", "guest folder/orders.dll");
+    }
+
+    [Test]
     public async Task ConfiguredGenerationLeavesExtensionSelectionToTheProject()
     {
         await using var workspace = ScenarioWorkspace.Create("");

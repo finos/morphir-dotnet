@@ -138,14 +138,13 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             Error(CompileCodes.UnsupportedSetting, "The option --types-only is not implemented. This build compiles complete modules only.");
 
         var loaded = loader.Load(overrides, context);
-        // An error of ir.layout or ir.mode waits for the layout: the resolver reports a value that it refuses itself.
-        var layoutErrors = new List<(string Key, string Text)>();
         foreach (var diagnostic in loaded.Diagnostics)
         {
             var key = string.Join('.', diagnostic.KeyPath);
             var text = $"{diagnostic.Source.Path}: {key}: {diagnostic.Message} ({diagnostic.Code})".Replace(": : ", ": ");
-            if (diagnostic.Severity == ConfigSeverity.Error && key is LayoutKey or ModeKey) layoutErrors.Add((key, text));
-            else if (diagnostic.Severity == ConfigSeverity.Error) Error(CompileCodes.Configuration, text);
+            // The resolver checks every value of ir.layout and ir.mode itself, in the order of their precedence (ResolveLayout).
+            if (diagnostic.Severity == ConfigSeverity.Error && key is LayoutKey or ModeKey) continue;
+            if (diagnostic.Severity == ConfigSeverity.Error) Error(CompileCodes.Configuration, text);
             else warnings.Add(Diagnostic.Create(Severity.Warning, CompileCodes.Configuration, text, null));
         }
         var config = new ConfigurationView(loaded);
@@ -194,9 +193,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             Error(CompileCodes.InvalidSetting, $"The IR version from {Describe(versionText.Origin)} is not valid. {versionFailure}");
 
         // IR layout: --ir-layout, else ir.layout, else the deprecated ir.mode, else single-file.
-        var layout = ResolveLayout(overrides, config, warnings, Error, out var refusedKey);
-        foreach (var (key, text) in layoutErrors)
-            if (key != refusedKey) Error(CompileCodes.Configuration, text);
+        var layout = ResolveLayout(overrides, config, warnings, Error);
         if (layout is { Value: IrLayout.DocumentTree } tree && version is { } requested && !HasDocumentTrees(requested.Value.Version))
             Error(CompileCodes.UnsupportedSetting,
                 $"The layout document-tree from {Describe(tree.Origin)} is not supported for IR version {requested.Value.Text} from {Describe(requested.Origin)}. "
@@ -310,45 +307,57 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
 
     /// <summary>
     /// The layout of the IR (CLI-1): <c>--ir-layout</c>, else <c>ir.layout</c>, else the deprecated <c>ir.mode</c>
-    /// (<c>classic</c> is <c>single-file</c>, <c>vfs</c> is <c>document-tree</c>), else <c>single-file</c>. A configured
-    /// <c>ir.mode</c> always gives a warning, as the <c>morphir.toml</c> specification says. Null when the value is not valid.
+    /// (<c>classic</c> is <c>single-file</c>, <c>vfs</c> is <c>document-tree</c>), else <c>single-file</c>. Each value that
+    /// is set is checked once: the selected value that is not valid (not one of the words, or not a string) is one
+    /// <see cref="CompileCodes.InvalidSetting"/> error, and an overridden value that is not valid is one warning with the
+    /// same code that says it is ignored. A configured <c>ir.mode</c> always gives a warning, as the <c>morphir.toml</c>
+    /// specification says. Null when the selected value is not valid.
     /// </summary>
     private static Setting<IrLayout>? ResolveLayout(CompileOverrides overrides, ConfigurationView config, List<Diagnostic> warnings,
-        Action<DiagnosticCode, string> error, out string? refusedKey)
+        Action<DiagnosticCode, string> error)
     {
-        refusedKey = null;
-        var configured = config.String("ir", "layout") is { Origin: SettingOrigin.Configuration } fromLayout ? fromLayout : null;
-        var mode = config.String("ir", "mode") is { Origin: SettingOrigin.Configuration } fromMode ? fromMode : null;
-        var selected = overrides.IrLayout is { } cli
-            ? new Setting<string>(cli, new SettingOrigin.CommandLine("--ir-layout"))
-            : configured;
-        if (mode is not null)
+        var candidates = new List<LayoutCandidate>();
+        if (overrides.IrLayout is { } cli) candidates.Add(new(CliLayout, new(cli, new SettingOrigin.CommandLine(CliLayout)), IsMode: false));
+        if (config.Configured("ir", "layout") is { } layout) candidates.Add(new(LayoutKey, layout, IsMode: false));
+        if (config.Configured("ir", "mode") is { } mode)
+        {
+            candidates.Add(new(ModeKey, mode, IsMode: true));
+            var spelled = mode.Value is { } text ? $" = \"{text}\"" : "";
             warnings.Add(Diagnostic.Create(Severity.Warning, CompileCodes.DeprecatedSetting,
-                $"The setting ir.mode = \"{mode.Value}\" in {Describe(mode.Origin)} is deprecated. Use ir.layout = \"single-file\" or \"document-tree\"."
-                + (selected is null ? "" : $" The layout from {Describe(selected.Origin)} is used, and ir.mode is ignored."), null));
-
-        if (selected is not null)
-        {
-            if (IrStorageNames.TryParseLayout(selected.Value, out var parsed)) return new(parsed, selected.Origin);
-            var name = selected.Origin is SettingOrigin.Configuration ? LayoutKey : "--ir-layout";
-            error(CompileCodes.InvalidSetting,
-                $"The IR layout {name} = '{selected.Value}' from {Describe(selected.Origin)} is not valid. Use \"single-file\" or \"document-tree\".");
-            if (selected.Origin is SettingOrigin.Configuration) refusedKey = LayoutKey;
-            return null;
+                $"The setting {ModeKey}{spelled} in {Describe(mode.Origin)} is deprecated. Use {LayoutKey} = \"single-file\" or \"document-tree\"."
+                + (candidates[0].IsMode ? "" : $" The layout {candidates[0].Name} is used, and {ModeKey} is ignored."), null));
         }
-        switch (mode?.Value)
+        if (candidates.Count == 0) return new(IrLayout.SingleFile, SettingOrigin.Default.Instance);
+
+        var selected = candidates[0];
+        foreach (var overridden in candidates.Skip(1))
+            if (overridden.Parse() is null)
+                warnings.Add(Diagnostic.Create(Severity.Warning, CompileCodes.InvalidSetting,
+                    $"{overridden.Refusal()} It is ignored: the layout {selected.Name} is used.", null));
+        if (selected.Parse() is { } parsed) return new(parsed, selected.Value.Origin);
+        error(CompileCodes.InvalidSetting, selected.Refusal());
+        return null;
+    }
+
+    /// <summary>A layout value that is set: the option or key that sets it, its text (null when it is not a string) and its origin.</summary>
+    private sealed record LayoutCandidate(string Name, Setting<string?> Value, bool IsMode)
+    {
+        /// <summary>The layout of the value, or null when it is not one of the words of its key.</summary>
+        public IrLayout? Parse() => IsMode
+            ? Value.Value switch { "classic" => IrLayout.SingleFile, "vfs" => IrLayout.DocumentTree, _ => null }
+            : IrStorageNames.TryParseLayout(Value.Value, out var layout) ? layout : null;
+
+        /// <summary>Why the value is refused, with the option or key, its file and the accepted values.</summary>
+        public string Refusal()
         {
-            case null: return new(IrLayout.SingleFile, SettingOrigin.Default.Instance);
-            case "classic": return new(IrLayout.SingleFile, mode.Origin);
-            case "vfs": return new(IrLayout.DocumentTree, mode.Origin);
-            default:
-                error(CompileCodes.InvalidSetting,
-                    $"The IR mode {ModeKey} = '{mode.Value}' from {Describe(mode.Origin)} is not valid. Use ir.layout = \"single-file\" or \"document-tree\".");
-                refusedKey = ModeKey;
-                return null;
+            var place = Value.Origin is SettingOrigin.Configuration ? $" in {Describe(Value.Origin)}" : "";
+            var what = Value.Value is { } text ? $"{Name} = '{text}'{place} is not valid" : $"{Name}{place} is not a string";
+            var accepted = IsMode ? $"Use {LayoutKey} = \"single-file\" or \"document-tree\"." : "Use \"single-file\" or \"document-tree\".";
+            return $"The IR {(IsMode ? "mode" : "layout")} {what}. {accepted}";
         }
     }
 
+    private const string CliLayout = "--ir-layout";
     private const string LayoutKey = "ir.layout";
     private const string ModeKey = "ir.mode";
 
@@ -387,6 +396,15 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             ConfigValueProjections.TryFindOrigin(loaded.Origins, path, out var origin) && !origin.Source.Role.Equals(SourceRole.Defaults)
                 ? new SettingOrigin.Configuration(origin.Source.Path, ConfigValueProjections.KeyText(path))
                 : SettingOrigin.Default.Instance;
+
+        /// <summary>
+        /// The value at the path when a configuration file sets it: its text, or a null text when the value is not a string.
+        /// A default is not a configured value.
+        /// </summary>
+        public Setting<string?>? Configured(params string[] path) =>
+            Find(path) is { } value && Origin(path) is SettingOrigin.Configuration origin
+                ? new(ConfigValueProjections.TryText(value, out var text) ? text : null, origin)
+                : null;
 
         public Setting<string>? String(params string[] path) =>
             Find(path) is { } value && ConfigValueProjections.TryText(value, out var text) ? new(text, Origin(path)) : null;
