@@ -342,6 +342,13 @@ module IonIrWriter =
             | _ -> false
         | _ -> false
 
+    /// The format version a JSON document states, as it spells it: an integer's digits, or a string.
+    let private statedVersion (root: JsonElement) =
+        match root.TryGetProperty "formatVersion" with
+        | true, version when version.ValueKind = JsonValueKind.Number -> Some(version.GetRawText())
+        | true, version when version.ValueKind = JsonValueKind.String -> version.GetString() |> Option.ofObj
+        | _ -> None
+
     /// <summary>
     /// Reads a Morphir IR JSON document into the <see cref="IrDocument"/> the Ion writer takes: v4 through
     /// <c>V4Json</c>, and classic IR through <c>ClassicJson</c>. A JSON reader's error keeps its rule as <c>Code</c>
@@ -359,12 +366,10 @@ module IonIrWriter =
             else
                 match ClassicJson.readDistribution root with
                 | Ok read ->
-                    let version =
-                        match read.Version, read.Distribution with
-                        | 3, Morphir.IR.Classic.Distribution.Specs _ -> "3.1.0"
-                        | version, _ -> $"{version}.0.0"
-
-                    Ok(ClassicIr(version, read.Distribution))
+                    // The version keeps the JSON's own spelling, so the release check sees what the document states:
+                    // 3 is 3.0.0 and "3.1.0" stays 3.1.0, and an unsupported release such as "3.0.1" is refused.
+                    let stated = statedVersion root |> Option.defaultValue (string read.Version)
+                    Ok(ClassicIr(IonIrVersions.release stated |> Option.defaultValue stated, read.Distribution))
                 | Result.Error error -> Result.Error(jsonError error.Rule error.Location error.Message)
         with :? JsonException as error ->
             Result.Error {
@@ -376,6 +381,20 @@ module IonIrWriter =
 
     /// <summary>Reads Morphir IR JSON and writes it as one canonical Ion datagram.</summary>
     let ofJson (json: ReadOnlyMemory<byte>) : Result<byte array, IonIrError> = readJson json |> Result.bind write
+
+    /// <summary>
+    /// Reads Morphir IR JSON and writes it as one canonical Ion datagram that states <paramref name="release"/> in
+    /// place of the JSON's version. A writer that writes a release the JSON profile cannot state, such as a v3 library
+    /// at <c>3.1.0</c>, names it here. The release must be one the format carries for the document's family and kind.
+    /// </summary>
+    let ofJsonAs (release: string) (json: ReadOnlyMemory<byte>) : Result<byte array, IonIrError> =
+        readJson json
+        |> Result.map (fun document ->
+            match document with
+            | ClassicIr(_, distribution) -> ClassicIr(release, distribution)
+            | V4Ir(_, distribution) -> V4Ir(release, distribution)
+        )
+        |> Result.bind write
 
     /// <summary>Reads Morphir IR JSON and writes it as the files of a canonical Ion document tree.</summary>
     let ofJsonTree (pathBudget: int) (json: ReadOnlyMemory<byte>) : Result<(string * byte array) list, IonIrError> =
@@ -391,6 +410,13 @@ type IonIrWriting =
     static member Carries(version: Morphir.IR.Versioning.FormatVersion) : bool = IonIrVersions.carries version
 
     /// <summary>
+    /// The exact release a header states for a format version, such as <c>3.0.0</c> for <c>3</c>, or null when the
+    /// format does not carry the version.
+    /// </summary>
+    static member Release(version: Morphir.IR.Versioning.FormatVersion) : string | null =
+        IonIrVersions.release (Morphir.IR.Versioning.version version) |> Option.toObj
+
+    /// <summary>
     /// Reads Morphir IR JSON and writes it as one canonical Ion datagram. It sets <paramref name="ion"/> and returns
     /// true, or sets <paramref name="failure"/> and returns false.
     /// </summary>
@@ -402,7 +428,27 @@ type IonIrWriting =
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] failure:
                 byref<IonIrError>
         ) : bool =
-        match IonIrWriter.ofJson json with
+        IonIrWriting.Assign(IonIrWriter.ofJson json, &ion, &failure)
+
+    /// <summary>
+    /// Reads Morphir IR JSON and writes it as one canonical Ion datagram that states <paramref name="formatVersion"/>,
+    /// such as <c>3.1.0</c>, in place of the JSON's version (see <see cref="IonIrWriter.ofJsonAs"/>).
+    /// </summary>
+    static member TryWriteJson
+        (
+            json: ReadOnlyMemory<byte>,
+            formatVersion: string,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)>] ion:
+                byref<byte array>,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] failure:
+                byref<IonIrError>
+        ) : bool =
+        IonIrWriting.Assign(IonIrWriter.ofJsonAs formatVersion json, &ion, &failure)
+
+    static member private Assign
+        (result: Result<byte array, IonIrError>, ion: byref<byte array>, failure: byref<IonIrError>)
+        : bool =
+        match result with
         | Ok bytes ->
             ion <- bytes
             failure <- Unchecked.defaultof<_>

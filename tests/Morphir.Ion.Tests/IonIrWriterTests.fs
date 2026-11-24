@@ -296,6 +296,37 @@ let tests =
                 | true, ion, _ -> Expect.equal (text ion) (fromJson "pairs/v4-specs.json" |> IonIrWriter.write |> ok "Writing" |> text) "The same bytes"
                 | false, _, failure -> failtestf "%s" failure.Message
 
+            testCase "TryWriteJson keeps the format version that the JSON states"
+            <| fun () ->
+                let json (version: string) =
+                    ReadOnlyMemory(Encoding.UTF8.GetBytes((Fixtures.text "pairs/v3-daily-rate.json").Replace("{\"formatVersion\":3,", $"{{\"formatVersion\":{version},")))
+
+                for version, release in [ "3", "3.0.0"; "\"3.0.0\"", "3.0.0"; "\"3.1.0\"", "3.1.0" ] do
+                    match IonIrWriting.TryWriteJson(json version) with
+                    | true, ion, _ -> Expect.stringContains (text ion) $"  formatVersion: \"{release}\",\n" $"{version} states {release}"
+                    | false, _, failure -> failtestf "%s: %s %s" version failure.Code failure.Message
+
+            for version in [ "3.0.1"; "3.1.1" ] do
+                testCase $"TryWriteJson refuses formatVersion {version} instead of relabelling it"
+                <| fun () ->
+                    let json = (Fixtures.text "pairs/v3-daily-rate.json").Replace("{\"formatVersion\":3,", $"{{\"formatVersion\":\"{version}\",")
+
+                    match IonIrWriting.TryWriteJson(ReadOnlyMemory(Encoding.UTF8.GetBytes json)) with
+                    | true, ion, _ -> failtestf "%s was written as: %s" version ((text ion).Split('\n')[2])
+                    | false, _, failure -> Expect.equal failure.Code "unsupported_format_version_minor" failure.Message
+
+            testCase "TryWriteJson with a stated release writes that release"
+            <| fun () ->
+                let json = ReadOnlyMemory(Fixtures.bytes "pairs/v3-daily-rate.json")
+
+                match IonIrWriting.TryWriteJson(json, "3.1.0") with
+                | true, ion, _ -> Expect.stringContains (text ion) "  formatVersion: \"3.1.0\",\n" "The stated release"
+                | false, _, failure -> failtestf "%s %s" failure.Code failure.Message
+
+                match IonIrWriting.TryWriteJson(json, "4.0.0") with
+                | true, _, _ -> failtest "A v4 release is not a classic release"
+                | false, _, failure -> Expect.equal failure.Code "unsupported_format_version_major" failure.Message
+
             testCase "TryWriteJson gives the failure of JSON that is not IR"
             <| fun () ->
                 match IonIrWriting.TryWriteJson(ReadOnlyMemory(Encoding.UTF8.GetBytes "{")) with
