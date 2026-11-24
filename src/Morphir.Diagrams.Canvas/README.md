@@ -46,3 +46,38 @@ is not installed.
 The renderer was checked against the draw.io web app, release 32.7.5: one diagram of each family opened, every role
 style above resolved to its draw.io shape, and after every vertex that an edge is bound to was moved, each bound edge
 still ended on its vertex.
+
+## Excalidraw
+
+`ExcalidrawRenderer` writes a `.excalidraw` scene (version 2) of one page. Shapes are rectangles, ellipses and
+diamonds with their text bound inside; every line is an arrow, bound at both ends to the elements it connects and listed
+in their bound elements, so arrows follow shapes that you drag. A line with no heads is an arrow with null arrowheads.
+The filled arrow is Excalidraw's `triangle` head, the open arrow its `arrow` head and the circle its `dot` head. A curved
+line is a rounded arrow through its waypoints. Each element keeps its element reference in `customData.morphirRef`, a
+composite element's parts share a group, and images are SVG files in the scene. Text uses Excalidraw's code font. The
+hand-drawn roughness is 0 by default; `new ExcalidrawRenderer(1)` or `2` makes the scene sketchier.
+
+Excalidraw draws rounded rectangles, ellipses, diamonds, polylines, smooth curves, attached connectors, open and circle
+heads, wrapped text, interleaved painting, links and SVG images natively. So:
+
+- Containers become groups with a header text, and cylinders and hexagons become rectangles.
+- Any other outline becomes an SVG image, with its label as free text in a group with it.
+- Translucent colours become opaque, because Excalidraw's element opacity fades fill, stroke and text together.
+- Dash patterns become Excalidraw's dashed stroke, message heads become arrows, and text is upright.
+- Sequence messages lose their bindings to lifelines, because Excalidraw binds arrows only to shapes.
+- Empty text is left out, because Excalidraw deletes it when it loads a scene.
+
+The scenes were checked against Excalidraw 0.18.0 (the `@excalidraw/excalidraw` component): one diagram of each family
+loaded with every element, binding, bound text, arrowhead, reference and file intact, and after each bound shape was
+dragged, the ends of its arrows stayed on it.
+
+## Obsidian Excalidraw notes
+
+`ObsidianExcalidrawRenderer` writes the same scene as a `.excalidraw.md` note for the Obsidian Excalidraw plugin: front
+matter with `excalidraw-plugin: parsed`, a `## Text Elements` section that lists each text followed by ` ^` and its
+element identifier, and the scene in a `json` drawing block between `%%` markers. A text with a line that ends like a
+block reference (a space, a caret and eight letters or digits) is left out of the section, and the plugin reads it from
+the scene. A note is one file, so the renderer declares no SVG images: paths and icons become rectangles.
+
+The notes follow the format of the plugin's saved files; they have not been opened in Obsidian itself, which cannot run
+without its desktop application.

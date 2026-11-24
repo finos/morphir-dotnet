@@ -9,4 +9,5 @@ open Morphir.Diagrams.Export
 [<AbstractClass; Sealed>]
 type CanvasRenderers private () =
     /// A registry with every canvas renderer of this package, by file extension.
-    static member Registry = DiagramRenderers.Empty.Add(DrawIoRenderer())
+    static member Registry =
+        DiagramRenderers.Empty.Add(DrawIoRenderer()).Add(ExcalidrawRenderer()).Add(ObsidianExcalidrawRenderer())

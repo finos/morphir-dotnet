@@ -364,7 +364,7 @@ if (renderers.TryFind("flow.excalidraw.md", out var found)) { /* found is not nu
 <li><strong>Opacity:</strong> element <code>opacity</code> fades the fill, stroke and text together, so Excalidraw declares neither opacity feature, and lowering makes every colour opaque.</li>
 <li><strong>Determinism:</strong>
   <ul>
-  <li>IDs are <code>m</code> followed by the paint-order index in base 36, padded to eight characters.</li>
+  <li>IDs are <code>m</code> followed by the element's index in paint order in hexadecimal, padded to eight characters.</li>
   <li><code>seed</code> and <code>versionNonce</code> come from a 32-bit FNV-1a hash of the ID.</li>
   <li><code>version</code> and <code>updated</code> are 1.</li>
   <li>An image's file ID is the first 40 hex digits of the SHA-256 of its SVG.</li>
