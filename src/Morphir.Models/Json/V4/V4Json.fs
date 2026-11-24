@@ -7,12 +7,16 @@ open System.Text.Json
 open Morphir.IR.V4
 
 /// <summary>A complete IR v4 document.</summary>
-type V4Document = {
-    /// <summary>The exact release. Integer <c>4</c> and string <c>"4.0.0"</c> both give <c>"4.0.0"</c>.</summary>
-    FormatVersion: string
-    /// <summary>The distribution.</summary>
-    Distribution: Distribution
-}
+type V4Document =
+    {
+        /// <summary>The exact release. Integer <c>4</c> and string <c>"4.0.0"</c> both give <c>"4.0.0"</c>.</summary>
+        FormatVersion: string
+        /// <summary>The distribution.</summary>
+        Distribution: Distribution
+    }
+
+    /// <summary>A readable summary of the v4 document.</summary>
+    override this.ToString() = $"V4Document({this.FormatVersion})"
 
 /// <summary>
 /// Reads IR v4 JSON into the typed model, accepting every compact, expanded and legacy spelling and

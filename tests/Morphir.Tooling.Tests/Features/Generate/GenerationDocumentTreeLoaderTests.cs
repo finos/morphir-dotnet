@@ -425,11 +425,20 @@ public sealed class GenerationDocumentTreeLoaderTests
         var nodeBudgetFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(validYamlPath, InputFormat.Auto, new(MaxNodes: 1))).Error;
         nodeBudgetFailure.Diagnostics[0].Code.Should().Be("tree.document_node_limit");
 
-        // 3. Extensionless YAML with undeclared $schema must report context.undeclared_schema (not malformed-json).
-        var badSchemaPath = Path.Combine(sandbox.Work, "bad-schema-yaml");
-        File.WriteAllText(badSchemaPath, DocumentTreeMother.YamlDocuments.UndeclaredSchemaYaml);
-        var badSchemaFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(badSchemaPath, InputFormat.Auto)).Error;
-        badSchemaFailure.Diagnostics[0].Code.Should().Be("context.undeclared_schema");
+        // 3. Extensionless YAML with undeclared $schema (including plain block/flow keys containing '::')
+        // must report context.undeclared_schema (not malformed-json).
+        foreach (var (name, content) in new[]
+        {
+            ("bad-schema-yaml", DocumentTreeMother.YamlDocuments.UndeclaredSchemaYaml),
+            ("block-colon-colon-yaml", DocumentTreeMother.YamlDocuments.BlockColonColonKeyWithUndeclaredSchemaYaml),
+            ("flow-colon-colon-yaml", DocumentTreeMother.YamlDocuments.FlowColonColonKeyWithUndeclaredSchemaYaml),
+        })
+        {
+            var badSchemaPath = Path.Combine(sandbox.Work, name);
+            File.WriteAllText(badSchemaPath, content);
+            var badSchemaFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(badSchemaPath, InputFormat.Auto)).Error;
+            badSchemaFailure.Diagnostics[0].Code.Should().Be("context.undeclared_schema", $"{name} should route to YAML and report context.undeclared_schema");
+        }
 
         // 4. Extensionless malformed JSON (trailing comma in v4 daily-rate JSON) must fail as malformed-json, NOT silently decode as YAML.
         var trailingCommaPath = Path.Combine(sandbox.Work, "trailing-comma-json");
@@ -445,11 +454,13 @@ public sealed class GenerationDocumentTreeLoaderTests
         genReport.ExitCode.Should().NotBe(0);
         genReport.Diagnostics[0].Code.Should().Be("malformed-json");
 
-        // 5. Binary Ion payload with a .yaml suffix still classifies as Ion in Auto mode (Ion precedence).
+        // 5. Valid binary Ion fixture with a .yaml suffix still classifies and decodes as IonBinary in Auto mode (Ion precedence).
+        var ionBinaryPath = GenerationInputFixtures.DailyRate(Path.Combine(sandbox.Work, "ion-src"), "4.0.0", "ion-binary");
         var binaryIonWithYamlSuffix = Path.Combine(sandbox.Work, "binary-ion.yaml");
-        File.WriteAllBytes(binaryIonWithYamlSuffix, [0xE0, 0x01, 0x00, 0xEA, 0xD0]);
-        var binaryIonFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(binaryIonWithYamlSuffix, InputFormat.Auto)).Error;
-        binaryIonFailure.Diagnostics[0].Code.Should().NotBe("invalid_yaml");
+        File.Copy(ionBinaryPath, binaryIonWithYamlSuffix);
+        var binaryIonLoaded = ((Outcome<LoadedModel>.Success)await LoadAsync(binaryIonWithYamlSuffix, InputFormat.Auto)).Value;
+        binaryIonLoaded.Representation.Should().Be(ModelRepresentation.IonBinary);
+        binaryIonLoaded.Model.SourceVersion.Text.Should().Be("4.0.0");
     }
 
     [Test]

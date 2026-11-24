@@ -189,7 +189,7 @@ module DocumentTreeStore =
                         StoreErrors.located e.Rule (Some manifestLocation) e.Location e.Message
                     ])
 
-                let buildModel (distribution: DistributionModel) (storedTree: StoredTree) (report: ReadReport) =
+                let buildModel (distribution: DistributionModel) (storedTree: StoredTree) (report: ReadReport) (compactedLocations: string list) =
                     match SourceFormatVersion.parse declaredText with
                     | Ok sourceVersion ->
                         let versioned: VersionedModel = {
@@ -197,7 +197,7 @@ module DocumentTreeStore =
                             Distribution = distribution
                         }
 
-                        Ok(LoadedTreeModel(versioned, profile, storedTree, report))
+                        Ok(LoadedTreeModel(versioned, profile, storedTree, report, compactedLocations))
                     | Error _ ->
                         Error [
                             StoreErrors.located
@@ -211,16 +211,16 @@ module DocumentTreeStore =
                     decodeManifestResult ClassicTreeFiles.readManifest
                     |> Result.bind (fun manifest ->
                         ClassicTreeReader.readClassicWith ctx manifestLocation compacted manifest others
-                        |> Result.bind (fun (storedTree, joined, report) ->
-                            buildModel (DistributionModel.Classic joined) storedTree report
+                        |> Result.bind (fun (storedTree, joined, report, compactedLocations) ->
+                            buildModel (DistributionModel.Classic joined) storedTree report compactedLocations
                         )
                     )
                 else
                     decodeManifestResult V4TreeFiles.readManifest
                     |> Result.bind (fun manifest ->
                         V4TreeReader.readV4With ctx manifestLocation compacted manifest others
-                        |> Result.bind (fun (storedTree, joined, report) ->
-                            buildModel (DistributionModel.V4 joined) storedTree report
+                        |> Result.bind (fun (storedTree, joined, report, compactedLocations) ->
+                            buildModel (DistributionModel.V4 joined) storedTree report compactedLocations
                         )
                     )
             )

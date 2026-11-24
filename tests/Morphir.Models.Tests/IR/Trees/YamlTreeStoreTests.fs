@@ -195,23 +195,8 @@ let tests =
 
             test "Refuses .yaml and .yml physical ambiguity for the same member before opening either file" {
                 let mutable opened = false
-                let yamlTree = catalogTree "v4" "plain-yaml"
-                let yamlPath = "pkg/acme/orders/domain/order.value.yaml"
-                let ymlPath = "pkg/acme/orders/domain/order.value.yml"
-
-                let guardedFile path =
-                    VFile.ofStream
-                        path
-                        (StreamSource(fun () ->
-                            opened <- true
-                            failwith $"Should not open {path} when ambiguous siblings exist."
-                        ))
-
-                let ambiguousTree =
-                    VFileTree.toFileMap yamlTree
-                    |> Map.add yamlPath (guardedFile yamlPath)
-                    |> Map.add ymlPath (guardedFile ymlPath)
-                    |> VFileTree.fromFileMap
+                let ambiguousTree, yamlPath, ymlPath =
+                    YamlDocs.v4YamlOrdersTreeWithGuardedAmbiguousSiblings (fun _ -> opened <- true)
 
                 let errors = tryReadModelErrors TreeReadOptions.Defaults ambiguousTree
                 Expect.isFalse opened "Neither ambiguous sibling file was opened"
@@ -718,7 +703,16 @@ let tests =
 
                 Expect.equal loaded.Profile TreeProfile.Json "Tree succeeds when aggregate budget suffices"
                 Expect.isEmpty loaded.Notices "No notices on clean compacted tree"
-                Expect.equal loaded.CompactedFiles.Count 2 "Both compacted value files projected for C#"
+                Expect.equal
+                    (List.ofSeq loaded.CompactedFiles)
+                    [ "pkg/acme/orders/domain/alpha.value.json"; "pkg/acme/orders/domain/beta.value.json" ]
+                    "LoadedTreeModel.CompactedFiles exposes exact physical relative paths"
+
+                // Also verify a compacted YAML tree reports its physical relative manifest and member paths.
+                let compactedYaml = tryReadModelOk TreeReadOptions.Defaults (catalogTree "v4" "contextual-yaml")
+                Expect.isNonEmpty compactedYaml.CompactedFiles "Contextual YAML tree has compacted files"
+                Expect.all compactedYaml.CompactedFiles (fun path -> path.EndsWith(".yaml", StringComparison.Ordinal)) "Compacted YAML files report physical .yaml relative paths"
+                Expect.contains (List.ofSeq compactedYaml.CompactedFiles) "pkg/acme/orders/domain/order.value.yaml" "Compacted YAML member physical path is reported"
             }
 
             test "Enforces expansion byte and node limits incrementally on compacted documents" {
@@ -877,6 +871,27 @@ let tests =
                         |> ignore
                     )
                     "Cancelled token throws OperationCanceledException"
+            }
+
+            test "TryReadDistribution exposes formatted ToString on V4 and Classic document and error records" {
+                use v4DocJson = JsonDocument.Parse(FixtureCatalog.ReadText FixtureCatalog.Models.V4DailyRate)
+                let mutable v4Doc = Unchecked.defaultof<Morphir.Json.V4.V4Document>
+                let mutable v4Err = Unchecked.defaultof<Morphir.Json.V4.V4JsonError>
+                Expect.isTrue (Morphir.Json.V4.V4Json.tryReadDistribution (v4DocJson.RootElement, &v4Doc, &v4Err)) "V4 TryReadDistribution succeeds"
+                Expect.equal (v4Doc.ToString()) "V4Document(4.0.0)" "V4Document.ToString format"
+
+                use badJson = JsonDocument.Parse YamlDocs.emptyJsonObject
+                Expect.isFalse (Morphir.Json.V4.V4Json.tryReadDistribution (badJson.RootElement, &v4Doc, &v4Err)) "V4 TryReadDistribution fails on empty object"
+                Expect.equal (v4Err.ToString()) $"{v4Err.Rule} ({v4Err.Location}): {v4Err.Message}" "V4JsonError.ToString format"
+
+                use v3DocJson = JsonDocument.Parse(FixtureCatalog.ReadText FixtureCatalog.Models.V3DailyRate)
+                let mutable classicDoc = Unchecked.defaultof<Morphir.Json.Classic.ClassicDocument>
+                let mutable classicErr = Unchecked.defaultof<Morphir.Json.Classic.ClassicJsonError>
+                Expect.isTrue (Morphir.Json.Classic.ClassicJson.tryReadDistribution (v3DocJson.RootElement, &classicDoc, &classicErr)) "Classic TryReadDistribution succeeds"
+                Expect.equal (classicDoc.ToString()) "ClassicDocument(v3)" "ClassicDocument.ToString format"
+
+                Expect.isFalse (Morphir.Json.Classic.ClassicJson.tryReadDistribution (badJson.RootElement, &classicDoc, &classicErr)) "Classic TryReadDistribution fails on empty object"
+                Expect.equal (classicErr.ToString()) $"{classicErr.Rule} ({classicErr.Location}): {classicErr.Message}" "ClassicJsonError.ToString format"
             }
         ]
     ]

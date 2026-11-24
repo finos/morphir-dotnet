@@ -48,7 +48,7 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
                 return Failure("invalid-input-format", $"Unsupported input format '{input.Format}'.", original.SourcePath, kind: GenerationFailureKind.Invocation);
 
             if (original is RetainedInput.File candidate && input.Format == InputFormat.Auto && !IsIon(candidate)
-                && (HasYamlExtension(candidate) || (!HasJsonExtension(candidate) && LooksLikeYamlFile(candidate.Entry.Memory.Span, ct))))
+                && (HasYamlExtension(candidate) || LooksLikeYamlFile(candidate.Entry.Memory.Span, ct)))
                 return Failure("unsupported-format", "YAML model input is unsupported; use JSON or Ion IR.", original.SourcePath);
 
             if (original is RetainedInput.Tree tree)
@@ -342,7 +342,12 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
                 return false;
             if (b == (byte)':')
             {
-                if (i + 1 < bytes.Length && bytes[i + 1] == (byte)':') return false;
+                if (i + 1 < bytes.Length && bytes[i + 1] == (byte)':')
+                {
+                    while (i < bytes.Length && bytes[i] == (byte)':') i++;
+                    if (IsFlowDelimiterOrWhitespaceOrEof(bytes, i) || bytes[i] == (byte)'(') return false;
+                    continue;
+                }
                 if (IsFlowDelimiterOrWhitespaceOrEof(bytes, i + 1)) return true;
             }
             i++;
@@ -424,7 +429,12 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
             if (b is (byte)'\r' or (byte)'\n') return false;
             if (b == (byte)':')
             {
-                if (i + 1 < bytes.Length && bytes[i + 1] == (byte)':') return false;
+                if (i + 1 < bytes.Length && bytes[i + 1] == (byte)':')
+                {
+                    while (i < bytes.Length && bytes[i] == (byte)':') i++;
+                    if (IsWhitespaceOrEof(bytes, i) || bytes[i] is (byte)'{' or (byte)'[' or (byte)'(') return false;
+                    continue;
+                }
                 if (IsWhitespaceOrEof(bytes, i + 1)) return true;
             }
             i++;

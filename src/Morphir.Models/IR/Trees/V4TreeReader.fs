@@ -21,7 +21,7 @@ module internal V4TreeReader =
         (manifestCompacted: bool)
         (manifestFile: V4ManifestFile)
         (files: (string * Morphir.Files.VFile) list)
-        : Result<StoredTree * Distribution * ReadReport, TreeDiagnostic list> =
+        : Result<StoredTree * Distribution * ReadReport * string list, TreeDiagnostic list> =
         let manifest = manifestFile.Manifest
 
         TreeReader.readTreeWith
@@ -53,5 +53,5 @@ module internal V4TreeReader =
         let ctx = TreeFileSource.createLegacyDecodeContext options.MaxFileBytes
 
         readV4With ctx TreeLayout.ManifestFile manifestCompacted manifestFile files
-        |> Result.map (fun (tree, _, report) -> tree, report)
+        |> Result.map (fun (tree, _, report, _) -> tree, report)
         |> Result.mapError StoreErrors.toStoreErrors

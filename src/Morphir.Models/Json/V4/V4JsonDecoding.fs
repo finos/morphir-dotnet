@@ -12,14 +12,18 @@ open Morphir.IR
 open Morphir.IR.V4
 
 /// <summary>Why IR v4 JSON could not be read.</summary>
-type V4JsonError = {
-    /// <summary>A stable rule identifier, such as <c>invalid_name</c>.</summary>
-    Rule: string
-    /// <summary>The JSON location of the problem.</summary>
-    Location: string
-    /// <summary>A readable description.</summary>
-    Message: string
-}
+type V4JsonError =
+    {
+        /// <summary>A stable rule identifier, such as <c>invalid_name</c>.</summary>
+        Rule: string
+        /// <summary>The JSON location of the problem.</summary>
+        Location: string
+        /// <summary>A readable description.</summary>
+        Message: string
+    }
+
+    /// <summary>The rule, location, and message.</summary>
+    override this.ToString() = $"{this.Rule} ({this.Location}): {this.Message}"
 
 exception internal V4JsonFailure of V4JsonError
 

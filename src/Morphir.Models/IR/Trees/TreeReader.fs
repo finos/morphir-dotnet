@@ -641,7 +641,7 @@ module internal TreeReader =
         (stored: 'tree -> StoredTree)
         (notices: TreeNotice list)
         (files: (string * Morphir.Files.VFile) list)
-        : Result<StoredTree * 'joined * ReadReport, TreeDiagnostic list> =
+        : Result<StoredTree * 'joined * ReadReport * string list, TreeDiagnostic list> =
         readDocuments ctx manifestLocation pathBudget own holds readers files
         |> Result.bind (fun found ->
             ctx.Cancellation.ThrowIfCancellationRequested()
@@ -650,6 +650,12 @@ module internal TreeReader =
             match join ctx.Cancellation tree with
             | Ok joined ->
                 ctx.Cancellation.ThrowIfCancellationRequested()
+                let sortedCompacted = found.Compacted |> List.sortBy fst
+
+                let compactedLocations =
+                    (if manifestCompacted then [ manifestLocation ] else [])
+                    @ (sortedCompacted |> List.map fst)
+
                 Ok(
                     stored tree,
                     joined,
@@ -659,10 +665,9 @@ module internal TreeReader =
                             @ found.Ignored
                         CompactedFiles =
                             (if manifestCompacted then [ Manifest ] else [])
-                            @ (found.Compacted
-                               |> List.sortBy fst
-                               |> List.map snd)
-                    }
+                            @ (sortedCompacted |> List.map snd)
+                    },
+                    compactedLocations
                 )
             | Error errors -> Error(joinErrors ctx.Profile own found errors)
         )
@@ -688,5 +693,5 @@ module internal TreeReader =
         let ctx = createLegacyDecodeContext options.MaxFileBytes
 
         readTreeWith ctx ManifestFile manifestCompacted pathBudget own holds readers build (fun _ tree -> join tree) stored notices files
-        |> Result.map (fun (tree, _, report) -> tree, report)
+        |> Result.map (fun (tree, _, report, _) -> tree, report)
         |> Result.mapError StoreErrors.toStoreErrors

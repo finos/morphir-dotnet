@@ -272,6 +272,12 @@ public sealed class ModelValidationTests
         extensionlessReport.ExitCode.Should().Be(2);
         extensionlessReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-format");
 
+        var jsonSuffixedYaml = Path.Combine(sandbox.Work, "yaml-content.json");
+        await File.WriteAllTextAsync(jsonSuffixedYaml, Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.V4DailyRateYaml("4"));
+        var jsonSuffixedReport = await Validation(registry).RunAsync(new ValidateOverrides(jsonSuffixedYaml, "auto"), new InvocationContext(sandbox.Work), default);
+        jsonSuffixedReport.ExitCode.Should().Be(2);
+        jsonSuffixedReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-format");
+
         foreach (var profile in new[] { "plain-json", "plain-yaml" })
         {
             var treeDir = Path.Combine(sandbox.Work, profile);

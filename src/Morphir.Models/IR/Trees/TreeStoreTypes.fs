@@ -303,7 +303,8 @@ type LoadedTreeModel internal
         model: Morphir.IR.Model.VersionedModel,
         profile: TreeProfile,
         tree: StoredTree,
-        report: ReadReport
+        report: ReadReport,
+        compactedLocations: string list
     ) =
     let notices =
         report.Notices
@@ -312,8 +313,7 @@ type LoadedTreeModel internal
         :> System.Collections.Generic.IReadOnlyList<string>
 
     let compactedFiles =
-        report.CompactedFiles
-        |> List.map string
+        compactedLocations
         |> List.toArray
         :> System.Collections.Generic.IReadOnlyList<string>
 

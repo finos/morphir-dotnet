@@ -15,22 +15,30 @@ open Morphir.IR.Classic.Distribution
 open Morphir.IR.Classic.Documented
 
 /// <summary>Why a classic IR JSON document could not be read.</summary>
-type ClassicJsonError = {
-    /// <summary>A stable rule identifier, such as <c>unsupported-version</c>.</summary>
-    Rule: string
-    /// <summary>The JSON location of the problem.</summary>
-    Location: string
-    /// <summary>A readable description.</summary>
-    Message: string
-}
+type ClassicJsonError =
+    {
+        /// <summary>A stable rule identifier, such as <c>unsupported-version</c>.</summary>
+        Rule: string
+        /// <summary>The JSON location of the problem.</summary>
+        Location: string
+        /// <summary>A readable description.</summary>
+        Message: string
+    }
+
+    /// <summary>The rule, location, and message.</summary>
+    override this.ToString() = $"{this.Rule} ({this.Location}): {this.Message}"
 
 /// <summary>A complete classic IR document. Attributes stay JSON values.</summary>
-type ClassicDocument = {
-    /// <summary>The classic major version: 1, 2 or 3.</summary>
-    Version: int
-    /// <summary>The distribution.</summary>
-    Distribution: Distribution<JsonElement, JsonElement>
-}
+type ClassicDocument =
+    {
+        /// <summary>The classic major version: 1, 2 or 3.</summary>
+        Version: int
+        /// <summary>The distribution.</summary>
+        Distribution: Distribution<JsonElement, JsonElement>
+    }
+
+    /// <summary>A readable summary of the classic document.</summary>
+    override this.ToString() = $"ClassicDocument(v{this.Version})"
 
 exception internal ClassicJsonFailure of ClassicJsonError
 

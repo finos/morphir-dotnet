@@ -1170,6 +1170,18 @@ module YamlDocuments =
     let undeclaredSchemaYaml =
         "$schema: \"https://example.com/unknown.schema.json\"\ncontext: {}\ndocument: {}\n"
 
+    /// A block YAML document whose first plain key contains <c>::</c>, followed by an undeclared <c>$schema</c>
+    /// member, verifying Auto routes it to YAML rather than stopping at <c>::</c>.
+    [<CompiledName("BlockColonColonKeyWithUndeclaredSchemaYaml")>]
+    let blockColonColonKeyWithUndeclaredSchemaYaml =
+        "custom::key: ignored\n$schema: \"https://example.com/unknown.schema.json\"\ncontext: {}\ndocument: {}\n"
+
+    /// A flow YAML mapping whose first plain key contains <c>::</c>, followed by an undeclared <c>$schema</c>
+    /// member, verifying Auto routes it to YAML rather than stopping at <c>::</c>.
+    [<CompiledName("FlowColonColonKeyWithUndeclaredSchemaYaml")>]
+    let flowColonColonKeyWithUndeclaredSchemaYaml =
+        "{custom::key: ignored, \"$schema\": \"https://example.com/unknown.schema.json\", context: {}, document: {}}\n"
+
     /// The <see cref="FixtureCatalog.Models.V4DailyRate"/> JSON document with an invalid trailing comma
     /// before the closing brace, which JSON must refuse as <c>malformed-json</c> and never silently decode as YAML.
     [<CompiledName("TrailingCommaV4DailyRateJson")>]
@@ -1387,6 +1399,29 @@ module YamlDocuments =
 
         System.Collections.ObjectModel.ReadOnlyDictionary<string, byte array>(entries)
         :> System.Collections.Generic.IReadOnlyDictionary<string, byte array>
+
+    /// Builds a v4 plain YAML Orders tree with both <c>order.value.yaml</c> and <c>order.value.yml</c> backed
+    /// by guarded streams that invoke <paramref name="onOpen"/> and fail if either ambiguous sibling is opened.
+    let v4YamlOrdersTreeWithGuardedAmbiguousSiblings (onOpen: string -> unit) : VFileTree * string * string =
+        let yamlPath = "pkg/acme/orders/domain/order.value.yaml"
+        let ymlPath = "pkg/acme/orders/domain/order.value.yml"
+
+        let guardedFile path =
+            VFile.ofStream
+                path
+                (StreamSource(fun () ->
+                    onOpen path
+                    failwith $"Should not open {path} when ambiguous siblings exist."
+                ))
+
+        let tree =
+            BoundedOrders.catalogDocuments "v4" "plain-yaml"
+            |> Map.map (fun location fixture -> VFile.ofBytes location (System.ReadOnlyMemory(FixtureCatalog.ReadBytes fixture)))
+            |> Map.add yamlPath (guardedFile yamlPath)
+            |> Map.add ymlPath (guardedFile ymlPath)
+            |> VFileTree.fromFileMap
+
+        tree, yamlPath, ymlPath
 
     /// For C# callers: returns the files (relative path -> UTF-8 bytes) of the v4 bounded Orders tree for
     /// <paramref name="profile"/> with an unknown <c>UnknownBodyTag</c> inside <c>order.value</c>.
