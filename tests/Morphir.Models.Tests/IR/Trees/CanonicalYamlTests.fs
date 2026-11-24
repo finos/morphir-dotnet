@@ -9,9 +9,7 @@ open System.Text.Json
 open System.Text.RegularExpressions
 open Expecto
 open Morphir.IR.Trees
-
-let private fixtures =
-    Path.Combine(__SOURCE_DIRECTORY__, "..", "..", "..", "Fixtures", "MorphirIon")
+open Morphir.TestSupport.Fixtures
 
 let private jsonOptions = JsonDocumentOptions(MaxDepth = 4096)
 
@@ -65,8 +63,9 @@ let private cells (row: string) =
 
 /// The YAML and JSON pairs of a feature file: a scenario's docstring or one-line YAML with its JSON step, and the
 /// YAML and JSON rows of an outline's examples.
-let private pairsOf (file: string) : KitPair list =
-    let text = File.ReadAllText(Path.Combine(fixtures, "kit", file)).Replace("\r\n", "\n")
+let private pairsOf (feature: FixtureEntry) : KitPair list =
+    let file = Path.GetFileName feature.RelativePath
+    let text = FixtureCatalog.ReadText(feature).Replace("\r\n", "\n")
 
     let scenarios =
         Regex.Split(text, @"\n(?=  Scenario)")
@@ -129,13 +128,14 @@ let private pairsOf (file: string) : KitPair list =
     ]
 
 let private kitPairs =
-    [ "definitions.feature"; "distributions.feature"; "names.feature"; "patterns-and-literals.feature"; "types.feature"; "values.feature" ]
-    |> List.collect pairsOf
+    FixtureCatalog.UpstreamIr.KitFeatures |> List.ofSeq |> List.collect pairsOf
 
+/// The migrated IR JSON pairs, by their file name.
 let private pairFiles =
-    Directory.GetFiles(Path.Combine(fixtures, "pairs"), "*.json")
-    |> Array.sort
-    |> List.ofArray
+    FixtureCatalog.UpstreamIr.Documents
+    |> Seq.filter (fun entry -> FixtureCatalog.UpstreamIr.NameOf(entry).StartsWith "pairs/")
+    |> Seq.map (fun entry -> Path.GetFileName entry.RelativePath, FixtureCatalog.ReadText entry)
+    |> List.ofSeq
 
 [<Tests>]
 let tests =
@@ -216,7 +216,8 @@ let tests =
                     "true"; "True"; "TRUE"; "false"; "False"; "FALSE"; "null"; "Null"; "NULL"; "~"
                     "42"; "-7"; "+1"; "1e3"; "1.5"; ".5"; "0x1F"; "0o17"; ".inf"; "-.inf"; ".nan"; ".NaN"
                     "- a"; "?"; ":a"; ",a"; "[a"; "]a"; "{a"; "}a"; "#a"; "&a"; "*a"; "!a"; "|a"; ">a"; "'a"; "\"a"; "%a"; "@a"; "`a"
-                    " a"; "a "; "a:"; "a: b"; "a #b"; "a\nb"; "a\tb"; "a\u0001b"; "..."
+                    " a"; "a "; "a:"; "a: b"; "a #b"; "a\nb"; "a\tb"; "a\u0001b"; "..."; "... x"; "---"; "--- x"
+                    "a\u2028b"; "a\u2029b"; "a\u0085b"; "\uFEFFa"
                 ] do
                 test $"{JsonSerializer.Serialize text} is double-quoted" {
                     let json = JsonSerializer.Serialize(dict [ "k", text ])
@@ -225,13 +226,25 @@ let tests =
                     Expect.equal (exact (readBack written)) (exact (element json)) "It reads back as the same string"
                 }
 
-            for text in [ "a"; "a:b"; "a#b"; "morphir/SDK"; "value-in-USD"; "yes"; "2026-01-15"; "é😀"; "a b" ] do
+            for text in [ "a"; "a:b"; "a#b"; "...suffix"; "a..."; "a---"; "morphir/SDK"; "value-in-USD"; "yes"; "2026-01-15"; "é😀"; "a b" ] do
                 test $"{JsonSerializer.Serialize text} is plain" {
                     let json = JsonSerializer.Serialize(dict [ "k", text ])
                     let written = yaml json
                     Expect.equal written $"k: {text}\n" "Plain"
                     Expect.equal (exact (readBack written)) (exact (element json)) "It reads back as the same string"
                 }
+
+            test "Line and paragraph separators are escaped, so the profile's reader takes them" {
+                Expect.equal (yaml "{\"k\": \"a\\u2028b\\u2029c\"}") "k: \"a\\u2028b\\u2029c\"\n" "JSON escapes"
+            }
+
+            test "A whole surrogate pair stays UTF-8, and half of one is refused" {
+                match CanonicalYaml.ofJson (ReadOnlyMemory(Encoding.UTF8.GetBytes "{\"k\": \"a\\ud800b\"}")) with
+                | Ok bytes -> failtestf "Half a pair was written: %s" (Encoding.UTF8.GetString bytes)
+                | Error message -> Expect.isNotEmpty message "The reason"
+
+                Expect.equal (yaml "{\"k\": \"\\ud83d\\ude00\"}") "k: \U0001F600\n" "A whole pair"
+            }
 
             test "Inside a flow sequence, flow indicators force quotes" {
                 Expect.equal
@@ -260,8 +273,8 @@ let tests =
 
         testList "Rule 6: output" [
             test "The text ends with one line feed and has no markers, tags, anchors or comments" {
-                for path in pairFiles do
-                    let written = yaml (File.ReadAllText path)
+                for _, json in pairFiles do
+                    let written = yaml json
                     Expect.stringEnds written "\n" "A line feed"
                     Expect.isFalse (written.EndsWith "\n\n") "Only one"
                     Expect.isFalse (written.StartsWith "---" || written.Contains "\n---" || written.Contains "\n...") "No markers"
@@ -270,9 +283,9 @@ let tests =
         ]
 
         testList "Round trip" [
-            for path in pairFiles do
-                test $"{Path.GetFileName path} reads back as its JSON" {
-                    let json = element (File.ReadAllText path)
+            for name, text in pairFiles do
+                test $"{name} reads back as its JSON" {
+                    let json = element text
                     let written = CanonicalYaml.write json
                     Expect.equal (exact (readBack written)) (exact json) "TreeYaml reads the same value"
                 }
@@ -282,6 +295,33 @@ let tests =
                     test $"{pair.Name} reads back as its JSON" {
                         Expect.equal (exact (readBack (yaml pair.Json))) (exact (element pair.Json)) "The same value"
                     }
+        ]
+
+        testList "Refusals and limits" [
+            test "A merge key has no spelling in the profile, so the write fails" {
+                match CanonicalYaml.ofJson (ReadOnlyMemory(Encoding.UTF8.GetBytes "{\"a\": {\"<<\": 1}}")) with
+                | Ok bytes -> failtestf "The merge key was written: %s" (Encoding.UTF8.GetString bytes)
+                | Error message -> Expect.stringContains message "<<" "The reason names the key"
+
+                Expect.throwsT<ArgumentException> (fun () -> yaml "{\"<<\": 1}" |> ignore) "write raises"
+            }
+
+            test "The profile's reader refuses a quoted merge key, which is why the writer does" {
+                match TreeYaml.read 32 "document.yaml" (Encoding.UTF8.GetBytes "\"<<\": 1\n") with
+                | Ok _ -> failtest "The reader takes a quoted merge key"
+                | Error errors -> Expect.isNonEmpty errors "Refused"
+            }
+
+            test "A deeply nested sequence is written without overflowing the stack" {
+                let depth = 300_000
+                let json = "{\"a\": " + String('[', depth) + "1" + String(']', depth) + "}"
+
+                match CanonicalYaml.ofJson (ReadOnlyMemory(Encoding.UTF8.GetBytes json)) with
+                | Ok bytes ->
+                    let text = Encoding.UTF8.GetString bytes
+                    Expect.equal text ("a: " + String('[', depth) + "1" + String(']', depth) + "\n") "One flow sequence"
+                | Error message -> failtest message
+            }
         ]
 
         testList "Bytes and trees" [

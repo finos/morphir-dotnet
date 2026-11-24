@@ -357,6 +357,23 @@ public static class FixtureCatalog
             Document("mep/fixtures/plain-ir.json", "fd49ad8b0cab49216323beb969c08f91a888925dbb995838c57a05b48a80bb2f"),
         ];
 
+        private static FixtureEntry KitFeature(string name, string sha256) =>
+            new($"the Ion snapshot of the kit feature {name}", Directory + "kit/" + name, sha256, Provenance);
+
+        /// <summary>
+        /// The kit features of finos/morphir <c>spec/ir/mck/</c> pinned beside the Ion fixtures. Each scenario that
+        /// states a canonical YAML and a canonical JSON spelling is a vector of the canonical YAML writer.
+        /// </summary>
+        public static IReadOnlyList<FixtureEntry> KitFeatures { get; } =
+        [
+            KitFeature("definitions.feature", "cacff2dfe5a0edd7f759a3db4de50289cc1c37f3aeb080c5525f1054c984d3e5"),
+            KitFeature("distributions.feature", "05ae2cfe848f98bced7a6dda407a6c08ffac15ed0e334173f7025de963fa3936"),
+            KitFeature("names.feature", "9e7de8831da4270ccdcc701f9a57f929fd39d376b9743821a3d253973cf19e43"),
+            KitFeature("patterns-and-literals.feature", "45b71901c8a2cb6ffe636c165b105c1fcdfa66bdf1d28b3fecb21108ed44652d"),
+            KitFeature("types.feature", "4dc0c0e95e11d4203e96c8d561676a9c23134e3635ae68cc3e840eee8f7eeed8"),
+            KitFeature("values.feature", "9bbb3d092e29148d5eac4e8cd63bf2f9a9d5418b38755fba9453dfc108248f8c"),
+        ];
+
         /// <summary>The path of a document below <see cref="Directory"/>, such as <c>pairs/v3-specs.json</c>.</summary>
         public static string NameOf(FixtureEntry document) => document.RelativePath[Directory.Length..];
 
@@ -921,7 +938,7 @@ public static class FixtureCatalog
     [
         .. Kit.Files, Mep.BoundedGenerationSession, .. BoundedWasmLimits.Files, OrdersScale.Guest, .. BoundedGenerationReceipts.Files,
         .. Models.All, .. BoundedOrders.Files, BoundedOrders.ExpandedV4, .. Trees.AcmeDemo, .. Trees.Written,
-        .. UpstreamIr.Documents, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark,
+        .. UpstreamIr.Documents, .. UpstreamIr.KitFeatures, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark,
         WasmHost.Corpus, WasmHost.UnknownNamespaceModule, .. Context.Files, .. Context.Policy.Files,
         .. Context.Naming.Files, .. DiagramsMbt.Files, .. DiagramExport.Files, CssColor.NamedColors
     ];

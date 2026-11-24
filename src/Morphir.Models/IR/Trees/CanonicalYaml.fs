@@ -53,10 +53,30 @@ module CanonicalYaml =
         || based.IsMatch text
         || isNonFinite text
 
-    let private isControl (c: char) = Char.IsControl c || c = '﻿'
+    /// A character that the profile's reader does not take raw: a control character, the byte-order mark, or a line or
+    /// paragraph separator. JSON text gives no half of a surrogate pair: System.Text.Json refuses to read one.
+    let private mustEscape (text: string) (index: int) =
+        let c = text[index]
+
+        Char.IsControl c
+        || c = '\uFEFF'
+        || c = '\u2028'
+        || c = '\u2029'
+
+    let private hasEscape (text: string) =
+        Seq.exists (mustEscape text) (seq { 0 .. text.Length - 1 })
+
+    /// Whether the text is a YAML document marker, <c>---</c> or <c>...</c> alone or before white space.
+    let private isMarker (text: string) =
+        [ "---"; "..." ]
+        |> List.exists (fun marker ->
+            text = marker
+            || text.StartsWith(marker + " ", StringComparison.Ordinal)
+            || text.StartsWith(marker + "\t", StringComparison.Ordinal)
+        )
 
     /// Whether a string may be written plain: rule 4 of the canonical writer. A document marker at the start of a line
-    /// would end the document, so <c>...</c> is quoted too.
+    /// would end the document, so <c>...</c> alone is quoted too; <c>...suffix</c> stays plain.
     let isPlain (inFlow: bool) (text: string) =
         not (
             text = ""
@@ -65,10 +85,10 @@ module CanonicalYaml =
             || text[0] = ' '
             || text.EndsWith(" ", StringComparison.Ordinal)
             || text.EndsWith(":", StringComparison.Ordinal)
-            || text.StartsWith("...", StringComparison.Ordinal)
+            || isMarker text
             || text.Contains(": ")
             || text.Contains(" #")
-            || Seq.exists isControl text
+            || hasEscape text
             || (inFlow && Seq.exists (fun (c: char) -> flowIndicators.IndexOf c >= 0) text)
         )
 
@@ -76,8 +96,8 @@ module CanonicalYaml =
     let private quoted (builder: StringBuilder) (text: string) =
         builder.Append '"' |> ignore
 
-        for c in text do
-            match c with
+        for index in 0 .. text.Length - 1 do
+            match text[index] with
             | '"' -> builder.Append "\\\""
             | '\\' -> builder.Append "\\\\"
             | '\n' -> builder.Append "\\n"
@@ -85,7 +105,7 @@ module CanonicalYaml =
             | '\t' -> builder.Append "\\t"
             | '\b' -> builder.Append "\\b"
             | '\f' -> builder.Append "\\f"
-            | c when isControl c -> builder.Append("\\u").Append((int c).ToString("x4", CultureInfo.InvariantCulture))
+            | c when mustEscape text index -> builder.Append("\\u").Append((int c).ToString("x4", CultureInfo.InvariantCulture))
             | c -> builder.Append c
             |> ignore
 
@@ -103,12 +123,25 @@ module CanonicalYaml =
         | JsonValueKind.Array -> element.GetArrayLength() = 0
         | _ -> false
 
-    /// Whether a sequence holds a mapping at any depth, which makes it a block sequence.
-    let rec private holdsMapping (element: JsonElement) =
-        match element.ValueKind with
-        | JsonValueKind.Object -> true
-        | JsonValueKind.Array -> element.EnumerateArray() |> Seq.exists holdsMapping
-        | _ -> false
+    /// Whether a sequence holds a mapping at any depth, which makes it a block sequence. It walks a stack, not the call
+    /// stack, so a deep sequence cannot overflow it.
+    let private holdsMapping (element: JsonElement) =
+        let pending = Collections.Generic.Stack<JsonElement>()
+        pending.Push element
+        let mutable found = false
+
+        while not found && pending.Count > 0 do
+            let current = pending.Pop()
+
+            match current.ValueKind with
+            | JsonValueKind.Object -> found <- true
+            | JsonValueKind.Array ->
+                for item in current.EnumerateArray() do
+                    if item.ValueKind = JsonValueKind.Object || item.ValueKind = JsonValueKind.Array then
+                        pending.Push item
+            | _ -> ()
+
+        found
 
     /// A value written on the line it starts: a scalar, an empty container or a flow sequence.
     let rec private inline' (builder: StringBuilder) (inFlow: bool) (element: JsonElement) =
@@ -150,6 +183,11 @@ module CanonicalYaml =
         let mutable first = true
 
         for property in element.EnumerateObject() do
+            if property.Name = "<<" then
+                invalidArg
+                    (nameof element)
+                    "The mapping key << is a merge key, which the YAML profile refuses even when it is quoted."
+
             if not (first && startsInline) then
                 indent builder column
 
@@ -192,7 +230,10 @@ module CanonicalYaml =
                 inline' builder false item
                 builder.Append '\n' |> ignore
 
-    /// <summary>The canonical YAML text of a JSON value, ending in one line feed.</summary>
+    /// <summary>
+    /// The canonical YAML text of a JSON value, ending in one line feed. A value with no YAML spelling in the profile,
+    /// a mapping key <c>&lt;&lt;</c>, raises <see cref="ArgumentException"/>; <see cref="ofJson"/> returns it as an error.
+    /// </summary>
     [<CompiledName("Write")>]
     let write (element: JsonElement) : string =
         let builder = StringBuilder()
@@ -214,7 +255,8 @@ module CanonicalYaml =
     let private jsonOptions = JsonDocumentOptions(MaxDepth = 1_000_000)
 
     /// <summary>
-    /// Writes JSON text as canonical YAML. Text that is not JSON gives the parser's message. A deep value is written
+    /// Writes JSON text as canonical YAML. Text that is not JSON gives the parser's message, and a value with no YAML
+    /// spelling in the profile, such as a mapping key <c>&lt;&lt;</c>, gives the reason. A deep value is written
     /// on a thread with a large stack when the caller's stack runs short.
     /// </summary>
     [<CompiledName("OfJson")>]
@@ -223,8 +265,11 @@ module CanonicalYaml =
             try
                 use document = JsonDocument.Parse(json, jsonOptions)
                 Ok(writeBytes document.RootElement)
-            with :? JsonException as error ->
-                Error error.Message
+            with
+            | :? JsonException as error -> Error error.Message
+            | :? ArgumentException as error -> Error error.Message
+            // A string with half of a surrogate pair, which no UTF-8 text can hold.
+            | :? InvalidOperationException as error -> Error error.Message
 
         try
             run ()
@@ -277,7 +322,8 @@ module CanonicalYaml =
 type CanonicalYamlWriter =
     /// <summary>
     /// Writes JSON text as canonical YAML. It sets <paramref name="yaml"/> and returns true, or sets
-    /// <paramref name="failure"/> to the JSON parser's message and returns false.
+    /// <paramref name="failure"/> to the reason (the JSON parser's message, or a value with no YAML spelling) and returns
+    /// false.
     /// </summary>
     static member TryWriteJson
         (
