@@ -393,7 +393,12 @@ module IonIrWriter =
             | number when number < System.Numerics.BigInteger 3 -> lexeme
             | _ -> lexeme + ".0.0"
         | JsonValueKind.String ->
-            let release = version.GetString() |> nonNull
+            // A string with half of a surrogate pair is JSON but has no .NET string, and no release spells one.
+            let release =
+                try
+                    version.GetString() |> nonNull
+                with :? InvalidOperationException ->
+                    refuse "invalid_format_version_syntax" "The release holds a lone surrogate."
 
             match release.Split('.') with
             | [| major; minor; patch |] ->
@@ -408,6 +413,13 @@ module IonIrWriter =
             | _ -> refuse "invalid_format_version_syntax" $"'{release}' is not an exact release."
         | _ -> refuse "invalid_format_version_type" "formatVersion is an integer or a release string."
 
+    /// Gives a format-version refusal the JSON location of the member it concerns.
+    let private at (location: string) (work: unit -> 'a) : 'a =
+        try
+            work ()
+        with IonIrFailure error when error.Location.IsNone ->
+            raise (IonIrFailure { error with Location = Some location })
+
     let private rootRelease (root: JsonElement) : string option =
         if root.ValueKind <> JsonValueKind.Object then
             None
@@ -419,9 +431,58 @@ module IonIrWriter =
             ]
 
             match stated with
-            | [] -> refuse "missing_format_version" "The root has no formatVersion member."
-            | [ version ] -> Some(releaseOf (recognize version))
-            | _ -> refuse "duplicate_format_version" "The root has more than one formatVersion member."
+            | [] -> at "$" (fun () -> refuse "missing_format_version" "The root has no formatVersion member.")
+            | [ version ] -> at "$.formatVersion" (fun () -> Some(releaseOf (recognize version)))
+            | _ ->
+                at "$.formatVersion" (fun () ->
+                    refuse "duplicate_format_version" "The root has more than one formatVersion member."
+                )
+
+    /// Refuses a member that an object of the document repeats, before a distribution reader keeps only one of its
+    /// values. The walk uses a stack, so a deep document cannot overflow the call stack.
+    let private refuseRepeatedMembers (root: JsonElement) =
+        let pending = Collections.Generic.Stack<string * JsonElement>()
+        pending.Push("$", root)
+
+        while pending.Count > 0 do
+            let path, element = pending.Pop()
+
+            match element.ValueKind with
+            | JsonValueKind.Object ->
+                let seen = Collections.Generic.HashSet<string>(StringComparer.Ordinal)
+
+                for property in element.EnumerateObject() do
+                    // A member name with a lone surrogate has no .NET string; the distribution readers report it.
+                    let name =
+                        try
+                            Some property.Name
+                        with :? InvalidOperationException ->
+                            None
+
+                    match name with
+                    | Some name ->
+                        let here = path + "." + name
+
+                        if not (seen.Add name) then
+                            raise (
+                                IonIrFailure
+                                    {
+                                        Code = "duplicate_member"
+                                        Message = $"The member '{name}' appears more than once, so one of its values would be lost."
+                                        Path = None
+                                        Location = Some here
+                                    }
+                            )
+
+                        pending.Push(here, property.Value)
+                    | None -> ()
+            | JsonValueKind.Array ->
+                let mutable index = 0
+
+                for item in element.EnumerateArray() do
+                    pending.Push($"{path}[{index}]", item)
+                    index <- index + 1
+            | _ -> ()
 
     /// <summary>
     /// Reads a Morphir IR JSON document into the <see cref="IrDocument"/> the Ion writer takes: v4 through
@@ -436,6 +497,7 @@ module IonIrWriter =
             // The release as the JSON spells it: 3 is 3.0.0 and "3.1.0" stays 3.1.0. An unsupported, missing or repeated
             // formatVersion is refused here, before a distribution reader runs, so no caller can relabel it.
             let release = rootRelease root
+            refuseRepeatedMembers root
 
             match release with
             | Some "4.0.0" ->
@@ -478,6 +540,27 @@ module IonIrWriter =
     let ofJsonTree (pathBudget: int) (json: ReadOnlyMemory<byte>) : Result<(string * byte array) list, IonIrError> =
         readJson json |> Result.bind (writeTreeFiles pathBudget)
 
+/// <summary>
+/// Why a write for a C# caller failed: the stable code, a message, and where the problem is, each place as text or null.
+/// </summary>
+[<Sealed>]
+type IonWriteFailure internal (error: IonIrError) =
+    /// <summary>A stable code, such as <c>unsupported_format_version_minor</c>.</summary>
+    member _.Code: string = error.Code
+    /// <summary>A readable description.</summary>
+    member _.Message: string = error.Message
+    /// <summary>The place in the Ion, such as <c>$[1].values[0]</c>, or null.</summary>
+    member _.Path: string | null = Option.toObj error.Path
+    /// <summary>The place in the JSON input, such as <c>$.formatVersion</c>, or null.</summary>
+    member _.Location: string | null = Option.toObj error.Location
+
+    /// <summary>The code, the place when there is one, and the message.</summary>
+    override _.ToString() =
+        match error.Location, error.Path with
+        | Some location, _
+        | None, Some location -> $"{error.Code} at {location}: {error.Message}"
+        | None, None -> $"{error.Code}: {error.Message}"
+
 /// <summary>C# members of <see cref="IonIrWriter"/>.</summary>
 [<AbstractClass; Sealed>]
 type IonIrWriting =
@@ -513,7 +596,7 @@ type IonIrWriting =
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)>] ion:
                 byref<byte array>,
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] failure:
-                byref<IonIrError>
+                byref<IonWriteFailure>
         ) : bool =
         IonIrWriting.Assign(IonIrWriter.ofJson json, &ion, &failure)
 
@@ -528,7 +611,7 @@ type IonIrWriting =
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)>] ion:
                 byref<byte array>,
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] failure:
-                byref<IonIrError>
+                byref<IonWriteFailure>
         ) : bool =
         // C# can pass null for a non-nullable reference; that is a caller error, not a decode failure.
         if isNull (box formatVersion) then
@@ -537,7 +620,7 @@ type IonIrWriting =
         IonIrWriting.Assign(IonIrWriter.ofJsonAs formatVersion json, &ion, &failure)
 
     static member private Assign
-        (result: Result<byte array, IonIrError>, ion: byref<byte array>, failure: byref<IonIrError>)
+        (result: Result<byte array, IonIrError>, ion: byref<byte array>, failure: byref<IonWriteFailure>)
         : bool =
         match result with
         | Ok bytes ->
@@ -546,7 +629,7 @@ type IonIrWriting =
             true
         | Result.Error error ->
             ion <- Unchecked.defaultof<_>
-            failure <- error
+            failure <- IonWriteFailure error
             false
 
     /// <summary>
@@ -560,7 +643,7 @@ type IonIrWriting =
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)>] files:
                 byref<System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string, byte array>>>,
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] failure:
-                byref<IonIrError>
+                byref<IonWriteFailure>
         ) : bool =
         match IonIrWriter.ofJsonTree pathBudget json with
         | Ok written ->
@@ -572,5 +655,5 @@ type IonIrWriting =
             true
         | Result.Error error ->
             files <- Unchecked.defaultof<_>
-            failure <- error
+            failure <- IonWriteFailure error
             false

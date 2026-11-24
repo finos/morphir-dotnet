@@ -103,7 +103,10 @@ module internal V4IonWriter =
                     IsNegativeZero = negative && coefficient.IsZero
                 }
 
-                if V4IonTypes.decimalLexeme value = lexeme then
+                // The reader keeps a decimal's scale only up to 1,000, so a smaller one stays text.
+                if value.Scale > 1000 then
+                    None
+                elif V4IonTypes.decimalLexeme value = lexeme then
                     // The Ion text of the same decimal: the mantissa with a point, then d for the exponent mark.
                     let sign = if negative then "-" else ""
                     let point = if pointAt < 0 then "." else ""

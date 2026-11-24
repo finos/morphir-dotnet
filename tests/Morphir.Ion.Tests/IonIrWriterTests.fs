@@ -295,7 +295,12 @@ let tests =
             testCase "Windows device names, initialisms and tree file names give the reference tree"
             <| fun () ->
                 let document =
-                    IonIrWriter.readJson (ReadOnlyMemory(Fixtures.bytes "trees/inputs/v4-escaped-names.input.json"))
+                    IonIrWriter.readJson (
+                        ReadOnlyMemory(
+                            Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes
+                                Morphir.TestSupport.Fixtures.FixtureCatalog.UpstreamIr.EscapedNamesInput
+                        )
+                    )
                     |> ok "Reading the escaped-names input"
 
                 let files =
@@ -505,6 +510,45 @@ let tests =
                 | Ok _ -> failtest "The member was dropped"
                 | Result.Error error -> Expect.equal error.Code "unknown_member" error.Message
 
+            testCase "A formatVersion string with a lone surrogate is invalid_format_version_syntax at $.formatVersion"
+            <| fun () ->
+                match IonIrWriter.readJson (ReadOnlyMemory(Encoding.UTF8.GetBytes "{\"formatVersion\":\"3.0.\\uD800\",\"distribution\":null}")) with
+                | Ok _ -> failtest "Read"
+                | Result.Error error ->
+                    Expect.equal error.Code "invalid_format_version_syntax" error.Message
+                    Expect.equal error.Location (Some "$.formatVersion") "The location"
+
+            for name, edit in
+                [
+                    "a repeated root distribution",
+                    fun (text: string) ->
+                        let json = text.TrimEnd()
+                        let at = json.IndexOf ",\"distribution\":"
+                        json.Substring(0, json.Length - 1) + json.Substring(at, json.Length - 1 - at) + "}"
+                    "a repeated member of a nested object",
+                    fun (json: string) -> json.Replace("{\"access\":\"Public\",", "{\"access\":\"Public\",\"access\":\"Private\",")
+                ] do
+                testCase $"A v3 document with {name} is refused, not read with one of its values"
+                <| fun () ->
+                    let original = catalogText "pairs/v3-daily-rate.json"
+                    let json = edit original
+                    Expect.notEqual json original "The vector gains a repeated member"
+
+                    match IonIrWriter.readJson (ReadOnlyMemory(Encoding.UTF8.GetBytes json)) with
+                    | Ok _ -> failtest "A repeated member was read"
+                    | Result.Error error -> Expect.equal error.Code "duplicate_member" error.Message
+
+            testCase "The C# failure gives text locations and a readable ToString"
+            <| fun () ->
+                match IonIrWriting.TryWriteJson(ReadOnlyMemory(Encoding.UTF8.GetBytes "{\"formatVersion\":\"3.0.1\",\"distribution\":null}")) with
+                | true, _, _ -> failtest "Written"
+                | false, _, failure ->
+                    let location: string | null = failure.Location
+                    let path: string | null = failure.Path
+                    Expect.equal location "$.formatVersion" "A string location"
+                    Expect.isNull path "No Ion path"
+                    Expect.equal (failure.ToString()) "unsupported_format_version_minor at $.formatVersion: The Ion IR format carries formatVersion 3.0.0, 3.1.0 and 4.0.0, not 3.0.1." "ToString"
+
             testCase "A document with no formatVersion is refused"
             <| fun () ->
                 match IonIrWriter.readJson (ReadOnlyMemory(Encoding.UTF8.GetBytes "{\"distribution\":null}")) with
@@ -545,6 +589,11 @@ let tests =
                     "12.50", "12.50"
                     "0.000001", "0.000001"
                     "5e-7", "5.d-7"
+                    "1e-1000", "1.d-1000"
+                    "1.5e-999", "1.5d-999"
+                    "1e-1001", "number::\"1e-1001\""
+                    "1.25e-999", "number::\"1.25e-999\""
+                    "1e+1001", "1.d+1001"
                     "1.5e-7", "1.5d-7"
                     "1e+2", "1.d+2"
                     "1e+5", "1.d+5"
@@ -575,6 +624,15 @@ let tests =
                     let text = IonTextWriter.render [ V4IonWriter.value literal ]
                     Expect.equal text (spelling + "\n") "The canonical spelling"
                     Expect.equal (V4IonValues.value IonPath.Root (readOne text)) literal "It reads back"
+
+            testCase "A document number beyond the reader's decimal scale writes a datagram that IonIr.read reads back"
+            <| fun () ->
+                let original = catalogText "pairs/v4-library-nodes.json"
+                Expect.stringContains original "\"ratio\":0.10" "The vector has a document number"
+                let document = readJsonText (original.Replace("\"ratio\":0.10", "\"ratio\":1e-1001"))
+                let bytes = IonIrWriter.write document |> ok "Writing"
+                Expect.stringContains (text bytes) "ratio: number::\"1e-1001\"," "Text, not a decimal of scale 1001"
+                expectSame (readIon bytes) document
 
             testCase "A float lexeme that does not spell the float's value is refused"
             <| fun () ->
@@ -729,10 +787,11 @@ let tests =
 
             testCase "A v3 attribute that is not a type has no Ion spelling"
             <| fun () ->
-                let json =
-                    "{\"formatVersion\":3,\"distribution\":[\"Library\",[[\"p\"]],[],{\"modules\":[[[[\"m\"]],{\"access\":\"Public\",\"value\":{\"types\":[],\"values\":[[[\"v\"],{\"access\":\"Public\",\"value\":{\"doc\":\"\",\"value\":{\"inputTypes\":[],\"outputType\":[\"Unit\",{}],\"body\":[\"Unit\",{\"x\":1}]}}}]],\"doc\":null}}]]}]}"
+                let original = catalogText "pairs/v3-daily-rate.json"
+                let literal = "\"body\":[\"Literal\",[\"Reference\",{},[[[\"morphir\"],[\"s\",\"d\",\"k\"]],[[\"basics\"]],[\"int\"]],[]],"
+                Expect.stringContains original literal "The vector has a typed literal"
 
-                match IonIrWriter.write (readJsonText json) with
+                match IonIrWriter.write (readJsonText (original.Replace(literal, "\"body\":[\"Literal\",{\"x\":1},"))) with
                 | Ok _ -> failtest "The attribute is refused"
                 | Result.Error error -> Expect.equal error.Code "unrepresentable_attribute" "The code"
         ]

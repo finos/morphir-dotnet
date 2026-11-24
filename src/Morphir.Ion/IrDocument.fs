@@ -45,4 +45,12 @@ type IonIrError = {
     /// and this is the place in that file, such as <c>$[0].types[1].bogus</c>, counted from the file's own first value.
     /// </summary>
     Location: string option
-}
+}    with
+
+    /// <summary>The code, the place when there is one, and the message.</summary>
+    override this.ToString() =
+        match this.Location, this.Path with
+        | Some location, _
+        | None, Some location -> $"{this.Code} at {location}: {this.Message}"
+        | None, None -> $"{this.Code}: {this.Message}"
+

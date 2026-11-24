@@ -381,6 +381,14 @@ public static class FixtureCatalog
         public static FixtureEntry IonDraft { get; } = new(
             "the pinned Ion IR draft", Directory + "ion-draft.md", "ebb72938b80d65e91683d484a98444e79835d3dd7aca317397d88dd8e2915a5d", Provenance);
 
+        /// <summary>
+        /// The hand-written v4 input of the escaped-names reference tree (<c>trees/inputs/v4-escaped-names.input.json</c>),
+        /// whose names need escaping: Windows device names, initialisms and tree file names.
+        /// </summary>
+        public static FixtureEntry EscapedNamesInput { get; } = new(
+            "the v4 input with names that need escaping", Directory + "trees/inputs/v4-escaped-names.input.json",
+            "69a4f83198c8ac9b9c9953a3d9899e25df1d354938ad94257ea42d269554dca9", Provenance);
+
         /// <summary>The path of a document below <see cref="Directory"/>, such as <c>pairs/v3-specs.json</c>.</summary>
         public static string NameOf(FixtureEntry document) => document.RelativePath[Directory.Length..];
 
@@ -945,7 +953,7 @@ public static class FixtureCatalog
     [
         .. Kit.Files, Mep.BoundedGenerationSession, .. BoundedWasmLimits.Files, OrdersScale.Guest, .. BoundedGenerationReceipts.Files,
         .. Models.All, .. BoundedOrders.Files, BoundedOrders.ExpandedV4, .. Trees.AcmeDemo, .. Trees.Written,
-        .. UpstreamIr.Documents, .. UpstreamIr.KitFeatures, UpstreamIr.IonDraft, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark,
+        .. UpstreamIr.Documents, .. UpstreamIr.KitFeatures, UpstreamIr.IonDraft, UpstreamIr.EscapedNamesInput, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark,
         WasmHost.Corpus, WasmHost.UnknownNamespaceModule, .. Context.Files, .. Context.Policy.Files,
         .. Context.Naming.Files, .. DiagramsMbt.Files, .. DiagramExport.Files, CssColor.NamedColors
     ];
