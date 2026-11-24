@@ -805,11 +805,13 @@ module internal OdfWriting =
                         cancellationToken.ThrowIfCancellationRequested()
                         let placed = fit.Box image.Box
                         let name = $"image {item.Name} on page {number}"
-                        Packaging.approximated image.SvgText name |> Option.iter warnings.Add
+                        match Packaging.approximated image.SvgText name with
+                        | null -> ()
+                        | warning -> warnings.Add warning
 
-                        match Packaging.fallback Packaging.rasterize image.SvgText (float (placed.Width.ToEmu()) / 9525.0) name with
-                        | Error error -> failure <- Some error
-                        | Ok png ->
+                        match PngFallbacks.TryDraw(image.SvgText, float (placed.Width.ToEmu()) / 9525.0, name) with
+                        | false, _, error -> failure <- Some error
+                        | true, png, _ ->
                             let index = pictures.Count / 2 + 1
                             let svgPath, pngPath = $"Pictures/image{index}.svg", $"Pictures/image{index}.png"
                             pictures.Add { Name = svgPath; Bytes = Encoding.UTF8.GetBytes(Packaging.portable image.SvgText); Stored = false }
@@ -858,14 +860,12 @@ module internal OdfWriting =
 /// Writes diagrams as an OpenDocument presentation for LibreOffice and OpenOffice Impress: one page per layout, with
 /// custom shapes that carry their own geometry and connectors glued to them along the diagram's routes.
 [<Sealed>]
-type OpenDocumentRenderer(placement: SlidePlacement, typeface: string) =
+type OpenDocumentRenderer(placement: SlidePlacement, typeface: string | null) =
     inherit DiagramRenderer()
 
-    do
-        ArgumentNullException.ThrowIfNull placement
+    do ArgumentNullException.ThrowIfNull placement
 
-        if String.IsNullOrWhiteSpace typeface then
-            invalidArg (nameof typeface) "A typeface is required."
+    let typeface = SlideText.typeface typeface
 
     static let features =
         LayoutFeatures.Of(
@@ -928,4 +928,5 @@ type OpenDocumentRenderer(placement: SlidePlacement, typeface: string) =
                 return ImmutableArray.CreateRange<Diagnostic> warnings
             }
 
-    override _.ToString() = $"OpenDocumentRenderer({placement}, {typeface})"
+    /// The typeface.
+    override _.ToString() = $"OpenDocumentRenderer({typeface})"

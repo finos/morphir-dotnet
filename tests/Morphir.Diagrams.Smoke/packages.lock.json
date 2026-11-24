@@ -45,6 +45,14 @@
           "Morphir.Diagrams": "[1.0.0, )"
         }
       },
+      "morphir.diagrams.slides": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "Morphir.Diagrams": "[1.0.0, )",
+          "Morphir.Diagrams.Raster": "[1.0.0, )"
+        }
+      },
       "morphir.knowledge": {
         "type": "Project",
         "dependencies": {

@@ -28,13 +28,16 @@ type SlideObjectNamespace private (value: string) =
     /// The namespace text.
     member _.Value = value
 
+    /// The text form, for diagnostics and logs.
     override _.ToString() = value
 
+    /// Ordinal equality of the values.
     override _.Equals(other: obj | null) =
         match other with
         | :? SlideObjectNamespace as other -> String.Equals(other.Value, value, StringComparison.Ordinal)
         | _ -> false
 
+    /// A hash consistent with Equals.
     override _.GetHashCode() = StringComparer.Ordinal.GetHashCode value
 
     interface IEquatable<SlideObjectNamespace> with
@@ -92,13 +95,16 @@ type SlideObjectId private (value: string) =
     /// The ID text.
     member _.Value = value
 
+    /// The text form, for diagnostics and logs.
     override _.ToString() = value
 
+    /// Ordinal equality of the values.
     override _.Equals(other: obj | null) =
         match other with
         | :? SlideObjectId as other -> String.Equals(other.Value, value, StringComparison.Ordinal)
         | _ -> false
 
+    /// A hash consistent with Equals.
     override _.GetHashCode() = StringComparer.Ordinal.GetHashCode value
 
     interface IEquatable<SlideObjectId> with
@@ -168,6 +174,7 @@ type GoogleSlidesOptions private (placement: SlidePlacement, objects: SlideObjec
         ArgumentNullException.ThrowIfNull slide
         GoogleSlidesOptions(placement, objects, Some slide)
 
+    /// The text form, for diagnostics and logs.
     override _.ToString() =
         match existing with
         | Some slide -> $"GoogleSlidesOptions({objects}, slide {slide})"
@@ -592,4 +599,5 @@ type GoogleSlidesRenderer(options: GoogleSlidesOptions) =
                 return ImmutableArray<Diagnostic>.Empty
             }
 
+    /// The text form, for diagnostics and logs.
     override _.ToString() = $"GoogleSlidesRenderer({options})"

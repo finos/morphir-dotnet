@@ -216,6 +216,18 @@ public class PowerPointRendererTests
     }
 
     [Test]
+    public void ATypefaceThatXmlCannotHoldIsRefused()
+    {
+        foreach (var typeface in new string?[] { null, " ", "Mono\u0001", "Mono\uD800" })
+        {
+            Should.Throw<ArgumentException>(() => new PowerPointRenderer(SlidePlacement.Widescreen, PowerPointConnectors.Exact, typeface));
+            Should.Throw<ArgumentException>(() => new OpenDocumentRenderer(SlidePlacement.Widescreen, typeface));
+        }
+
+        new PowerPointRenderer(SlidePlacement.Widescreen, PowerPointConnectors.Glued, "Cascadia Mono").ToString().ShouldBe("PowerPointRenderer(glued, Cascadia Mono)");
+    }
+
+    [Test]
     public void EachOptionDeclaresItsLineFeatures()
     {
         var exact = new PowerPointRenderer().NativeFeatures;

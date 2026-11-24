@@ -44,6 +44,7 @@ type RevealJsOptions private (baseAddress: string, title: string) =
         | null -> nullArg (nameof text)
         | text -> RevealJsOptions(baseAddress, text)
 
+    /// The text form, for diagnostics and logs.
     override _.ToString() = $"RevealJsOptions({baseAddress}, {title})"
 
 /// Writes reveal.js decks.
@@ -139,4 +140,5 @@ type RevealJsRenderer(options: RevealJsOptions) =
             return ImmutableArray<Diagnostic>.Empty
         }
 
+    /// The text form, for diagnostics and logs.
     override _.ToString() = $"RevealJsRenderer({options})"

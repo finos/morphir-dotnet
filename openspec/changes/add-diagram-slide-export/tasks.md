@@ -33,15 +33,15 @@ Each task writes its scenarios as failing tests first and confirms they fail for
 
 ## 6. Integration
 
-- [ ] 6.1 Document each renderer in the package README with C# examples compiled by a README test. Include the Google Slides send step with the caller's own client, an offline copy of reveal.js, the connector options and what each keeps, and the font notes. Verify the README test passes, and run the `fsharp-csharp-interop-reviewer` agent and fix its findings.
+- [x] 6.1 Document each renderer in the package README with C# examples compiled by a README test. Include the Google Slides send step with the caller's own client, an offline copy of reveal.js, the connector options and what each keeps, and the font notes. Verify the README test passes, and run the `fsharp-csharp-interop-reviewer` agent and fix its findings. (The README test compiles each of the six C# examples with no warnings. The interop reviewer found four issues, all fixed: the packaging internals that the C# tests call now take `Func`, `IReadOnlyList` and out parameters; typefaces take `string | null` and are checked when the renderer is built; `PowerPointRenderer` has a `ToString`; and the public overrides have doc comments.)
 - [ ] 6.2 Render one diagram of each family to every format, then check each by hand:
   - open the `.pptx` in PowerPoint and LibreOffice
   - open the `.odp` in Impress
   - open the reveal.js deck in a browser
   - send the Google requests to a test presentation
 
-  Verify each opens without repair, text is editable, glued connectors follow moved shapes, and screenshots are attached to the pull request.
-- [ ] 6.3 Add one export to each slide target to `tests/Morphir.Diagrams.Smoke`, asserting that each succeeds. Verify that the existing `diagrams-smoke` scenarios pass, managed in `LibraryHosts.feature` and under Native AOT in `NativeAot.feature`, with no new warnings beyond the allowed FSharp.Core ones.
+  Verify each opens without repair, text is editable, glued connectors follow moved shapes, and screenshots are attached to the pull request. (Done here: the `.pptx` and `.odp` of each family were opened and drawn in LibreOffice 26.8; the `.odp` glue was checked through the UNO API after moving a shape and saving; and the reveal.js decks were opened in headless Chromium. The checks are recorded in the package README. Not done here, because neither application nor credentials were available: opening the `.pptx` in PowerPoint and sending the Google requests to a test presentation. Those two remain for a maintainer before the change is archived.)
+- [x] 6.3 Add one export to each slide target to `tests/Morphir.Diagrams.Smoke`, asserting that each succeeds. Verify that the existing `diagrams-smoke` scenarios pass, managed in `LibraryHosts.feature` and under Native AOT in `NativeAot.feature`, with no new warnings beyond the allowed FSharp.Core ones. (The smoke program exports one flowchart to each slide target, with the PowerPoint export under the picture-fallback policy. A Native AOT publish has only the allowed FSharp.Core warnings, and its digests equal the JIT run's.)
 - [ ] 6.4 Update the diagrams documentation page and the changelog. Run `dotnet format`, `mise run openspec:verify` and `./build.sh --target Test`, and run the `test-manager-reviewer` agent and fix its findings. Verify every suite passes on Linux, Windows and macOS in CI.
 
 ## Workflow follow-up

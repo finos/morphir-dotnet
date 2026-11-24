@@ -19,13 +19,16 @@ type SlideSize private (width: Distance, height: Distance) =
     /// The height.
     member _.Height = height
 
+    /// The text form, for diagnostics and logs.
     override _.ToString() = $"{width} by {height}"
 
+    /// Ordinal equality of the values.
     override _.Equals(other: obj | null) =
         match other with
         | :? SlideSize as other -> other.Width.Equals width && other.Height.Equals height
         | _ -> false
 
+    /// A hash consistent with Equals.
     override _.GetHashCode() = HashCode.Combine(width, height)
 
     /// Widescreen 16:9, 40/3 by 7.5 inches. The default.
@@ -56,6 +59,7 @@ type SlideArea private (resolve: SlideSize -> Distance * Distance * Distance * D
     /// The left edge, top edge, width and height on a slide.
     member internal _.On(size: SlideSize) = resolve size
 
+    /// The text form, for diagnostics and logs.
     override _.ToString() = description
 
     /// The content area: a margin of one twelfth of the slide's width and height on each side. The default.
@@ -96,6 +100,7 @@ type SlideGrid =
         | SlideGrid.Emu -> Distance.FromEmu 1L
         | SlideGrid.Micrometre -> Distance.FromEmu 36L
 
+    /// The text form, for diagnostics and logs.
     override this.ToString() =
         match this with
         | SlideGrid.Emu -> "EMU"
@@ -147,6 +152,7 @@ type SlideFit internal (area: LayoutBox, extent: LayoutBox, numerator: Int128, d
     member _.Length(length: Distance) =
         Distance.FromQuarterEmu(int64 (round (Int128.op_Implicit length.QuarterEmu * numerator) denominator))
 
+    /// The text form, for diagnostics and logs.
     override _.ToString() = $"fit {extent} into {area} at {float numerator / float denominator}"
 
 /// How diagrams are placed on slides: the slide size, the area the diagram goes in, and an optional maximum scale. A
@@ -269,6 +275,7 @@ type SlidePlacement private (size: SlideSize, area: SlideArea, maximum: Scale op
         let half (spare: int64) = (spare / 2L / step) * step
         SlideFit(areaBox, extent, numerator, denominator, half spareX, half spareY, step)
 
+    /// The text form, for diagnostics and logs.
     override _.ToString() =
         let capped = maximum |> Option.map (fun scale -> $", at most {scale}") |> Option.defaultValue ""
         $"{size}, {area}{capped}"

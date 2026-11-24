@@ -25,6 +25,7 @@ type PowerPointConnectors =
     /// moved shapes; it loses the exact route and the sequence-diagram heads.
     | Glued
 
+    /// The text form, for diagnostics and logs.
     override this.ToString() =
         match this with
         | PowerPointConnectors.Exact -> "exact"
@@ -1273,19 +1274,13 @@ module internal PowerPointSlide =
                 let box = fit.Box image.Box
                 let name = $"image {item.Name} on slide {number}"
 
-                Packaging.approximated image.SvgText name
-                |> Option.iter warnings.Add
+                match Packaging.approximated image.SvgText name with
+                | null -> ()
+                | warning -> warnings.Add warning
 
-                match
-                    Packaging.fallback
-                        Packaging.rasterize
-                        image.SvgText
-                        (float (Ooxml.emu box.Width)
-                         / 9525.0)
-                        name
-                with
-                | Error error -> failure <- Some error
-                | Ok png ->
+                match PngFallbacks.TryDraw(image.SvgText, float (Ooxml.emu box.Width) / 9525.0, name) with
+                | false, _, error -> failure <- Some error
+                | true, png, _ ->
                     let index =
                         media.Count
                         / 2
@@ -1468,15 +1463,14 @@ module internal PowerPointWriting =
 /// images. The presentation is written by hand as Office Open XML, with no third-party dependency.
 [<Sealed>]
 type PowerPointRenderer
-    (placement: SlidePlacement, connectors: PowerPointConnectors, typeface: string) =
+    (placement: SlidePlacement, connectors: PowerPointConnectors, typeface: string | null) =
     inherit DiagramRenderer()
 
     do
         ArgumentNullException.ThrowIfNull placement
         ArgumentNullException.ThrowIfNull connectors
 
-        if String.IsNullOrWhiteSpace typeface then
-            invalidArg (nameof typeface) "A typeface is required."
+    let typeface = SlideText.typeface typeface
 
     static let common =
         LayoutFeatures.Of(
@@ -1559,3 +1553,6 @@ type PowerPointRenderer
             do! Packaging.copy bytes output cancellationToken
             return ImmutableArray.CreateRange<Diagnostic> warnings
           }
+
+    /// The connector option and the typeface.
+    override _.ToString() = $"PowerPointRenderer({connectors}, {typeface})"

@@ -4,9 +4,12 @@
 namespace Morphir.Diagrams.Slides
 
 open System
+open System.Collections.Generic
 open System.Collections.Immutable
+open System.Diagnostics.CodeAnalysis
 open System.IO
 open System.IO.Compression
+open System.Runtime.InteropServices
 open System.Text
 open System.Threading
 open System.Threading.Tasks
@@ -159,6 +162,38 @@ module internal PresetSites =
             (fun _ -> None)
         )
 
+/// Checks of text that the slide renderers write into XML.
+[<RequireQualifiedAccess>]
+module internal SlideText =
+    /// A typeface name that is not blank and that XML can hold, or an argument error.
+    let typeface (typeface: string | null) : string =
+        match typeface with
+        | null -> nullArg (nameof typeface)
+        | text when String.IsNullOrWhiteSpace text -> invalidArg (nameof typeface) "A typeface is required."
+        | text when Seq.exists Char.IsControl text -> invalidArg (nameof typeface) "A typeface cannot hold control characters."
+        | text ->
+            try
+                XmlConvert.VerifyXmlChars text |> ignore
+                text
+            with :? XmlException ->
+                invalidArg (nameof typeface) "A typeface must be text that XML can hold."
+
+/// One attempt to draw a PNG: its bytes and pixel size, or the raster diagnostic's code and message.
+[<Sealed>]
+type internal RasterAttempt private (bytes: byte[] | null, width: int, height: int, code: string, message: string) =
+    /// A drawn PNG.
+    static member Drawn(bytes: byte[], width: int, height: int) = RasterAttempt(bytes, width, height, "", "")
+
+    /// A refused attempt, with the raster diagnostic's code and message.
+    static member Refused(code: string, message: string) = RasterAttempt(null, 0, 0, code, message)
+
+    /// The PNG, or null when the attempt was refused.
+    member _.Bytes = bytes
+    member _.Width = width
+    member _.Height = height
+    member _.Code = code
+    member _.Message = message
+
 /// Builds deterministic ZIP packages and PNG fallbacks for the slide renderers.
 [<RequireQualifiedAccess>]
 module internal Packaging =
@@ -166,7 +201,7 @@ module internal Packaging =
     let private timestamp = DateTimeOffset(1980, 1, 1, 0, 0, 0, TimeSpan.Zero)
 
     /// A ZIP package of the entries in order, built in memory so that its bytes do not depend on the output.
-    let zip (entries: PackageEntry list) =
+    let zip (entries: IReadOnlyList<PackageEntry>) =
         use buffer = new MemoryStream()
 
         do
@@ -216,82 +251,70 @@ module internal Packaging =
     }
 
     /// Draws an SVG as PNG at a pixel width, or the raster diagnostic's code and message.
-    let rasterize (svg: string) (width: int) : Result<byte[] * int * int, string * string> =
-        let image =
-            DiagramRaster.Render(
-                svg,
-                RasterOptions.Png.WithTheme(RasterTheme.Light).WithWidth(max 1 width)
-            )
+    let rasterize (svg: string) (width: int) : RasterAttempt =
+        let image = DiagramRaster.Render(svg, RasterOptions.Png.WithTheme(RasterTheme.Light).WithWidth(max 1 width))
 
         if image.Succeeded then
-            Ok(Seq.toArray image.Bytes, image.Width, image.Height)
+            RasterAttempt.Drawn(Seq.toArray image.Bytes, image.Width, image.Height)
         else
-            let first =
-                image.Diagnostics
-                |> Seq.tryHead
+            match image.Diagnostics |> Seq.tryHead with
+            | Some first -> RasterAttempt.Refused(first.Code, first.Message)
+            | None -> RasterAttempt.Refused("raster/failed", "The image could not be drawn.")
 
-            Error(
-                first
-                |> Option.map (fun d -> d.Code)
-                |> Option.defaultValue "raster/failed",
-                first
-                |> Option.map (fun d -> d.Message)
-                |> Option.defaultValue "The image could not be drawn."
-            )
-
-    /// A PNG fallback of an SVG image placed at a width in CSS pixels: two pixels per CSS pixel, or one when two exceed
-    /// the raster limits. Otherwise the error slides/raster-failed, naming the image.
-    let fallback
-        (draw: string -> int -> Result<byte[] * int * int, string * string>)
-        (svg: string)
-        (placedWidth: float)
-        (name: string)
-        =
-        let attempt density =
-            draw
-                svg
-                (int (
-                    Math.Ceiling(
-                        placedWidth
-                        * float density
-                    )
-                ))
-            |> Result.map (fun (bytes, width, height) -> {
-                Bytes = bytes
-                Width = width
-                Height = height
-                Density = density
-            })
-
-        match attempt 2 with
-        | Ok png -> Ok png
-        | Error _ ->
-            match attempt 1 with
-            | Ok png -> Ok png
-            | Error(code, message) ->
-                Error(
-                    Diagnostic.Error(
-                        "slides/raster-failed",
-                        $"The PNG fallback of {name} cannot be drawn ({code}): {message}"
-                    )
-                )
-
-    /// A warning when the raster painter approximates the paint of an image's SVG, naming the image.
-    let approximated (svg: string) (name: string) =
+    /// A warning when the raster painter approximates the paint of an image's SVG, naming the image, or null.
+    let approximated (svg: string) (name: string) : Diagnostic | null =
         match SvgPainter.approximations svg with
-        | [] -> None
+        | [] -> null
         | values ->
-            let listed =
-                values
-                |> Seq.truncate 3
-                |> String.concat ", "
+            let listed = values |> Seq.truncate 3 |> String.concat ", "
 
-            Some(
-                Diagnostic.Warning(
-                    "slides/png-approximated",
-                    $"The PNG fallback of {name} approximates paint that the raster painter does not draw exactly: {listed}."
-                )
+            Diagnostic.Warning(
+                "slides/png-approximated",
+                $"The PNG fallback of {name} approximates paint that the raster painter does not draw exactly: {listed}."
             )
 
     /// The SVG that a package embeds: office applications read no CSS variables, so it carries the light palette's values.
     let portable (svg: string) = SvgPainter.portable svg
+
+/// PNG fallbacks of SVG images.
+[<AbstractClass; Sealed>]
+type internal PngFallbacks =
+    /// A PNG fallback of an SVG image placed at a width in CSS pixels: two pixels per CSS pixel, or one when two exceed
+    /// the raster limits. Otherwise the error slides/raster-failed, naming the image.
+    static member TryDraw
+        (
+            draw: Func<string, int, RasterAttempt>,
+            svg: string,
+            placedWidth: float,
+            name: string,
+            [<Out; MaybeNullWhen(false)>] png: byref<PngFallback>,
+            [<Out; MaybeNullWhen(true)>] failure: byref<Diagnostic>
+        ) =
+        let attempt density = density, draw.Invoke(svg, int (Math.Ceiling(placedWidth * float density)))
+
+        let found =
+            [ 2; 1 ]
+            |> Seq.map attempt
+            |> Seq.tryFind (fun (_, attempt) -> not (isNull attempt.Bytes))
+
+        match found with
+        | Some(density, drawn) ->
+            png <- { Bytes = nonNull drawn.Bytes; Width = drawn.Width; Height = drawn.Height; Density = density }
+            failure <- Unchecked.defaultof<_>
+            true
+        | None ->
+            let _, last = attempt 1
+            png <- Unchecked.defaultof<_>
+            failure <- Diagnostic.Error("slides/raster-failed", $"The PNG fallback of {name} cannot be drawn ({last.Code}): {last.Message}")
+            false
+
+    /// The PNG fallback drawn by the raster painter.
+    static member TryDraw
+        (
+            svg: string,
+            placedWidth: float,
+            name: string,
+            [<Out; MaybeNullWhen(false)>] png: byref<PngFallback>,
+            [<Out; MaybeNullWhen(true)>] failure: byref<Diagnostic>
+        ) =
+        PngFallbacks.TryDraw(Func<string, int, RasterAttempt>(fun svg width -> Packaging.rasterize svg width), svg, placedWidth, name, &png, &failure)

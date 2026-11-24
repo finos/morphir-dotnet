@@ -9,6 +9,7 @@ using Morphir.Diagrams.Canvas;
 using Morphir.Diagrams.Export;
 using Morphir.Diagrams.Query;
 using Morphir.Diagrams.Raster;
+using Morphir.Diagrams.Slides;
 using Morphir.Knowledge;
 using Morphir.Knowledge.Rdf;
 
@@ -101,6 +102,25 @@ foreach (var file in new[] { "orders.drawio", "orders.excalidraw", "orders.excal
     Console.WriteLine($"canvas {file} {Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(exported.ToArray()))}");
 }
 Console.WriteLine("canvas: ok");
+
+// One export to each slide target: PowerPoint (with a picture and its PNG fallback), OpenDocument, Google Slides
+// requests and a reveal.js deck. Each output's digest is the same under JIT and Native AOT.
+var slideTargets = new (string Name, DiagramRenderer Renderer, DegradationPolicy Policy)[]
+{
+    ("orders.pptx", new PowerPointRenderer(), DegradationPolicy.PictureFallback),
+    ("orders.odp", new OpenDocumentRenderer(), DegradationPolicy.AllowDegraded),
+    ("orders.gslides.json", new GoogleSlidesRenderer(GoogleSlidesOptions.Create(SlidePlacement.Widescreen, SlideObjectNamespace.Create("orders"))), DegradationPolicy.AllowDegraded),
+    ("orders.reveal.html", new RevealJsRenderer(), DegradationPolicy.AllowDegraded),
+};
+foreach (var (name, renderer, policy) in slideTargets)
+{
+    using var exported = new System.IO.MemoryStream();
+    var export = await DiagramExport.RenderAsync([layout], renderer, exported, policy, System.Threading.CancellationToken.None);
+    if (!export.Written || export.HasErrors || exported.Length == 0)
+        return 1;
+    Console.WriteLine($"slides {name} {Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(exported.ToArray()))}");
+}
+Console.WriteLine("slides: ok");
 
 var expected = Canonical(dataset);
 var actual = Canonical(extracted);
