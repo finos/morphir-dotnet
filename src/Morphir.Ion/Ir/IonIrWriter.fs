@@ -8,16 +8,39 @@ open Morphir.IR.Trees
 open Morphir.Json.Classic
 open Morphir.Json.V4
 
+/// <summary>The format versions the Ion IR format carries, which the writer and its callers check alike.</summary>
+[<RequireQualifiedAccess>]
+module IonIrVersions =
+    /// <summary>
+    /// The exact release a header states for a format version spelling: <c>3</c> and <c>3.0.0</c> give <c>3.0.0</c>,
+    /// <c>3.1.0</c> gives <c>3.1.0</c>, and <c>4</c> and <c>4.0.0</c> give <c>4.0.0</c>. Every other spelling, such as
+    /// <c>3.99.0</c>, <c>4.0</c> or <c>4.1.0-draft.1</c>, is not carried.
+    /// </summary>
+    let release (version: string) : string option =
+        match version with
+        | "3"
+        | "3.0.0" -> Some "3.0.0"
+        | "3.1.0" -> Some "3.1.0"
+        | "4"
+        | "4.0.0" -> Some "4.0.0"
+        | _ -> None
+
+    /// <summary>Whether the Ion IR format carries a format version.</summary>
+    let carries (version: Morphir.IR.Versioning.FormatVersion) : bool =
+        (release (Morphir.IR.Versioning.version version)).IsSome
+
 /// <summary>
 /// Writes a Morphir distribution in the canonical text of the Ion IR format: a single-file datagram, or a document
 /// tree. The output reads back through <see cref="IonIr"/> and <see cref="IonIrTree"/> as the same distribution.
 /// </summary>
 /// <remarks>
 /// The text is UTF-8 Ion 1.0 with the layout of draft <c>0.1.0-draft.1</c>: one member, item or operand per line at
-/// two spaces for each level, bare symbols where Ion allows them, and every empty optional list left out. A v3 library
-/// states <c>formatVersion</c> <c>3.0.0</c>, a v3 specs distribution <c>3.1.0</c>, and v4 <c>4.0.0</c>. A write fails
+/// two spaces for each level, bare symbols where Ion allows them, and every empty optional list left out. The header
+/// states the exact release of the document: <c>3.0.0</c> or <c>3.1.0</c> for a v3 library, <c>3.1.0</c> for a v3
+/// specs distribution, and <c>4.0.0</c> for v4 (see <see cref="IonIrVersions"/>). A write fails
 /// with an <see cref="IonIrError"/>, never an exception: <c>unsupported_format_version_major</c> or
-/// <c>unsupported_format_version_minor</c> for an IR the format does not carry, <c>unrepresentable_attribute</c> for a
+/// <c>unsupported_format_version_minor</c> for an IR the format does not carry, <c>specs_before_3_1</c> for v3 specs
+/// below <c>3.1.0</c>, <c>unrepresentable_attribute</c> for a
 /// v3 attribute with no Ion spelling, <c>unsupported_node</c> for a node Ion cannot hold, <c>invalid_path_budget</c>
 /// and <c>path_over_budget</c> for a tree whose paths do not fit.
 /// </remarks>
@@ -42,38 +65,38 @@ module IonIrWriter =
                 }
         )
 
-    /// Refuses a format version that the Ion IR format does not carry.
-    let private checkVersion (document: IrDocument) =
-        let release, isClassic =
+    /// The exact release a document's header states, or the refusal of a version or kind the format does not carry.
+    let private checkVersion (document: IrDocument) : string =
+        let stated, isSpecs, isClassic =
             match document with
-            | ClassicIr(version, _) -> version, true
-            | V4Ir(version, _) -> version, false
+            | ClassicIr(version, Morphir.IR.Classic.Distribution.Specs _) -> version, true, true
+            | ClassicIr(version, _) -> version, false, true
+            | V4Ir(version, _) -> version, false, false
 
-        let parts = release.Split('.')
+        match IonIrVersions.release stated, isClassic with
+        | Some "4.0.0", false -> "4.0.0"
+        | Some "3.1.0", true -> "3.1.0"
+        | Some "3.0.0", true when not isSpecs -> "3.0.0"
+        | Some "3.0.0", true ->
+            refuse "specs_before_3_1" $"A v3 specs distribution needs formatVersion 3.1.0, not {stated}."
+        | Some release, _ ->
+            let family = if isClassic then "classic" else "v4"
 
-        match parts[0], isClassic with
-        | "3", true -> ()
-        | "4", false when
-            parts
-            |> Array.skip 1
-            |> Array.forall (fun part -> part = "0")
-            && parts.Length <= 3
-            ->
-            ()
-        | ("3" | "4"), _ ->
-            refuse
-                "unsupported_format_version_minor"
-                $"The Ion IR format carries formatVersion 3.0.0, 3.1.0 and 4.0.0, not {release}."
-        | _ ->
             refuse
                 "unsupported_format_version_major"
-                $"The Ion IR format carries IR 3 and 4, not {release}."
+                $"formatVersion {release} does not belong to the {family} IR that the document holds."
+        | None, _ when stated.Split('.')[0] = "3" || stated.Split('.')[0] = "4" ->
+            refuse
+                "unsupported_format_version_minor"
+                $"The Ion IR format carries formatVersion 3.0.0, 3.1.0 and 4.0.0, not {stated}."
+        | None, _ ->
+            refuse "unsupported_format_version_major" $"The Ion IR format carries IR 3 and 4, not {stated}."
 
     let private datagram (document: IrDocument) =
-        checkVersion document
+        let release = checkVersion document
 
         match document with
-        | ClassicIr(_, distribution) -> ClassicIonWriter.datagram distribution
+        | ClassicIr(_, distribution) -> ClassicIonWriter.datagram release distribution
         | V4Ir(_, distribution) -> V4IonWriter.datagram distribution
 
     /// <summary>Writes a distribution as one canonical Ion datagram, footer last.</summary>
@@ -196,6 +219,7 @@ module IonIrWriter =
 
     let private classicFiles
         (budget: int)
+        (release: string)
         (distribution: Morphir.IR.Classic.Distribution.Distribution<JsonElement, JsonElement>)
         : TreeFile list =
         let package = Morphir.IR.Classic.Distribution.packageName distribution
@@ -218,7 +242,7 @@ module IonIrWriter =
 
         let manifest: TreeFile =
             "manifest.ion",
-            ClassicIonWriter.header (Some budget) distribution
+            ClassicIonWriter.header (Some budget) release distribution
             :: ClassicIonWriter.dependencies false distribution
 
         let dependencyFiles =
@@ -262,11 +286,11 @@ module IonIrWriter =
         if pathBudget < MinimumPathBudget then
             refuse "invalid_path_budget" $"The path budget is {pathBudget}; a tree's budget is at least {MinimumPathBudget}."
 
-        checkVersion document
+        let release = checkVersion document
 
         let files =
             match document with
-            | ClassicIr(_, distribution) -> classicFiles pathBudget distribution
+            | ClassicIr(_, distribution) -> classicFiles pathBudget release distribution
             | V4Ir(_, distribution) -> v4Files pathBudget distribution
 
         files
@@ -360,6 +384,12 @@ module IonIrWriter =
 /// <summary>C# members of <see cref="IonIrWriter"/>.</summary>
 [<AbstractClass; Sealed>]
 type IonIrWriting =
+    /// <summary>
+    /// Whether the Ion IR format carries a format version: <c>3</c>, <c>3.0.0</c>, <c>3.1.0</c>, <c>4</c> or
+    /// <c>4.0.0</c>. The writer refuses every other version.
+    /// </summary>
+    static member Carries(version: Morphir.IR.Versioning.FormatVersion) : bool = IonIrVersions.carries version
+
     /// <summary>
     /// Reads Morphir IR JSON and writes it as one canonical Ion datagram. It sets <paramref name="ion"/> and returns
     /// true, or sets <paramref name="failure"/> and returns false.

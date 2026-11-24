@@ -14,7 +14,8 @@ open Morphir.Ion.V4IonWriter
 
 /// Builds the canonical Ion elements of a v3 distribution: the inverse of <see cref="ClassicIonDistribution"/>. A v3
 /// type has no Ion attribute, so its attribute must be the empty object. A value or pattern attribute must be the
-/// classic JSON of a type, which Ion writes as <c>{ inferredType }</c>, or <c>[]</c>, which Ion leaves out.
+/// classic JSON of a type, which Ion writes as <c>{ inferredType }</c> after each head. The reader gives an absent
+/// attribute struct the unit type, so an attribute such as <c>[]</c> would not read back and is refused.
 module internal ClassicIonWriter =
     let private refuse message : 'a =
         raise (
@@ -30,10 +31,6 @@ module internal ClassicIonWriter =
     let private isEmptyObject (element: JsonElement) =
         element.ValueKind = JsonValueKind.Object
         && Seq.isEmpty (element.EnumerateObject())
-
-    let private isEmptyArray (element: JsonElement) =
-        element.ValueKind = JsonValueKind.Array
-        && element.GetArrayLength() = 0
 
     let private checkTypeAttribute (attribute: JsonElement) =
         if not (isEmptyObject attribute) then
@@ -99,22 +96,20 @@ module internal ClassicIonWriter =
             | _ -> raise NotAType
         | _ -> raise NotAType
 
-    /// The type a value or pattern attribute holds, or nothing for the attribute <c>[]</c> that Ion leaves out.
-    let private inferred (attribute: JsonElement) : Type<JsonElement> option =
-        if isEmptyArray attribute then
-            None
-        else
-            let found =
-                try
-                    Some(typeOf attribute)
-                with NotAType ->
-                    None
+    /// The type a value or pattern attribute holds. Any other attribute, such as <c>[]</c>, would read back as the unit
+    /// type, so it is refused.
+    let private inferred (attribute: JsonElement) : Type<JsonElement> =
+        let found =
+            try
+                Some(typeOf attribute)
+            with NotAType ->
+                None
 
-            match found with
-            | Some found when JsonElement.DeepEquals(ClassicIonTypes.typeAsAttribute found, attribute) -> Some found
-            | _ ->
-                refuse
-                    "A v3 value or pattern attribute has an Ion spelling only when it is the classic JSON of a type, or []."
+        match found with
+        | Some found when JsonElement.DeepEquals(ClassicIonTypes.typeAsAttribute found, attribute) -> found
+        | _ ->
+            refuse
+                $"A v3 value or pattern attribute has an Ion spelling only when it is the classic JSON of a type; {attribute.GetRawText()} would read back as the unit type."
 
     // Types.
 
@@ -228,40 +223,26 @@ module internal ClassicIonWriter =
             "float", Float number
         | DecimalLiteral number -> "decimal", Text(number.ToString(CultureInfo.InvariantCulture))
 
-    /// <c>(head { inferredType } operands)</c>, or the bare head when the attribute is <c>[]</c>.
+    /// <c>(head { inferredType } operands)</c>. A v3 node always states its type, so no shorthand applies.
     let private node (head: string) (attribute: JsonElement) (operands: IonText list) =
-        match inferred attribute with
-        | Some found -> Sexp(Symbol head :: Struct [ "inferredType", typ found ] :: operands)
-        | None -> Sexp(Symbol head :: operands)
-
-    let private omitted (attribute: JsonElement) = (inferred attribute).IsNone
+        Sexp(Symbol head :: Struct [ "inferredType", typ (inferred attribute) ] :: operands)
 
     let private literal (attribute: JsonElement) (value: Literal) =
-        match value, omitted attribute with
-        | BoolLiteral flag, true -> Bool flag
-        | WholeNumberLiteral number, true -> Integer(BigInteger number)
-        | FloatLiteral number, true when Double.IsFinite number -> Float number
-        | _ ->
-            let head, operand = literalOperand value
-            node head attribute [ operand ]
+        let head, operand = literalOperand value
+        node head attribute [ operand ]
 
     let rec pattern (value: Pattern<JsonElement>) : IonText =
         RuntimeHelpers.EnsureSufficientExecutionStack()
 
         match value with
-        | WildcardPattern attribute when omitted attribute -> Symbol "_"
         | WildcardPattern attribute -> node "wildcard" attribute []
-        | AsPattern(attribute, WildcardPattern inner, name) when omitted attribute && omitted inner ->
-            Symbol(nameText name)
         | AsPattern(attribute, inner, name) -> node "as" attribute [ pattern inner; Symbol(nameText name) ]
         | TuplePattern(attribute, items) -> node "tuple" attribute (List.map pattern items)
         | ConstructorPattern(attribute, name, items) ->
             node "constructor" attribute (Symbol(fqText name) :: List.map pattern items)
-        | EmptyListPattern attribute when omitted attribute -> IonText.List []
         | EmptyListPattern attribute -> node "emptyList" attribute []
         | HeadTailPattern(attribute, head, tail) -> node "headTail" attribute [ pattern head; pattern tail ]
         | LiteralPattern(attribute, found) -> literal attribute found
-        | UnitPattern attribute when omitted attribute -> Sexp []
         | UnitPattern attribute -> node "unit" attribute []
 
     let rec value (element: Value<JsonElement, JsonElement>) : IonText =
@@ -277,7 +258,6 @@ module internal ClassicIonWriter =
         | Value.Tuple(attribute, items) -> node "tuple" attribute (List.map value items)
         | Value.List(attribute, items) -> node "list" attribute (List.map value items)
         | Value.Record(attribute, entries) -> node "record" attribute (fields entries)
-        | Value.Variable(attribute, name) when omitted attribute -> Symbol(nameText name)
         | Value.Variable(attribute, name) -> node "variable" attribute [ Symbol(nameText name) ]
         | Value.Reference(attribute, name) -> node "ref" attribute [ Symbol(fqText name) ]
         | Value.Field(attribute, target, name) -> node "field" attribute [ value target; Symbol(nameText name) ]
@@ -304,7 +284,6 @@ module internal ClassicIonWriter =
                  :: (cases
                      |> List.map (fun (case, body) -> IonText.List [ pattern case; value body ])))
         | Value.UpdateRecord(attribute, target, entries) -> node "update" attribute (value target :: fields entries)
-        | Value.Unit attribute when omitted attribute -> Sexp []
         | Value.Unit attribute -> node "unit" attribute []
 
     /// <c>[ { name, type, inferredType } ]</c>. The inferred type is left out when it is the stated type.
@@ -312,11 +291,10 @@ module internal ClassicIonWriter =
         inputs
         |> List.map (fun (name, attribute, declared) ->
             let stated =
-                match inferred attribute with
-                | Some found when not (JsonElement.DeepEquals(ClassicIonTypes.typeAsAttribute declared, attribute)) ->
-                    Some(typ found)
-                | Some _ -> None
-                | None -> refuse "A v3 input attribute must be the classic JSON of a type."
+                if JsonElement.DeepEquals(ClassicIonTypes.typeAsAttribute declared, attribute) then
+                    None
+                else
+                    Some(typ (inferred attribute))
 
             Struct(
                 members [
@@ -511,13 +489,8 @@ module internal ClassicIonWriter =
             )
         )
 
-    /// The format version a v3 header states: <c>3.0.0</c> for a library and <c>3.1.0</c> for specs.
-    let formatVersion (distribution: Distribution<JsonElement, JsonElement>) =
-        match distribution with
-        | Library _ -> "3.0.0"
-        | Specs _ -> "3.1.0"
-
-    let header (pathBudget: int option) (distribution: Distribution<JsonElement, JsonElement>) =
+    /// The <c>morphir::</c> header, which states the exact release the caller checked.
+    let header (pathBudget: int option) (release: string) (distribution: Distribution<JsonElement, JsonElement>) =
         let kind, package =
             match distribution with
             | Library(package, _, _) -> "library", package
@@ -528,7 +501,7 @@ module internal ClassicIonWriter =
             Struct(
                 members [
                     "ionVersion", Some(Text IonIrFormat.IonVersion)
-                    "formatVersion", Some(Text(formatVersion distribution))
+                    "formatVersion", Some(Text release)
                     "kind", Some(Symbol kind)
                     "packageName", Some(Text(packageText package))
                     "pathBudget", pathBudget |> Option.map (BigInteger >> Integer)
@@ -562,7 +535,7 @@ module internal ClassicIonWriter =
 
     /// The top-level values of a single-file datagram. A library writes each module, then its types and values as
     /// top-level elements that name it; a specs distribution writes each module with its members inline.
-    let datagram (distribution: Distribution<JsonElement, JsonElement>) : IonText list =
+    let datagram (release: string) (distribution: Distribution<JsonElement, JsonElement>) : IonText list =
         let modules =
             match distribution with
             | Library(_, _, definition) ->
@@ -578,7 +551,7 @@ module internal ClassicIonWriter =
                 Map.toList specification.Modules
                 |> List.map (fun (key, item) -> moduleSpecification (Some key) true item)
 
-        header None distribution
+        header None release distribution
         :: dependencies true distribution
         @ modules
         @ [ IonIrFormat.footer ]

@@ -8,6 +8,10 @@
         <PackageTags>$(PackageTags);morphir;ion;ir;mep</PackageTags>
         <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
         <IsTrimmable>true</IsTrimmable>
+        <IsAotCompatible>true</IsAotCompatible>
+        <!-- C# calls IonIr, IonIrWriting and the error records, so F# writes nullable metadata for it. -->
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     </PropertyGroup>
 
     <ItemGroup>

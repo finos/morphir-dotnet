@@ -48,6 +48,9 @@ let private normalize (reference: string) =
 /// such choice, and the canonical writer uses the compact string.
 let private structuredBare (reference: string) =
     Regex.Replace(reference, @"\n([ ]*)\{\n[ ]*name: (""[^""#]*#[^""]*""),\n[ ]*\},", "\n$1$2,")
+    // The reference CLI writes a document number with a positive exponent as text. The draft makes it an Ion decimal
+    // whenever the reader's lexeme rule gives the lexeme back, which it does for 1e+2 and 1e+5.
+    |> fun text -> text.Replace("number::\"1e+2\"", "1.d+2").Replace("number::\"1e+5\"", "1.d+5")
 
 let private pairNames =
     Fixtures.names
@@ -310,6 +313,125 @@ let tests =
                 | false, _, failure -> failtestf "%s" failure.Message
         ]
 
+        testList "Lexemes and boundaries" [
+            let readOne (text: string) =
+                match IonReader.read limits (Fixtures.utf8 text) with
+                | Ok [ value ] -> value
+                | other -> failtestf "Expected one Ion value: %A" other
+
+            for lexeme, spelling in
+                [
+                    "9223372036854775807", "9223372036854775807"
+                    "-9223372036854775808", "-9223372036854775808"
+                    "9223372036854775808", "number::\"9223372036854775808\""
+                    "-9223372036854775809", "number::\"-9223372036854775809\""
+                    "0.10", "0.10"
+                    "-0.0", "-0.0"
+                    "12.50", "12.50"
+                    "0.000001", "0.000001"
+                    "5e-7", "5.d-7"
+                    "1.5e-7", "1.5d-7"
+                    "1e+2", "1.d+2"
+                    "1e+5", "1.d+5"
+                    "0.0000001", "number::\"0.0000001\""
+                    "1.5e+2", "number::\"1.5e+2\""
+                    "1e2", "number::\"1e2\""
+                    "1E-7", "number::\"1E-7\""
+                ] do
+                testCase $"The document number {lexeme} is {spelling} and reads back as its lexeme"
+                <| fun () ->
+                    let number = Morphir.IR.V4.DocumentNumber lexeme
+                    let text = IonTextWriter.render [ V4IonWriter.document number ]
+                    Expect.equal text (spelling + "\n") "The canonical spelling"
+                    Expect.equal (V4IonTypes.documentValue IonPath.Root (readOne text)) number "The lexeme reads back"
+
+            let bound = Numerics.BigInteger.Pow(Numerics.BigInteger 2, 127)
+
+            for number, spelling in
+                [
+                    bound - Numerics.BigInteger.One, (bound - Numerics.BigInteger.One).ToString()
+                    -bound, (-bound).ToString()
+                    bound, $"(\n  int\n  \"{bound}\"\n)"
+                    -bound - Numerics.BigInteger.One, $"(\n  int\n  \"{-bound - Numerics.BigInteger.One}\"\n)"
+                ] do
+                testCase $"The integer literal {number} is written within the 128-bit Ion int, or as its digits"
+                <| fun () ->
+                    let literal = Morphir.IR.V4.Value.Literal(Morphir.IR.V4.ValueAttributes.empty, Morphir.IR.V4.IntegerLiteral number)
+                    let text = IonTextWriter.render [ V4IonWriter.value literal ]
+                    Expect.equal text (spelling + "\n") "The canonical spelling"
+                    Expect.equal (V4IonValues.value IonPath.Root (readOne text)) literal "It reads back"
+
+            testCase "A control character without a named escape is written as \\x and reads back"
+            <| fun () ->
+                let text = IonTextWriter.render [ IonText.Text "a\u001bb\u007f" ]
+                Expect.equal text "\"a\\x1bb\\x7f\"\n" "The \\x escapes"
+
+                match (readOne text).Data with
+                | IonData.String read -> Expect.equal read "a\u001bb\u007f" "The same text"
+                | other -> failtestf "Expected a string: %A" other
+        ]
+
+        testList "Format versions" [
+            let classic version =
+                match fromJson "records/v3-library.json" with
+                | ClassicIr(_, distribution) -> ClassicIr(version, distribution)
+                | _ -> failtest "The vector is a v3 library"
+
+            let v4 version =
+                match fromJson "pairs/v4-empty-library.json" with
+                | V4Ir(_, distribution) -> V4Ir(version, distribution)
+                | _ -> failtest "The vector is a v4 library"
+
+            let specs version =
+                match fromJson "pairs/v3-specs.json" with
+                | ClassicIr(_, distribution) -> ClassicIr(version, distribution)
+                | _ -> failtest "The vector is a v3 specs distribution"
+
+            for name, document, release in
+                [
+                    "A v3 library at 3", classic "3", "3.0.0"
+                    "A v3 library at 3.0.0", classic "3.0.0", "3.0.0"
+                    "A v3 library at 3.1.0", classic "3.1.0", "3.1.0"
+                    "A v3 specs distribution at 3.1.0", specs "3.1.0", "3.1.0"
+                    "A v4 library at 4", v4 "4", "4.0.0"
+                    "A v4 library at 4.0.0", v4 "4.0.0", "4.0.0"
+                ] do
+                testCase $"{name} states {release}"
+                <| fun () ->
+                    let written = document |> IonIrWriter.write |> ok release |> text
+                    Expect.stringContains written $"  formatVersion: \"{release}\",\n" "The exact release"
+
+            for name, document, code in
+                [
+                    "3.99.0", classic "3.99.0", "unsupported_format_version_minor"
+                    "3.0", classic "3.0", "unsupported_format_version_minor"
+                    "4.0.0 on classic IR", classic "4.0.0", "unsupported_format_version_major"
+                    "2.0.0", classic "2.0.0", "unsupported_format_version_major"
+                    "4.0", v4 "4.0", "unsupported_format_version_minor"
+                    "4.1.0-draft.1", v4 "4.1.0-draft.1", "unsupported_format_version_minor"
+                    "3.0.0 on v4 IR", v4 "3.0.0", "unsupported_format_version_major"
+                    "3.0.0 specs", specs "3.0.0", "specs_before_3_1"
+                ] do
+                testCase $"{name} is refused with {code}"
+                <| fun () ->
+                    match IonIrWriter.write document with
+                    | Ok _ -> failtest "The version is not carried"
+                    | Result.Error error -> Expect.equal error.Code code "The code"
+
+            testCase "The callers' check carries the same versions"
+            <| fun () ->
+                let parse (text: string) =
+                    match Morphir.IR.Versioning.parse text with
+                    | Ok version -> version
+                    | Result.Error error -> failtestf "%A" error
+
+                for text in [ "3"; "3.0.0"; "3.1.0"; "4"; "4.0.0" ] do
+                    Expect.isTrue (IonIrWriting.Carries(parse text)) $"{text} is carried"
+
+                for text in [ "1"; "2"; "3.99.0"; "4.1.0-draft.1"; "5" ] do
+                    Expect.isFalse (IonIrWriting.Carries(parse text)) $"{text} is not carried"
+        ]
+
         testList "Refusals" [
             testCase "IR before 3 has no Ion spelling"
             <| fun () ->
@@ -321,6 +443,21 @@ let tests =
                 match IonIrWriter.write document with
                 | Ok _ -> failtest "IR 2 is refused"
                 | Result.Error error -> Expect.equal error.Code "unsupported_format_version_major" "The code"
+
+            testCase "A v3 value attribute [] would read back as the unit type, so it is refused"
+            <| fun () ->
+                let original = Fixtures.text "pairs/v3-daily-rate.json"
+                let literal = "\"body\":[\"Literal\",[\"Reference\",{},[[[\"morphir\"],[\"s\",\"d\",\"k\"]],[[\"basics\"]],[\"int\"]],[]],"
+                Expect.stringContains original literal "The vector has a typed literal"
+                let json = original.Replace(literal, "\"body\":[\"Literal\",[],")
+
+                match IonIrWriter.write (readV4Json json) with
+                | Ok bytes -> failtestf "[] was written: %s" (text bytes)
+                | Result.Error error -> Expect.equal error.Code "unrepresentable_attribute" "The code"
+
+                // The vector as it stands is written, read and written again to the same bytes.
+                let bytes = fromJson "pairs/v3-daily-rate.json" |> IonIrWriter.write |> ok "Writing"
+                Expect.equal (readIon bytes |> IonIrWriter.write |> ok "Writing again" |> text) (text bytes) "A fixed point"
 
             testCase "A v3 attribute that is not a type has no Ion spelling"
             <| fun () ->

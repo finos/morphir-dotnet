@@ -80,8 +80,6 @@ module internal V4IonWriter =
 
         match exponent with
         | None -> None
-        // A positive exponent has no decimal whose lexeme gives it back in the reference CLI, which writes it as text.
-        | Some exponent when exponent > 0 -> None
         | Some exponent ->
             let pointAt = mantissa.IndexOf '.'
 
@@ -121,7 +119,9 @@ module internal V4IonWriter =
                 else
                     None
 
-    /// A JSON number as Ion: a 64-bit int, a decimal that keeps the lexeme, or <c>number::"lexeme"</c>.
+    /// A JSON number as Ion: a 64-bit int, an Ion decimal when the reader's lexeme rule gives the lexeme back from it,
+    /// or <c>number::"lexeme"</c> otherwise. So <c>5e-7</c> is <c>5.d-7</c> and <c>1e+2</c> is <c>1.d+2</c>, while
+    /// <c>1.5e+2</c>, <c>1e2</c> and <c>1E-7</c> stay text.
     let private documentNumber (lexeme: string) =
         if jsonInteger lexeme then
             let number = BigInteger.Parse(lexeme, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture)
