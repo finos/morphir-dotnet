@@ -16,7 +16,7 @@ public class ArchitectureTests
 
     private static IEnumerable<JsonElement> Fixtures()
     {
-        using var reference = JsonDocument.Parse(PinnedCorpus.File(FixtureCatalog.DiagramsMbt.Architecture, "/reference.json"));
+        using var reference = JsonDocument.Parse(DiagramCorpus.File(FixtureCatalog.DiagramsMbt.Architecture, "/reference.json"));
         return reference.RootElement.GetProperty("fixtures").EnumerateArray().Select(fixture => fixture.Clone()).ToList();
     }
 

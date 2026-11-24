@@ -21,7 +21,7 @@ public class StateDiagramTests
 
     private static IEnumerable<JsonElement> Fixtures()
     {
-        using var reference = JsonDocument.Parse(PinnedCorpus.File(FixtureCatalog.DiagramsMbt.States, "/reference.json"));
+        using var reference = JsonDocument.Parse(DiagramCorpus.File(FixtureCatalog.DiagramsMbt.States, "/reference.json"));
         return reference.RootElement.GetProperty("fixtures").EnumerateArray().Select(fixture => fixture.Clone()).ToList();
     }
 

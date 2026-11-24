@@ -16,7 +16,7 @@ public class RailroadTests
     /// <summary>Each regex and EBNF fixture with whether PlantUML accepts it and the library does not refuse it on purpose.</summary>
     private static IEnumerable<(string Name, string Source, bool Accepted)> Fixtures()
     {
-        var files = PinnedCorpus.Files(FixtureCatalog.DiagramsMbt.PlantUml);
+        var files = DiagramCorpus.Files(FixtureCatalog.DiagramsMbt.PlantUml);
         string File(string suffix) => files.Single(file => file.Key.EndsWith(suffix, StringComparison.Ordinal)).Value;
 
         using var expectations = JsonDocument.Parse(File("/expectations.json"));

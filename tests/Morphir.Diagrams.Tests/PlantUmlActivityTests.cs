@@ -25,7 +25,7 @@ public class PlantUmlActivityTests
 
     private static (IReadOnlyDictionary<string, string> Files, JsonElement[] Fixtures, HashSet<string> Refusals) Corpus()
     {
-        var files = PinnedCorpus.Files(FixtureCatalog.DiagramsMbt.PlantUmlActivity)
+        var files = DiagramCorpus.Files(FixtureCatalog.DiagramsMbt.PlantUmlActivity)
             .ToDictionary(file => file.Key.Replace("tests/corpus/plantuml-activity/", ""), file => file.Value);
         using var reference = JsonDocument.Parse(files["reference.json"]);
         using var expectations = JsonDocument.Parse(files["expectations.json"]);

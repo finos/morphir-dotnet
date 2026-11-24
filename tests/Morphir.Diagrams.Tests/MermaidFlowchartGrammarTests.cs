@@ -13,7 +13,7 @@ public class MermaidFlowchartGrammarTests
     [Test]
     public void EveryReferenceFixtureIsAcceptedOrRefusedAsMermaidDoesWithTheSameNodesAndEdges()
     {
-        using var reference = JsonDocument.Parse(PinnedCorpus.File(FixtureCatalog.DiagramsMbt.Flowcharts, "/reference.json"));
+        using var reference = JsonDocument.Parse(DiagramCorpus.File(FixtureCatalog.DiagramsMbt.Flowcharts, "/reference.json"));
         var mismatches = new List<string>();
         var count = 0;
 

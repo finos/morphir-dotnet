@@ -18,7 +18,7 @@ public class DataTreeTests
     /// <summary>Each JSON, YAML and envelope fixture with PlantUML's data, or null where the library refuses it.</summary>
     private static IEnumerable<(string Name, string Source, JsonNode? Data, JsonElement Reference)> Fixtures()
     {
-        var files = PinnedCorpus.Files(FixtureCatalog.DiagramsMbt.PlantUml);
+        var files = DiagramCorpus.Files(FixtureCatalog.DiagramsMbt.PlantUml);
         string File(string suffix) => files.Single(file => file.Key.EndsWith(suffix, StringComparison.Ordinal)).Value;
 
         using var expectations = JsonDocument.Parse(File("/expectations.json"));
