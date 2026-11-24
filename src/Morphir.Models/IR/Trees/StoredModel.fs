@@ -214,6 +214,20 @@ type StoredModel internal (form: ModelForm) =
             false
 
     /// <summary>
+    /// For C# callers: takes the result of <c>DocumentTreeStore.ReadTree</c>, as the overload that takes the store's result
+    /// does, so C# never holds the store's error list.
+    /// </summary>
+    static member TryOfTreeRead
+        (
+            read: DocumentTreeStore.TreeRead,
+            [<Out; MaybeNullWhen(false)>] model: byref<StoredModel>,
+            [<Out; MaybeNullWhen(false)>] notices: byref<IReadOnlyList<ConversionNotice>>,
+            [<Out; MaybeNullWhen(false)>] compactedFiles: byref<IReadOnlyList<DocumentAddress>>,
+            [<Out; MaybeNullWhen(true)>] problems: byref<IReadOnlyList<ConversionProblem>>
+        ) : bool =
+        StoredModel.TryOfTreeRead(read.Result, &model, &notices, &compactedFiles, &problems)
+
+    /// <summary>
     /// Converts to <paramref name="layout"/>: a single file splits into a tree (<c>V4DocumentTree.split</c>,
     /// <c>ClassicDocumentTree.split</c>), a tree joins into a single file (<c>join</c>, whose errors keep their
     /// <c>tree.</c> codes), and a form already in the layout is returned as it is.

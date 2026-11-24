@@ -58,8 +58,7 @@ public sealed class CompileDocumentTreeTests
     private static StoredModel ReadTree(string directory)
     {
         VFileTree.TryLoadFromDisk(directory, out var files, out _).Should().BeTrue();
-        var read = DocumentTreeStore.Read(ReadOptionsModule.defaults, files!);
-        StoredModel.TryOfTreeRead(read, out var model, out _, out _, out var problems)
+        StoredModel.TryOfTreeRead(DocumentTreeStore.ReadTree(ReadOptionsModule.defaults, files!), out var model, out _, out _, out var problems)
             .Should().BeTrue(problems is null ? "" : string.Join("\n", problems));
         return model!;
     }
@@ -545,6 +544,71 @@ public sealed class CompileDocumentTreeTests
         cancelled.ExitCode.Should().Be(130);
         NothingIsLeft(workspace);
         IsTombstone(workspace).Should().BeTrue();
+    }
+
+    [Test]
+    public async Task ACancellationDuringTheRollbackOfAFailedStageExitsWithOneThirty()
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs()));
+        using var cancellation = new CancellationTokenSource();
+        var hooks = FailingStage("document-tree") with
+        {
+            // The rollback of the partly staged tree meets a handle, and the user cancels while it waits.
+            Removal = new PathRemoval(path =>
+            {
+                if (path.EndsWith(".morphir-ir.staging", StringComparison.Ordinal))
+                    throw new IOException("The process cannot access the file because it is being used by another process.");
+                PathRemoval.DeletePath(path);
+            }, _ => true, _ => cancellation.Cancel()),
+        };
+
+        var cancelled = await RunWith(workspace, Inputs(), hooks, ct: cancellation.Token);
+
+        cancelled.ExitCode.Should().Be(130, "a cancellation during the rollback is the outcome, not the failure of the stage");
+        IsTombstone(workspace).Should().BeTrue();
+    }
+
+    [Test]
+    public async Task APermanentRefusalToClearCompileDestKeepsItsReason()
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs()));
+        LeaveTheTreeAsAStaleStage(workspace, Path.Combine(Dest(workspace), ".morphir-ir.staging"));
+        var deletes = 0;
+        var removal = new PathRemoval(_ =>
+        {
+            deletes++;
+            throw new UnauthorizedAccessException("Access to the path is denied.");
+        }, _ => false, _ => { });
+
+        var failed = await RunWith(workspace, Inputs(), new CompilePublicationHooks(), Quiet with { Removal = removal });
+
+        failed.ExitCode.Should().Be(2);
+        CompileRunners.ErrorCodes(failed).Should().Equal("compile.prepare_failed");
+        deletes.Should().Be(1, "a permanent refusal is not tried again");
+        failed.Diagnostics.Single(d => d.Diagnostic.IsError).Diagnostic.Message.Should().Contain(Dest(workspace))
+            .And.Contain("Access to the path is denied.").And.NotContain("another handle").And.NotContain("attempts");
+        LockIsFree(workspace).Should().BeTrue();
+    }
+
+    [Test]
+    public async Task TheWarningOfARefusedRollbackKeepsTheReasonOfTheRefusal()
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs()));
+        using var cancellation = new CancellationTokenSource();
+        var warnings = new StringWriter();
+
+        var cancelled = await RunWith(workspace, Inputs(), new CompilePublicationHooks
+        {
+            Removal = new PathRemoval(_ => throw new UnauthorizedAccessException("Access to the path is denied."), _ => false, _ => { }),
+            AfterMoved = _ => cancellation.Cancel(),
+        }, Quiet with { Diagnostics = warnings }, cancellation.Token);
+
+        cancelled.ExitCode.Should().Be(130);
+        warnings.ToString().Should().Contain("could not be removed").And.Contain("Access to the path is denied.")
+            .And.NotContain("another handle");
     }
 
     [Test]

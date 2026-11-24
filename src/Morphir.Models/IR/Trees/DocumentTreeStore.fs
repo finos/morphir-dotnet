@@ -189,6 +189,31 @@ module DocumentTreeStore =
         )
 
     /// <summary>
+    /// The result of a whole-tree read (<see cref="read"/>) for C# callers, which hold it without seeing the store's
+    /// result or error list and give it to <c>StoredModel.TryOfTreeRead</c> for the model or its problems.
+    /// </summary>
+    [<Sealed>]
+    type TreeRead internal (result: Result<StoredTree * ReadReport, StoreError list>) =
+        /// <summary>The read, for <c>StoredModel</c>.</summary>
+        member internal _.Result = result
+
+        /// <summary>Whether the tree was read.</summary>
+        member _.Succeeded = Result.isOk result
+
+        /// <summary>Whether the tree was read, and how many errors refused it otherwise.</summary>
+        override _.ToString() =
+            match result with
+            | Ok _ -> "tree read"
+            | Error errors -> $"tree refused with {List.length errors} error(s)"
+
+    /// <summary>
+    /// Reads a tree from files as <see cref="read"/> does, for C# callers. C# calls this <c>ReadTree</c> and takes the model
+    /// or its problems with <c>StoredModel.TryOfTreeRead</c>.
+    /// </summary>
+    [<CompiledName("ReadTree")>]
+    let readTree (options: ReadOptions) (files: Morphir.Files.VFileTree) : TreeRead = TreeRead(read options files)
+
+    /// <summary>
     /// For C# callers that check a tree and need no model: each error of <see cref="read"/>, in the order the read
     /// found them, or none when the tree reads. C# calls this <c>ReadErrors</c>.
     /// </summary>

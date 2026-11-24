@@ -281,7 +281,7 @@ compile it leaves the tombstone, which keeps the `installed` ledger; a first com
 `compile.json`. A write failure, a cancellation or a record failure removes the staged and moved IR from
 `compile.dest`. While another program (a virus scanner, for example) holds a file, each removal tries again for
 about 2.6 seconds. When a removal is still refused, the run keeps its exit code (130 for a cancellation) and writes
-a warning on stderr that names each path that remains. The warning says what `compile.json` holds: the tombstone of the
+a warning on stderr that names each path that remains and the file system's reason. The warning says what `compile.json` holds: the tombstone of the
 run, the completed record of an earlier publication of the run, a file that cannot be read, or nothing (on a first
 compile, or after an earlier record that could not be read). The next compile clears `compile.dest`. A compile
 that cannot clear `compile.dest` when it starts fails with `compile.prepare_failed` and exit code 2; one that is

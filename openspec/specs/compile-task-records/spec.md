@@ -31,7 +31,7 @@ The IR SHALL be staged beside its place in `compile.dest` and moved into place w
 - **THEN** the later compile fails with `compile.publish_failed` and exit code 2, `compile.dest` is empty, and `compile.json` is the tombstone of the later run
 
 ### Requirement: Cleanup refusals keep the outcome and are reported
-When the file system still refuses to remove a path after the bounded retries, the run SHALL keep its outcome (exit code 130 for a cancellation, its failure otherwise), SHALL write a warning on stderr that names each path that remains and says what `compile.json` holds, and SHALL complete no record. Every removal SHALL run before the warnings, and a warning that stderr refuses SHALL NOT change the outcome.
+When the file system still refuses to remove a path after the bounded retries, the run SHALL keep its outcome (exit code 130 for a cancellation, its failure otherwise), SHALL write a warning on stderr that names each path that remains with the file system's reason and says what `compile.json` holds, and SHALL complete no record. Every removal SHALL run before the warnings, and a warning that stderr refuses SHALL NOT change the outcome.
 
 #### Scenario: Rollback refused after a cancellation
 - **WHEN** an earlier compile of the project succeeded, and a later compile is cancelled after its IR moved into place, and every attempt to remove that IR is refused
@@ -50,7 +50,7 @@ A compile SHALL clear `compile.dest` with the same bounded retries when it start
 
 #### Scenario: Stale stage of a crashed run
 - **WHEN** a staged IR that a crashed run left is in `compile.dest`, and another handle holds a file below it for longer than the retries
-- **THEN** the compile fails before it compiles with `compile.prepare_failed` and exit code 2, naming `compile.dest`
+- **THEN** the compile fails before it compiles with `compile.prepare_failed` and exit code 2, naming `compile.dest` and the file system's reason
 
 ### Requirement: Records follow the ecosystem schema
 A successful compile SHALL write a schema-1 record with these fields: `task` `compile`, `module`, `language`, `inputs`, `value`, `ir {path, layout, format, version}`, `installed` and `completedAt`. `value` SHALL list product paths relative to `.dest`. Unknown fields in an existing record SHALL be preserved on rewrite, except where a tombstone clears them.

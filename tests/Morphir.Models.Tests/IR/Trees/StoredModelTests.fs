@@ -220,6 +220,36 @@ let tests =
             Expect.isSome (Morphir.Files.VFileTree.tryGet DocumentTreeStore.plainFiles files) "under the policy"
         }
 
+        testList "ReadTree and TryOfTreeRead give C# the model or problems" [
+            let readTree files =
+                let mutable model = Unchecked.defaultof<StoredModel>
+                let mutable notices = Unchecked.defaultof<_>
+                let mutable compacted = Unchecked.defaultof<_>
+                let mutable problems = Unchecked.defaultof<System.Collections.Generic.IReadOnlyList<ConversionProblem>>
+
+                if StoredModel.TryOfTreeRead(DocumentTreeStore.readTree ReadOptions.defaults files, &model, &notices, &compacted, &problems) then
+                    Ok model
+                else
+                    Error [ for problem in problems -> problem.Code ]
+
+            test "A written tree reads back as the model of its version" {
+                let split = readOk (v4Bytes DistributionMother.v4LibraryWithOneModule) |> convert ModelLayout.DocumentTree
+
+                match DocumentTreeStore.write (StoredModel.WriteOptions false) split.Tree with
+                | Ok files ->
+                    match readTree files with
+                    | Ok model ->
+                        Expect.equal model.Layout ModelLayout.DocumentTree "a tree model"
+                        Expect.equal model.IrVersion "4" "the version of the tree"
+                    | Error codes -> failtestf "Expected the tree to read, got %A" codes
+                | Error errors -> failtestf "%A" errors
+            }
+
+            test "A tree without a manifest gives problems with the store's codes" {
+                Expect.equal (readTree Morphir.Files.VFileTree.empty) (Error [ "tree.missing_manifest" ]) "the store's code"
+            }
+        ]
+
         testList "TryWriteTree gives the files and the version they declare" [
             // The C# surface: the model's tree, split from a single file first, and problems in place of store errors.
             let writeTree (model: StoredModel) =

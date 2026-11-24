@@ -96,11 +96,10 @@ public sealed class CompileTaskStore
             // A run that crashed can leave a staged IR that a scanner still holds: the removal retries a bounded time, and a
             // cancellation during its waits ends the run before publication (exit code 130).
             ct.ThrowIfCancellationRequested();
-            if (!(_options.Removal ?? PathRemoval.Default).TryRemove(Location.Dest, ct))
+            if (!(_options.Removal ?? PathRemoval.Default).TryRemove(Location.Dest, out var notCleared, ct))
             {
                 taskLock.Dispose();
-                return TaskFailures.Io<CompileTaskRun>("compile.prepare_failed", "clear", Location.Dest, new IOException(
-                    $"another handle still holds a file below it after {Morphir.Files.FileReplacement.Attempts} attempts. Close the program that holds it and compile again"));
+                return TaskFailures.Io<CompileTaskRun>("compile.prepare_failed", "clear", Location.Dest, notCleared!);
             }
             Directory.CreateDirectory(Location.Dest);
             return new Outcome<CompileTaskRun>.Success(new CompileTaskRun(Location, previous, taskLock, _options));

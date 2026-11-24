@@ -390,14 +390,21 @@ internal sealed record PathRemoval(Action<string> Delete, Func<Exception, bool> 
     /// cancellation of <paramref name="ct"/> during a wait throws <see cref="OperationCanceledException"/>; a cleanup after a
     /// failure or a cancellation gives no token, so it always runs to its end.
     /// </summary>
-    public bool TryRemove(string path, CancellationToken ct = default)
+    public bool TryRemove(string path, CancellationToken ct = default) => TryRemove(path, out _, ct);
+
+    /// <summary>
+    /// Removes what is at <paramref name="path"/>, as <see cref="TryRemove(string, CancellationToken)"/> does, and gives the
+    /// failure of the last attempt when the path is still there: the file system's own reason, whatever the number of attempts.
+    /// </summary>
+    public bool TryRemove(string path, [System.Diagnostics.CodeAnalysis.NotNullWhen(false)] out Exception? failure, CancellationToken ct = default)
     {
         for (var attempt = 1; ; attempt++)
         {
             try
             {
                 if (Exists(path)) Delete(path);
-                return !Exists(path);
+                failure = Exists(path) ? new IOException($"{path} is still there after it was deleted") : null;
+                return failure is null;
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException)
             {
@@ -405,6 +412,7 @@ internal sealed record PathRemoval(Action<string> Delete, Func<Exception, bool> 
                 {
                     // A cancellation during the last attempt is the outcome, not the removal that gives up after it.
                     ct.ThrowIfCancellationRequested();
+                    failure = error;
                     return false;
                 }
                 Wait(TimeSpan.FromMilliseconds(Math.Min(20 << (attempt - 1), 500)));

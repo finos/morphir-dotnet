@@ -141,12 +141,14 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
             var staging = Path.Combine(run.Dest, $".{name}.staging");
             var removal = hooks.Removal ?? PathRemoval.Default;
             // The IR is staged only into an absent root: a root that a crashed run left and that cannot be cleared refuses it.
-            if (!removal.TryRemove(staging, ct))
+            if (!removal.TryRemove(staging, out var notCleared, ct))
                 return Checked<PublishedCompile>.Fail([Diagnostic.Create(Severity.Error, CompileCodes.PublishFailed,
-                    $"The IR could not be written to '{target}': the staging path '{staging}' could not be cleared.", null)]);
+                    $"The IR could not be written to '{target}': the staging path '{staging}' could not be cleared: {notCleared!.Message}", null)]);
             // Only what this attempt moved into place is rolled back: a target that was there before stays.
             var moved = false;
             var recorded = false;
+            // The failure of an uncommitted publication waits for the rollback, which a cancellation can still overtake.
+            Checked<PublishedCompile>? refused = null;
             try
             {
                 string? failure;
@@ -174,29 +176,38 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
                 // A cancellation that comes with the failure is the outcome of the run (exit code 130).
                 ct.ThrowIfCancellationRequested();
                 if (failure is not null)
-                    return Checked<PublishedCompile>.Fail([Diagnostic.Create(Severity.Error, CompileCodes.PublishFailed,
+                    refused = Checked<PublishedCompile>.Fail([Diagnostic.Create(Severity.Error, CompileCodes.PublishFailed,
                         $"The IR could not be written to '{target}': {failure}", null)]);
-
-                ct.ThrowIfCancellationRequested();
-                var ir = tree is null
-                    ? IrDescriptor.Create(RecordPath.Parse(name), IrLayout.SingleFile, IrStorageFormat.Json, request.IrVersion)
-                    : IrDescriptor.Create(RecordPath.Parse(name), IrLayout.DocumentTree, IrStorageFormat.Json, tree.FormatVersion);
-                if (run.Complete(new CompileProduct(request.Language, ir, request.ProjectFile), ct) is Outcome<TaskRecord>.Failure recordFailure)
-                    return Checked<PublishedCompile>.Fail(TaskDiagnostics.Of(recordFailure.Error, ct));
-                recorded = true;
+                else
+                {
+                    var ir = tree is null
+                        ? IrDescriptor.Create(RecordPath.Parse(name), IrLayout.SingleFile, IrStorageFormat.Json, request.IrVersion)
+                        : IrDescriptor.Create(RecordPath.Parse(name), IrLayout.DocumentTree, IrStorageFormat.Json, tree.FormatVersion);
+                    if (run.Complete(new CompileProduct(request.Language, ir, request.ProjectFile), ct) is Outcome<TaskRecord>.Failure recordFailure)
+                        refused = Checked<PublishedCompile>.Fail(TaskDiagnostics.Of(recordFailure.Error, ct));
+                    else recorded = true;
+                }
             }
             finally
             {
                 // The run holds compile.lock: no reader sees the IR of a run whose record is not complete. The removals retry
                 // while another handle holds a file and never throw, so the failure or the cancellation of the run stands. A
-                // path that the file system still refuses to remove is named in a warning; the record stays the tombstone,
-                // and the next compile clears compile.dest.
+                // path that the file system still refuses to remove is named in a warning with the reason of the refusal, and
+                // the next compile clears compile.dest.
                 var rolledBack = moved && !recorded ? new[] { staging, target } : [staging];
                 // Every removal runs first; the warnings follow, and a warning that stderr refuses is dropped.
-                var remaining = rolledBack.Where(path => !removal.TryRemove(path)).ToArray();
-                var record = remaining.Length == 0 ? "" : RecordState();
-                foreach (var left in remaining)
-                    Warn($"warning: {left} could not be removed after the publication failed; another handle still holds a file below it. {record}, and the next compile clears {run.Dest}.");
+                var remaining = new List<(string Path, Exception Reason)>();
+                foreach (var path in rolledBack)
+                    if (!removal.TryRemove(path, out var reason)) remaining.Add((path, reason!));
+                var record = remaining.Count == 0 ? "" : RecordState();
+                foreach (var (left, reason) in remaining)
+                    Warn($"warning: {left} could not be removed after the publication failed ({reason.Message}). {record}, and the next compile clears {run.Dest}.");
+            }
+            if (refused is not null)
+            {
+                // A cancellation during the rollback is the outcome of the run, not the failure that the rollback followed.
+                ct.ThrowIfCancellationRequested();
+                return refused;
             }
 
             if (settings.Output is not { } output) return Checked<PublishedCompile>.Pass(new PublishedCompile(target, []));
