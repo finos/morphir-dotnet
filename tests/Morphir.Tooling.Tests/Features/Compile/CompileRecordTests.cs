@@ -119,7 +119,7 @@ public sealed class CompileRecordTests
         Encoding.UTF8.GetString(bytes).Should().StartWith("morphir::{\n  ionVersion: \"0.1.0-draft.1\",\n  formatVersion: \"3.0.0\",\n  kind: library,\n");
         var read = Morphir.Ion.IonIr.read(Morphir.Ion.IonReadLimitsModule.defaults, bytes);
         read.IsOk.Should().BeTrue(read.IsError ? read.ErrorValue.Message : "");
-        read.ResultValue.IsClassicIr.Should().BeTrue();
+        read.ResultValue.Match((version, _) => $"classic {version}", (version, _) => $"v4 {version}").Should().Be("classic 3.0.0");
         using var record = Record(workspace);
         record.RootElement.GetProperty("ir").GetProperty("version").GetString().Should().Be("v3");
         record.RootElement.GetProperty("ir").GetProperty("format").GetString().Should().Be("ion");
@@ -135,7 +135,7 @@ public sealed class CompileRecordTests
         Encoding.UTF8.GetString(bytes).Should().StartWith("morphir::{\n  ionVersion: \"0.1.0-draft.1\",\n  formatVersion: \"3.1.0\",\n  kind: library,\n");
         var read = Morphir.Ion.IonIr.read(Morphir.Ion.IonReadLimitsModule.defaults, bytes);
         read.IsOk.Should().BeTrue(read.IsError ? read.ErrorValue.Message : "");
-        read.ResultValue.Should().BeOfType<Morphir.Ion.IrDocument.ClassicIr>().Which.formatVersion.Should().Be("3.1.0");
+        read.ResultValue.Match((version, _) => $"classic {version}", (version, _) => $"v4 {version}").Should().Be("classic 3.1.0");
         File.ReadAllBytes(workspace.PathOf("dist/morphir-ir.ion")).Should().Equal(bytes);
         using var record = Record(workspace);
         record.RootElement.GetProperty("ir").GetProperty("version").GetString().Should().Be("v3.1.0");

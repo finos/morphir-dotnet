@@ -31,7 +31,14 @@ public static class CompileIrFormats
     /// Ion at <c>3.1.0</c> writes JSON at <c>3</c>. Every other request is the requested version.
     /// </summary>
     public static FormatVersion WriterVersion(IrStorageFormat format, FormatVersion requested) =>
-        format == IrStorageFormat.Ion && IonIrWriting.Release(requested) == "3.1.0" ? FormatVersion.NewClassic(3) : requested;
+        format == IrStorageFormat.Ion ? IonIrWriting.JsonWriterVersion(requested) : requested;
+
+    /// <summary>
+    /// The options of the JSON writer for a format. Ion holds a v3 doc as a string, and reads a member without one as the
+    /// empty doc, so for Ion a member with no documentation is written with the empty doc. JSON and YAML keep the layout.
+    /// </summary>
+    public static Morphir.Compilation.WriteOptions WriterOptions(IrStorageFormat format, Morphir.Compilation.WriteOptions layout) =>
+        format == IrStorageFormat.Ion ? layout.WithAbsentDocumentation(AbsentDocumentation.EmptyWrapper) : layout;
 
     /// <summary>
     /// The bytes of the IR in a format, from the bytes that the JSON writer wrote. Ion states the exact release of

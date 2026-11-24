@@ -120,7 +120,8 @@ public sealed class CompileRunner(
             byte[] json = [];
             var writeRun = await Guard(CompileStage.Write,
                 () => Task.FromResult(CompileIrFormats.Encode(settings.IrFormat.Value,
-                    writer.Writer.Write(writer.Target, PublishedLayout, compiled.Package.Model), settings.IrVersion.Value.Version,
+                    writer.Writer.Write(writer.Target, CompileIrFormats.WriterOptions(settings.IrFormat.Value, PublishedLayout),
+                        compiled.Package.Model), settings.IrVersion.Value.Version,
                     written => json = written)), ct);
             foreach (var e in Report(CompileStage.Write, writeRun)) yield return e;
             if (!writeRun.Passed(out var bytes))

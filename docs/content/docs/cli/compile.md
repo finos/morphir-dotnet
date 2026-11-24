@@ -111,7 +111,8 @@ example `4.1.0-draft.1`, matches only a writer that declares that exact version.
 
 The Ion format carries the IR versions `3`, `3.0.0`, `3.1.0`, `4` and `4.0.0` only. Ion at `3.1.0` writes the v3 library
 that the IR 3 writer gives and states `formatVersion: "3.1.0"`; the task record names `v3.1.0`. JSON and YAML have no
-writer for a v3 library at `3.1.0`, so `--ir-version 3.1.0` with them fails with `compile.unsupported_ir_version`. Ion with any other version, such as
+writer for a v3 library at `3.1.0`, so `--ir-version 3.1.0` with them fails with `compile.unsupported_ir_version`. Ion
+holds a v3 doc as a string, so a v3 Ion compile writes a member that has no documentation with the empty doc. Ion with any other version, such as
 `1`, `2` or `4.1.0-draft.1`, fails before compilation with `compile.unsupported_setting` and exit code 2. A value that is
 not `json`, `yaml` or `ion` fails with exit code 2: in a configuration file the configuration check reports it once,
 with `compile.configuration`, and `--ir-format` reports it with `compile.invalid_setting`. If the command cannot write the IR in the selected format, the write stage
