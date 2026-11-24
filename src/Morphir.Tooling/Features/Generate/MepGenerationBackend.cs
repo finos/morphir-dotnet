@@ -268,16 +268,30 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
         if (!_agreed.Contains(tuple))
             return Fail(GenerationFailureKind.Operational, "extension.tuple_unavailable",
                 $"Extension {Identity}: the model ({label}) needs the generateModel tuple {tuple}, which the session did not agree. {offered}");
-        if (model.Representation != ModelRepresentation.Json || model.Original is not RetainedInput.File file)
-            return Fail(GenerationFailureKind.Operational, "extension.tuple_unavailable",
-                $"Extension {Identity}: the host sends JSON IR, and this model was read as {model.Representation}. Generate from a JSON model.");
 
-        var bytes = file.Entry.Memory;
-        if (bytes.Span.StartsWith(Utf8Bom)) bytes = bytes[Utf8Bom.Length..];
+        ReadOnlyMemory<byte> bytes;
+        GenerationDiagnostic? convertedDiagnostic = null;
+        if (model.Representation == ModelRepresentation.Json && model.Original is RetainedInput.File file && model.Lineage is null)
+        {
+            bytes = file.Entry.Memory;
+            if (bytes.Span.StartsWith(Utf8Bom)) bytes = bytes[Utf8Bom.Length..];
+        }
+        else
+        {
+            if (!MepGenerationTransport.TryWriteSingleDocumentJson(model.Model, out var convertedBytes, out var writeError))
+                return Fail(GenerationFailureKind.Operational, "data.lossy_conversion",
+                    $"Extension {Identity}: the model ({label}) could not be converted losslessly to {tuple}: {writeError}");
+            bytes = convertedBytes;
+            var originalSha256 = ModelUpgrade.SnapshotOf(model.Original).Hex;
+            var convertedSha256 = Sha256Digest.Compute(bytes.Span).Value;
+            convertedDiagnostic = ConversionDiagnostic(model, tuple, source, originalSha256, convertedSha256, Identity);
+        }
+
         // The envelope, then its admission against the agreed encoded, decoded, depth and node limits: the host sends
         // only what the session admits. Both are F# results, read through their Match extension.
+        var revision = "sha256:" + Sha256Digest.Compute(bytes.Span).Value;
         MorphirModel? envelope = null;
-        var refusal = ModelTransport.CreateDerivedEnvelope(tuple, "sha256:" + Sha256Digest.Compute(bytes.Span).Value, bytes).Match<MorphirModel, EnvelopeFailure, Outcome<GenerationArtifacts>?>(
+        var refusal = ModelTransport.CreateDerivedEnvelope(tuple, revision, bytes).Match<MorphirModel, EnvelopeFailure, Outcome<GenerationArtifacts>?>(
             made => ModelTransport.Admit(tuple, _limits, made).Match<AdmittedModel, AdmissionFailure, Outcome<GenerationArtifacts>?>(
                 _ =>
                 {
@@ -311,8 +325,61 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
                 _ => Fail(GenerationFailureKind.Operational, "extension.protocol_error", $"Extension {Identity}: generateModel failed with {error.Code}: {error.Message}")
             },
             failed => Fail(GenerationFailureKind.Operational, failed.Code, failed.Message));
-        if (outcome is Outcome<GenerationArtifacts>.Success) LastModelTuple = tuple;
+        if (outcome is Outcome<GenerationArtifacts>.Success success)
+        {
+            LastModelTuple = tuple;
+            if (convertedDiagnostic is not null)
+                return new Outcome<GenerationArtifacts>.Success(success.Value with
+                {
+                    Diagnostics = success.Value.Diagnostics.Insert(0, convertedDiagnostic)
+                });
+        }
         return outcome;
+    }
+
+    private static GenerationDiagnostic ConversionDiagnostic(LoadedModel model, ModelTransportTuple tuple,
+        string source, string originalSha256, string convertedSha256, string identity)
+    {
+        var fromProfile = "morphir-ir";
+        var fromCodec = model.Representation switch
+        {
+            ModelRepresentation.IonBinary => "ion-binary",
+            ModelRepresentation.IonText => "ion-text",
+            ModelRepresentation.IonTree => "ion-tree",
+            ModelRepresentation.Json when model.Original is RetainedInput.Tree => "document-tree",
+            _ => "morphir-json",
+        };
+        var fromRevision = "sha256:" + originalSha256;
+        var toCodec = tuple.Codec.ToString();
+        var toRevision = "sha256:" + convertedSha256;
+
+        var buffer = new ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(buffer))
+        {
+            writer.WriteStartObject();
+            writer.WriteStartObject("from");
+            writer.WriteString("profile", fromProfile);
+            writer.WriteString("codec", fromCodec);
+            writer.WriteString("revision", fromRevision);
+            writer.WriteString("payloadSha256", originalSha256);
+            writer.WriteEndObject();
+            writer.WriteStartObject("to");
+            writer.WriteString("profile", tuple.Profile);
+            writer.WriteString("codec", toCodec);
+            writer.WriteString("revision", toRevision);
+            writer.WriteString("payloadSha256", convertedSha256);
+            writer.WriteEndObject();
+            writer.WriteStartArray("dropped");
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+        }
+        using var dataDoc = JsonDocument.Parse(buffer.WrittenMemory);
+        return new GenerationDiagnostic("extension.model_converted",
+            $"Converted model from {fromProfile}/{fromCodec} ({fromRevision}) to {tuple.Profile}/{toCodec} ({toRevision}) for {identity}; dropped: none.",
+            source, Severity: "info")
+        {
+            Data = dataDoc.RootElement.Clone(),
+        };
     }
 
     /// <summary>Maps a generate result: a failure with its diagnostics, or the artifacts after the path check.</summary>

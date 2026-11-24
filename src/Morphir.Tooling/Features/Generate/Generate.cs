@@ -62,7 +62,7 @@ public static class GenerateHandler
             if (settings.InputLease is RecordGenerationSettingsResolver.RecordLease recorded
                 && recorded.Output.Ir.Layout == TaskRecords.IrLayout.DocumentTree
                 && recorded.Output.Ir.Format is TaskRecords.IrStorageFormat.Json or TaskRecords.IrStorageFormat.Yaml
-                && settings.Extension is { } configured && settings.InstalledExtensionId is null
+                && (settings.Extension is not null || settings.InstalledExtensionId is not null)
                 && settings.Target is RequestedTarget.Valid boundedTarget && backendExtensions is MepBackendExtensionConnector or null)
             {
                 using (recorded)
@@ -70,15 +70,22 @@ public static class GenerateHandler
                     if (settings.BoundedProfile == BoundedGenerationProfile.OrdersScale && settings.WasmModule is null)
                         return GenerationStages.Failed(GenerationFailure.One(GenerationFailureKind.Invocation,
                             "generate.invalid_bounded_profile", "orders-scale requires a configured WASM backend over the recorded tree."), null);
+                    var configured = settings.Extension ?? new Morphir.Tooling.Features.Compile.Setting<string>(
+                        settings.InstalledExtensionId!.Value,
+                        new Morphir.Tooling.Features.Compile.SettingOrigin.CommandLine("--extension-id"));
                     var request = new BackendExtensionRequest(configured, boundedTarget.Id, command.Context.WorkingDirectory)
                     {
+                        InstalledId = settings.InstalledExtensionId,
                         WasmModule = settings.WasmModule,
                         BoundedProfile = settings.BoundedProfile,
                         Environment = command.Context.Environment,
                     };
+                    var connector = backendExtensions as MepBackendExtensionConnector ?? new MepBackendExtensionConnector();
+                    Func<LoadedModel, Task<Outcome<GenerationSuccess>>>? fallback = settings.BoundedProfile == BoundedGenerationProfile.OrdersScale
+                        ? null
+                        : model => RunWithExtension(configured, boundedTarget.Id, command.Context, model, settings, publisher, ct, logger, connector, registered);
                     return await RecordedBoundedGeneration.RunAsync(recorded.Output, request, settings,
-                        backendExtensions as MepBackendExtensionConnector ?? new MepBackendExtensionConnector(),
-                        recorded.Options, registered, ct);
+                        connector, recorded.Options, registered, ct, fallback);
                 }
             }
             if (settings.BoundedProfile == BoundedGenerationProfile.OrdersScale)
@@ -86,6 +93,28 @@ public static class GenerateHandler
                 settings.InputLease?.Dispose();
                 return GenerationStages.Failed(GenerationFailure.One(GenerationFailureKind.Invocation,
                     "generate.invalid_bounded_profile", "orders-scale requires the recorded document-tree WASM route; omit --input."), null);
+            }
+            if (settings.InputLease is null
+                && settings.Input.Format != InputFormat.Ion
+                && (settings.Extension is not null || settings.InstalledExtensionId is not null)
+                && settings.Target is RequestedTarget.Valid explicitTarget
+                && backendExtensions is MepBackendExtensionConnector or null
+                && RecordedBoundedGeneration.IsJsonOrYamlDocumentTree(settings.Input.Path))
+            {
+                var explicitExtension = settings.Extension ?? new Morphir.Tooling.Features.Compile.Setting<string>(
+                    settings.InstalledExtensionId!.Value,
+                    new Morphir.Tooling.Features.Compile.SettingOrigin.CommandLine("--extension-id"));
+                var explicitRequest = new BackendExtensionRequest(explicitExtension, explicitTarget.Id, command.Context.WorkingDirectory)
+                {
+                    InstalledId = settings.InstalledExtensionId,
+                    WasmModule = settings.WasmModule,
+                    BoundedProfile = settings.BoundedProfile,
+                    Environment = command.Context.Environment,
+                };
+                var connector = backendExtensions as MepBackendExtensionConnector ?? new MepBackendExtensionConnector();
+                return await RecordedBoundedGeneration.RunExplicitTreeAsync(explicitRequest, settings,
+                    connector, publisher, registered, ct,
+                    model => RunWithExtension(explicitExtension, explicitTarget.Id, command.Context, model, settings, publisher, ct, logger, connector, registered));
             }
             var loaded = await LoadAsync(loader, settings, ct);
             if (loaded is Outcome<LoadedModel>.Failure loadFailure) return GenerationStages.Failed(loadFailure.Error, null);

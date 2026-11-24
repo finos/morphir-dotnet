@@ -70,6 +70,35 @@ module internal Claims =
             "capabilities.modelTransport.limits.maxDepth"
             "capabilities.modelTransport.limits.maxNodes"
             "capabilities.modelTransport.guarantees"
+            "capabilities.modelAccess"
+            "capabilities.modelAccess.tuples"
+            "capabilities.modelAccess.tuples.protocolVersion"
+            "capabilities.modelAccess.tuples.accessVersion"
+            "capabilities.modelAccess.tuples.operation"
+            "capabilities.modelAccess.tuples.irVersion"
+            "capabilities.modelAccess.tuples.profile"
+            "capabilities.modelAccess.tuples.codec"
+            "capabilities.modelAccess.tuples.layout"
+            "capabilities.modelAccess.tuples.contextualEncoding"
+            "capabilities.modelAccess.limits"
+            "capabilities.modelAccess.limits.maxFrameBytes"
+            "capabilities.modelAccess.limits.maxEncodedBytesPerExchange"
+            "capabilities.modelAccess.limits.maxDecodedBytesPerExchange"
+            "capabilities.modelAccess.limits.maxDocumentsPerBatch"
+            "capabilities.modelAccess.limits.maxDepth"
+            "capabilities.modelAccess.limits.maxNodes"
+            "capabilities.modelAccess.limits.maxDiagnosticsPerExchange"
+            "capabilities.modelAccess.limits.maxOutstandingRequests"
+            "capabilities.modelAccess.limits.maxGuestStateBytes"
+            "capabilities.modelAccess.limits.maxHostCacheBytes"
+            "capabilities.modelAccess.limits.maxArtifactChunkBytes"
+            "capabilities.modelAccess.limits.maxArtifactBytes"
+            "capabilities.modelAccess.limits.maxTotalArtifactBytes"
+            "capabilities.modelAccess.limits.maxSessionDiskBytes"
+            "capabilities.modelAccess.limits.maxSessionWorkUnits"
+            "capabilities.modelAccess.limits.maxRounds"
+            "capabilities.modelAccess.limits.maxCallMilliseconds"
+            "capabilities.modelAccess.limits.maxSessionMilliseconds"
             "capabilities.streaming"
             "capabilities.incremental"
             "capabilities.cancellation"
@@ -300,6 +329,85 @@ module internal Claims =
             "guarantees", Value.Array(List.map Value.String guarantees)
         ]
 
+    let private modelAccessLimitNames = [
+        "maxFrameBytes"
+        "maxEncodedBytesPerExchange"
+        "maxDecodedBytesPerExchange"
+        "maxDocumentsPerBatch"
+        "maxDepth"
+        "maxNodes"
+        "maxDiagnosticsPerExchange"
+        "maxOutstandingRequests"
+        "maxGuestStateBytes"
+        "maxHostCacheBytes"
+        "maxArtifactChunkBytes"
+        "maxArtifactBytes"
+        "maxTotalArtifactBytes"
+        "maxSessionDiskBytes"
+        "maxSessionWorkUnits"
+        "maxRounds"
+        "maxCallMilliseconds"
+        "maxSessionMilliseconds"
+    ]
+
+    let private modelAccess path value =
+        let items = members path value
+
+        let tuples =
+            required path "tuples" items
+            |> array $"{path}.tuples"
+            |> List.mapi (fun index tuple ->
+                let tuplePath = $"{path}.tuples[{index + 1}]"
+                let tupleItems = members tuplePath tuple
+
+                let names = [
+                    "protocolVersion"
+                    "accessVersion"
+                    "operation"
+                    "irVersion"
+                    "profile"
+                    "codec"
+                    "layout"
+                    "contextualEncoding"
+                ]
+
+                let projection = fields tuplePath names names [] tupleItems
+
+                let operation =
+                    required tuplePath "operation" tupleItems
+                    |> text $"{tuplePath}.operation"
+
+                if operation <> "morphir.backend.generateModel" then
+                    invalid $"{tuplePath}.operation" "Unknown model access operation."
+
+                Value.Object projection
+            )
+
+        let limitsPath = $"{path}.limits"
+
+        let limits =
+            required path "limits" items
+            |> members limitsPath
+
+        let projectedLimits = [
+            for name in modelAccessLimitNames do
+                let number = required limitsPath name limits
+
+                match number with
+                | Value.Number spelling when
+                    match Int64.TryParse(spelling, Globalization.NumberStyles.None, Globalization.CultureInfo.InvariantCulture) with
+                    | true, parsed -> parsed > 0L && parsed <= 9007199254740991L
+                    | false, _ -> false
+                    ->
+                    yield name, number
+                | _ -> invalid $"{limitsPath}.{name}" "Expected a positive integer."
+        ]
+
+        Value.Object [
+            "tuples", Value.Array tuples
+            "limits", Value.Object projectedLimits
+        ]
+
     let private capabilities path types value =
         let items = members path value
 
@@ -324,6 +432,7 @@ module internal Claims =
 
                     Some(Value.Object [])
                 | "modelTransport" -> Some(modelTransport location value)
+                | "modelAccess" -> Some(modelAccess location value)
                 | "streaming"
                 | "incremental"
                 | "cancellation"
@@ -541,32 +650,39 @@ module internal Claims =
             for kind,capability in members "session.capabilities" actual do
                 let rule = if List.contains kind ["frontend";"backend";"workspace";"validator";"transform"] then 3 else 4
                 let known = optional kind staticFields |> Option.defaultWith(fun () -> mismatch rule kind; Value.Null)
-                if kind <> "modelTransport" && not (List.contains kind ["frontend";"backend";"workspace";"validator";"transform"]) then
+                if kind = "modelTransport" || kind = "modelAccess" then
+                    let declared = members kind known
+                    let actual = members kind capability
+                    for name,value in actual do
+                        let expected = optional name declared |> Option.defaultWith(fun () -> mismatch 4 $"{kind}.{name}"; Value.Null)
+                        match name with
+                        | "tuples" ->
+                            let allowed = array name expected
+                            for item in array name value do
+                                if not (allowed |> List.exists(fun candidate -> difference name candidate item |> Option.isNone)) then mismatch 4 $"{kind}.{name}"
+                        | "guarantees" when kind = "modelTransport" ->
+                            let allowed = array name expected
+                            for item in array name value do
+                                if not (allowed |> List.exists(fun candidate -> difference name candidate item |> Option.isNone)) then mismatch 4 $"{kind}.{name}"
+                        | "limits" ->
+                            let allowed = members name expected
+                            for limit,bound in members name value do
+                                let number = function
+                                    | Value.Number text ->
+                                        match Int64.TryParse(text, Globalization.NumberStyles.None, Globalization.CultureInfo.InvariantCulture) with
+                                        | true, parsed -> parsed
+                                        | false, _ -> mismatch 4 $"{kind}.limits.{limit}"; 0L
+                                    | _ -> mismatch 4 $"{kind}.limits.{limit}"; 0L
+                                let actual = number bound
+                                let maximum = required name limit allowed |> number
+                                if actual <= 0L || actual > maximum then mismatch 4 $"{kind}.limits.{limit}"
+                        | _ -> mismatch 4 $"{kind}.{name}"
+                elif not (List.contains kind ["frontend";"backend";"workspace";"validator";"transform"]) then
                     if difference kind known capability |> Option.isSome then mismatch 4 kind
-                elif kind <> "modelTransport" then
+                else
                     let declared = members kind known
                     for name,value in members kind capability do
                         match optional name declared with
                         | Some expected when difference name expected value |> Option.isNone -> ()
                         | _ -> mismatch 4 $"capabilities.{kind}.{name}"
-                else
-                    let declared = members kind known
-                    let actual = members kind capability
-                    for name,value in actual do
-                        let expected = optional name declared |> Option.defaultWith(fun () -> mismatch 4 $"modelTransport.{name}"; Value.Null)
-                        match name with
-                        | "tuples" | "guarantees" ->
-                            let allowed = array name expected
-                            for item in array name value do
-                                if not (allowed |> List.exists(fun candidate -> difference name candidate item |> Option.isNone)) then mismatch 4 $"modelTransport.{name}"
-                        | "limits" ->
-                            let allowed = members name expected
-                            for limit,bound in members name value do
-                                let number = function
-                                    | Value.Number text -> Int32.Parse(text,Globalization.CultureInfo.InvariantCulture)
-                                    | _ -> mismatch 4 $"modelTransport.limits.{limit}"; 0
-                                let actual = number bound
-                                let maximum = required name limit allowed |> number
-                                if actual <= 0 || actual > maximum then mismatch 4 $"modelTransport.limits.{limit}"
-                        | _ -> mismatch 4 $"modelTransport.{name}"
         )

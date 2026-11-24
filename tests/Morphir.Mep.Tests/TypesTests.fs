@@ -223,6 +223,15 @@ let tests =
 
               let digest = Sha256Digest.Compute(System.ReadOnlySpan<byte>.Empty)
               Expect.equal (read' MepJson.Default.ModelPayload (payload digest.Value)).Sha256 digest "Digest"
+              Expect.equal (read' MepJson.Default.ModelPayload (payload digest.Value)).Layout ModelLayout.SingleDocument "Layout is single-document"
+
+              Expect.throwsT<JsonException>
+                  (fun () ->
+                      read'
+                          MepJson.Default.ModelPayload
+                          (payload digest.Value |> fun s -> s.Replace("\"single-document\"", "\"document-tree\""))
+                      |> ignore)
+                  "0.2.0-draft.1 payload layout remains strictly single-document"
 
               Expect.throwsT<JsonException>
                   (fun () -> read' MepJson.Default.ModelPayload (payload (digest.Value.ToUpperInvariant())) |> ignore)

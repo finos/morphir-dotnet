@@ -49,7 +49,8 @@ public interface IBackendExtensionConnector
     Task<Outcome<IExternalGenerationBackend>> ConnectAsync(BackendExtensionRequest request, CancellationToken ct);
 }
 
-internal sealed record ModelAccessConnection(IModelAccessGuest Guest, ISingleMessageChannel? WasmChannel);
+internal sealed record ModelAccessConnection(IModelAccessGuest Guest, ISingleMessageChannel? WasmChannel,
+    Func<ModelAccessTuple, System.Text.Json.JsonElement>? ObserveProvider = null);
 
 /// <summary>
 /// Connects a configured backend extension as a MEP 0.2.0-draft.1 guest process. The extension setting has the
@@ -57,22 +58,48 @@ internal sealed record ModelAccessConnection(IModelAccessGuest Guest, ISingleMes
 /// <c>.dll</c> that the <c>dotnet</c> host runs. The host starts the guest with explicit arguments and no shell,
 /// and passes the guest's stderr to its own stderr.
 /// </summary>
-public sealed class MepBackendExtensionConnector(IWasmModuleLoader? wasmLoader) : IBackendExtensionConnector
+public sealed class MepBackendExtensionConnector : IBackendExtensionConnector
 {
+    private readonly IWasmModuleLoader? _wasmLoader;
+    private readonly Func<WasmModuleSource, SessionLimits?, (ISingleMessageChannel? Channel, string Code, string Message)>? _openChannel;
+
+    /// <summary>Connects process and configured WASM backend extensions.</summary>
+    public MepBackendExtensionConnector(IWasmModuleLoader? wasmLoader) : this(wasmLoader, null) { }
+
     /// <summary>Preserves the process-only connector's parameterless constructor.</summary>
-    public MepBackendExtensionConnector() : this(null) { }
+    public MepBackendExtensionConnector() : this(null, null) { }
+
+    internal MepBackendExtensionConnector(IWasmModuleLoader? wasmLoader,
+        Func<WasmModuleSource, SessionLimits?, (ISingleMessageChannel? Channel, string Code, string Message)>? openChannel)
+    {
+        _wasmLoader = wasmLoader;
+        _openChannel = openChannel;
+    }
+
+    private bool TryOpenChannel(WasmModuleSource module, SessionLimits? limits,
+        out ISingleMessageChannel? channel, out string code, out string message)
+    {
+        if (_openChannel is not null)
+        {
+            (channel, code, message) = _openChannel(module, limits);
+            return channel is not null;
+        }
+        return ConfiguredWasmModule.TryOpen(_wasmLoader, module, out channel, out code, out message, limits);
+    }
 
     internal async Task<Outcome<ModelAccessConnection>> ConnectModelAccessAsync(
         BackendExtensionRequest request, ModelAccessSupport offer, CancellationToken ct)
     {
+        if (request.InstalledId is not null)
+            return await InstalledExtensionConnector.ModelAccessAsync(request, offer, _wasmLoader, _openChannel, ct);
         var deadline = TimeSpan.FromMilliseconds(offer.Limits.MaxCallMilliseconds);
         if (request.WasmModule is { } module)
         {
             var limits = RecordedGenerationAdmission.WasmLimits(request.BoundedProfile, offer.Limits);
-            if (!ConfiguredWasmModule.TryOpen(wasmLoader, module, out var channel, out var code, out var message, limits))
+            if (!TryOpenChannel(module, limits, out var channel, out var code, out var message))
                 return Refuse(code, message);
             var host = new PeerInfo(PeerKind.Cli, MepExtensionCommand.HostName, MepExtensionCommand.HostVersion);
-            return (await MepChannelGuest.StartModelAccessAsync(channel, host, offer, deadline, ct))
+            return (await MepChannelGuest.StartModelAccessAsync(channel!, host, offer, deadline, ct))
                 .Match<MepChannelGuest, MepGuestFailure, Outcome<ModelAccessConnection>>(
                     guest => new Outcome<ModelAccessConnection>.Success(new(guest, channel)),
                     failure => Refuse(failure.Code, failure.Message));
@@ -94,13 +121,13 @@ public sealed class MepBackendExtensionConnector(IWasmModuleLoader? wasmLoader) 
     /// <inheritdoc />
     public async Task<Outcome<IExternalGenerationBackend>> ConnectAsync(BackendExtensionRequest request, CancellationToken ct)
     {
-        if (request.InstalledId is not null) return await InstalledExtensionConnector.BackendAsync(request, wasmLoader, ct);
+        if (request.InstalledId is not null) return await InstalledExtensionConnector.BackendAsync(request, _wasmLoader, _openChannel, ct);
         Morphir.Mep.ISingleMessageChannel? channel = null;
         string executable;
         string[] arguments;
         if (request.WasmModule is { } module)
         {
-            if (!ConfiguredWasmModule.TryOpen(wasmLoader, module, out channel, out var code, out var message))
+            if (!TryOpenChannel(module, null, out channel, out var code, out var message))
                 return new Outcome<IExternalGenerationBackend>.Failure(GenerationFailure.One(GenerationFailureKind.Operational, code, message));
             executable = module.Path;
             arguments = [];

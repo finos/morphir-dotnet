@@ -265,17 +265,26 @@ module private ActivationState =
                 "extension.host_incompatible"
                 "Installed claims require a different host version."
 
-        MepSupport
-            .Evaluate(Array.AsReadOnly(Array.ofList claims.ProtocolVersions))
-            .Match(
-                Func<ProtocolVersion, unit>(ignore),
-                Func<string, unit>(fun reason ->
-                    Operations.fail "extension.mep_not_implemented" reason
-                ),
-                Func<string, unit>(fun reason ->
-                    Operations.fail "extension.mep_not_supported" reason
+        let claimsModelAccess =
+            claims.ProtocolVersions |> List.contains ModelAccess.protocolVersion
+            && (SharedJson.members "claims" claims.Projection
+                |> SharedJson.required "claims" "capabilities"
+                |> SharedJson.members "claims.capabilities"
+                |> SharedJson.optional "modelAccess"
+                |> Option.isSome)
+
+        if not claimsModelAccess then
+            MepSupport
+                .Evaluate(Array.AsReadOnly(Array.ofList claims.ProtocolVersions))
+                .Match(
+                    Func<ProtocolVersion, unit>(ignore),
+                    Func<string, unit>(fun reason ->
+                        Operations.fail "extension.mep_not_implemented" reason
+                    ),
+                    Func<string, unit>(fun reason ->
+                        Operations.fail "extension.mep_not_supported" reason
+                    )
                 )
-            )
 
     let acquire (home: string) expectedHome (plan: PackagePlan) fullHash (ct: CancellationToken) =
         ActivationPlatforms.ensure plan.Artifact.Platform

@@ -2268,4 +2268,76 @@ let discoveryCacheTests =
             source.NextModule (Some work) 240 "pkg/acme/orders/" None
             |> Result.mapError List.singleton |> expectReadError "extension.bounded_work_limit" "pkg/acme/orders/"
         }
+        test "OpenDetectedSnapshot detects plain and contextual encodings across JSON and YAML versions" {
+            let frozenProvider version profile =
+                let prefix = FixtureCatalog.BoundedOrders.Directory + version + "/" + profile + "/"
+                FixtureCatalog.BoundedOrders.Files
+                |> Seq.filter (fun entry -> entry.RelativePath.StartsWith(prefix, System.StringComparison.Ordinal))
+                |> Seq.map (fun entry ->
+                    let location = entry.RelativePath.Substring(prefix.Length)
+                    location, VFile.ofBytes location (System.ReadOnlyMemory(FixtureCatalog.ReadBytes entry)))
+                |> Map.ofSeq
+                |> VFileTree.fromFileMap
+                |> VFileProviders.asFileProvider
+            for version, expectedIr in [ "v3.1", "3.1.0"; "v4", "4.0.0" ] do
+                for profile, expectedSyntax, expectedEncoding in
+                    [
+                        "plain-json", BoundedTreeSyntax.Json, BoundedTreeEncoding.Plain
+                        "plain-yaml", BoundedTreeSyntax.Yaml, BoundedTreeEncoding.Plain
+                        "contextual-json", BoundedTreeSyntax.Json, BoundedTreeEncoding.ContextualDraft1
+                        "contextual-yaml", BoundedTreeSyntax.Yaml, BoundedTreeEncoding.ContextualDraft1
+                    ] do
+                    let provider = frozenProvider version profile
+                    let snapshot =
+                        DocumentTreeStore.openDetectedSnapshot(
+                            ReadOptions.defaults, System.Func<string>(fun () -> "r1"), provider)
+                        |> read
+                    Expect.equal snapshot.IrVersion expectedIr $"{version}/{profile} IR version"
+                    Expect.equal snapshot.Syntax expectedSyntax $"{version}/{profile} syntax"
+                    Expect.equal snapshot.NameEncoding expectedEncoding $"{version}/{profile} encoding"
+        }
+        test "OpenSnapshotWithDiscoveryCacheAndEncoding supports contextual JSON and YAML with lazy discovery" {
+            for profile in [ "contextual-json"; "contextual-yaml" ] do
+                let prefix = FixtureCatalog.BoundedOrders.Directory + "v4/" + profile + "/"
+                let provider =
+                    FixtureCatalog.BoundedOrders.Files
+                    |> Seq.filter (fun entry -> entry.RelativePath.StartsWith(prefix, System.StringComparison.Ordinal))
+                    |> Seq.map (fun entry ->
+                        let location = entry.RelativePath.Substring(prefix.Length)
+                        location, VFile.ofBytes location (System.ReadOnlyMemory(FixtureCatalog.ReadBytes entry)))
+                    |> Map.ofSeq
+                    |> VFileTree.fromFileMap
+                    |> VFileProviders.asFileProvider
+                let snapshot =
+                    DocumentTreeStore.openSnapshotWithDiscoveryCacheAndEncoding(
+                        ReadOptions.defaults,
+                        BoundedTreeEncoding.ContextualDraft1,
+                        65536L,
+                        System.Func<string>(fun () -> "r1"),
+                        provider)
+                    |> read
+                Expect.equal snapshot.NameEncoding BoundedTreeEncoding.ContextualDraft1 $"{profile} encoding"
+                Expect.equal snapshot.PeakDiscoveryIndexChargedBytes 0L $"{profile} lazy discovery before paging"
+                let page = DocumentTreeStore.pageInventory "root" 10 None snapshot |> read
+                Expect.equal page.Entries.Length 3 $"{profile} root modules"
+                Expect.isGreaterThan snapshot.PeakDiscoveryIndexChargedBytes 0L $"{profile} discovery index charged"
+                let doc = DocumentTreeStore.readDocument "pkg/acme/orders/domain/total-in-_usd.value" snapshot |> read
+                let text = System.Text.Encoding.UTF8.GetString(doc.Span)
+                Expect.stringContains text "ir-context/0.1.0-draft.1/document.schema.json" $"{profile} retains contextual envelope"
+        }
+        test "OpenDetectedSnapshot refuses an undeclared manifest schema in JSON and YAML" {
+            for file, content in
+                [
+                    "manifest.json", """{"$schema":"https://example.org/unknown.schema.json","context":{},"document":{"formatVersion":4}}"""
+                    "manifest.yaml", "$schema: https://example.org/unknown.schema.json\ncontext: {}\ndocument:\n  formatVersion: 4\n"
+                ] do
+                let provider =
+                    Map.ofList [ file, VFile.ofText file content ]
+                    |> VFileTree.fromFileMap
+                    |> VFileProviders.asFileProvider
+                match DocumentTreeStore.openDetectedSnapshot(ReadOptions.defaults, System.Func<string>(fun () -> "r1"), provider) with
+                | Ok _ -> failtest $"Expected refusal for undeclared schema in {file}"
+                | Result.Error errors ->
+                    Expect.equal (errors |> Seq.map _.Code |> Seq.toList) [ "context.undeclared_schema" ] $"code for {file}"
+        }
     ]

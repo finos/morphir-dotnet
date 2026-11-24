@@ -502,6 +502,25 @@ let sessionAgreement =
             let tuple = {transport.Tuples[0] with IrVersion=Morphir.Mep.SemanticVersion.Create "3.0.0"}
             Expect.isError (Claims.agreeSession claims {session with Capabilities={session.Capabilities with ModelTransport=Some {transport with Tuples=[|tuple|]}}}) "no tuple substitution"
         }
+        test "model access positive limits including int64 bounds may narrow and cannot expand" {
+            let tuple = """{"protocolVersion":"0.2.0-draft.2","accessVersion":"0.1.0-draft.1","operation":"morphir.backend.generateModel","irVersion":"4.0.0","profile":"morphir-ir","codec":"morphir-json","layout":"document-tree","contextualEncoding":"plain"}"""
+            let limits = """{"maxFrameBytes":32768,"maxEncodedBytesPerExchange":8192,"maxDecodedBytesPerExchange":6144,"maxDocumentsPerBatch":8,"maxDepth":64,"maxNodes":256,"maxDiagnosticsPerExchange":16,"maxOutstandingRequests":8,"maxGuestStateBytes":1048576,"maxHostCacheBytes":1048576,"maxArtifactChunkBytes":4096,"maxArtifactBytes":4294967296,"maxTotalArtifactBytes":4294967296,"maxSessionDiskBytes":8589934592,"maxSessionWorkUnits":4096,"maxRounds":16,"maxCallMilliseconds":30000,"maxSessionMilliseconds":60000}"""
+            let text = """{"protocolVersions":["0.2.0-draft.2","0.2.0-draft.1"],"extension":{"id":"org.example.backend","name":"Backend","version":"1.0.0","types":["backend"]},"capabilities":{"streaming":false,"incremental":false,"cancellation":false,"progress":false,"backend":{"targets":["text"],"irVersions":["4.0.0"],"generate":false},"modelAccess":{"tuples":[TUPLE],"limits":LIMITS}}}""".Replace("TUPLE",tuple).Replace("LIMITS",limits)
+            let value = Syntax.parseJson(Encoding.UTF8.GetBytes text) |> function Ok value -> value | Error _ -> failtest "invalid unit JSON"
+            let claims = Claims.readEmbedded "claims" value
+            let fields = SharedJson.members "claims" value
+            let caps = SharedJson.required "claims" "capabilities" fields
+            let capabilities = System.Text.Json.JsonSerializer.Deserialize(JsonText.toBytes caps, Morphir.Mep.MepJson.Default.ExtensionCapabilities) |> nonNull
+            let session: Morphir.Mep.NegotiatedSession = { ProtocolVersion=Morphir.Mep.ProtocolVersion.Create "0.2.0-draft.2"; Host={Kind=Morphir.Mep.PeerKind.Cli;Name="test";Version="1.0.0"};Extension=claims.Extension;Capabilities=capabilities }
+            let access = session.Capabilities.ModelAccess |> Option.get
+            Expect.isOk (Claims.agreeSession claims session) "exact matching modelAccess session"
+            let narrowed = { access with Limits = { access.Limits with MaxFrameBytes = 16384; MaxArtifactBytes = 1048576L } }
+            Expect.isOk (Claims.agreeSession claims { session with Capabilities = { session.Capabilities with ModelAccess = Some narrowed } }) "narrowed modelAccess limits"
+            let expanded = { access with Limits = { access.Limits with MaxArtifactBytes = 4294967297L } }
+            Expect.isError (Claims.agreeSession claims { session with Capabilities = { session.Capabilities with ModelAccess = Some expanded } }) "expanded int64 modelAccess limit refused"
+            let wrongEncoding = { access.Tuples[0] with ContextualEncoding = Morphir.Mep.ModelAccessEncoding.ContextualDraft1 }
+            Expect.isError (Claims.agreeSession claims { session with Capabilities = { session.Capabilities with ModelAccess = Some { access with Tuples = [| wrongEncoding |] } } }) "unclaimed modelAccess tuple refused"
+        }
     ]
 
 

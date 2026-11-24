@@ -320,4 +320,90 @@ let snapshotTests =
             Expect.isError (view.PrepareHostAdvance(4, requests, &decodedBytes)) "The batch requires 672 encoded bytes"
             Expect.equal decodedBytes 0L "A refused batch exposes no partial document count"
         }
+
+        test "TupleFor maps every version, syntax and contextual encoding combination and Bind accepts contextual trees" {
+            for version, expectedIr in [ "v3.1", "3.1.0"; "v4", "4.0.0" ] do
+                for profile, expectedCodec, expectedEncoding in
+                    [
+                        "plain-json", ModelAccessCodec.MorphirJson, ModelAccessEncoding.Plain
+                        "plain-yaml", ModelAccessCodec.MorphirYaml, ModelAccessEncoding.Plain
+                        "contextual-json", ModelAccessCodec.MorphirJson, ModelAccessEncoding.ContextualDraft1
+                        "contextual-yaml", ModelAccessCodec.MorphirYaml, ModelAccessEncoding.ContextualDraft1
+                    ] do
+                    let prefix =
+                        Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Directory
+                        + version + "/" + profile + "/"
+                    let files =
+                        Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Files
+                        |> Seq.filter (fun entry -> entry.RelativePath.StartsWith(prefix, System.StringComparison.Ordinal))
+                        |> Seq.map (fun entry ->
+                            let location = entry.RelativePath.Substring(prefix.Length)
+                            let text = Morphir.TestSupport.Fixtures.FixtureCatalog.ReadText entry
+                            location, Morphir.Files.VFile.ofText location text)
+                        |> Map.ofSeq
+                        |> Morphir.Files.VFileTree.fromFileMap
+                        |> Morphir.Files.VFileProviders.asFileProvider
+                    let snapshot =
+                        Morphir.IR.Trees.DocumentTreeStore.openDetectedSnapshot(
+                            Morphir.IR.Trees.ReadOptions.defaults, System.Func<string>(fun () -> "orders-r1"), files)
+                        |> requireOk
+                    let tuple = MepGenerationSnapshot.TupleFor snapshot
+                    Expect.equal tuple.ProtocolVersion ModelAccess.protocolVersion $"{version}/{profile} protocol"
+                    Expect.equal tuple.AccessVersion ModelAccess.accessVersion $"{version}/{profile} access"
+                    Expect.equal tuple.Operation ModelOperation.GenerateModel $"{version}/{profile} op"
+                    Expect.equal tuple.IrVersion.Value expectedIr $"{version}/{profile} ir"
+                    Expect.equal tuple.Codec expectedCodec $"{version}/{profile} codec"
+                    Expect.equal tuple.ContextualEncoding expectedEncoding $"{version}/{profile} encoding"
+                    Expect.equal tuple.Layout "document-tree" $"{version}/{profile} layout"
+
+                    let _, baseStart = admittedOrders ()
+                    let start = { baseStart with Input = tuple }
+                    let view = MepGenerationSnapshot.Bind(snapshot, start) |> requireOk
+                    let advance =
+                        view.PrepareHostAdvance(
+                            4,
+                            [| ModelAccessRequest.Document("final", "pkg/acme/orders/domain/total-in-_usd.value") |])
+                        |> requireOk
+                    Expect.equal advance.Deliveries.Count 1 $"{version}/{profile} delivered"
+        }
+
+        test "TryWriteSingleDocumentJson serializes V4 and Classic models losslessly and keeps draft.1 single-document layout" {
+            let v4Bytes = Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.ExpandedV4
+            use v4Doc = System.Text.Json.JsonDocument.Parse v4Bytes
+            let v4Dist =
+                match Morphir.Json.V4.V4Json.readDistribution v4Doc.RootElement with
+                | Ok doc -> doc.Distribution
+                | Result.Error err -> failtest $"v4 fixture failed: {err}"
+            let v4Model: VersionedModel =
+                { SourceVersion = SourceFormatVersion.Create "4.0.0"
+                  Distribution = DistributionModel.V4 v4Dist }
+            let mutable bytes = Unchecked.defaultof<byte array>
+            let mutable error = Unchecked.defaultof<string>
+            Expect.isTrue (MepGenerationTransport.TryWriteSingleDocumentJson(v4Model, &bytes, &error)) "v4 write succeeds"
+            let revision = "sha256:" + Sha256Digest.Compute(bytes).Value
+            match ModelTransport.createDerivedEnvelope MepGenerationTransport.V4Tuple revision (System.ReadOnlyMemory bytes) with
+            | Ok envelope ->
+                Expect.equal envelope.Payload.Layout ModelLayout.SingleDocument "draft.1 wire layout stays single-document"
+                Expect.equal envelope.Payload.Layout.WireValue "single-document" "wire spelling stays single-document"
+                Expect.equal envelope.Revision revision "deterministic revision from converted bytes"
+            | Result.Error failure -> failtest $"Envelope failed: {failure}"
+
+            let classicBytes = Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes Morphir.TestSupport.Fixtures.FixtureCatalog.Models.V3Library
+            use classicDoc = System.Text.Json.JsonDocument.Parse classicBytes
+            let classicDist =
+                match Morphir.Json.Classic.ClassicJson.readDistribution classicDoc.RootElement with
+                | Ok doc -> doc.Distribution
+                | Result.Error err -> failtest $"classic fixture failed: {err}"
+            let classicModel: VersionedModel =
+                { SourceVersion = SourceFormatVersion.Create "3.0.0"
+                  Distribution = DistributionModel.Classic classicDist }
+            Expect.isTrue (MepGenerationTransport.TryWriteSingleDocumentJson(classicModel, &bytes, &error)) "classic write succeeds"
+            let classicRevision = "sha256:" + Sha256Digest.Compute(bytes).Value
+            match ModelTransport.createDerivedEnvelope MepGenerationTransport.ClassicTuple classicRevision (System.ReadOnlyMemory bytes) with
+            | Ok envelope ->
+                Expect.equal envelope.Payload.Layout ModelLayout.SingleDocument "draft.1 classic wire layout stays single-document"
+                Expect.equal envelope.Payload.Layout.WireValue "single-document" "wire spelling stays single-document"
+                Expect.equal envelope.Revision classicRevision "deterministic classic revision"
+            | Result.Error failure -> failtest $"Classic envelope failed: {failure}"
+        }
     ]

@@ -91,11 +91,24 @@ type BoundedTreeEncoding =
     | ContextualDraft1
     | ContextualDraft1Streaming
 
+    /// <summary>Stable encoding label without reflection.</summary>
+    override this.ToString() =
+        match this with
+        | Plain -> "plain"
+        | ContextualDraft1 -> "contextual-draft.1"
+        | ContextualDraft1Streaming -> "contextual-draft.1-streaming"
+
 /// The physical syntax admitted at the snapshot manifest.
 [<RequireQualifiedAccess>]
 type BoundedTreeSyntax =
     | Json
     | Yaml
+
+    /// <summary>Stable syntax label without reflection.</summary>
+    override this.ToString() =
+        match this with
+        | Json -> "json"
+        | Yaml -> "yaml"
 
 [<RequireQualifiedAccess>]
 type internal BoundedTreeManifest =
@@ -369,7 +382,8 @@ module internal BoundedTreeReader =
         random.GetBytes key
         key
 
-    let openTreeWithEncoding
+    let private openTreeCore
+        (detectEncoding: bool)
         encoding
         byteLimit
         (source: TreeFileSource.SnapshotSource)
@@ -381,13 +395,20 @@ module internal BoundedTreeReader =
             refuse "tree.invalid_limit" None "A document byte limit must be positive."
         else
             let revision = source.Revision()
+            let readEncoding = if detectEncoding then BoundedTreeEncoding.ContextualDraft1 else encoding
 
             atRevision
                 source
                 revision
                 (fun () ->
-                    readRoot encoding ContextLimits.draft1.MaxDepth None byteLimit None source None Int32.MaxValue "manifest"
+                    readRoot readEncoding ContextLimits.draft1.MaxDepth None byteLimit None source None Int32.MaxValue "manifest"
                     |> Result.bind (fun (profile, location, file) ->
+                        let resolvedEncoding =
+                            if detectEncoding then
+                                if file.Input.Context.IsSome then BoundedTreeEncoding.ContextualDraft1 else BoundedTreeEncoding.Plain
+                            else
+                                encoding
+
                         let decode document =
                             if TreeFileSource.isClassicManifest document then
                                 ClassicTreeFiles.readManifest document
@@ -414,12 +435,25 @@ module internal BoundedTreeReader =
                             DocumentDepthLimit = ContextLimits.draft1.MaxDepth
                             DocumentNodeLimit = None
                             Work = None
-                            Encoding = encoding
+                            Encoding = resolvedEncoding
                             Profile = profile
                             Manifest = manifest
                         })
                     )
                 )
+
+    let openTreeWithEncoding
+        encoding
+        byteLimit
+        (source: TreeFileSource.SnapshotSource)
+        : Result<BoundedTreeSnapshot, StoreError list> =
+        openTreeCore false encoding byteLimit source
+
+    let openTreeDetected
+        byteLimit
+        (source: TreeFileSource.SnapshotSource)
+        : Result<BoundedTreeSnapshot, StoreError list> =
+        openTreeCore true BoundedTreeEncoding.Plain byteLimit source
 
     let openTree byteLimit source =
         openTreeWithEncoding BoundedTreeEncoding.Plain byteLimit source

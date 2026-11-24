@@ -82,6 +82,41 @@ type MepGenerationTransport =
             tuple <- Unchecked.defaultof<_>
             false
 
+    /// <summary>
+    /// Serializes a typed <see cref="VersionedModel"/> losslessly to canonical single-document UTF-8 JSON for
+    /// MEP 0.2.0-draft.1 host conversion (IR 4 via <c>V4JsonWriter</c>, classic IR 3 via <c>ClassicJsonWriter</c>).
+    /// For C# callers: sets either <paramref name="bytes"/> or <paramref name="error"/>.
+    /// </summary>
+    static member TryWriteSingleDocumentJson
+        (
+            model: VersionedModel,
+            [<Out; MaybeNullWhen(false)>] bytes: byref<byte array>,
+            [<Out; MaybeNullWhen(true)>] error: byref<string>
+        ) : bool =
+        let result =
+            match model.Distribution with
+            | DistributionModel.V4 distribution ->
+                Morphir.Json.V4.V4JsonWriter.writeDistribution false distribution
+                |> Result.mapError (fun problem -> $"{problem.Rule} at {problem.Location}: {problem.Message}")
+            | DistributionModel.Classic distribution ->
+                let profile =
+                    match distribution with
+                    | Morphir.IR.Classic.Distribution.Library _ -> Morphir.Json.Classic.ClassicWireProfile.v3
+                    | Morphir.IR.Classic.Distribution.Specs _ -> Morphir.Json.Classic.ClassicWireProfile.v3_1_0
+
+                Morphir.Json.Classic.ClassicJsonWriter.writeJsonAttributes profile false distribution
+                |> Result.mapError (fun problem -> $"{problem.Rule} at {problem.Location}: {problem.Message}")
+
+        match result with
+        | Ok written ->
+            bytes <- written
+            error <- Unchecked.defaultof<_>
+            true
+        | Error failure ->
+            bytes <- Unchecked.defaultof<_>
+            error <- failure
+            false
+
 /// A negotiated generation view over one caller-owned tree snapshot.
 [<Sealed>]
 type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelAccessStart, work: BoundedTreeWorkBudget) =
@@ -147,13 +182,11 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
             | Dependency(_, ValueDef(_, name)) -> ModelInventoryEntry.Value(entry name)
             | _ -> invalidOp "A member inventory entry must identify a type or value."
 
-    /// Bind the announced snapshot and selected input tuple to the admitted reader.
-    static member Bind
-        (
-            snapshot: BoundedTreeSnapshot,
-            start: ModelAccessStart,
-            work: BoundedTreeWorkBudget
-        ) : Result<MepGenerationSnapshot, StoreError list> =
+    /// <summary>
+    /// Derives the exact MEP 0.2.0-draft.2 <see cref="ModelAccessTuple"/> that describes an admitted snapshot's
+    /// IR version, syntax and file-local contextual encoding. For C# and F# callers.
+    /// </summary>
+    static member TupleFor(snapshot: BoundedTreeSnapshot) : ModelAccessTuple =
         let codec =
             match snapshot.Syntax with
             | BoundedTreeSyntax.Json -> ModelAccessCodec.MorphirJson
@@ -165,7 +198,7 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
             | BoundedTreeEncoding.ContextualDraft1
             | BoundedTreeEncoding.ContextualDraft1Streaming -> ModelAccessEncoding.ContextualDraft1
 
-        let expected = {
+        {
             ProtocolVersion = ModelAccess.protocolVersion
             AccessVersion = ModelAccess.accessVersion
             Operation = ModelOperation.GenerateModel
@@ -175,6 +208,15 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
             Layout = "document-tree"
             ContextualEncoding = encoding
         }
+
+    /// Bind the announced snapshot and selected input tuple to the admitted reader.
+    static member Bind
+        (
+            snapshot: BoundedTreeSnapshot,
+            start: ModelAccessStart,
+            work: BoundedTreeWorkBudget
+        ) : Result<MepGenerationSnapshot, StoreError list> =
+        let expected = MepGenerationSnapshot.TupleFor snapshot
 
         if
             start.Input

@@ -25,7 +25,12 @@ public sealed record DiagnosticRange(DiagnosticPosition Start, DiagnosticPositio
 /// </summary>
 public sealed record GenerationDiagnostic(string Code, string Message, string? Path = null, string? Location = null, string Severity = "error",
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    DiagnosticRange? Range = null);
+    DiagnosticRange? Range = null)
+{
+    /// <summary>Optional structured diagnostic data; omitted from JSON when null.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Data { get; init; }
+}
 public sealed record GenerationFailure(GenerationFailureKind Kind, ImmutableArray<GenerationDiagnostic> Diagnostics)
 {
     public string? Backend { get; init; }

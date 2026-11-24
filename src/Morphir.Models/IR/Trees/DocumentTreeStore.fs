@@ -223,6 +223,77 @@ module DocumentTreeStore =
         openSnapshotWithDiscoveryCache options cacheBytes revision provider
         |> Result.mapError (fun errors -> List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>)
 
+    /// <summary>
+    /// Open a revision-bound tree from a host callback, detecting whether the manifest carries the declared
+    /// contextual draft.1 envelope (<c>ir-context/0.1.0-draft.1</c>) or is plain. For C# callers.
+    /// </summary>
+    [<CompiledName("OpenDetectedSnapshot")>]
+    let openDetectedSnapshot
+        (
+            options: ReadOptions,
+            revision: System.Func<string>,
+            provider: Microsoft.Extensions.FileProviders.IFileProvider
+        ) : Result<BoundedTreeSnapshot, System.Collections.Generic.IReadOnlyList<StoreError>> =
+        let opened =
+            if options.MaxFiles < 1 then
+                Error [ error "tree.invalid_limit" None "A module lookup limit must be positive." ]
+            else
+                TreeFileSource.fromFileProvider options.MaxFiles (fun () -> revision.Invoke()) provider
+                |> BoundedTreeReader.openTreeDetected options.MaxFileBytes
+
+        opened
+        |> Result.mapError (fun errors -> List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>)
+
+    /// <summary>
+    /// Open a cached snapshot with an explicit file-local name encoding from a host callback with C#-safe
+    /// admission errors. The host must reserve <paramref name="cacheBytes"/> alongside its other retained
+    /// host-cache data. For C# callers.
+    /// </summary>
+    [<CompiledName("OpenSnapshotWithDiscoveryCacheAndEncoding")>]
+    let openSnapshotWithDiscoveryCacheAndEncoding
+        (
+            options: ReadOptions,
+            encoding: BoundedTreeEncoding,
+            cacheBytes: int64,
+            revision: System.Func<string>,
+            provider: Microsoft.Extensions.FileProviders.IFileProvider
+        ) : Result<BoundedTreeSnapshot, System.Collections.Generic.IReadOnlyList<StoreError>> =
+        let opened =
+            if options.MaxFiles < 1 then
+                Error [ error "tree.invalid_limit" None "A module lookup limit must be positive." ]
+            elif cacheBytes < 0L then
+                Error [ error "tree.invalid_limit" None "A discovery reservation cannot be negative." ]
+            else
+                TreeFileSource.fromFileProviderWithDiscoveryCache options.MaxFiles cacheBytes (fun () -> revision.Invoke()) provider
+                |> BoundedTreeReader.openTreeWithEncoding encoding options.MaxFileBytes
+
+        opened
+        |> Result.mapError (fun errors -> List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>)
+
+    /// <summary>
+    /// Open a cached snapshot from a host callback, detecting whether the manifest carries the declared
+    /// contextual draft.1 envelope or is plain. For C# callers.
+    /// </summary>
+    [<CompiledName("OpenDetectedSnapshotWithDiscoveryCache")>]
+    let openDetectedSnapshotWithDiscoveryCache
+        (
+            options: ReadOptions,
+            cacheBytes: int64,
+            revision: System.Func<string>,
+            provider: Microsoft.Extensions.FileProviders.IFileProvider
+        ) : Result<BoundedTreeSnapshot, System.Collections.Generic.IReadOnlyList<StoreError>> =
+        let opened =
+            if options.MaxFiles < 1 then
+                Error [ error "tree.invalid_limit" None "A module lookup limit must be positive." ]
+            elif cacheBytes < 0L then
+                Error [ error "tree.invalid_limit" None "A discovery reservation cannot be negative." ]
+            else
+                TreeFileSource.fromFileProviderWithDiscoveryCache options.MaxFiles cacheBytes (fun () -> revision.Invoke()) provider
+                |> BoundedTreeReader.openTreeDetected options.MaxFileBytes
+
+        opened
+        |> Result.mapError (fun errors -> List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>)
+
     /// Read the next page of modules in the selected package.
     [<CompiledName("PageModules")>]
     let pageModules limit cursor package snapshot =
@@ -288,3 +359,71 @@ module DocumentTreeStore =
     [<CompiledName("ResolveMemberAlias")>]
     let resolveMemberAlias address path snapshot =
         BoundedTreeReader.resolveMemberAlias address path snapshot
+
+    /// <summary>
+    /// Exports an admitted snapshot as expanded JSON documents within <paramref name="maxDocumentBytes"/>,
+    /// <paramref name="maxTotalBytes"/> and <paramref name="maxFiles"/>, then joins it losslessly into a typed
+    /// <see cref="Morphir.IR.Model.VersionedModel"/> alongside the staged expanded file bytes. For C# callers.
+    /// </summary>
+    [<CompiledName("TryJoinSnapshot")>]
+    let tryJoinSnapshot
+        (
+            snapshot: BoundedTreeSnapshot,
+            maxFiles: int,
+            maxDocumentBytes: int64,
+            maxTotalBytes: int64,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)>] model: byref<Morphir.IR.Model.VersionedModel>,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)>] files: byref<System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string, byte array>>>,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] problems: byref<System.Collections.Generic.IReadOnlyList<StoreError>>
+        ) : bool =
+        let staged = ResizeArray<string * Morphir.Files.VFile>()
+        let retained = ResizeArray<System.Collections.Generic.KeyValuePair<string, byte array>>()
+
+        let stageFile (doc: BoundedTreeExportDocument) =
+            if staged.Count >= maxFiles then
+                Error [ error "tree.too_many_files" (Some doc.File) $"The tree exceeds its limit of {maxFiles} files." ]
+            else
+                let bytes = doc.Bytes.ToArray()
+                staged.Add(doc.File, Morphir.Files.VFile.ofBytes doc.File (System.ReadOnlyMemory bytes))
+                retained.Add(System.Collections.Generic.KeyValuePair(doc.File, bytes))
+                Ok()
+
+        let exportLimits: BoundedTreeExportLimits = {
+            MaxDocumentBytes = maxDocumentBytes
+            MaxTotalBytes = maxTotalBytes
+            PageSize = 64
+        }
+
+        let joined =
+            BoundedTreeReader.writeExpandedTree exportLimits stageFile snapshot
+            |> Result.bind (fun () ->
+                let tree = Morphir.Files.VFileTree.fromFileMap (Map.ofSeq staged)
+                let readOptions: ReadOptions = { MaxFiles = maxFiles; MaxFileBytes = maxDocumentBytes }
+                read readOptions tree
+            )
+            |> Result.bind (fun (stored, _) ->
+                let version = Morphir.IR.Model.SourceFormatVersion.Create snapshot.IrVersion
+                match stored with
+                | V4Tree v4 ->
+                    V4DocumentTree.join v4
+                    |> Result.map (fun dist ->
+                        ({ SourceVersion = version; Distribution = Morphir.IR.Model.DistributionModel.V4 dist }: Morphir.IR.Model.VersionedModel))
+                    |> Result.mapError (List.map (fun err -> error err.Code None err.Message))
+                | ClassicTree classic ->
+                    ClassicDocumentTree.join classic
+                    |> Result.map (fun dist ->
+                        ({ SourceVersion = version; Distribution = Morphir.IR.Model.DistributionModel.Classic dist }: Morphir.IR.Model.VersionedModel))
+                    |> Result.mapError (List.map (fun err -> error err.Code None err.Message))
+            )
+
+        match joined with
+        | Ok joinedModel ->
+            model <- joinedModel
+            files <- retained.ToArray() :> System.Collections.Generic.IReadOnlyList<_>
+            problems <- Unchecked.defaultof<_>
+            true
+        | Error errors ->
+            model <- Unchecked.defaultof<_>
+            files <- Unchecked.defaultof<_>
+            problems <- List.toArray errors :> System.Collections.Generic.IReadOnlyList<_>
+            false
