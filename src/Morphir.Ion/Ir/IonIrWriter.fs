@@ -16,13 +16,6 @@ type internal JsonPathNode =
     | Index of parent: JsonPathNode * index: int
 
 module internal JsonPathNode =
-    /// A key that the path writes after a dot: an RFC 9535 member-name shorthand in ASCII, a letter or <c>_</c> and then
-    /// letters, digits and <c>_</c>. Every other key, such as <c>a-b</c> or <c>123</c>, is a bracketed name selector.
-    let private isPlain (name: string) =
-        name <> ""
-        && (Char.IsAsciiLetter name[0] || name[0] = '_')
-        && name |> Seq.forall (fun c -> Char.IsAsciiLetterOrDigit c || c = '_')
-
     /// The path as text, such as <c>$.distribution[0].a</c> or <c>$["my-org/shared"]</c>, written by walking the
     /// parents once.
     let render (node: JsonPathNode) =
@@ -45,21 +38,7 @@ module internal JsonPathNode =
 
         for step in steps do
             match step with
-            | Key(_, name) when isPlain name -> builder.Append('.').Append(name) |> ignore
-            | Key(_, name) ->
-                // Any other key is an RFC 9535 name selector, a quoted bracket with its quote, backslash and control
-                // characters escaped, so "distribution.foo" at the root is not distribution then foo.
-                builder.Append("[\"") |> ignore
-
-                for c in name do
-                    match c with
-                    | '"' -> builder.Append "\\\""
-                    | '\\' -> builder.Append "\\\\"
-                    | c when c < ' ' -> builder.Append("\\u").Append((int c).ToString("x4", Globalization.CultureInfo.InvariantCulture))
-                    | c -> builder.Append c
-                    |> ignore
-
-                builder.Append("\"]") |> ignore
+            | Key(_, name) -> Morphir.Json.JsonPaths.appendMember builder name
             | Index(_, index) -> builder.Append('[').Append(index).Append(']') |> ignore
             | Root -> ()
 
@@ -629,13 +608,22 @@ type IonIrWriting =
     /// Whether the Ion IR format carries a format version: <c>3</c>, <c>3.0.0</c>, <c>3.1.0</c>, <c>4</c> or
     /// <c>4.0.0</c>. The writer refuses every other version.
     /// </summary>
-    static member Carries(version: Morphir.IR.Versioning.FormatVersion) : bool = IonIrVersions.carries version
+    static member Carries(version: Morphir.IR.Versioning.FormatVersion) : bool =
+        IonIrWriting.Given version
+        IonIrVersions.carries version
+
+    /// C# can pass null for a non-nullable reference; that is a caller error.
+    static member private Given(version: Morphir.IR.Versioning.FormatVersion) =
+        if isNull (box version) then
+            nullArg (nameof version)
 
     /// <summary>
     /// The exact release a header states for a format version, such as <c>3.0.0</c> for <c>3</c>, or null when the
     /// format does not carry the version.
     /// </summary>
     static member Release(version: Morphir.IR.Versioning.FormatVersion) : string | null =
+        IonIrWriting.Given version
+
         IonIrVersions.release (Morphir.IR.Versioning.version version) |> Option.toObj
 
     /// <summary>
@@ -643,6 +631,8 @@ type IonIrWriting =
     /// <c>3.1.0</c>, whose v3 library the JSON profile cannot state, and the version itself otherwise.
     /// </summary>
     static member JsonWriterVersion(version: Morphir.IR.Versioning.FormatVersion) : Morphir.IR.Versioning.FormatVersion =
+        IonIrWriting.Given version
+
         match IonIrVersions.release (Morphir.IR.Versioning.version version) with
         | Some "3.1.0" -> Morphir.IR.Versioning.Classic 3
         | _ -> version

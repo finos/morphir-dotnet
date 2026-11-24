@@ -96,8 +96,33 @@ module internal ClassicIonWriter =
             | _ -> raise NotAType
         | _ -> raise NotAType
 
+    /// Whether a name reads back from its canonical string as itself, as the Ion reader reads it: at least one word, and
+    /// every word a lowercase word that the canonical spelling keeps.
+    let private canonicalName (name: Name) =
+        CanonicalNames.parseName (CanonicalNames.nameToString name) = Ok name
+
+    let private canonicalFqName (name: FQName) =
+        CanonicalNames.parseFQName (CanonicalNames.fqNameToString name) = Ok name
+
+    /// Whether every name of a type reads back from Ion as itself. The classic JSON of an attribute is not checked by
+    /// the JSON reader, so an empty name or path there would write Ion that the reader refuses with invalid_name.
+    let rec private namesReadBack (value: Type<JsonElement>) =
+        RuntimeHelpers.EnsureSufficientExecutionStack()
+
+        let fields (entries: Field<JsonElement> list) =
+            entries |> List.forall (fun field -> canonicalName field.Name && namesReadBack field.Type)
+
+        match value with
+        | Type.Variable(_, name) -> canonicalName name
+        | Type.Reference(_, name, arguments) -> canonicalFqName name && List.forall namesReadBack arguments
+        | Type.Tuple(_, elements) -> List.forall namesReadBack elements
+        | Type.Record(_, entries) -> fields entries
+        | Type.ExtensibleRecord(_, variable, entries) -> canonicalName variable && fields entries
+        | Type.Function(_, parameter, result) -> namesReadBack parameter && namesReadBack result
+        | Type.Unit _ -> true
+
     /// The type a value or pattern attribute holds. Any other attribute, such as <c>[]</c>, would read back as the unit
-    /// type, so it is refused.
+    /// type, and a type with a name the reader refuses would not read back at all, so both are refused.
     let private inferred (attribute: JsonElement) : Type<JsonElement> =
         let found =
             try
@@ -106,7 +131,12 @@ module internal ClassicIonWriter =
                 None
 
         match found with
-        | Some found when JsonElement.DeepEquals(ClassicIonTypes.typeAsAttribute found, attribute) -> found
+        | Some found when JsonElement.DeepEquals(ClassicIonTypes.typeAsAttribute found, attribute) ->
+            if not (namesReadBack found) then
+                refuse
+                    $"A v3 value or pattern attribute names a type with a name or path that Ion cannot read back: {attribute.GetRawText()}."
+
+            found
         | _ ->
             refuse
                 $"A v3 value or pattern attribute has an Ion spelling only when it is the classic JSON of a type; {attribute.GetRawText()} would read back as the unit type."

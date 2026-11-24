@@ -604,6 +604,48 @@ let tests =
                         Expect.equal error.Code "duplicate_member" error.Message
                         Expect.equal error.Location (Some location) "The location"
 
+            for name, key, location in
+                [
+                    "a-b", "a-b", "$[\"a-b\"]"
+                    "123", "123", "$[\"123\"]"
+                    "a key with a quote", "a\\\"b", "$[\"a\\\"b\"]"
+                ] do
+                testCase $"An unknown v4 root key {name} is located by an RFC 9535 member"
+                <| fun () ->
+                    let original = catalogText "pairs/v4-empty-library.json"
+                    let json = original.Replace("{\"formatVersion\":4,", $"{{\"formatVersion\":4,\"{key}\":1,")
+
+                    match IonIrWriting.TryWriteJson(ReadOnlyMemory(Encoding.UTF8.GetBytes json)) with
+                    | true, _, _ -> failtest "An unknown member was written"
+                    | false, _, failure ->
+                        Expect.equal failure.Code "unknown_member" (failure.ToString())
+                        Expect.equal failure.Location location "The location"
+
+                testCase $"An unknown v3 root key {name} is located by an RFC 9535 member"
+                <| fun () ->
+                    let original = catalogText "pairs/v3-daily-rate.json"
+                    let json = original.Replace("{\"formatVersion\":3,", $"{{\"formatVersion\":3,\"{key}\":1,")
+
+                    match IonIrWriter.readJson (ReadOnlyMemory(Encoding.UTF8.GetBytes json)) with
+                    | Ok _ -> failtest "An unknown member was read"
+                    | Result.Error error ->
+                        Expect.equal error.Code "unknown_member" (error.ToString())
+                        Expect.equal error.Location (Some location) "The location"
+
+            for name, version in [ "Carries", 0; "Release", 1; "JsonWriterVersion", 2 ] do
+                testCase $"IonIrWriting.{name} refuses a null version as an argument error"
+                <| fun () ->
+                    let none = Unchecked.defaultof<Morphir.IR.Versioning.FormatVersion>
+
+                    Expect.throwsT<ArgumentNullException>
+                        (fun () ->
+                            match version with
+                            | 0 -> IonIrWriting.Carries none |> ignore
+                            | 1 -> IonIrWriting.Release none |> ignore
+                            | _ -> IonIrWriting.JsonWriterVersion none |> ignore
+                        )
+                        "A null version is a caller error"
+
             testCase "IonIrReading.TryRead refuses null limits as an argument error"
             <| fun () ->
                 let bytes = IonIrWriter.write Cases.emptyV3Library |> ok "Writing"
@@ -905,6 +947,32 @@ let tests =
                 // The vector as it stands is written, read and written again to the same bytes.
                 let bytes = fromJson "pairs/v3-daily-rate.json" |> IonIrWriter.write |> ok "Writing"
                 Expect.equal (readIon bytes |> IonIrWriter.write |> ok "Writing again" |> text) (text bytes) "A fixed point"
+
+            for name, attribute in
+                [
+                    "an empty variable name", "[\"Variable\",{},[]]"
+                    "an empty word", "[\"Variable\",{},[\"\"]]"
+                    "a word that is not canonical", "[\"Variable\",{},[\"A\"]]"
+                    "an empty package path", "[\"Reference\",{},[[],[[\"basics\"]],[\"int\"]],[]]"
+                    "an empty module path", "[\"Reference\",{},[[[\"morphir\"]],[],[\"int\"]],[]]"
+                    "an empty record field name", "[\"Record\",{},[{\"name\":[],\"tpe\":[\"Unit\",{}]}]]"
+                ] do
+                testCase $"A v3 inferred type with {name} is refused before it is written"
+                <| fun () ->
+                    let original = catalogText "pairs/v3-daily-rate.json"
+                    let literal = "\"body\":[\"Literal\",[\"Reference\",{},[[[\"morphir\"],[\"s\",\"d\",\"k\"]],[[\"basics\"]],[\"int\"]],[]],"
+                    Expect.stringContains original literal "The vector has a typed literal"
+                    let json = original.Replace(literal, $"\"body\":[\"Literal\",{attribute},")
+
+                    match IonIrWriting.TryWriteJson(ReadOnlyMemory(Encoding.UTF8.GetBytes json)) with
+                    | true, ion, _ ->
+                        let read =
+                            match IonIrReading.TryRead(ReadOnlyMemory ion) with
+                            | true, _, _ -> "it reads back"
+                            | false, _, failure -> failure.ToString()
+
+                        failtestf "The attribute was written, and %s" read
+                    | false, _, failure -> Expect.equal failure.Code "unrepresentable_attribute" (failure.ToString())
 
             testCase "A v3 attribute that is not a type has no Ion spelling"
             <| fun () ->
