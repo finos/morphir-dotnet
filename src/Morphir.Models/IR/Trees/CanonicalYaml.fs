@@ -35,7 +35,10 @@ module CanonicalYaml =
     let private float =
         Regex(@"\A[-+]?(\.[0-9]+|[0-9]+(\.[0-9]*)?)([eE][-+]?[0-9]+)?\z", RegexOptions.CultureInvariant)
 
-    let private based = Regex(@"\A[-+]?0[oOxX]", RegexOptions.CultureInvariant)
+    /// A whole octal or hexadecimal token, as the profile's reader refuses it (TreeYaml). A string that only starts like
+    /// one, such as <c>0xylophone</c>, is a plain string.
+    let private based =
+        Regex(@"\A[-+]?0([oO][0-7]+|[xX][0-9a-fA-F]+)\z", RegexOptions.CultureInvariant)
 
     let private keywords =
         set [ "true"; "True"; "TRUE"; "false"; "False"; "FALSE"; "null"; "Null"; "NULL"; "~" ]

@@ -214,7 +214,7 @@ let tests =
                 [
                     ""
                     "true"; "True"; "TRUE"; "false"; "False"; "FALSE"; "null"; "Null"; "NULL"; "~"
-                    "42"; "-7"; "+1"; "1e3"; "1.5"; ".5"; "0x1F"; "0o17"; ".inf"; "-.inf"; ".nan"; ".NaN"
+                    "42"; "-7"; "+1"; "1e3"; "1.5"; ".5"; "0x1F"; "0x10"; "0o17"; "0o7"; "-0x1"; ".inf"; "-.inf"; ".nan"; ".NaN"
                     "- a"; "?"; ":a"; ",a"; "[a"; "]a"; "{a"; "}a"; "#a"; "&a"; "*a"; "!a"; "|a"; ">a"; "'a"; "\"a"; "%a"; "@a"; "`a"
                     " a"; "a "; "a:"; "a: b"; "a #b"; "a\nb"; "a\tb"; "a\u0001b"; "..."; "... x"; "---"; "--- x"
                     "a\u2028b"; "a\u2029b"; "a\u0085b"; "\uFEFFa"
@@ -226,7 +226,7 @@ let tests =
                     Expect.equal (exact (readBack written)) (exact (element json)) "It reads back as the same string"
                 }
 
-            for text in [ "a"; "a:b"; "a#b"; "...suffix"; "a..."; "a---"; "morphir/SDK"; "value-in-USD"; "yes"; "2026-01-15"; "é😀"; "a b" ] do
+            for text in [ "a"; "a:b"; "a#b"; "0xylophone"; "0o8"; "0x"; "0b101"; "...suffix"; "a..."; "a---"; "morphir/SDK"; "value-in-USD"; "yes"; "2026-01-15"; "é😀"; "a b" ] do
                 test $"{JsonSerializer.Serialize text} is plain" {
                     let json = JsonSerializer.Serialize(dict [ "k", text ])
                     let written = yaml json
