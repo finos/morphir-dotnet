@@ -20,12 +20,15 @@ public static class SlideMother
         DiagramExport.Layout(Parse(source), options ?? SvgRenderOptions.Default).Layout.ShouldNotBeNull();
 
     /// <summary>The layout of a flowchart whose node <c>A</c> links to https://example.org through embedded metadata.</summary>
-    public static DiagramLayout LinkedNode()
+    public static DiagramLayout LinkedNode() => Linked(SlideMother.SingleNode, "node=A");
+
+    /// <summary>The layout of a source whose element <paramref name="reference"/> links to https://example.org through embedded metadata.</summary>
+    public static DiagramLayout Linked(string source, string reference)
     {
-        DiagramSource.TryParse("flowchart LR\n  A\n", out var parsed, out _).ShouldBeTrue();
+        DiagramSource.TryParse(source, out var parsed, out _).ShouldBeTrue();
         var document = Morphir.Knowledge.DocumentId.Create(Morphir.Knowledge.Iri.Create("https://example.org/d"));
         DiagramSnapshot.TryFromSource(document, parsed, out var snapshot, out _).ShouldBeTrue();
-        DiagramSelection.TryCreate(snapshot, [DiagramElementRef.Create("node=A")], out var selection, out _).ShouldBeTrue();
+        DiagramSelection.TryCreate(snapshot, [DiagramElementRef.Create(reference)], out var selection, out _).ShouldBeTrue();
         var link = new Morphir.Knowledge.KnowledgeLink<LinkEndpoint, LinkEndpoint>(
             Morphir.Knowledge.LinkId.Create(Morphir.Knowledge.Iri.Create("urn:link:a")), LinkEndpoint.FromDiagram(selection),
             Morphir.Knowledge.Iri.Create("https://example.org/vocab/seeAlso"), LinkEndpoint.FromResource(Morphir.Knowledge.Iri.Create("https://example.org")));
@@ -34,6 +37,30 @@ public static class SlideMother
 
         return DiagramExport.Layout(parsed.Diagram, options).Layout.ShouldNotBeNull();
     }
+
+    /// <summary>A sequence whose participant A, a composite of boxes and a lifeline, is linked.</summary>
+    public const string LinkedParticipant = "sequenceDiagram\n  participant A\n  participant B\n  A->>B: hi\n";
+
+    /// <summary>A flowchart of one node, A.</summary>
+    public const string SingleNode = "flowchart LR\n  A\n";
+
+    /// <summary>A flowchart of one link from A to B.</summary>
+    public const string OneLink = "flowchart LR\n  A --> B\n";
+
+    /// <summary>A flowchart whose links A to B and B to C are painted before their nodes.</summary>
+    public const string Chain = "flowchart LR\n  A --> B\n  B --> C\n";
+
+    /// <summary>A flowchart with a subgraph, which the slide renderers degrade, so the picture-fallback policy draws it as one image.</summary>
+    public const string PicturedSubgraph = "flowchart LR\n  subgraph S\n    A --> B\n  end\n";
+
+    /// <summary>A subgraph holding one node, drawn as a picture under the picture-fallback policy.</summary>
+    public const string SubgraphNode = "flowchart LR\n  subgraph S\n    A\n  end\n";
+
+    /// <summary>A sequence message with a cross head.</summary>
+    public const string LostMessage = "sequenceDiagram\n  A-xB: lost\n";
+
+    /// <summary>A sequence of one message.</summary>
+    public const string Message = "sequenceDiagram\n  A->>B: hi\n";
 
     /// <summary>A flowchart twice as wide as it is tall, roughly.</summary>
     public const string Wide = "flowchart LR\n  A[Start] --> B[Middle] --> C[End]\n";
@@ -113,7 +140,7 @@ public class SlidePlacementTests
     public void TheExtentHoldsTheBounds()
     {
         // A layout always has its page bounds, so its extent is never smaller than them.
-        var layout = SlideMother.Layout("flowchart LR\n  A\n");
+        var layout = SlideMother.Layout(SlideMother.SingleNode);
         SlidePlacement.Extent(layout).ShouldBe(layout.Bounds);
     }
 
@@ -133,7 +160,7 @@ public class SlidePlacementTests
     [Test]
     public void AMaximumScaleCapsTheGrowth()
     {
-        var layout = SlideMother.Layout("flowchart LR\n  A\n");
+        var layout = SlideMother.Layout(SlideMother.SingleNode);
         var fit = SlidePlacement.Widescreen.WithMaximumScale(Scale.One).Fit(layout, SlideGrid.Emu);
 
         fit.Factor.ShouldBe(1.0);
@@ -144,7 +171,7 @@ public class SlidePlacementTests
     [Test]
     public void LengthsScaleByTheFactor()
     {
-        var layout = SlideMother.Layout("flowchart LR\n  A\n");
+        var layout = SlideMother.Layout(SlideMother.SingleNode);
         var fit = SlidePlacement.Widescreen.WithMaximumScale(Scale.Create(2)).Fit(layout, SlideGrid.Emu);
 
         fit.Factor.ShouldBe(2.0);

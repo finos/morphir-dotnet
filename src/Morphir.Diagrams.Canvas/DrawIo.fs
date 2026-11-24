@@ -217,14 +217,21 @@ type internal DrawIoPage(layout: DiagramLayout) =
     let parentId (parent: DrawableId option) =
         parent |> Option.map (fun id -> id.Value) |> Option.defaultValue "1"
 
-    let cell (drawable: Drawable) (parent: DrawableId option) (inherited: string option) label style box edge =
+    /// The own reference and first web link of a drawable, or those that it inherits from its composite element or group.
+    let own (drawable: Drawable) (inheritedReference: string option, inheritedLink: string option) =
+        drawable.Reference |> Option.ofObj |> Option.map (fun reference -> reference.ToString()) |> Option.orElse inheritedReference,
+        drawable.Links |> Seq.tryFind (fun link -> link.IsWeb) |> Option.map (fun link -> link.Target) |> Option.orElse inheritedLink
+
+    let cell (drawable: Drawable) (parent: DrawableId option) (inherited: string option * string option) label style box edge =
+        let reference, link = own drawable inherited
+
         {
             Id = drawable.Id.Value
             Parent = parentId parent
             PaintOrder = drawable.PaintOrder
             Label = label
-            Reference = drawable.Reference |> Option.ofObj |> Option.map (fun reference -> reference.ToString()) |> Option.orElse inherited
-            Link = drawable.Links |> Seq.tryFind (fun link -> link.IsWeb) |> Option.map (fun link -> link.Target)
+            Reference = reference
+            Link = link
             Style = style
             Box = box
             Edge = edge
@@ -257,9 +264,9 @@ type internal DrawIoPage(layout: DiagramLayout) =
         | true, Some parent -> parent :: ancestors parent
         | _ -> []
 
-    let rec visit (inherited: string option) (drawable: Drawable) =
+    let rec visit (inherited: string option * string option) (drawable: Drawable) =
         let parent = parents[drawable.Id]
-        let own = drawable.Reference |> Option.ofObj |> Option.map (fun reference -> reference.ToString()) |> Option.orElse inherited
+        let own = own drawable inherited
 
         drawable.Kind.Match(
             (fun shape ->
@@ -310,11 +317,11 @@ type internal DrawIoPage(layout: DiagramLayout) =
             (fun container ->
                 let label = match container.Header with | null -> "" | header -> DrawIoWriting.label header.Lines
                 cells.Add(cell drawable parent inherited label (DrawIoWriting.containerStyle container) (Some(vertexBox parent container.Box)) None)
-                for child in container.Children do visit None child),
+                for child in container.Children do visit (None, None) child),
             (fun children -> for child in children do visit own child)
         )
 
-    do for drawable in layout.Drawables do visit None drawable
+    do for drawable in layout.Drawables do visit (None, None) drawable
 
     /// The cells, parents before children and siblings in paint order.
     member _.Cells =

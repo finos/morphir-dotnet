@@ -54,6 +54,8 @@ public class OpenDocumentRendererTests
     }
 
     [Test]
+    // The ZIP writer compresses with the runtime's native zlib.
+    [Category("PlatformSpecific")]
     public async Task EqualInputGivesEqualBytesForAnyStream()
     {
         var layout = SlideMother.Layout(DiagramCorpus.Representatives()[0].Diagram.Source);
@@ -70,7 +72,7 @@ public class OpenDocumentRendererTests
     [Test]
     public void EachLayoutIsAPageOfTheSlideSize()
     {
-        var package = SlideRendering.Render(new OpenDocumentRenderer(), SlideMother.Layout(SlideMother.Wide), SlideMother.Layout("flowchart LR\n  A\n"));
+        var package = SlideRendering.Render(new OpenDocumentRenderer(), SlideMother.Layout(SlideMother.Wide), SlideMother.Layout(SlideMother.SingleNode));
         var styles = SlideRendering.Xml(package, "styles.xml");
         var page = styles.Descendants(Style + "page-layout-properties").Single();
 
@@ -117,7 +119,7 @@ public class OpenDocumentRendererTests
     [Test]
     public void AConnectorIsGluedToBothShapes()
     {
-        var content = Content(Render("flowchart LR\n  A --> B\n"));
+        var content = Content(Render(SlideMother.OneLink));
         var connector = Named(content, "edge=A/B/0");
         string Id(string name) => (string)Named(content, name).Attribute(Draw + "id")!;
 
@@ -134,7 +136,7 @@ public class OpenDocumentRendererTests
     [Test]
     public void ACrossHeadIsAFilledOutline()
     {
-        var package = Render("sequenceDiagram\n  A-xB: lost\n");
+        var package = Render(SlideMother.LostMessage);
         var content = Content(package);
         // The lifelines are connectors too; the message is the one with an end marker.
         var line = content.Descendants(Draw + "connector").Single(connector => GraphicProperties(content, connector).Attribute(Draw + "marker-end") is not null);
@@ -200,9 +202,19 @@ public class OpenDocumentRendererTests
     }
 
     [Test]
+    public void ACompositeElementsLinkReachesEachOfItsParts()
+    {
+        var content = Content(SlideRendering.Render(new OpenDocumentRenderer(), SlideMother.Linked(SlideMother.LinkedParticipant, "participant=A")));
+        var parts = content.Descendants().Where(element => (string?)element.Attribute(Draw + "name") == "participant=A").ToList();
+
+        parts.Count.ShouldBeGreaterThan(1);
+        parts.ShouldAllBe(element => element.Descendants(Presentation + "event-listener").Any());
+    }
+
+    [Test]
     public void AnImageHasAPngFallback()
     {
-        var (package, result) = SlideRendering.Render(new OpenDocumentRenderer(), DegradationPolicy.PictureFallback, SlideMother.Layout("flowchart LR\n  subgraph S\n    A\n  end\n"));
+        var (package, result) = SlideRendering.Render(new OpenDocumentRenderer(), DegradationPolicy.PictureFallback, SlideMother.Layout(SlideMother.SubgraphNode));
         var frame = Content(package).Descendants(Draw + "frame").ShouldHaveSingleItem();
         var images = frame.Elements(Draw + "image").Select(image => (string?)image.Attribute(XLink + "href")).ToList();
 
@@ -219,7 +231,7 @@ public class OpenDocumentRendererTests
     public void ARasterFailureWritesNothing()
     {
         var placement = SlidePlacement.Create(SlideSize.Create(Distance.FromInches(200), Distance.FromInches(200))).WithArea(SlideArea.Full);
-        var (package, result) = SlideRendering.Render(new OpenDocumentRenderer(placement), DegradationPolicy.PictureFallback, SlideMother.Layout("flowchart LR\n  subgraph S\n    A --> B\n  end\n"));
+        var (package, result) = SlideRendering.Render(new OpenDocumentRenderer(placement), DegradationPolicy.PictureFallback, SlideMother.Layout(SlideMother.PicturedSubgraph));
 
         package.ShouldBeEmpty();
         result.Diagnostics.ShouldContain(diagnostic => diagnostic.Code == "slides/raster-failed");

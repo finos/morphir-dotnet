@@ -325,7 +325,7 @@ module internal GoogleRequests =
                         let plan =
                             [
                                 for item in items do
-                                    let link = item.Drawable.Links |> Seq.tryFind (fun link -> link.IsWeb) |> Option.map (fun link -> link.Target)
+                                    let link = item.Link
 
                                     match item.Drawable.Kind with
                                     | DrawableKind.Shape shape ->

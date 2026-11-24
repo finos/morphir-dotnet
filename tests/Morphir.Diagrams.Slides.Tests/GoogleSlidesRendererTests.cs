@@ -64,7 +64,7 @@ public class GoogleSlidesRendererTests
     [Test]
     public void NewSlidesForSeveralPages()
     {
-        var requests = Requests(SlideRendering.Render(Renderer(), SlideMother.Layout(SlideMother.Wide), SlideMother.Layout("flowchart LR\n  A\n")));
+        var requests = Requests(SlideRendering.Render(Renderer(), SlideMother.Layout(SlideMother.Wide), SlideMother.Layout(SlideMother.SingleNode)));
         var slides = requests.Where(request => request.Kind == "createSlide").Select(request => request.Body.GetProperty("objectId").GetString()).ToList();
 
         slides.ShouldBe(["flow_0_s0", "flow_1_s0"]);
@@ -107,7 +107,7 @@ public class GoogleSlidesRendererTests
     [Test]
     public void ObjectIdsAreDeterministicAndValid()
     {
-        var pages = new[] { SlideMother.Layout("flowchart LR\n  A --> B\n  B --> C\n"), SlideMother.Layout("sequenceDiagram\n  A->>B: hi\n") };
+        var pages = new[] { SlideMother.Layout(SlideMother.Chain), SlideMother.Layout(SlideMother.Message) };
 
         foreach (var objects in new[] { SlideObjectNamespace.Create("ab"), SlideObjectNamespace.Create(new string('n', 30)) })
         {
@@ -126,7 +126,7 @@ public class GoogleSlidesRendererTests
     [Test]
     public void ALinkPaintedBeforeItsNodesConnectsToThem()
     {
-        var requests = Requests(Render("flowchart LR\n  A --> B\n  B --> C\n"));
+        var requests = Requests(Render(SlideMother.Chain));
         int Created(string id) => requests.FindIndex(request => request.Kind == "createShape" && request.Body.GetProperty("objectId").GetString() == id);
         var connections = requests.Select((request, index) => (request, index))
             .Where(item => item.request.Kind == "updateLineProperties" && item.request.Body.GetProperty("lineProperties").TryGetProperty("startConnection", out _)).ToList();
@@ -148,7 +148,7 @@ public class GoogleSlidesRendererTests
     [Test]
     public void TooManyPagesAreRefused()
     {
-        var page = SlideMother.Layout("flowchart LR\n  A\n");
+        var page = SlideMother.Layout(SlideMother.SingleNode);
         var (bytes, result) = SlideRendering.Render(Renderer(), DegradationPolicy.AllowDegraded, Enumerable.Repeat(page, 10_000).ToArray());
 
         bytes.ShouldBeEmpty();
@@ -158,7 +158,7 @@ public class GoogleSlidesRendererTests
     [Test]
     public void ConnectorsAreAttachedAtConnectionSites()
     {
-        var requests = Requests(Render("flowchart LR\n  A --> B\n"));
+        var requests = Requests(Render(SlideMother.OneLink));
         string ShapeOf(string text) =>
             requests.Single(request => request.Kind == "insertText" && request.Body.GetProperty("text").GetString() == text).Body.GetProperty("objectId").GetString()!;
         var line = requests.Single(request => request.Kind == "updateLineProperties" && request.Body.GetProperty("lineProperties").TryGetProperty("startConnection", out _))
@@ -202,6 +202,18 @@ public class GoogleSlidesRendererTests
         y.ShouldBeGreaterThanOrEqualTo(571_500L);
         (x + width).ShouldBeLessThanOrEqualTo(1_016_000L + 10_160_000L);
         (y + height).ShouldBeLessThanOrEqualTo(571_500L + 5_715_000L);
+    }
+
+    [Test]
+    public void ACompositeElementsLinkReachesEachOfItsParts()
+    {
+        var requests = Requests(SlideRendering.Render(Renderer(), SlideMother.Linked(SlideMother.LinkedParticipant, "participant=A")));
+        var linked = requests.Where(request => request.Kind is "updateShapeProperties" or "updateLineProperties")
+            .Select(request => request.Body.GetProperty(request.Kind == "updateShapeProperties" ? "shapeProperties" : "lineProperties"))
+            .Count(properties => properties.TryGetProperty("link", out _));
+
+        // The participant's two boxes, its lifeline and its name texts.
+        linked.ShouldBeGreaterThan(2);
     }
 
     [Test]

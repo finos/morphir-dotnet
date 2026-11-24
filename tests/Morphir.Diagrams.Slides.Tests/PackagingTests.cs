@@ -98,6 +98,8 @@ public class PackagingTests
     }
 
     [Test]
+    // The ZIP writer compresses with the runtime's native zlib.
+    [Category("PlatformSpecific")]
     public void APackageHasItsEntriesInOrderWithFixedTimes()
     {
         PackageEntry[] entries =

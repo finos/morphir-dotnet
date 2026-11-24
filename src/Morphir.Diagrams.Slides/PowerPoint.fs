@@ -1313,13 +1313,10 @@ module internal PowerPointSlide =
             let links = Dictionary<DrawableId, string>()
 
             for item in items do
-                match
-                    item.Drawable.Links
-                    |> Seq.tryFind (fun link -> link.IsWeb)
-                with
-                | Some link ->
+                match item.Link with
+                | Some target ->
                     let id = relId ()
-                    rels.Add((id, Ooxml.relType "hyperlink", link.Target, true))
+                    rels.Add((id, Ooxml.relType "hyperlink", target, true))
                     links[item.Drawable.Id] <- id
                 | None -> ()
 

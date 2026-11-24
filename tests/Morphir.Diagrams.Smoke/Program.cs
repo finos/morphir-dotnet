@@ -117,7 +117,17 @@ foreach (var (name, renderer, policy) in slideTargets)
     using var exported = new System.IO.MemoryStream();
     var export = await DiagramExport.RenderAsync([layout], renderer, exported, policy, System.Threading.CancellationToken.None);
     if (!export.Written || export.HasErrors || exported.Length == 0)
+    {
+        Console.Error.WriteLine($"slides {name}: FAIL {string.Join("; ", export.Diagnostics)}");
         return 1;
+    }
+
+    // The subgraph degrades PowerPoint, so the page is a picture: its PNG fallback is drawn under Native AOT too.
+    if (policy == DegradationPolicy.PictureFallback && !System.Linq.Enumerable.Any(export.Diagnostics, diagnostic => diagnostic.Code == "layout/pictured"))
+    {
+        Console.Error.WriteLine($"slides {name}: FAIL the page was not drawn as a picture");
+        return 1;
+    }
     Console.WriteLine($"slides {name} {Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(exported.ToArray()))}");
 }
 Console.WriteLine("slides: ok");

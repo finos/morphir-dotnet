@@ -26,7 +26,7 @@ public class RevealJsRendererTests
     [Test]
     public void TwoPagesGiveTwoSections()
     {
-        var deck = Deck(new RevealJsRenderer(), SlideMother.Layout(SlideMother.Wide), SlideMother.Layout("sequenceDiagram\n  A->>B: hi\n"));
+        var deck = Deck(new RevealJsRenderer(), SlideMother.Layout(SlideMother.Wide), SlideMother.Layout(SlideMother.Message));
         var sections = Sections(deck);
 
         sections.Count.ShouldBe(2);

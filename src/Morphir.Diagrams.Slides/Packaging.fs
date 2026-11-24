@@ -34,42 +34,40 @@ type internal PngFallback = {
 }
 
 /// One item of a slide, in paint order, named by its reference, its holder's, or its identifier.
-type internal SlideItem = { Drawable: Drawable; Name: string }
+type internal SlideItem = { Drawable: Drawable; Name: string; Link: string option }
 
 /// The leaves of a page that the slide writers draw, flattening elements, groups and containers.
 [<RequireQualifiedAccess>]
 module internal SlideItems =
-    /// The leaves of a page in paint order, each named by its reference, its holder's, or its identifier.
+    /// The first web link of a drawable.
+    let private webLink (drawable: Drawable) =
+        drawable.Links |> Seq.tryFind (fun link -> link.IsWeb) |> Option.map (fun link -> link.Target)
+
+    /// The leaves of a page in paint order. Each is named by its reference, its holder's, or its identifier, and has
+    /// its own first web link or its holder's: the parts of a composite element or a group share its name and link,
+    /// while a container's children have their own.
     let ofPage (layout: DiagramLayout) =
         let found = ResizeArray<int * int * SlideItem>()
 
-        let rec collect (inherited: string option) (drawable: Drawable) =
-            let own =
-                drawable.Reference
-                |> Option.ofObj
-                |> Option.map (fun reference -> reference.ToString())
-
-            let name =
-                own
-                |> Option.orElse inherited
-                |> Option.defaultValue drawable.Id.Value
+        let rec collect (inheritedName: string option) (inheritedLink: string option) (drawable: Drawable) =
+            let own = drawable.Reference |> Option.ofObj |> Option.map (fun reference -> reference.ToString())
+            let name = own |> Option.orElse inheritedName
+            let link = webLink drawable |> Option.orElse inheritedLink
 
             match drawable.Kind with
             | DrawableKind.Element children
             | DrawableKind.Group children ->
                 for child in children do
-                    collect
-                        (own
-                         |> Option.orElse inherited)
-                        child
+                    collect name link child
             | DrawableKind.Container container ->
                 for child in container.Children do
-                    collect None child
+                    collect None None child
             | _ ->
-                found.Add((drawable.PaintOrder, found.Count, { Drawable = drawable; Name = name }))
+                let item = { Drawable = drawable; Name = name |> Option.defaultValue drawable.Id.Value; Link = link }
+                found.Add((drawable.PaintOrder, found.Count, item))
 
         for drawable in layout.Drawables do
-            collect None drawable
+            collect None None drawable
 
         found
         |> Seq.sortBy (fun (order, index, _) -> order, index)

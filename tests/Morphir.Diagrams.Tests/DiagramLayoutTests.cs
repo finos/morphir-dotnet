@@ -38,6 +38,64 @@ public class DiagramLayoutTests
     public static bool IsLine(Drawable drawable) =>
         drawable.Kind.Match(shape: _ => false, line: _ => true, text: _ => false, image: _ => false, element: _ => false, container: _ => false, group: _ => false);
 
+    /// <summary>Points along a path: each command's end, and its curves sampled at small steps.</summary>
+    public static IEnumerable<(double X, double Y)> Sampled(PathData path)
+    {
+        var current = (X: 0.0, Y: 0.0);
+        static (double X, double Y) Px(LayoutPoint point) => (point.X.ToPixels(), point.Y.ToPixels());
+
+        foreach (var command in path.WithoutArcs(Distance.FromPixels(0.01)).Commands)
+        {
+            var points = command.Match(
+                move: point => (IEnumerable<(double X, double Y)>)[Px(point)],
+                line: point => [Px(point)],
+                cubic: (c1, c2, end) => Enumerable.Range(1, 64).Select(step =>
+                {
+                    var (t, u) = (step / 64.0, 1 - step / 64.0);
+                    var (a, b, c, d) = (current, Px(c1), Px(c2), Px(end));
+                    return (u * u * u * a.X + 3 * u * u * t * b.X + 3 * u * t * t * c.X + t * t * t * d.X, u * u * u * a.Y + 3 * u * u * t * b.Y + 3 * u * t * t * c.Y + t * t * t * d.Y);
+                }).ToList(),
+                quadratic: (c1, end) => Enumerable.Range(1, 64).Select(step =>
+                {
+                    var (t, u) = (step / 64.0, 1 - step / 64.0);
+                    var (a, b, d) = (current, Px(c1), Px(end));
+                    return (u * u * a.X + 2 * u * t * b.X + t * t * d.X, u * u * a.Y + 2 * u * t * b.Y + t * t * d.Y);
+                }).ToList(),
+                arc: (_, _, _, _, _, end) => [Px(end)],
+                close: () => []);
+
+            foreach (var point in points)
+            {
+                current = point;
+                yield return point;
+            }
+        }
+    }
+
+    [Test]
+    public void EveryPathShapesBoxHoldsItsCurves()
+    {
+        var failures = new List<string>();
+
+        foreach (var source in Morphir.TestSupport.Fixtures.DiagramCorpus.Sources())
+        {
+            if (!DiagramSource.TryParse(source.Source, out var document, out _) || DiagramExport.Layout(document.Diagram).Layout is not { } layout) continue;
+
+            foreach (var drawable in All(layout.Drawables))
+            {
+                var shape = drawable.Kind.Match<LayoutShape?>(shape: shape => shape, line: _ => null, text: _ => null, image: _ => null, element: _ => null, container: _ => null, group: _ => null);
+                var path = shape?.Kind.Match<PathData?>(rectangle: () => null, roundedRectangle: _ => null, ellipse: () => null, diamond: () => null, cylinder: _ => null, hexagon: _ => null, path: data => data);
+                if (shape is null || path is null) continue;
+
+                var (left, top, right, bottom) = (shape.Box.X.ToPixels(), shape.Box.Y.ToPixels(), shape.Box.Right.ToPixels(), shape.Box.Bottom.ToPixels());
+                if (Sampled(path).Any(point => point.X < left - 0.01 || point.X > right + 0.01 || point.Y < top - 0.01 || point.Y > bottom + 0.01))
+                    failures.Add($"{source} {drawable.Id}");
+            }
+        }
+
+        failures.ShouldBeEmpty(string.Join("\n", failures.Take(5)));
+    }
+
     [Test]
     public void AStateDiagramIsLaidOut()
     {

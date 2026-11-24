@@ -39,6 +39,43 @@ public static class CanvasMother
             .Where(item => item.Layout is not null)
             .Select(item => (item.Source, item.Layout!));
 
+    /// <summary>The layout of a source whose element <paramref name="reference"/> links to https://example.org through embedded metadata.</summary>
+    public static DiagramLayout Linked(string source, string reference)
+    {
+        DiagramSource.TryParse(source, out var parsed, out _).ShouldBeTrue();
+        var document = Morphir.Knowledge.DocumentId.Create(Morphir.Knowledge.Iri.Create("https://example.org/d"));
+        DiagramSnapshot.TryFromSource(document, parsed, out var snapshot, out _).ShouldBeTrue();
+        DiagramSelection.TryCreate(snapshot, [DiagramElementRef.Create(reference)], out var selection, out _).ShouldBeTrue();
+        var link = new Morphir.Knowledge.KnowledgeLink<LinkEndpoint, LinkEndpoint>(
+            Morphir.Knowledge.LinkId.Create(Morphir.Knowledge.Iri.Create("urn:link:a")), LinkEndpoint.FromDiagram(selection),
+            Morphir.Knowledge.Iri.Create("https://example.org/vocab/seeAlso"), LinkEndpoint.FromResource(Morphir.Knowledge.Iri.Create("https://example.org")));
+        DiagramAnnotations.TryWrite(DiagramAnnotationSet.Create([], [link], []), _ => null, out var dataset, out _).ShouldBeTrue();
+        var options = SvgRenderOptions.Default.WithDocument(document).WithMetadata(dataset, MetadataEmbedding.NQuads, Morphir.Knowledge.Rdf.NamedGraphHandling.Reject);
+
+        return DiagramExport.Layout(parsed.Diagram, options).Layout.ShouldNotBeNull();
+    }
+
+    /// <summary>A sequence whose participant A, a composite of boxes and a lifeline, is linked.</summary>
+    public const string LinkedParticipant = "sequenceDiagram\n  participant A\n  participant B\n  A->>B: hi\n";
+
+    /// <summary>A flowchart of one link from A to B.</summary>
+    public const string OneLink = "flowchart LR\n  A --> B\n";
+
+    /// <summary>A flowchart of one labelled node.</summary>
+    public const string StartNode = "flowchart LR\n  A[Start]\n";
+
+    /// <summary>A sequence of one message.</summary>
+    public const string Message = "sequenceDiagram\n  A->>B: hi\n";
+
+    /// <summary>A sequence message with an asynchronous head.</summary>
+    public const string AsyncMessage = "sequenceDiagram\n  A-)B: async\n";
+
+    /// <summary>A subgraph holding one node.</summary>
+    public const string SubgraphNode = "flowchart LR\n  subgraph S\n    A\n  end\n";
+
+    /// <summary>A flowchart of one node, A.</summary>
+    public const string SingleNode = "flowchart LR\n  A\n";
+
     /// <summary>The degradations of an assessment.</summary>
     public static IReadOnlyList<Degradation> Degradations(Assessment assessment) =>
         assessment.Match(native: () => [], degraded: degradations => degradations, unsupported: _ => (IReadOnlyList<Degradation>)[]);
@@ -72,7 +109,7 @@ public class DrawIoRendererTests
     [Test]
     public void TwoPagesGiveTwoDiagrams()
     {
-        var file = Parse(CanvasMother.Render(new DrawIoRenderer(), CanvasMother.Layout("flowchart LR\n  A\n"), CanvasMother.Layout("flowchart LR\n  B\n")));
+        var file = Parse(CanvasMother.Render(new DrawIoRenderer(), CanvasMother.Layout(CanvasMother.SingleNode), CanvasMother.Layout("flowchart LR\n  B\n")));
 
         file.Root!.Name.LocalName.ShouldBe("mxfile");
         file.Root.Elements("diagram").Select(diagram => (string)diagram.Attribute("name")!).ShouldBe(["Page 1", "Page 2"]);
@@ -103,6 +140,17 @@ public class DrawIoRendererTests
     }
 
     [Test]
+    public void ACompositeElementsLinkReachesEachOfItsParts()
+    {
+        var file = Parse(CanvasMother.Render(new DrawIoRenderer(), CanvasMother.Linked(CanvasMother.LinkedParticipant, "participant=A")));
+        var parts = file.Descendants("UserObject").Where(cell => (string?)cell.Attribute("morphir-ref") == "participant=A").ToList();
+
+        parts.Count.ShouldBeGreaterThan(1);
+        parts.ShouldAllBe(cell => (string?)cell.Attribute("link") == "https://example.org");
+        file.Descendants("UserObject").Where(cell => (string?)cell.Attribute("morphir-ref") == "participant=B").ShouldAllBe(cell => cell.Attribute("link") == null);
+    }
+
+    [Test]
     public void ALinkLeavingASubgraphIsReported()
     {
         var layout = CanvasMother.Layout("flowchart LR\n  subgraph S\n    A\n  end\n  A --> B\n");
@@ -114,9 +162,9 @@ public class DrawIoRendererTests
     [Test]
     public void ANodeKeepsItsReferenceAndBox()
     {
-        var file = Render("flowchart LR\n  A[Start]\n");
+        var file = Render(CanvasMother.StartNode);
         var geometry = Cell(file, "node=A").Element("mxGeometry")!;
-        var box = CanvasMother.Layout("flowchart LR\n  A[Start]\n").Drawables.Single().Kind.Match<LayoutBox?>(
+        var box = CanvasMother.Layout(CanvasMother.StartNode).Drawables.Single().Kind.Match<LayoutBox?>(
             shape: shape => shape.Box, line: _ => null, text: _ => null, image: _ => null, element: _ => null, container: _ => null, group: _ => null)!.Value;
 
         Cell(file, "node=A").Parent!.Attribute("label")!.Value.ShouldBe("Start");
@@ -127,7 +175,7 @@ public class DrawIoRendererTests
     [Test]
     public void AParticipantsPartsKeepPaintOrder()
     {
-        var source = "sequenceDiagram\n  A->>B: hi\n";
+        var source = CanvasMother.Message;
         var file = Render(source);
         var order = Cells(file).ToList();
         var participant = order.Where(cell => (string?)cell.Parent!.Attribute("morphir-ref") == "participant=A").ToList();
@@ -143,10 +191,10 @@ public class DrawIoRendererTests
     [Test]
     public void AChildIsPlacedRelativeToItsContainer()
     {
-        var file = Render("flowchart LR\n  subgraph S\n    A\n  end\n");
+        var file = Render(CanvasMother.SubgraphNode);
         var container = Cell(file, "group=S");
         var child = Cell(file, "node=A");
-        var layout = CanvasMother.Layout("flowchart LR\n  subgraph S\n    A\n  end\n");
+        var layout = CanvasMother.Layout(CanvasMother.SubgraphNode);
         var frame = layout.Drawables.Single().Kind.Match<LayoutContainer?>(shape: _ => null, line: _ => null, text: _ => null, image: _ => null, element: _ => null, container: c => c, group: _ => null)!;
         var node = frame.Children.Single().Kind.Match<LayoutShape?>(shape: s => s, line: _ => null, text: _ => null, image: _ => null, element: _ => null, container: _ => null, group: _ => null)!;
 
@@ -225,12 +273,12 @@ public class DrawIoRendererTests
     public void AnOpenArrowUsesTheOpenMarker()
     {
         var style = StyleOf(Cell(Render("flowchart LR\n  A --> B\n  B --o C\n"), "edge=B/C/0"));
-        var filled = StyleOf(Cell(Render("flowchart LR\n  A --> B\n"), "edge=A/B/0"));
+        var filled = StyleOf(Cell(Render(CanvasMother.OneLink), "edge=A/B/0"));
 
         style["endArrow"].ShouldBe("oval");
         (filled["endArrow"], filled["endFill"], filled["startArrow"]).ShouldBe(("block", "1", "none"));
 
-        var open = StyleOf(Cell(Render("sequenceDiagram\n  A-)B: async\n"), "message=A/B/0"));
+        var open = StyleOf(Cell(Render(CanvasMother.AsyncMessage), "message=A/B/0"));
         open["endArrow"].ShouldBe("open");
     }
 

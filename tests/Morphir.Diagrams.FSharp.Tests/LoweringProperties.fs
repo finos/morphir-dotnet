@@ -121,4 +121,14 @@ let tests =
             | DrawableKind.Line line -> Expect.isNotNull line.Target.Binding "a polyline stays one line"
             | _ -> failtest "d2 stays a line"
         }
+
+        test "degradations whose drawables differ only in count are unequal" {
+            let ids (names: string list) = names |> List.map DrawableId.Create |> ImmutableArray.CreateRange
+            let one = Degradation(LayoutFeature.Cylinders, "path", ids [ "d1" ], ImmutableArray.Empty)
+            let two = Degradation(LayoutFeature.Cylinders, "path", ids [ "d1"; "d2" ], ImmutableArray.Empty)
+
+            Expect.isFalse (one.Equals two) "one drawable is not two"
+            Expect.isFalse (two.Equals one) "two drawables are not one"
+            Expect.isTrue (one.Equals(Degradation(LayoutFeature.Cylinders, "path", ids [ "d1" ], ImmutableArray.Empty))) "equal values are equal"
+        }
     ]

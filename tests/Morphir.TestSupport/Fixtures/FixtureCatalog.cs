@@ -906,11 +906,11 @@ public static class FixtureCatalog
 
         /// <summary>The draw.io, Excalidraw and Obsidian output of one diagram of each family.</summary>
         public static FixtureEntry CanvasDigests { get; } = new(
-            "the canvas export digests of one diagram of each family", "DiagramExport/canvas-digests.json", "8c1fea9aee84d198d0e3cbb935983053d4acfb77d6658947c583ea56da0c44d5", Provenance);
+            "the canvas export digests of one diagram of each family", "DiagramExport/canvas-digests.json", "e26fade8faac55bc61491ed4b69c2e20df5f9420c6094da24e28c33690f8f89d", Provenance);
 
         /// <summary>The entry contents of each slide renderer's package for one diagram of each family.</summary>
         public static FixtureEntry SlideDigests { get; } = new(
-            "the slide export digests of one diagram of each family", "DiagramExport/slide-digests.json", "4854ab6569c0413a9c06a5553f40f1ba27622ca9a521643a4f19879e2e574a55", Provenance);
+            "the slide export digests of one diagram of each family", "DiagramExport/slide-digests.json", "b64cb6c5c331e618723c1f93d22a5c7368b7317119e554fb2459854f8e62074f", Provenance);
 
         /// <summary>Every digest fixture.</summary>
         public static IReadOnlyList<FixtureEntry> Files { get; } = [SvgDigests, PlayerDigests, RasterDigests, PublicApi, CanvasDigests, SlideDigests];

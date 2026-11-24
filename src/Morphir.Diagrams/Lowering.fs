@@ -36,7 +36,7 @@ type Degradation internal (feature: LayoutFeature, fallback: string, drawables: 
     override _.Equals(other: obj | null) =
         match other with
         | :? Degradation as other ->
-            other.Feature = feature && other.Fallback = fallback && Seq.forall2 (=) other.Drawables drawables && other.Drawables.Length = drawables.Length
+            other.Feature = feature && other.Fallback = fallback && other.Drawables.Length = drawables.Length && Seq.forall2 (=) other.Drawables drawables
         | _ -> false
 
     override _.GetHashCode() = HashCode.Combine(feature, fallback, drawables.Length)

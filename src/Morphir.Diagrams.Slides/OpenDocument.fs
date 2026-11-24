@@ -825,7 +825,7 @@ module internal OdfWriting =
                     let children =
                         [
                             for item in items do
-                                let link = item.Drawable.Links |> Seq.tryFind (fun link -> link.IsWeb) |> Option.map (fun link -> link.Target)
+                                let link = item.Link
                                 yield! writer.Write(item, link)
                         ]
 

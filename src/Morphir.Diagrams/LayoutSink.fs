@@ -309,6 +309,71 @@ module internal LayoutSink =
         let pathPoints (path: PathData) =
             path.Commands |> Seq.choose (fun command -> command.End) |> Seq.toList
 
+        /// The box of everything a path paints: arcs become cubic curves, and each curve adds its extrema on each axis.
+        let pathBox (path: PathData) =
+            let points = ResizeArray<float * float>()
+            let px (point: LayoutPoint) = point.X.ToPixels(), point.Y.ToPixels()
+            let mutable current = (0.0, 0.0)
+            let mutable start = (0.0, 0.0)
+
+            // The parameters in (0, 1) where a*t^2 + b*t + c = 0.
+            let roots (a: float) (b: float) (c: float) =
+                if abs a < 1e-12 then
+                    if abs b < 1e-12 then [] else [ -c / b ]
+                else
+                    let discriminant = b * b - 4.0 * a * c
+
+                    if discriminant < 0.0 then []
+                    else
+                        let root = Math.Sqrt discriminant
+                        [ (-b + root) / (2.0 * a); (-b - root) / (2.0 * a) ]
+                |> List.filter (fun t -> t > 0.0 && t < 1.0)
+
+            for command in path.WithoutArcs(Distance.FromPixels 0.01).Commands do
+                match command with
+                | PathCommand.MoveTo point ->
+                    current <- px point
+                    start <- current
+                    points.Add current
+                | PathCommand.LineTo point ->
+                    current <- px point
+                    points.Add current
+                | PathCommand.CubicTo(c1, c2, finish) ->
+                    let (x0, y0), (x1, y1), (x2, y2), (x3, y3) = current, px c1, px c2, px finish
+
+                    let at (p0: float) (p1: float) (p2: float) (p3: float) (t: float) =
+                        let u = 1.0 - t
+                        u * u * u * p0 + 3.0 * u * u * t * p1 + 3.0 * u * t * t * p2 + t * t * t * p3
+
+                    let extrema (p0: float) (p1: float) (p2: float) (p3: float) =
+                        roots (-p0 + 3.0 * p1 - 3.0 * p2 + p3) (2.0 * (p0 - 2.0 * p1 + p2)) (p1 - p0)
+
+                    for t in extrema x0 x1 x2 x3 @ extrema y0 y1 y2 y3 do
+                        points.Add((at x0 x1 x2 x3 t, at y0 y1 y2 y3 t))
+
+                    current <- (x3, y3)
+                    points.Add current
+                | PathCommand.QuadraticTo(control, finish) ->
+                    let (x0, y0), (x1, y1), (x2, y2) = current, px control, px finish
+
+                    let at (p0: float) (p1: float) (p2: float) (t: float) =
+                        let u = 1.0 - t
+                        u * u * p0 + 2.0 * u * t * p1 + t * t * p2
+
+                    for t in roots 0.0 (2.0 * (x0 - 2.0 * x1 + x2)) (2.0 * (x1 - x0)) @ roots 0.0 (2.0 * (y0 - 2.0 * y1 + y2)) (2.0 * (y1 - y0)) do
+                        points.Add((at x0 x1 x2 t, at y0 y1 y2 t))
+
+                    current <- (x2, y2)
+                    points.Add current
+                | PathCommand.Close -> current <- start
+                | PathCommand.ArcTo(_, _, _, _, _, finish) ->
+                    current <- px finish
+                    points.Add current
+
+            let xs, ys = points |> Seq.map fst, points |> Seq.map snd
+            let left, top = Distance.FromPixels(Seq.min xs), Distance.FromPixels(Seq.min ys)
+            LayoutBox.Create(left, top, Distance.FromPixels(Seq.max xs) - left, Distance.FromPixels(Seq.max ys) - top)
+
         let head (attributes: Attributes) name =
             match get attributes name with
             | Some reference ->
@@ -489,7 +554,7 @@ module internal LayoutSink =
                     line primitive path (endsOf primitive unitReference)
                 else
                     let points = pathPoints path
-                    let box = points |> List.tail |> List.fold (fun (box: LayoutBox) p -> box.Include p) (LayoutBox.At(List.head points))
+                    let box = pathBox path
 
                     let kind =
                         match unitShape, points with

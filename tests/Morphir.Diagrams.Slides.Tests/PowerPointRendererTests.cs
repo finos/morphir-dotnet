@@ -97,7 +97,7 @@ public class PowerPointRendererTests
     [Test]
     public void TwoPagesGiveTwoSlides()
     {
-        var package = SlideRendering.Render(new PowerPointRenderer(), SlideMother.Layout("flowchart LR\n  A\n"), SlideMother.Layout("flowchart LR\n  B\n"));
+        var package = SlideRendering.Render(new PowerPointRenderer(), SlideMother.Layout(SlideMother.SingleNode), SlideMother.Layout("flowchart LR\n  B\n"));
         var presentation = SlideRendering.Xml(package, "ppt/presentation.xml");
 
         presentation.Descendants(P + "sldId").Count().ShouldBe(2);
@@ -109,6 +109,8 @@ public class PowerPointRendererTests
     }
 
     [Test]
+    // The ZIP writer compresses with the runtime's native zlib.
+    [Category("PlatformSpecific")]
     public async Task EqualInputGivesEqualBytesForAnyStream()
     {
         var layout = SlideMother.Layout(DiagramCorpus.Representatives()[0].Diagram.Source);
@@ -180,7 +182,7 @@ public class PowerPointRendererTests
     [Test]
     public void ExactConnectorsDetachLinks()
     {
-        var degradations = SlideRendering.Degradations(DiagramExport.Assess([SlideMother.Layout("flowchart LR\n  A --> B\n  B --> C\n")], new PowerPointRenderer()));
+        var degradations = SlideRendering.Degradations(DiagramExport.Assess([SlideMother.Layout(SlideMother.Chain)], new PowerPointRenderer()));
 
         degradations.ShouldNotBeEmpty();
         degradations.ShouldAllBe(degradation => degradation.Feature.Equals(LayoutFeature.AttachedConnectors));
@@ -189,7 +191,7 @@ public class PowerPointRendererTests
     [Test]
     public void GluedConnectorsAttachToShapes()
     {
-        var slide = Slide(Render("flowchart LR\n  A --> B\n", new PowerPointRenderer(SlidePlacement.Widescreen, PowerPointConnectors.Glued)));
+        var slide = Slide(Render(SlideMother.OneLink, new PowerPointRenderer(SlidePlacement.Widescreen, PowerPointConnectors.Glued)));
         var connector = Named(slide, "edge=A/B/0");
         string Id(string name) => (string)Named(slide, name).Descendants().First(element => element.Name.LocalName == "cNvPr").Attribute("id")!;
 
@@ -245,7 +247,7 @@ public class PowerPointRendererTests
     public void ExactConnectorsKeepTheirRoute()
     {
         var source = "flowchart TD\n  A --> C\n  B --> C\n  D --> E\n  A --> E\n  F --> A\n  A --> G\n  A --> H\n";
-        var slide = Slide(Render(source.Replace("flowchart", "flowchart"), new PowerPointRenderer()));
+        var slide = Slide(Render(source, new PowerPointRenderer()));
 
         // An exact line is a freeform shape, because an application may re-route a connector between the corners of its box.
         slide.Descendants(P + "cxnSp").ShouldBeEmpty();
@@ -258,7 +260,7 @@ public class PowerPointRendererTests
     [Test]
     public void ACrossHeadIsDrawnAsAShapeGroupedWithItsLine()
     {
-        var slide = Slide(Render("sequenceDiagram\n  A-xB: lost\n"));
+        var slide = Slide(Render(SlideMother.LostMessage));
         var group = slide.Descendants(P + "grpSp").ShouldHaveSingleItem();
 
         Lines(group).ShouldHaveSingleItem();
@@ -299,7 +301,7 @@ public class PowerPointRendererTests
     [Test]
     public void AFillKeepsItsOpacity()
     {
-        const string source = "flowchart LR\n  A\n";
+        const string source = SlideMother.SingleNode;
         var fill = SlideMother.Layout(source).Drawables.SelectMany(drawable => drawable.Kind.Children.Prepend(drawable))
             .Where(drawable => drawable.Reference?.ToString() == "node=A")
             .Select(drawable => drawable.Kind.Match<LayoutColor?>(shape: shape => shape.Paint.Fill, line: _ => null, text: _ => null, image: _ => null, element: _ => null, container: _ => null, group: _ => null))
@@ -323,9 +325,19 @@ public class PowerPointRendererTests
     }
 
     [Test]
+    public void ACompositeElementsLinkReachesEachOfItsParts()
+    {
+        var package = SlideRendering.Render(new PowerPointRenderer(), SlideMother.Linked(SlideMother.LinkedParticipant, "participant=A"));
+        var parts = Slide(package).Descendants(P + "cNvPr").Where(element => (string?)element.Attribute("name") == "participant=A").ToList();
+
+        parts.Count.ShouldBeGreaterThan(1);
+        parts.ShouldAllBe(element => element.Element(A + "hlinkClick") != null);
+    }
+
+    [Test]
     public void APictureFallbackPageHasBothImages()
     {
-        var (package, result) = SlideRendering.Render(new PowerPointRenderer(), DegradationPolicy.PictureFallback, SlideMother.Layout("flowchart LR\n  subgraph S\n    A\n  end\n"));
+        var (package, result) = SlideRendering.Render(new PowerPointRenderer(), DegradationPolicy.PictureFallback, SlideMother.Layout(SlideMother.SubgraphNode));
         var entries = SlideRendering.Entries(package);
         var picture = Slide(package).Descendants(P + "pic").ShouldHaveSingleItem();
 
@@ -352,7 +364,7 @@ public class PowerPointRendererTests
     {
         // About 30 million CSS pixels: two pixels per CSS pixel exceeds the raster's limit of 40 million, one does not.
         var placement = SlidePlacement.Create(SlideSize.Create(Distance.FromInches(78), Distance.FromInches(41))).WithArea(SlideArea.Full);
-        var (package, result) = SlideRendering.Render(new PowerPointRenderer(placement), DegradationPolicy.PictureFallback, SlideMother.Layout("flowchart LR\n  subgraph S\n    A --> B\n  end\n"));
+        var (package, result) = SlideRendering.Render(new PowerPointRenderer(placement), DegradationPolicy.PictureFallback, SlideMother.Layout(SlideMother.PicturedSubgraph));
 
         result.HasErrors.ShouldBeFalse(string.Join(", ", result.Diagnostics));
         var png = SlideRendering.Entries(package)["ppt/media/image1.png"];
@@ -366,7 +378,7 @@ public class PowerPointRendererTests
     public void ARasterFailureWritesNothing()
     {
         var placement = SlidePlacement.Create(SlideSize.Create(Distance.FromInches(200), Distance.FromInches(200))).WithArea(SlideArea.Full);
-        var (package, result) = SlideRendering.Render(new PowerPointRenderer(placement), DegradationPolicy.PictureFallback, SlideMother.Layout("flowchart LR\n  subgraph S\n    A --> B\n  end\n"));
+        var (package, result) = SlideRendering.Render(new PowerPointRenderer(placement), DegradationPolicy.PictureFallback, SlideMother.Layout(SlideMother.PicturedSubgraph));
 
         package.ShouldBeEmpty();
         result.Diagnostics.ShouldContain(diagnostic => diagnostic.Code == "slides/raster-failed");

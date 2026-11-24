@@ -83,16 +83,16 @@ type internal ExcalidrawScene(layout: DiagramLayout) =
         | TextAlign.End -> "right"
 
     // Excalidraw deletes empty text when it loads a scene, so empty text is left out.
-    let rec textElement (text: LayoutText) (container: ExcalidrawElement option) groups reference =
-        if text.Lines |> Seq.forall String.IsNullOrEmpty then () else textElementOf text container groups reference
+    let rec textElement (text: LayoutText) (container: ExcalidrawElement option) groups reference link =
+        if text.Lines |> Seq.forall String.IsNullOrEmpty then () else textElementOf text container groups reference link
 
-    and textElementOf (text: LayoutText) (container: ExcalidrawElement option) groups reference =
+    and textElementOf (text: LayoutText) (container: ExcalidrawElement option) groups reference link =
         let box =
             match text.Chip with
             | null -> text.Box
             | chip -> chip.Box
 
-        let base' = element "text" box None groups reference None
+        let base' = element "text" box None groups reference link
 
         let textual =
             { base' with
@@ -105,9 +105,10 @@ type internal ExcalidrawScene(layout: DiagramLayout) =
 
     let canContain kind = kind = "rectangle" || kind = "ellipse" || kind = "diamond" || kind = "arrow"
 
-    let rec visit (groups: string list) (inherited: string option) (drawable: Drawable) =
+    /// The parts of a composite element or a group share its reference and its first web link.
+    let rec visit (groups: string list) (inherited: string option) (inheritedLink: string option) (drawable: Drawable) =
         let reference = drawable.Reference |> Option.ofObj |> Option.map (fun reference -> reference.ToString()) |> Option.orElse inherited
-        let link = drawable.Links |> Seq.tryFind (fun link -> link.IsWeb) |> Option.map (fun link -> link.Target)
+        let link = drawable.Links |> Seq.tryFind (fun link -> link.IsWeb) |> Option.map (fun link -> link.Target) |> Option.orElse inheritedLink
 
         drawable.Kind.Match(
             (fun shape ->
@@ -126,7 +127,7 @@ type internal ExcalidrawScene(layout: DiagramLayout) =
 
                 match shape.Text with
                 | null -> ()
-                | text -> textElement text (if canContain kind then Some shaped else None) groups reference),
+                | text -> textElement text (if canContain kind then Some shaped else None) groups reference link),
             (fun line ->
                 let points = line.Waypoints |> Seq.map (fun point -> point.X.ToPixels(), point.Y.ToPixels()) |> List.ofSeq
                 let x0, y0 = List.head points
@@ -151,8 +152,8 @@ type internal ExcalidrawScene(layout: DiagramLayout) =
 
                 match line.Label with
                 | null -> ()
-                | text -> textElement text (Some arrow) groups reference),
-            (fun text -> textElement text None groups reference),
+                | text -> textElement text (Some arrow) groups reference link),
+            (fun text -> textElement text None groups reference link),
             (fun image ->
                 let digest = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes image.SvgText))
                 let id = digest.Substring(0, 40)
@@ -163,32 +164,33 @@ type internal ExcalidrawScene(layout: DiagramLayout) =
             (fun children ->
                 // A composite element is a group, innermost first.
                 let group = $"g{drawable.Id.Value}"
-                for child in children do visit (group :: groups) reference child),
+                for child in children do visit (group :: groups) reference link child),
             (fun container ->
                 // Excalidraw declares no containers, so lowering never sends one.
-                for child in container.Children do visit groups reference child),
+                for child in container.Children do visit groups reference None child),
             (fun children ->
                 let group = $"g{drawable.Id.Value}"
-                for child in children do visit (group :: groups) reference child)
+                for child in children do visit (group :: groups) reference link child)
         )
 
     let ordered (drawables: ImmutableArray<Drawable>) =
         // Leaves in paint order, each with the groups and reference it inherits.
         let leaves = ResizeArray<int * int * (unit -> unit)>()
 
-        let rec collect (groups: string list) (inherited: string option) (drawable: Drawable) =
+        let rec collect (groups: string list) (inherited: string option) (inheritedLink: string option) (drawable: Drawable) =
             let reference = drawable.Reference |> Option.ofObj |> Option.map (fun reference -> reference.ToString()) |> Option.orElse inherited
+            let link = drawable.Links |> Seq.tryFind (fun link -> link.IsWeb) |> Option.map (fun link -> link.Target) |> Option.orElse inheritedLink
 
             match drawable.Kind with
             | DrawableKind.Element children
             | DrawableKind.Group children ->
                 let group = $"g{drawable.Id.Value}"
-                for child in children do collect (group :: groups) reference child
+                for child in children do collect (group :: groups) reference link child
             | DrawableKind.Container container ->
-                for child in container.Children do collect groups reference child
-            | _ -> leaves.Add((drawable.PaintOrder, leaves.Count, fun () -> visit groups inherited drawable))
+                for child in container.Children do collect groups reference None child
+            | _ -> leaves.Add((drawable.PaintOrder, leaves.Count, fun () -> visit groups inherited inheritedLink drawable))
 
-        for drawable in drawables do collect [] None drawable
+        for drawable in drawables do collect [] None None drawable
         leaves |> Seq.sortBy (fun (order, index, _) -> order, index) |> Seq.iter (fun (_, _, write) -> write ())
 
     do ordered layout.Drawables

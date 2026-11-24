@@ -41,7 +41,7 @@ public partial class ExcalidrawRendererTests
 
         scene.GetProperty("type").GetString().ShouldBe("excalidraw");
         scene.GetProperty("version").GetInt32().ShouldBe(2);
-        scene.GetProperty("appState").GetProperty("viewBackgroundColor").GetString().ShouldBe(CanvasMother.Layout("flowchart LR\n  A\n").Background.ToCss());
+        scene.GetProperty("appState").GetProperty("viewBackgroundColor").GetString().ShouldBe(CanvasMother.Layout(CanvasMother.SingleNode).Background.ToCss());
         Elements(scene).Select(element => element.GetProperty("type").GetString()).ShouldBe(["arrow", "rectangle", "text", "diamond", "text"]);
         Elements(scene).ShouldAllBe(element => Regex.IsMatch(Id(element), "^[a-z0-9]{8}$"));
         new ExcalidrawRenderer().MediaType.ShouldBe("application/vnd.excalidraw+json");
@@ -68,7 +68,7 @@ public partial class ExcalidrawRendererTests
     [Test]
     public void AnArrowIsBoundToBothShapes()
     {
-        var scene = Scene("flowchart LR\n  A --> B\n");
+        var scene = Scene(CanvasMother.OneLink);
         var arrow = Referenced(scene, "edge=A/B/0", "arrow");
         var a = Referenced(scene, "node=A", "rectangle");
         var b = Referenced(scene, "node=B", "rectangle");
@@ -112,14 +112,24 @@ public partial class ExcalidrawRendererTests
     [Test]
     public void AnOpenArrowUsesTheArrowHeadAndACircleTheDot()
     {
-        Referenced(Scene("sequenceDiagram\n  A-)B: async\n"), "message=A/B/0", "arrow").GetProperty("endArrowhead").GetString().ShouldBe("arrow");
+        Referenced(Scene(CanvasMother.AsyncMessage), "message=A/B/0", "arrow").GetProperty("endArrowhead").GetString().ShouldBe("arrow");
         Referenced(Scene("flowchart LR\n  A --o B\n"), "edge=A/B/0", "arrow").GetProperty("endArrowhead").GetString().ShouldBe("dot");
+    }
+
+    [Test]
+    public void ACompositeElementsLinkReachesEachOfItsParts()
+    {
+        var scene = Parse(CanvasMother.Render(new ExcalidrawRenderer(), CanvasMother.Linked(CanvasMother.LinkedParticipant, "participant=A")));
+        var parts = Elements(scene).Where(element => element.TryGetProperty("customData", out var data) && data.GetProperty("morphirRef").GetString() == "participant=A").ToList();
+
+        parts.Count.ShouldBeGreaterThan(1);
+        parts.ShouldAllBe(element => element.GetProperty("link").GetString() == "https://example.org");
     }
 
     [Test]
     public void ANodeKeepsItsReferenceAndElementsArePainted()
     {
-        var scene = Scene("sequenceDiagram\n  A->>B: hi\n");
+        var scene = Scene(CanvasMother.Message);
         var participant = Elements(scene).Where(element => element.TryGetProperty("customData", out var data) && data.GetProperty("morphirRef").GetString() == "participant=A").ToList();
         var message = Array.IndexOf(Elements(scene), Referenced(scene, "message=A/B/0", "arrow"));
 
@@ -131,10 +141,10 @@ public partial class ExcalidrawRendererTests
     [Test]
     public void RoughnessCanBeChosen()
     {
-        var scene = Scene("flowchart LR\n  A --> B\n", new ExcalidrawRenderer(1));
+        var scene = Scene(CanvasMother.OneLink, new ExcalidrawRenderer(1));
 
         Elements(scene).Where(element => element.GetProperty("type").GetString() is "rectangle" or "arrow").ShouldAllBe(element => element.GetProperty("roughness").GetInt32() == 1);
-        Elements(Scene("flowchart LR\n  A --> B\n")).ShouldAllBe(element => element.GetProperty("roughness").GetInt32() == 0);
+        Elements(Scene(CanvasMother.OneLink)).ShouldAllBe(element => element.GetProperty("roughness").GetInt32() == 0);
         Should.Throw<ArgumentOutOfRangeException>(() => new ExcalidrawRenderer(3));
     }
 
@@ -182,7 +192,7 @@ public partial class ExcalidrawRendererTests
 
     [Test]
     public void ALabelIsListedWithItsIdentifier() =>
-        TextElements(Note(CanvasMother.Layout("flowchart LR\n  A[Start]\n"))).ShouldMatch(@"^Start \^[a-z0-9]{8}\n\n$");
+        TextElements(Note(CanvasMother.Layout(CanvasMother.StartNode))).ShouldMatch(@"^Start \^[a-z0-9]{8}\n\n$");
 
     [Test]
     public void ALabelThatEndsLikeABlockReferenceIsLeftToTheScene()
