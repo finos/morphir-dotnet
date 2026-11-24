@@ -521,6 +521,35 @@ let sessionAgreement =
             let wrongEncoding = { access.Tuples[0] with ContextualEncoding = Morphir.Mep.ModelAccessEncoding.ContextualDraft1 }
             Expect.isError (Claims.agreeSession claims { session with Capabilities = { session.Capabilities with ModelAccess = Some { access with Tuples = [| wrongEncoding |] } } }) "unclaimed modelAccess tuple refused"
         }
+        test "malformed modelAccess static claims are refused before activation" {
+            let validTuple = """{"protocolVersion":"0.2.0-draft.2","accessVersion":"0.1.0-draft.1","operation":"morphir.backend.generateModel","irVersion":"4.0.0","profile":"morphir-ir","codec":"morphir-json","layout":"document-tree","contextualEncoding":"plain"}"""
+            let validLimits = """{"maxFrameBytes":65536,"maxEncodedBytesPerExchange":65536,"maxDecodedBytesPerExchange":32768,"maxDocumentsPerBatch":8,"maxDepth":64,"maxNodes":10000,"maxDiagnosticsPerExchange":16,"maxOutstandingRequests":4,"maxGuestStateBytes":16777216,"maxHostCacheBytes":16777216,"maxArtifactChunkBytes":65536,"maxArtifactBytes":4294967296,"maxTotalArtifactBytes":4294967296,"maxSessionDiskBytes":4294967296,"maxSessionWorkUnits":100000,"maxRounds":100,"maxCallMilliseconds":10000,"maxSessionMilliseconds":60000}"""
+            let makeClaims tuples limits =
+                """{"protocolVersions":["0.2.0-draft.2"],"extension":{"id":"org.example.orders","name":"Orders","version":"1.0.0","types":["backend"]},"capabilities":{"backend":{"targets":["text"],"irVersions":["4.0.0"],"generate":false},"modelAccess":{"tuples":"""
+                + tuples
+                + ""","limits":"""
+                + limits
+                + "}}}"
+            let wrap item = $"[{item}]"
+            let cases = [
+                "empty tuples", makeClaims "[]" validLimits
+                "duplicate tuples", makeClaims $"[{validTuple},{validTuple}]" validLimits
+                "unsupported irVersion", makeClaims (wrap (validTuple.Replace("4.0.0", "2.0.0"))) validLimits
+                "unsupported profile", makeClaims (wrap (validTuple.Replace("morphir-ir", "other"))) validLimits
+                "unsupported codec", makeClaims (wrap (validTuple.Replace("morphir-json", "ion-binary"))) validLimits
+                "unsupported layout", makeClaims (wrap (validTuple.Replace("document-tree", "single-document"))) validLimits
+                "unsupported encoding", makeClaims (wrap (validTuple.Replace("plain", "bogus"))) validLimits
+                "32-bit bound above Int32.MaxValue", makeClaims (wrap validTuple) (validLimits.Replace("65536", "3000000000"))
+            ]
+            for label, json in cases do
+                let value = Syntax.parseJson (Text.Encoding.UTF8.GetBytes json) |> function Ok v -> v | Error e -> failtest $"Parse failed for {label}: {e}"
+                let refused =
+                    try
+                        Claims.readEmbedded "claims" value |> ignore
+                        false
+                    with _ -> true
+                Expect.isTrue refused $"Malformed modelAccess claims must be refused: {label}"
+        }
     ]
 
 

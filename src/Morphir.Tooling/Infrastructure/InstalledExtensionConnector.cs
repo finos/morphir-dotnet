@@ -176,33 +176,35 @@ internal static class InstalledExtensionConnector
             var environment = EnvironmentOf(request.Environment);
             captured = await CaptureAsync(request.InstalledId!, environment, null, ct);
             var deadline = TimeSpan.FromMilliseconds(offer.Limits.MaxCallMilliseconds);
+            Outcome<IModelAccessGuest> started;
             if (captured.IsWasm)
             {
                 var wasmLimits = RecordedGenerationAdmission.WasmLimits(request.BoundedProfile, offer.Limits);
                 wasmChannel = OpenModule(captured, wasmLoader, wasmLimits, openChannel);
                 var host = new PeerInfo(PeerKind.Cli, MepExtensionCommand.HostName, MepExtensionCommand.HostVersion);
-                var started = await MepChannelGuest.StartModelAccessAsync(wasmChannel, host, offer, deadline, ct);
-                if (started.IsError)
-                {
-                    await ((IAsyncDisposable)captured).DisposeAsync();
-                    return new Outcome<ModelAccessConnection>.Failure(GenerationFailure.One(GenerationFailureKind.Operational,
-                        started.ErrorValue.Code, started.ErrorValue.Message));
-                }
-                guest = started.ResultValue;
+                started = (await MepChannelGuest.StartModelAccessAsync(wasmChannel, host, offer, deadline, ct))
+                    .Match<MepChannelGuest, MepGuestFailure, Outcome<IModelAccessGuest>>(
+                        value => new Outcome<IModelAccessGuest>.Success(value),
+                        error => new Outcome<IModelAccessGuest>.Failure(
+                            GenerationFailure.One(GenerationFailureKind.Operational, error.Code, error.Message)));
             }
             else
             {
                 var options = MepGuestOptions.Create(captured.Activation.EntryPointPath, captured.Record.Arguments,
                     request.WorkingDirectory, deadline, Console.Error, MepExtensionCommand.HostName, MepExtensionCommand.HostVersion, environment);
-                var started = await MepGuestProcess.StartModelAccessAsync(options, offer, ct);
-                if (started.IsError)
-                {
-                    await ((IAsyncDisposable)captured).DisposeAsync();
-                    return new Outcome<ModelAccessConnection>.Failure(GenerationFailure.One(GenerationFailureKind.Operational,
-                        started.ErrorValue.Code, started.ErrorValue.Message));
-                }
-                guest = started.ResultValue;
+                started = (await MepGuestProcess.StartModelAccessAsync(options, offer, ct))
+                    .Match<MepGuestProcess, MepGuestFailure, Outcome<IModelAccessGuest>>(
+                        value => new Outcome<IModelAccessGuest>.Success(value),
+                        error => new Outcome<IModelAccessGuest>.Failure(
+                            GenerationFailure.One(GenerationFailureKind.Operational, error.Code, error.Message)));
             }
+
+            if (started is Outcome<IModelAccessGuest>.Failure failed)
+            {
+                await ((IAsyncDisposable)captured).DisposeAsync();
+                return new Outcome<ModelAccessConnection>.Failure(failed.Error);
+            }
+            guest = ((Outcome<IModelAccessGuest>.Success)started).Value;
 
             Check(captured.Record, guest.Session);
             var session = guest.Session;

@@ -1,6 +1,8 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
 using System.Collections.Immutable;
+using Morphir.Files;
+using Morphir.Mep;
 using Morphir.Tooling.Features.TaskRecords;
 
 namespace Morphir.Tooling.Features.Generate;
@@ -123,6 +125,70 @@ internal sealed class RecordedGenerationTask : IDisposable
                 catch (Exception cleanup) when (TaskFailures.IsIo(cleanup)) { primary.Data["generation.promotion_cleanup"] = cleanup; }
             }
             if (stage.Cleanup() is { } cleanupFailure) primary.Data["generation.stage_cleanup"] = cleanupFailure.Message;
+            throw;
+        }
+    }
+
+    public TaskRecord CommitFiles(VFileTree tree, CancellationToken ct)
+    {
+        if (!_prepared) throw new InvalidOperationException("The generation task has not been prepared.");
+        var values = ImmutableArray.CreateBuilder<RecordPath>();
+        string? stageDirectory = null;
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            Validate(_location, _output);
+            stageDirectory = Path.Combine(_location.Dest, "bounded-" + Guid.NewGuid().ToString("N"));
+            if (Path.Exists(stageDirectory)) throw new IOException("The private generation stage already exists.");
+            Directory.CreateDirectory(stageDirectory);
+
+            var staged = VFileTreeModule.publish(new PublishOptions(stageDirectory, ManifestMode.NoManifest), tree)
+                .Match<PublishResult, TreeWriteError, PublishResult>(
+                    published => published,
+                    failed => throw new IOException(TreeWriteErrorModule.describe(failed)));
+
+            foreach (var relative in staged.Written)
+            {
+                ct.ThrowIfCancellationRequested();
+                var path = RecordPath.Parse(relative);
+                var source = path.Under(stageDirectory);
+                var destination = path.Under(_location.Dest);
+                if (GenerationPublisher.ContainsPath(stageDirectory, destination))
+                    throw new IOException("An artifact conflicts with the private stage directory.");
+                Ordinary(source);
+                Ordinary(destination);
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                File.Move(source, destination);
+                values.Add(path);
+            }
+
+            Directory.Delete(stageDirectory, recursive: true);
+            stageDirectory = null;
+            ct.ThrowIfCancellationRequested();
+            var record = new TaskRecord
+            {
+                Task = _location.Task,
+                Module = _location.Member,
+                Inputs = [TaskId.Compile.Value],
+                Value = values.OrderBy(path => path.Value, StringComparer.Ordinal).ToImmutableArray(),
+                Installed = _installed,
+                CompletedAt = RecordTimestamp.At(_options.Time.GetUtcNow())
+            };
+            RecordFile.Write(_location.Record, record);
+            return record;
+        }
+        catch (Exception primary)
+        {
+            foreach (var path in values)
+            {
+                try { File.Delete(path.Under(_location.Dest)); }
+                catch (Exception cleanup) when (TaskFailures.IsIo(cleanup)) { primary.Data["generation.promotion_cleanup"] = cleanup; }
+            }
+            if (stageDirectory is not null && Directory.Exists(stageDirectory))
+            {
+                try { Directory.Delete(stageDirectory, recursive: true); }
+                catch (Exception cleanup) when (TaskFailures.IsIo(cleanup)) { primary.Data["generation.stage_cleanup"] = cleanup.Message; }
+            }
             throw;
         }
     }

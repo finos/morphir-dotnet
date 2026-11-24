@@ -59,9 +59,17 @@ internal static class RecordedBoundedGeneration
                 return new Outcome<GenerationSuccess>.Failure(GenerationFailure.One(GenerationFailureKind.Invocation,
                     "input-output-overlap", "Input and output paths must not overlap.", outputPath));
 
-            using var files = new RecordedTreeFiles(inputPath);
-            var revision = Guid.NewGuid().ToString("N");
             var readerLimits = RecordedGenerationAdmission.ReaderLimits(settings.BoundedProfile, settings.Limits);
+            var captured = await new BoundedModelCapture().CaptureAsync(settings.Input, readerLimits, ct);
+            if (captured is Outcome<RetainedInput>.Failure captureFailure)
+                return new Outcome<GenerationSuccess>.Failure(captureFailure.Error);
+            if (((Outcome<RetainedInput>.Success)captured).Value is not RetainedInput.Tree capturedTree)
+                return new Outcome<GenerationSuccess>.Failure(GenerationFailure.One(GenerationFailureKind.Invocation,
+                    "unsupported-input-entry", "The explicit document-tree input is not a directory.", inputPath));
+
+            var files = new CapturedTreeFiles(capturedTree);
+            var originalSha256 = ModelUpgrade.SnapshotOf(capturedTree).Hex;
+            var revision = "sha256:" + originalSha256;
             var limits = RecordedGenerationAdmission.Offer(settings.BoundedProfile, readerLimits, request.WasmModule is not null);
             var opened = DocumentTreeStore.OpenDetectedSnapshot(
                     new ReadOptions(readerLimits.MaxEntries, RecordedGenerationAdmission.DocumentByteLimit(readerLimits, limits)), () => revision, files)
@@ -83,7 +91,7 @@ internal static class RecordedBoundedGeneration
             {
                 if (fallbackToDraft1 is not null && settings.BoundedProfile != BoundedGenerationProfile.OrdersScale
                     && IsModelAccessNotAgreed(refusedGuest.Error))
-                    return await FallbackToDraft1Async(snapshot, inputPath, null, readerLimits, fallbackToDraft1);
+                    return await FallbackToDraft1Async(snapshot, inputPath, null, capturedTree, readerLimits, ct, fallbackToDraft1);
                 return new Outcome<GenerationSuccess>.Failure(refusedGuest.Error);
             }
             var connection = ((Outcome<ModelAccessConnection>.Success)connected).Value;
@@ -141,7 +149,7 @@ internal static class RecordedBoundedGeneration
                         snapshot = ((Outcome<BoundedTreeSnapshot>.Success)indexed).Value;
                         ct.ThrowIfCancellationRequested();
 
-                        stagingParent = Path.Combine(CompilePaths.RealPath(Path.GetTempPath()),
+                        stagingParent = Path.Combine(StagingTempRoot(request.Environment),
                             "morphir-bounded-stage-" + Guid.NewGuid().ToString("N"));
                         Directory.CreateDirectory(stagingParent);
                         stage = new BoundedArtifactStage(stagingParent, access.Limits,
@@ -176,7 +184,7 @@ internal static class RecordedBoundedGeneration
                 }
 
                 if (fallbackRequested)
-                    return await FallbackToDraft1Async(snapshot, inputPath, null, readerLimits, fallbackToDraft1!);
+                    return await FallbackToDraft1Async(snapshot, inputPath, null, capturedTree, readerLimits, ct, fallbackToDraft1!);
 
                 if (result is Outcome<StagedGenerationOutput>.Failure failure)
                     return Failed(failure.Error);
@@ -235,7 +243,7 @@ internal static class RecordedBoundedGeneration
     public static async Task<Outcome<GenerationSuccess>> RunAsync(CompileTaskOutput producer, BackendExtensionRequest request,
         GenerationSettings settings, MepBackendExtensionConnector connector, TaskStoreOptions taskOptions,
         IEnumerable<IGenerationBackend> registered, CancellationToken ct,
-        Func<LoadedModel, Task<Outcome<GenerationSuccess>>>? fallbackToDraft1 = null)
+        Func<LoadedModel, IGenerationPublisher, Task<Outcome<GenerationSuccess>>>? fallbackToDraft1 = null)
     {
         var target = request.Target;
         (string Id, string Version, string Transport)? backendIdentity = null;
@@ -253,12 +261,18 @@ internal static class RecordedBoundedGeneration
             var revision = Guid.NewGuid().ToString("N");
             var readerLimits = RecordedGenerationAdmission.ReaderLimits(settings.BoundedProfile, settings.Limits);
             var limits = RecordedGenerationAdmission.Offer(settings.BoundedProfile, readerLimits, request.WasmModule is not null);
-            var opened = DocumentTreeStore.OpenDetectedSnapshot(
-                    new ReadOptions(readerLimits.MaxEntries, RecordedGenerationAdmission.DocumentByteLimit(readerLimits, limits)), () => revision, files)
+            var readOptions = new ReadOptions(readerLimits.MaxEntries, RecordedGenerationAdmission.DocumentByteLimit(readerLimits, limits));
+            var opened = (settings.BoundedProfile == BoundedGenerationProfile.OrdersScale
+                    ? DocumentTreeStore.OpenPlainSnapshot(readOptions, () => revision, files)
+                    : DocumentTreeStore.OpenDetectedSnapshot(readOptions, () => revision, files))
                 .Match<BoundedTreeSnapshot, IReadOnlyList<StoreError>, Outcome<BoundedTreeSnapshot>>(
                     value => new Outcome<BoundedTreeSnapshot>.Success(value),
-                    problems => new Outcome<BoundedTreeSnapshot>.Failure(new(GenerationFailureKind.Operational,
-                        problems.Select(problem => new GenerationDiagnostic(problem.Code, problem.Message, problem.FileOrNull)).ToImmutableArray())));
+                    problems => settings.BoundedProfile == BoundedGenerationProfile.OrdersScale
+                        && problems.Any(problem => problem.Code is "tree.unsupported_context" or "context.unexpected_context")
+                        ? new Outcome<BoundedTreeSnapshot>.Failure(Refusal("generate.invalid_bounded_profile",
+                            "orders-scale requires a plain JSON v4 recorded tree."))
+                        : new Outcome<BoundedTreeSnapshot>.Failure(new(GenerationFailureKind.Operational,
+                            problems.Select(problem => new GenerationDiagnostic(problem.Code, problem.Message, problem.FileOrNull)).ToImmutableArray())));
             if (opened is Outcome<BoundedTreeSnapshot>.Failure refusedSnapshot)
                 return new Outcome<GenerationSuccess>.Failure(refusedSnapshot.Error);
             var snapshot = ((Outcome<BoundedTreeSnapshot>.Success)opened).Value;
@@ -286,7 +300,11 @@ internal static class RecordedBoundedGeneration
             {
                 if (fallbackToDraft1 is not null && settings.BoundedProfile != BoundedGenerationProfile.OrdersScale
                     && IsModelAccessNotAgreed(refusedGuest.Error))
-                    return await FallbackToDraft1Async(snapshot, producer.IrPath, producer.Ir.Version, readerLimits, fallbackToDraft1);
+                {
+                    var taskPublisher = new RecordedTaskGenerationPublisher(taskRun, producer.IrPath);
+                    return await FallbackToDraft1Async(snapshot, producer.IrPath, producer.Ir.Version, null, readerLimits, ct,
+                        model => fallbackToDraft1(model, taskPublisher));
+                }
                 return new Outcome<GenerationSuccess>.Failure(refusedGuest.Error);
             }
             var connection = ((Outcome<ModelAccessConnection>.Success)connected).Value;
@@ -379,7 +397,11 @@ internal static class RecordedBoundedGeneration
                 }
 
                 if (fallbackRequested)
-                    return await FallbackToDraft1Async(snapshot, producer.IrPath, producer.Ir.Version, readerLimits, fallbackToDraft1!);
+                {
+                    var taskPublisher = new RecordedTaskGenerationPublisher(taskRun, producer.IrPath);
+                    return await FallbackToDraft1Async(snapshot, producer.IrPath, producer.Ir.Version, null, readerLimits, ct,
+                        model => fallbackToDraft1!(model, taskPublisher));
+                }
 
                 if (result is Outcome<StagedGenerationOutput>.Failure failure)
                     return Failed(failure.Error);
@@ -447,27 +469,71 @@ internal static class RecordedBoundedGeneration
                 : failure);
     }
 
+    private static string StagingTempRoot(IReadOnlyDictionary<string, string>? environment)
+    {
+        if (environment is not null)
+        {
+            foreach (var key in new[] { "TMPDIR", "TEMP", "TMP" })
+            {
+                if (environment.TryGetValue(key, out var configured) && !string.IsNullOrWhiteSpace(configured))
+                {
+                    Directory.CreateDirectory(configured);
+                    return CompilePaths.RealPath(configured);
+                }
+            }
+        }
+        return CompilePaths.RealPath(Path.GetTempPath());
+    }
+
     private static bool IsModelAccessNotAgreed(GenerationFailure failure) =>
         failure.Diagnostics.Any(diagnostic => diagnostic.Code == "extension.unavailable"
             && string.Equals(diagnostic.Message, MepChannelGuest.ModelAccessNotAgreedMessage, StringComparison.Ordinal));
 
-    private static Task<Outcome<GenerationSuccess>> FallbackToDraft1Async(BoundedTreeSnapshot snapshot, string sourcePath,
-        SourceFormatVersion? declaredVersion, ModelReadLimits limits,
+    private static async Task<Outcome<GenerationSuccess>> FallbackToDraft1Async(BoundedTreeSnapshot snapshot, string sourcePath,
+        SourceFormatVersion? declaredVersion, RetainedInput.Tree? capturedOriginal, ModelReadLimits limits, CancellationToken ct,
         Func<LoadedModel, Task<Outcome<GenerationSuccess>>> fallbackToDraft1)
     {
-        if (!DocumentTreeStore.TryJoinSnapshot(snapshot, limits.MaxEntries, limits.MaxBytes, limits.MaxBytes,
-            out var versioned, out var stagedFiles, out var problems))
+        ct.ThrowIfCancellationRequested();
+        RetainedInput.Tree originalTree;
+        if (capturedOriginal is not null)
         {
-            return Task.FromResult<Outcome<GenerationSuccess>>(new Outcome<GenerationSuccess>.Failure(
-                new GenerationFailure(GenerationFailureKind.Operational,
-                    problems.Select(problem => new GenerationDiagnostic(problem.Code, problem.Message, problem.FileOrNull)).ToImmutableArray())));
+            originalTree = capturedOriginal;
         }
+        else
+        {
+            var captured = await new BoundedModelCapture().CaptureAsync(new ModelInput(sourcePath, InputFormat.Auto), limits, ct);
+            if (captured is Outcome<RetainedInput>.Failure captureFailure)
+                return new Outcome<GenerationSuccess>.Failure(captureFailure.Error);
+            if (((Outcome<RetainedInput>.Success)captured).Value is not RetainedInput.Tree tree)
+                return new Outcome<GenerationSuccess>.Failure(GenerationFailure.One(GenerationFailureKind.Operational,
+                    "extension.bounded_io", "The recorded document tree could not be captured.", sourcePath));
+            originalTree = tree;
+        }
+
+        ct.ThrowIfCancellationRequested();
+        if (!DocumentTreeStore.TryJoinSnapshot(snapshot, limits.MaxEntries, limits.MaxBytes, limits.MaxBytes, ct,
+            out var versioned, out _, out var problems))
+        {
+            var kind = problems.Any(problem => problem.Code == "data.lossy_conversion")
+                ? GenerationFailureKind.Semantic
+                : GenerationFailureKind.Operational;
+            return new Outcome<GenerationSuccess>.Failure(new GenerationFailure(kind,
+                problems.Select(problem => new GenerationDiagnostic(problem.Code, problem.Message, problem.FileOrNull)).ToImmutableArray()));
+        }
+
+        ct.ThrowIfCancellationRequested();
         if (declaredVersion is not null)
             versioned = new VersionedModel(declaredVersion, versioned.Distribution);
-        var retained = new RetainedInput.Tree(sourcePath,
-            stagedFiles.Select(entry => new RetainedEntry(entry.Key, entry.Value)));
-        var loaded = new LoadedModel(versioned, ModelDescriptor.From(versioned), ModelRepresentation.Json, retained);
-        return fallbackToDraft1(loaded);
+
+        var originalSha256 = ModelUpgrade.SnapshotOf(originalTree).Hex;
+        var fromCodec = snapshot.Syntax.Equals(BoundedTreeSyntax.Json) ? "morphir-json" : "morphir-yaml";
+        var origin = new ModelConversionOrigin(snapshot.PackageId, "morphir-ir", fromCodec, "sha256:" + originalSha256, originalSha256);
+        var loaded = new LoadedModel(versioned, ModelDescriptor.From(versioned), ModelRepresentation.Json, originalTree)
+        {
+            ConversionOrigin = origin,
+        };
+        ct.ThrowIfCancellationRequested();
+        return await fallbackToDraft1(loaded);
     }
 
     private static JsonElement AccessObservation(ModelReadLimits reader, ModelAccessLimits selected, MemoryUse? memory,
@@ -578,6 +644,151 @@ internal static class RecordedBoundedGeneration
         {
             if (GenerationPublisher.LinkedPath(path) is { } link)
                 throw new IOException($"The recorded tree contains a link at {link}.");
+        }
+    }
+
+    private sealed class CapturedTreeFiles : IFileProvider
+    {
+        private readonly Dictionary<string, RetainedEntry> _files;
+        private readonly Dictionary<string, ImmutableArray<IFileInfo>> _directories;
+
+        public CapturedTreeFiles(RetainedInput.Tree tree)
+        {
+            _files = new Dictionary<string, RetainedEntry>(StringComparer.Ordinal);
+            var dirs = new Dictionary<string, Dictionary<string, IFileInfo>>(StringComparer.Ordinal)
+            {
+                [""] = new Dictionary<string, IFileInfo>(StringComparer.Ordinal),
+            };
+
+            foreach (var entry in tree.Entries)
+            {
+                var normalized = Normalize(entry.RelativePath);
+                if (normalized.Length == 0) continue;
+                _files[normalized] = entry;
+
+                var segments = normalized.Split('/');
+                var current = "";
+                for (var i = 0; i < segments.Length - 1; i++)
+                {
+                    var segment = segments[i];
+                    var next = current.Length == 0 ? segment : current + "/" + segment;
+                    if (!dirs.TryGetValue(current, out var parentMap))
+                        dirs[current] = parentMap = new Dictionary<string, IFileInfo>(StringComparer.Ordinal);
+                    if (!parentMap.ContainsKey(segment))
+                        parentMap[segment] = new DirectoryEntryInfo(segment);
+                    if (!dirs.ContainsKey(next))
+                        dirs[next] = new Dictionary<string, IFileInfo>(StringComparer.Ordinal);
+                    current = next;
+                }
+
+                if (!dirs.TryGetValue(current, out var leafParent))
+                    dirs[current] = leafParent = new Dictionary<string, IFileInfo>(StringComparer.Ordinal);
+                var name = segments[^1];
+                leafParent[name] = new FileEntryInfo(name, entry);
+            }
+
+            _directories = dirs.ToDictionary(
+                pair => pair.Key,
+                pair => pair.Value
+                    .OrderBy(item => item.Key, StringComparer.Ordinal)
+                    .Select(item => item.Value)
+                    .ToImmutableArray(),
+                StringComparer.Ordinal);
+        }
+
+        public IFileInfo GetFileInfo(string subpath)
+        {
+            var normalized = Normalize(subpath);
+            if (_files.TryGetValue(normalized, out var entry))
+            {
+                var slash = normalized.LastIndexOf('/');
+                var name = slash < 0 ? normalized : normalized[(slash + 1)..];
+                return new FileEntryInfo(name, entry);
+            }
+            return new NotFoundFileInfo(subpath ?? "");
+        }
+
+        public IDirectoryContents GetDirectoryContents(string subpath)
+        {
+            var normalized = Normalize(subpath);
+            return _directories.TryGetValue(normalized, out var entries)
+                ? new CapturedDirectoryContents(entries)
+                : NotFoundDirectoryContents.Singleton;
+        }
+
+        public IChangeToken Watch(string filter) => NullChangeToken.Singleton;
+
+        private static string Normalize(string? subpath)
+        {
+            if (string.IsNullOrEmpty(subpath)) return "";
+            var normalized = subpath.Replace('\\', '/').Trim('/');
+            return normalized == "." ? "" : normalized;
+        }
+
+        private sealed class FileEntryInfo(string name, RetainedEntry entry) : IFileInfo
+        {
+            public bool Exists => true;
+            public long Length => entry.Length;
+            public string? PhysicalPath => null;
+            public string Name => name;
+            public DateTimeOffset LastModified => DateTimeOffset.UnixEpoch;
+            public bool IsDirectory => false;
+            public Stream CreateReadStream() => entry.OpenRead();
+        }
+
+        private sealed class DirectoryEntryInfo(string name) : IFileInfo
+        {
+            public bool Exists => true;
+            public long Length => -1;
+            public string? PhysicalPath => null;
+            public string Name => name;
+            public DateTimeOffset LastModified => DateTimeOffset.UnixEpoch;
+            public bool IsDirectory => true;
+            public Stream CreateReadStream() => throw new InvalidOperationException("Cannot open a read stream for a directory.");
+        }
+
+        private sealed class CapturedDirectoryContents(ImmutableArray<IFileInfo> entries) : IDirectoryContents
+        {
+            public bool Exists => true;
+            public IEnumerator<IFileInfo> GetEnumerator() => ((IEnumerable<IFileInfo>)entries).GetEnumerator();
+            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+        }
+    }
+
+    private sealed class RecordedTaskGenerationPublisher(RecordedGenerationTask taskRun, string sourcePath) : IGenerationPublisher
+    {
+        public async ValueTask<Outcome<GenerationPublication>> PublishAsync(GenerationArtifacts artifacts, ModelInput input,
+            PublicationPolicy policy, CancellationToken ct)
+        {
+            try
+            {
+                ct.ThrowIfCancellationRequested();
+                taskRun.Prepare();
+                taskRun.CommitFiles(artifacts.Tree, ct);
+                var installed = await taskRun.InstallAsync(ct);
+                if (installed is Outcome<InstallReport>.Failure refused)
+                    return new Outcome<GenerationPublication>.Failure(refused.Error);
+                var install = ((Outcome<InstallReport>.Success)installed).Value;
+                return new Outcome<GenerationPublication>.Success(
+                    new GenerationPublication(install.Copied, install.Written, install.Unchanged, install.Removed));
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return new Outcome<GenerationPublication>.Failure(
+                    GenerationFailure.One(GenerationFailureKind.Cancelled, "cancelled", "Generation was cancelled.", sourcePath));
+            }
+            catch (Exception fault) when (fault is IOException or UnauthorizedAccessException)
+            {
+                var failure = GenerationFailure.One(GenerationFailureKind.Operational, "extension.bounded_io", fault.Message, sourcePath);
+                foreach (var key in new[] { "generation.promotion_cleanup", "generation.stage_cleanup" })
+                    if (fault.Data[key] is { } cleanup)
+                        failure = failure with
+                        {
+                            Diagnostics = failure.Diagnostics.Add(new("extension.artifact_cleanup",
+                                cleanup is Exception error ? error.Message : cleanup.ToString()!))
+                        };
+                return new Outcome<GenerationPublication>.Failure(failure);
+            }
         }
     }
 }

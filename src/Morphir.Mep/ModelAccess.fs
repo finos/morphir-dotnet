@@ -136,16 +136,20 @@ module ModelAccess =
             Error
                 "The extension's model-access selection exceeds the offer or reorders or adds tuples."
 
-    let internal validatedOffer (offered: ModelAccessSupport) =
+    /// Validates a static or offered model-access declaration (non-empty unique supported tuples and valid limits).
+    let validateSupport (support: ModelAccessSupport) : Result<ModelAccessSupport, string> =
         let snapshot =
-            { offered with
-                Tuples = System.Array.AsReadOnly(Seq.toArray offered.Tuples)
+            { support with
+                Tuples = System.Array.AsReadOnly(Seq.toArray support.Tuples)
             }
 
         if snapshot.Tuples.Count = 0 then
-            invalidArg "modelAccess" "A model-access offer must contain a supported tuple."
+            Error "A model-access offer must contain a supported tuple."
+        else
+            verifySelection snapshot snapshot
 
-        match verifySelection snapshot snapshot with
+    let internal validatedOffer (offered: ModelAccessSupport) =
+        match validateSupport offered with
         | Ok offer -> offer
         | Error message -> invalidArg "modelAccess" message
 

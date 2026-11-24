@@ -7,6 +7,7 @@ using Morphir.Compilation.Mep;
 using Morphir.Extensions;
 using Morphir.Files;
 using Morphir.IR.Model;
+using Morphir.Ion;
 using Morphir.Mep;
 
 namespace Morphir.Tooling.Features.Generate;
@@ -226,10 +227,19 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
             foreach (var kind in new[] { DistributionKind.Library, DistributionKind.Specs, DistributionKind.Application })
                 capabilities.Add(new(ModelFamily.V4, SourceFormatVersions.Create("4", "4.0.0"), kind));
         }
+        var classicVersions = new List<string>();
+        if (agreed.Contains(MepGenerationTransport.Classic31Tuple))
+            classicVersions.Add("3.1.0");
         if (agreed.Contains(MepGenerationTransport.ClassicTuple))
         {
+            classicVersions.Add("3");
+            classicVersions.Add("3.0.0");
+        }
+        if (classicVersions.Count > 0)
+        {
+            var versions = SourceFormatVersions.Create(classicVersions[0], classicVersions.Skip(1).ToArray());
             foreach (var kind in new[] { DistributionKind.Library, DistributionKind.Specs })
-                capabilities.Add(new(ModelFamily.Classic, SourceFormatVersions.Create("3", "3.0.0"), kind));
+                capabilities.Add(new(ModelFamily.Classic, versions, kind));
         }
 
         var descriptor = new BackendDescriptor(id, name, options.Target, capabilities) { Description = description };
@@ -264,34 +274,43 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
         var offered = $"The host offers: {Tuples(MepGenerationTransport.Tuples)}. The session agreed: {Tuples(_agreed)}.";
         if (!MepGenerationTransport.TryTupleFor(model.Descriptor.Family, model.Descriptor.Version.Text, out var tuple))
             return Fail(GenerationFailureKind.Operational, "extension.tuple_unavailable",
-                $"Extension {Identity}: the model ({label}) has no generateModel tuple: the host sends JSON IR only for IR 4.0.0 and 3.0.0. {offered}");
+                $"Extension {Identity}: the model ({label}) has no generateModel tuple: the host sends JSON IR only for IR 4.0.0, 3.1.0 and 3.0.0. {offered}");
         if (!_agreed.Contains(tuple))
             return Fail(GenerationFailureKind.Operational, "extension.tuple_unavailable",
                 $"Extension {Identity}: the model ({label}) needs the generateModel tuple {tuple}, which the session did not agree. {offered}");
 
         ReadOnlyMemory<byte> bytes;
+        string modelId;
         GenerationDiagnostic? convertedDiagnostic = null;
-        if (model.Representation == ModelRepresentation.Json && model.Original is RetainedInput.File file && model.Lineage is null)
+        if (model.Representation == ModelRepresentation.Json && model.Original is RetainedInput.File file && model.Lineage is null && model.ConversionOrigin is null)
         {
             bytes = file.Entry.Memory;
             if (bytes.Span.StartsWith(Utf8Bom)) bytes = bytes[Utf8Bom.Length..];
+            modelId = "sha256:" + Sha256Digest.Compute(bytes.Span).Value;
         }
         else
         {
+            if (VerifyLosslessConversion(model) is { } lossReason)
+                return Fail(GenerationFailureKind.Semantic, "data.lossy_conversion",
+                    $"Extension {Identity}: refusing lossy conversion of {label} to {tuple}: {lossReason}. Lossy conversion is refused by default.");
             if (!MepGenerationTransport.TryWriteSingleDocumentJson(model.Model, out var convertedBytes, out var writeError))
-                return Fail(GenerationFailureKind.Operational, "data.lossy_conversion",
+                return Fail(GenerationFailureKind.Semantic, "data.lossy_conversion",
                     $"Extension {Identity}: the model ({label}) could not be converted losslessly to {tuple}: {writeError}");
             bytes = convertedBytes;
-            var originalSha256 = ModelUpgrade.SnapshotOf(model.Original).Hex;
+            var originalSha256 = model.ConversionOrigin?.PayloadSha256
+                ?? (model.Original is RetainedInput.File origFile
+                    ? Sha256Digest.Compute(origFile.Entry.Memory.Span).Value
+                    : ModelUpgrade.SnapshotOf(model.Original).Hex);
+            modelId = model.ConversionOrigin?.ModelId ?? ("sha256:" + originalSha256);
             var convertedSha256 = Sha256Digest.Compute(bytes.Span).Value;
             convertedDiagnostic = ConversionDiagnostic(model, tuple, source, originalSha256, convertedSha256, Identity);
         }
 
         // The envelope, then its admission against the agreed encoded, decoded, depth and node limits: the host sends
         // only what the session admits. Both are F# results, read through their Match extension.
-        var revision = "sha256:" + Sha256Digest.Compute(bytes.Span).Value;
+        // ModelTransport.CreateDerivedEnvelope preserves modelId and derives revision = sha256:<converted-digest>.
         MorphirModel? envelope = null;
-        var refusal = ModelTransport.CreateDerivedEnvelope(tuple, revision, bytes).Match<MorphirModel, EnvelopeFailure, Outcome<GenerationArtifacts>?>(
+        var refusal = ModelTransport.CreateDerivedEnvelope(tuple, modelId, bytes).Match<MorphirModel, EnvelopeFailure, Outcome<GenerationArtifacts>?>(
             made => ModelTransport.Admit(tuple, _limits, made).Match<AdmittedModel, AdmissionFailure, Outcome<GenerationArtifacts>?>(
                 _ =>
                 {
@@ -334,22 +353,86 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
                     Diagnostics = success.Value.Diagnostics.Insert(0, convertedDiagnostic)
                 });
         }
+        else if (outcome is Outcome<GenerationArtifacts>.Failure failure && convertedDiagnostic is not null)
+        {
+            return new Outcome<GenerationArtifacts>.Failure(failure.Error with
+            {
+                Diagnostics = failure.Error.Diagnostics.Insert(0, convertedDiagnostic)
+            });
+        }
         return outcome;
+    }
+
+    private static readonly FrozenSet<string> KnownIonHeaderMembers = new[]
+    {
+        "critical",
+        "dependencies",
+        "entryPoints",
+        "formatVersion",
+        "ionVersion",
+        "kind",
+        "modules",
+        "packageName",
+        "pathBudget",
+    }.ToFrozenSet(StringComparer.Ordinal);
+
+    private static string? VerifyLosslessConversion(LoadedModel model)
+    {
+        if (model.Representation is not (ModelRepresentation.IonText or ModelRepresentation.IonBinary or ModelRepresentation.IonTree))
+            return null;
+
+        ReadOnlyMemory<byte>? headerBytes = model.Original switch
+        {
+            RetainedInput.File file => file.Entry.Memory,
+            RetainedInput.Tree tree => tree.Entries.FirstOrDefault(entry => entry.RelativePath == "manifest.ion")?.Memory,
+            _ => null,
+        };
+        if (headerBytes is null) return null;
+
+        return IonReader.read(new IonReadLimits(int.MaxValue, 128, 1_000_000), headerBytes.Value)
+            .Match(
+                values =>
+                {
+                    if (values.IsEmpty) return null;
+                    var header = values.Head;
+                    foreach (var annotation in header.Annotations)
+                    {
+                        if (annotation is not IonSymbol.Text text || text.Item != "morphir")
+                            return "Ion header carries extra annotations that JSON IR cannot preserve";
+                    }
+                    if (header.Data is not IonData.Struct headerStruct) return null;
+                    foreach (var field in headerStruct.Item)
+                    {
+                        var (symbol, fieldValue) = field;
+                        if (symbol is not IonSymbol.Text name)
+                            return "Ion header carries an unnamed symbol-zero member that JSON IR cannot preserve";
+                        if (!KnownIonHeaderMembers.Contains(name.Item))
+                            return $"Ion header carries unknown noncritical member '{name.Item}' that JSON IR cannot preserve";
+                        if (name.Item == "critical" && fieldValue.Data is IonData.List criticalList && !criticalList.Item.IsEmpty)
+                            return "Ion header carries a non-empty 'critical' list that JSON IR cannot preserve";
+                    }
+                    return null;
+                },
+                _ => "the retained Ion source could not be inspected to prove lossless JSON conversion");
     }
 
     private static GenerationDiagnostic ConversionDiagnostic(LoadedModel model, ModelTransportTuple tuple,
         string source, string originalSha256, string convertedSha256, string identity)
     {
-        var fromProfile = "morphir-ir";
-        var fromCodec = model.Representation switch
+        var origin = model.ConversionOrigin;
+        var fromProfile = origin?.Profile ?? "morphir-ir";
+        var fromCodec = origin?.Codec ?? model.Representation switch
         {
             ModelRepresentation.IonBinary => "ion-binary",
             ModelRepresentation.IonText => "ion-text",
-            ModelRepresentation.IonTree => "ion-tree",
-            ModelRepresentation.Json when model.Original is RetainedInput.Tree => "document-tree",
+            ModelRepresentation.IonTree => model.Original is RetainedInput.Tree ionTree
+                && ionTree.Entries.FirstOrDefault(entry => entry.RelativePath == "manifest.ion") is { } manifest
+                && manifest.Memory.Span.StartsWith(new byte[] { 0xE0, 0x01, 0x00, 0xEA })
+                    ? "ion-binary"
+                    : "ion-text",
             _ => "morphir-json",
         };
-        var fromRevision = "sha256:" + originalSha256;
+        var fromRevision = origin?.Revision ?? ("sha256:" + originalSha256);
         var toCodec = tuple.Codec.ToString();
         var toRevision = "sha256:" + convertedSha256;
 

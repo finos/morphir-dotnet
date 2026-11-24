@@ -81,9 +81,9 @@ public static class GenerateHandler
                         Environment = command.Context.Environment,
                     };
                     var connector = backendExtensions as MepBackendExtensionConnector ?? new MepBackendExtensionConnector();
-                    Func<LoadedModel, Task<Outcome<GenerationSuccess>>>? fallback = settings.BoundedProfile == BoundedGenerationProfile.OrdersScale
+                    Func<LoadedModel, IGenerationPublisher, Task<Outcome<GenerationSuccess>>>? fallback = settings.BoundedProfile == BoundedGenerationProfile.OrdersScale
                         ? null
-                        : model => RunWithExtension(configured, boundedTarget.Id, command.Context, model, settings, publisher, ct, logger, connector, registered);
+                        : (model, targetPublisher) => RunWithExtension(configured, boundedTarget.Id, command.Context, model, settings, targetPublisher, ct, logger, connector, registered);
                     return await RecordedBoundedGeneration.RunAsync(recorded.Output, request, settings,
                         connector, recorded.Options, registered, ct, fallback);
                 }
@@ -234,7 +234,13 @@ public static class GenerationStages
             var kind = ModelLabels.Kind(model.Model.Kind);
             ct.ThrowIfCancellationRequested();
             var publication = await publisher.PublishAsync(artifacts, settings.Input, settings.Publication, ct);
-            if (publication is Outcome<GenerationPublication>.Failure publicationFailure) return Failed(publicationFailure.Error, backendIdentity);
+            if (publication is Outcome<GenerationPublication>.Failure publicationFailure)
+            {
+                var carried = artifacts.Diagnostics.IsEmpty
+                    ? publicationFailure.Error
+                    : publicationFailure.Error with { Diagnostics = artifacts.Diagnostics.AddRange(publicationFailure.Error.Diagnostics) };
+                return Failed(carried, backendIdentity);
+            }
             var receipt = ((Outcome<GenerationPublication>.Success)publication).Value;
             return new Outcome<GenerationSuccess>.Success(new(backend.Descriptor.Target.Value, backend.Descriptor.Id.Value, model.Original.SourcePath,
                 settings.Publication.OutputDirectory, model.Model.SourceVersion.Text, family, kind,

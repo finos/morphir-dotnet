@@ -2340,4 +2340,38 @@ let discoveryCacheTests =
                 | Result.Error errors ->
                     Expect.equal (errors |> Seq.map _.Code |> Seq.toList) [ "context.undeclared_schema" ] $"code for {file}"
         }
+        test "OpenDetectedSnapshot detects mixed plain manifest with contextual member files from compaction writer" {
+            let tree = V4DocumentTree.split Morphir.Models.TestSupport.DistributionMother.longNameUsedOften
+            let options = { WriteOptions.defaults with Compact = Some CompactMode.Names }
+            let written = DocumentTreeStore.write options (StoredTree.V4Tree tree) |> read
+            let plainFiles = DocumentTreeStore.plainFilesOf written
+            Expect.contains plainFiles "manifest.json" "Compaction leaves manifest.json plain when no alias saves bytes"
+            let provider = VFileProviders.asFileProvider written
+            let snapshot =
+                DocumentTreeStore.openDetectedSnapshot(ReadOptions.defaults, System.Func<string>(fun () -> "r1"), provider)
+                |> read
+            Expect.equal snapshot.NameEncoding BoundedTreeEncoding.ContextualDraft1 "Mixed tree negotiates ContextualDraft1"
+            Expect.equal snapshot.Syntax BoundedTreeSyntax.Json "JSON syntax"
+            Expect.equal snapshot.IrVersion "4.0.0" "v4 IR"
+        }
+        test "OpenDetectedSnapshot refuses an undeclared schema on a member file beneath a plain manifest" {
+            let prefix = FixtureCatalog.BoundedOrders.Directory + "v4/plain-json/"
+            let badMember = """{"$schema":"https://example.org/unknown.schema.json","context":{},"document":{"formatVersion":4}}"""
+            let files =
+                FixtureCatalog.BoundedOrders.Files
+                |> Seq.filter (fun entry -> entry.RelativePath.StartsWith(prefix, System.StringComparison.Ordinal))
+                |> Seq.map (fun entry ->
+                    let location = entry.RelativePath.Substring(prefix.Length)
+                    if location = "pkg/acme/orders/domain/order.value.json" then
+                        location, VFile.ofText location badMember
+                    else
+                        location, VFile.ofBytes location (System.ReadOnlyMemory(FixtureCatalog.ReadBytes entry)))
+                |> Map.ofSeq
+                |> VFileTree.fromFileMap
+                |> VFileProviders.asFileProvider
+            match DocumentTreeStore.openDetectedSnapshot(ReadOptions.defaults, System.Func<string>(fun () -> "r1"), files) with
+            | Ok _ -> failtest "Expected context.undeclared_schema refusal for member file"
+            | Result.Error errors ->
+                Expect.equal (errors |> Seq.map _.Code |> Seq.toList) [ "context.undeclared_schema" ] "Member undeclared schema refused"
+        }
     ]

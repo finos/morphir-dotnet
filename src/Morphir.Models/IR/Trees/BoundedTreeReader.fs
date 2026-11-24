@@ -382,8 +382,7 @@ module internal BoundedTreeReader =
         random.GetBytes key
         key
 
-    let private openTreeCore
-        (detectEncoding: bool)
+    let openTreeWithEncoding
         encoding
         byteLimit
         (source: TreeFileSource.SnapshotSource)
@@ -395,20 +394,13 @@ module internal BoundedTreeReader =
             refuse "tree.invalid_limit" None "A document byte limit must be positive."
         else
             let revision = source.Revision()
-            let readEncoding = if detectEncoding then BoundedTreeEncoding.ContextualDraft1 else encoding
 
             atRevision
                 source
                 revision
                 (fun () ->
-                    readRoot readEncoding ContextLimits.draft1.MaxDepth None byteLimit None source None Int32.MaxValue "manifest"
+                    readRoot encoding ContextLimits.draft1.MaxDepth None byteLimit None source None Int32.MaxValue "manifest"
                     |> Result.bind (fun (profile, location, file) ->
-                        let resolvedEncoding =
-                            if detectEncoding then
-                                if file.Input.Context.IsSome then BoundedTreeEncoding.ContextualDraft1 else BoundedTreeEncoding.Plain
-                            else
-                                encoding
-
                         let decode document =
                             if TreeFileSource.isClassicManifest document then
                                 ClassicTreeFiles.readManifest document
@@ -435,25 +427,12 @@ module internal BoundedTreeReader =
                             DocumentDepthLimit = ContextLimits.draft1.MaxDepth
                             DocumentNodeLimit = None
                             Work = None
-                            Encoding = resolvedEncoding
+                            Encoding = encoding
                             Profile = profile
                             Manifest = manifest
                         })
                     )
                 )
-
-    let openTreeWithEncoding
-        encoding
-        byteLimit
-        (source: TreeFileSource.SnapshotSource)
-        : Result<BoundedTreeSnapshot, StoreError list> =
-        openTreeCore false encoding byteLimit source
-
-    let openTreeDetected
-        byteLimit
-        (source: TreeFileSource.SnapshotSource)
-        : Result<BoundedTreeSnapshot, StoreError list> =
-        openTreeCore true BoundedTreeEncoding.Plain byteLimit source
 
     let openTree byteLimit source =
         openTreeWithEncoding BoundedTreeEncoding.Plain byteLimit source
@@ -1686,6 +1665,148 @@ module internal BoundedTreeReader =
                             | BoundedTreeInventoryEntry.ModuleEntry item -> writeModule item
                             | _ -> invalidDocumentSelection ()
                             )
+                    )
+                )
+
+    let openTreeDetected
+        byteLimit
+        (source: TreeFileSource.SnapshotSource)
+        : Result<BoundedTreeSnapshot, StoreError list> =
+        if byteLimit <= 0L then
+            refuse "tree.invalid_limit" None "A document byte limit must be positive."
+        else
+            let revision = source.Revision()
+
+            atRevision
+                source
+                revision
+                (fun () ->
+                    readRoot
+                        BoundedTreeEncoding.ContextualDraft1
+                        ContextLimits.draft1.MaxDepth
+                        None
+                        byteLimit
+                        None
+                        source
+                        None
+                        Int32.MaxValue
+                        "manifest"
+                    |> Result.bind (fun (profile, location, file) ->
+                        let manifestHasContext = file.Input.Context.IsSome
+
+                        let decode document =
+                            if TreeFileSource.isClassicManifest document then
+                                ClassicTreeFiles.readManifest document
+                                |> Result.map BoundedTreeManifest.Classic
+                            else
+                                V4TreeFiles.readManifest document
+                                |> Result.map BoundedTreeManifest.V4
+
+                        expandRoot
+                            byteLimit
+                            (MorphirFile.familyOf file.Input.Document)
+                            location
+                            ContextExpansion.Projection.Complete
+                            file
+                        |> Result.bind (decodeAt location decode)
+                        |> Result.bind (validateManifest location)
+                        |> Result.bind (fun manifest ->
+                            let candidate: BoundedTreeSnapshot = {
+                                Source = source
+                                Revision = revision
+                                Identity = obj ()
+                                CursorKey = newCursorKey ()
+                                ByteLimit = byteLimit
+                                InventoryByteLimit = byteLimit
+                                DocumentDepthLimit = ContextLimits.draft1.MaxDepth
+                                DocumentNodeLimit = None
+                                Work = None
+                                Encoding = BoundedTreeEncoding.ContextualDraft1
+                                Profile = profile
+                                Manifest = manifest
+                            }
+
+                            if manifestHasContext then
+                                Ok candidate
+                            else
+                                let mutable foundContextual = false
+
+                                let checkDocument documentId =
+                                    if foundContextual then
+                                        Ok()
+                                    else
+                                        let inspectFile (doc: BoundedTreeFile) =
+                                            if doc.Input.Context.IsSome then
+                                                foundContextual <- true
+
+                                            Ok()
+
+                                        withScopedDocument
+                                            documentId
+                                            candidate.ByteLimit
+                                            candidate.DocumentNodeLimit
+                                            candidate
+                                            (fun _ doc -> inspectFile doc)
+                                            (fun _ _ _ _ _ doc -> inspectFile doc)
+                                            (fun _ _ _ _ doc -> inspectFile doc)
+
+                                let scanPages selection handleEntry =
+                                    let mutable continuation = None
+                                    let mutable pending = true
+                                    let mutable result = Ok()
+
+                                    while pending && not foundContextual && Result.isOk result do
+                                        match pageInventory selection 64 continuation candidate with
+                                        | Error errors -> result <- Error errors
+                                        | Ok page ->
+                                            result <-
+                                                page.Entries
+                                                |> List.fold
+                                                    (fun prior entry ->
+                                                        prior
+                                                        |> Result.bind (fun () ->
+                                                            if foundContextual then Ok() else handleEntry entry
+                                                        )
+                                                    )
+                                                    (Ok())
+
+                                            continuation <- page.Continuation
+                                            pending <- continuation.IsSome
+
+                                    result
+
+                                let scanModule (item: BoundedTreeModule) =
+                                    let moduleId = item.DocumentId
+
+                                    checkDocument moduleId
+                                    |> Result.bind (fun () ->
+                                        if foundContextual then
+                                            Ok()
+                                        else
+                                            scanPages
+                                                moduleId
+                                                (function
+                                                | BoundedTreeInventoryEntry.MemberEntry(memberInfo, _) when
+                                                    memberInfo.DocumentId = moduleId
+                                                    ->
+                                                    Ok()
+                                                | BoundedTreeInventoryEntry.MemberEntry(memberInfo, _) ->
+                                                    checkDocument memberInfo.DocumentId
+                                                | _ -> invalidDocumentSelection ())
+                                    )
+
+                                scanPages
+                                    "root"
+                                    (function
+                                    | BoundedTreeInventoryEntry.ModuleEntry item -> scanModule item
+                                    | _ -> invalidDocumentSelection ())
+                                |> Result.map (fun () ->
+                                    if foundContextual then
+                                        candidate
+                                    else
+                                        { candidate with Encoding = BoundedTreeEncoding.Plain }
+                                )
+                        )
                     )
                 )
 

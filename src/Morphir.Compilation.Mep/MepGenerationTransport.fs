@@ -33,16 +33,20 @@ type MepGenerationTransport =
     // see this type before its initialiser has finished, and the init check then throws (FailStaticInit). With no
     // static field the type has no initialiser to meet. The tuples are records, so each call gives an equal value.
     static let v4 () = json "4.0.0"
+    static let classic31 () = json "3.1.0"
     static let classic () = json "3.0.0"
 
     /// <summary>The JSON IR 4.0.0 tuple: an IR v4 model with formatVersion 4 or "4.0.0".</summary>
     static member V4Tuple = v4 ()
 
+    /// <summary>The JSON IR 3.1.0 tuple: a classic model with formatVersion "3.1.0".</summary>
+    static member Classic31Tuple = classic31 ()
+
     /// <summary>The JSON IR 3.0.0 tuple: a classic model with formatVersion 3 or "3.0.0".</summary>
     static member ClassicTuple = classic ()
 
-    /// <summary>The tuples a host offers, IR 4.0.0 first.</summary>
-    static member Tuples: IReadOnlyList<ModelTransportTuple> = [| v4 (); classic () |]
+    /// <summary>The tuples a host offers, IR 4.0.0, 3.1.0, then 3.0.0.</summary>
+    static member Tuples: IReadOnlyList<ModelTransportTuple> = [| v4 (); classic31 (); classic () |]
 
     /// <summary>
     /// The tuple that a model of the family and declared format version needs, for C# callers: true and the tuple, or
@@ -71,6 +75,8 @@ type MepGenerationTransport =
                     || version = "3.0.0"
                 then
                     Some(classic ())
+                elif version = "3.1.0" then
+                    Some(classic31 ())
                 else
                     None
 
@@ -101,6 +107,8 @@ type MepGenerationTransport =
             | DistributionModel.Classic distribution ->
                 let profile =
                     match distribution with
+                    | Morphir.IR.Classic.Distribution.Library _ when model.SourceVersion.Text = "3.1.0" ->
+                        { Morphir.Json.Classic.ClassicWireProfile.v3 with Release = Some "3.1.0" }
                     | Morphir.IR.Classic.Distribution.Library _ -> Morphir.Json.Classic.ClassicWireProfile.v3
                     | Morphir.IR.Classic.Distribution.Specs _ -> Morphir.Json.Classic.ClassicWireProfile.v3_1_0
 

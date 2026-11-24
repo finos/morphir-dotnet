@@ -362,8 +362,10 @@ module DocumentTreeStore =
 
     /// <summary>
     /// Exports an admitted snapshot as expanded JSON documents within <paramref name="maxDocumentBytes"/>,
-    /// <paramref name="maxTotalBytes"/> and <paramref name="maxFiles"/>, then joins it losslessly into a typed
-    /// <see cref="Morphir.IR.Model.VersionedModel"/> alongside the staged expanded file bytes. For C# callers.
+    /// <paramref name="maxTotalBytes"/> and <paramref name="maxFiles"/>, verifies that no tree metadata
+    /// (<c>$meta</c>, manifest <c>version</c>/<c>created</c>, or ignored files) would be silently dropped,
+    /// then joins it losslessly into a typed <see cref="Morphir.IR.Model.VersionedModel"/> alongside the staged
+    /// expanded file bytes. For C# callers.
     /// </summary>
     [<CompiledName("TryJoinSnapshot")>]
     let tryJoinSnapshot
@@ -372,21 +374,39 @@ module DocumentTreeStore =
             maxFiles: int,
             maxDocumentBytes: int64,
             maxTotalBytes: int64,
+            cancellationToken: System.Threading.CancellationToken,
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)>] model: byref<Morphir.IR.Model.VersionedModel>,
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)>] files: byref<System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string, byte array>>>,
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] problems: byref<System.Collections.Generic.IReadOnlyList<StoreError>>
         ) : bool =
+        cancellationToken.ThrowIfCancellationRequested()
         let staged = ResizeArray<string * Morphir.Files.VFile>()
         let retained = ResizeArray<System.Collections.Generic.KeyValuePair<string, byte array>>()
 
         let stageFile (doc: BoundedTreeExportDocument) =
+            cancellationToken.ThrowIfCancellationRequested()
+
             if staged.Count >= maxFiles then
                 Error [ error "tree.too_many_files" (Some doc.File) $"The tree exceeds its limit of {maxFiles} files." ]
             else
                 let bytes = doc.Bytes.ToArray()
-                staged.Add(doc.File, Morphir.Files.VFile.ofBytes doc.File (System.ReadOnlyMemory bytes))
-                retained.Add(System.Collections.Generic.KeyValuePair(doc.File, bytes))
-                Ok()
+                use parsed = System.Text.Json.JsonDocument.Parse(bytes)
+                let mutable meta = Unchecked.defaultof<System.Text.Json.JsonElement>
+
+                if
+                    parsed.RootElement.ValueKind = System.Text.Json.JsonValueKind.Object
+                    && parsed.RootElement.TryGetProperty("$meta", &meta)
+                then
+                    Error [
+                        error
+                            "data.lossy_conversion"
+                            (Some doc.File)
+                            $"Converting document tree to single-document JSON would drop '$meta' in {doc.File}; lossy conversion is refused by default."
+                    ]
+                else
+                    staged.Add(doc.File, Morphir.Files.VFile.ofBytes doc.File (System.ReadOnlyMemory bytes))
+                    retained.Add(System.Collections.Generic.KeyValuePair(doc.File, bytes))
+                    Ok()
 
         let exportLimits: BoundedTreeExportLimits = {
             MaxDocumentBytes = maxDocumentBytes
@@ -397,23 +417,48 @@ module DocumentTreeStore =
         let joined =
             BoundedTreeReader.writeExpandedTree exportLimits stageFile snapshot
             |> Result.bind (fun () ->
+                cancellationToken.ThrowIfCancellationRequested()
                 let tree = Morphir.Files.VFileTree.fromFileMap (Map.ofSeq staged)
                 let readOptions: ReadOptions = { MaxFiles = maxFiles; MaxFileBytes = maxDocumentBytes }
                 read readOptions tree
             )
-            |> Result.bind (fun (stored, _) ->
-                let version = Morphir.IR.Model.SourceFormatVersion.Create snapshot.IrVersion
-                match stored with
-                | V4Tree v4 ->
-                    V4DocumentTree.join v4
-                    |> Result.map (fun dist ->
-                        ({ SourceVersion = version; Distribution = Morphir.IR.Model.DistributionModel.V4 dist }: Morphir.IR.Model.VersionedModel))
-                    |> Result.mapError (List.map (fun err -> error err.Code None err.Message))
-                | ClassicTree classic ->
-                    ClassicDocumentTree.join classic
-                    |> Result.map (fun dist ->
-                        ({ SourceVersion = version; Distribution = Morphir.IR.Model.DistributionModel.Classic dist }: Morphir.IR.Model.VersionedModel))
-                    |> Result.mapError (List.map (fun err -> error err.Code None err.Message))
+            |> Result.bind (fun (stored, report) ->
+                cancellationToken.ThrowIfCancellationRequested()
+
+                let lossyNotice =
+                    report.Notices
+                    |> List.tryPick (function
+                        | DroppedManifestMember memberName ->
+                            Some(
+                                error
+                                    "data.lossy_conversion"
+                                    (Some "manifest.json")
+                                    $"Converting document tree to single-document JSON would drop manifest member '{memberName}'; lossy conversion is refused by default."
+                            )
+                        | IgnoredFile file ->
+                            Some(
+                                error
+                                    "data.lossy_conversion"
+                                    (Some file)
+                                    $"Converting document tree to single-document JSON would drop '{file}'; lossy conversion is refused by default."
+                            ))
+
+                match lossyNotice with
+                | Some loss -> Error [ loss ]
+                | None ->
+                    let version = Morphir.IR.Model.SourceFormatVersion.Create snapshot.IrVersion
+
+                    match stored with
+                    | V4Tree v4 ->
+                        V4DocumentTree.join v4
+                        |> Result.map (fun dist ->
+                            ({ SourceVersion = version; Distribution = Morphir.IR.Model.DistributionModel.V4 dist }: Morphir.IR.Model.VersionedModel))
+                        |> Result.mapError (List.map (fun err -> error err.Code None err.Message))
+                    | ClassicTree classic ->
+                        ClassicDocumentTree.join classic
+                        |> Result.map (fun dist ->
+                            ({ SourceVersion = version; Distribution = Morphir.IR.Model.DistributionModel.Classic dist }: Morphir.IR.Model.VersionedModel))
+                        |> Result.mapError (List.map (fun err -> error err.Code None err.Message))
             )
 
         match joined with

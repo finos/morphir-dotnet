@@ -243,7 +243,7 @@ public sealed class MepDocumentTreeGenerationTests
             new RegisteredBackendResolver([]), new GenerationPublisher(), new MepBackendExtensionConnector(), [], default);
 
         var failure = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
-        failure.Diagnostics.Should().Contain(d => d.Code == "extension.bounded_io");
+        failure.Diagnostics.Should().Contain(d => d.Code == "unsupported-input-entry");
         Directory.Exists(outputDir).Should().BeFalse();
     }
 
@@ -270,8 +270,23 @@ public sealed class MepDocumentTreeGenerationTests
             path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
             """);
 
+        var tempRoot = Morphir.Tooling.Features.Compile.CompilePaths.RealPath(sandbox.PathOf("stage-tmp"));
+        Directory.CreateDirectory(tempRoot);
+        var env = new Dictionary<string, string>(SandboxEnvironment(sandbox), StringComparer.OrdinalIgnoreCase)
+        {
+            ["TMPDIR"] = tempRoot,
+            ["TEMP"] = tempRoot,
+            ["TMP"] = tempRoot,
+        };
+
         // Failure case: guest returns failed step after staging a partial chunk
-        var failingGuest = new OrdersChannelGuest("4.0.0", ModelAccessCodec.MorphirJson, ModelAccessEncoding.Plain, failOnRound: 2);
+        string? observedFailureStage = null;
+        var failingGuest = new OrdersChannelGuest("4.0.0", ModelAccessCodec.MorphirJson, ModelAccessEncoding.Plain, failOnRound: 2,
+            onRound: round =>
+            {
+                if (round == 1)
+                    observedFailureStage = Directory.GetDirectories(tempRoot, "morphir-bounded-stage-*").SingleOrDefault();
+            });
         var connector = new MepBackendExtensionConnector(null, (_, _) => (failingGuest, "", ""));
         var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
             new FileSystemCompileConfigurationLoader(),
@@ -279,25 +294,82 @@ public sealed class MepDocumentTreeGenerationTests
 
         var failed = await GenerateHandler.Handle(
             new GenerateRequest(new GenerateOverrides(Input: treeRoot, Target: "text", Output: outputDir) { Project = projectRoot },
-                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+                new InvocationContext(projectRoot) { Environment = env }),
             resolver, new RejectingLoader(), new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
 
         failed.Should().BeOfType<Outcome<GenerationSuccess>.Failure>();
         Directory.Exists(outputDir).Should().BeFalse();
+        observedFailureStage.Should().NotBeNull("the private staging directory should exist during the bounded session");
+        Directory.Exists(observedFailureStage!).Should().BeFalse("the private staging directory itself must be removed on failure");
 
         // Cancellation case
+        string? observedCancelStage = null;
         using var cts = new CancellationTokenSource();
         var cancellingGuest = new OrdersChannelGuest("4.0.0", ModelAccessCodec.MorphirJson, ModelAccessEncoding.Plain,
-            onRound: _ => cts.Cancel());
+            onRound: round =>
+            {
+                if (round == 1)
+                    observedCancelStage = Directory.GetDirectories(tempRoot, "morphir-bounded-stage-*").SingleOrDefault();
+                cts.Cancel();
+            });
         var cancelConnector = new MepBackendExtensionConnector(null, (_, _) => (cancellingGuest, "", ""));
         var cancelled = await GenerateHandler.Handle(
             new GenerateRequest(new GenerateOverrides(Input: treeRoot, Target: "text", Output: outputDir) { Project = projectRoot },
-                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+                new InvocationContext(projectRoot) { Environment = env }),
             resolver, new RejectingLoader(), new RegisteredBackendResolver([]), new GenerationPublisher(), cancelConnector, [], cts.Token);
 
         cancelled.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error.Kind
             .Should().Be(GenerationFailureKind.Cancelled);
         Directory.Exists(outputDir).Should().BeFalse();
+        observedCancelStage.Should().NotBeNull("the private staging directory should exist during the bounded session");
+        Directory.Exists(observedCancelStage!).Should().BeFalse("the private staging directory itself must be removed on cancellation");
+    }
+
+    [Test]
+    public async Task ExplicitInputTreeImmutableSnapshotIgnoresDiskMutationMidSession()
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var treeRoot = sandbox.PathOf("input-tree");
+        CopyOrdersFixture("v4", "plain-json", treeRoot);
+        var orderFile = Path.Combine(treeRoot, "pkg", "acme", "orders", "domain", "order.value.json");
+        var originalBytes = File.ReadAllText(orderFile);
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("orders.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "acme/orders"
+
+            [codegen.text]
+            extension = "orders"
+
+            [extensions.orders]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var guest = new OrdersChannelGuest("4.0.0", ModelAccessCodec.MorphirJson, ModelAccessEncoding.Plain,
+            onRound: round =>
+            {
+                // Mutate the member file on disk after inventory (round 1) and before delivery (round 3).
+                if (round == 1)
+                    File.WriteAllText(orderFile, """{"formatVersion":4,"name":"order","def":{"mutated":true}}""");
+            });
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest, "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: treeRoot, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new RejectingLoader(), new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        outcome.Should().BeOfType<Outcome<GenerationSuccess>.Success>(outcome.ToString());
+        guest.ReceivedOrderContent.Should().NotBeNull();
+        guest.ReceivedOrderContent.Should().Be(originalBytes);
     }
 
     [Test]
@@ -523,9 +595,271 @@ public sealed class MepDocumentTreeGenerationTests
         success.Publication.Artifacts.Should().Equal("converted.txt");
         File.ReadAllText(Path.Combine(outputDir, "converted.txt")).Should().Be("ok\n");
         guest.ReceivedPayloadLayout.Should().Be("single-document");
+        guest.ReceivedModelId.Should().Be("acme/orders");
         guest.ReceivedRevision.Should().Be("sha256:" + guest.ReceivedPayloadSha256);
         var converted = success.Diagnostics.Should().ContainSingle(d => d.Code == "extension.model_converted").Which;
         converted.Severity.Should().Be("info");
+        var expectedFromCodec = profile.EndsWith("yaml", StringComparison.Ordinal) ? "morphir-yaml" : "morphir-json";
+        converted.Data!.Value.GetProperty("from").GetProperty("codec").GetString().Should().Be(expectedFromCodec);
+        converted.Data.Value.GetProperty("to").GetProperty("codec").GetString().Should().Be("morphir-json");
+        if (recorded)
+        {
+            File.Exists(Path.Combine(outDir, "generate", "text.json")).Should().BeTrue("recorded fallback commits via task ledger");
+            File.Exists(Path.Combine(outputDir, GenerationDefaults.OwnershipManifest)).Should().BeFalse("recorded fallback does not write .morphir-generated.json");
+        }
+    }
+
+    [Test]
+    public async Task Classic31DocumentTreeFallsBackToDraft1GuestSupporting31()
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var treeRoot = sandbox.PathOf("input-tree");
+        CopyOrdersFixture("v3.1", "contextual-json", treeRoot);
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "acme/orders"
+
+            [codegen.text]
+            extension = "draft1"
+
+            [extensions.draft1]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var guest = new Draft1OnlyChannelGuest();
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: treeRoot, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var success = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Success>(outcome.ToString()).Which.Value;
+        guest.ReceivedPayloadLayout.Should().Be("single-document");
+        guest.ReceivedIrVersion.Should().Be("3.1.0");
+        guest.ReceivedModelId.Should().Be("acme/orders");
+        guest.ReceivedRevision.Should().Be("sha256:" + guest.ReceivedPayloadSha256);
+        var converted = success.Diagnostics.Should().ContainSingle(d => d.Code == "extension.model_converted").Which;
+        converted.Data!.Value.GetProperty("from").GetProperty("codec").GetString().Should().Be("morphir-json");
+    }
+
+    [Test]
+    public async Task Draft1HostConversionRefusesLossyIonHeaderWithoutCallingGuest()
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var ionPath = GenerationInputFixtures.DailyRate(sandbox.PathOf("input"), "4.0.0", "text");
+        var originalText = File.ReadAllText(ionPath);
+        var idx = originalText.IndexOf("morphir::{", StringComparison.Ordinal);
+        idx.Should().BeGreaterThanOrEqualTo(0);
+        var lossyPath = sandbox.PathOf("lossy.ion");
+        File.WriteAllText(lossyPath, originalText.Insert(idx + "morphir::{".Length, "customMeta: \"dropped-by-json\", "));
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "car/rental"
+
+            [codegen.text]
+            extension = "draft1"
+
+            [extensions.draft1]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var guest = new Draft1OnlyChannelGuest();
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: lossyPath, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var failure = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+        failure.Kind.Should().Be(GenerationFailureKind.Semantic);
+        failure.Diagnostics.Should().Contain(d => d.Code == "data.lossy_conversion");
+        guest.GenerateCalls.Should().Be(0);
+    }
+
+    [Test]
+    public async Task Draft1FallbackRefusesTreeWithDroppedManifestMetadataWithoutCallingGuest()
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var treeRoot = sandbox.PathOf("input-tree");
+        CopyOrdersFixture("v4", "plain-json", treeRoot);
+        var manifestPath = Path.Combine(treeRoot, "manifest.json");
+        var manifestJson = File.ReadAllText(manifestPath);
+        File.WriteAllText(manifestPath, manifestJson.Replace("\"formatVersion\": 4,", "\"formatVersion\": 4, \"version\": \"1.2.3\",", StringComparison.Ordinal));
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "acme/orders"
+
+            [codegen.text]
+            extension = "draft1"
+
+            [extensions.draft1]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var guest = new Draft1OnlyChannelGuest();
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: treeRoot, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var failure = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+        failure.Kind.Should().Be(GenerationFailureKind.Semantic);
+        failure.Diagnostics.Should().Contain(d => d.Code == "data.lossy_conversion");
+        guest.GenerateCalls.Should().Be(0);
+    }
+
+    [Test]
+    public async Task Draft1ConversionPreservesOriginalModelIdAndPropagatesDiagnosticOnGuestFailure()
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var inputPath = GenerationInputFixtures.DailyRate(sandbox.PathOf("input"), "4.0.0", "text");
+        var expectedOriginalSha = Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(inputPath)));
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "car/rental"
+
+            [codegen.text]
+            extension = "draft1"
+
+            [extensions.draft1]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var guest = new Draft1OnlyChannelGuest(failGenerate: true);
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: inputPath, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var failure = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+        guest.ReceivedModelId.Should().Be("sha256:" + expectedOriginalSha);
+        guest.ReceivedRevision.Should().Be("sha256:" + guest.ReceivedPayloadSha256);
+        guest.ReceivedModelId.Should().NotBe(guest.ReceivedRevision);
+        failure.Diagnostics.Should().Contain(d => d.Code == "extension.model_converted" && d.Severity == "info");
+        failure.Diagnostics.Should().Contain(d => d.Code == "guest.failed");
+    }
+
+    [Test]
+    public async Task RecordedCompileSwitchesCleanlyBetweenDraft1FallbackAndDraft2BoundedOnSameOutputDir()
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var outDir = sandbox.PathOf("out");
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("ext.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "acme/orders"
+
+            [frontend]
+            language = "fsharp"
+
+            [codegen.text]
+            extension = "ext"
+
+            [extensions.ext]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var taskOptions = new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) };
+        var outRoot = OutRoot.Resolve(new OutRootRequest(projectRoot, projectRoot) { OutDirFlag = outDir }).ShouldSucceed();
+        var store = new CompileTaskStore(outRoot, MemberPath.Root, taskOptions);
+        using (var run = (await store.BeginAsync(default)).ShouldSucceed())
+        {
+            var descriptor = IrDescriptor.Create(RecordPath.Parse("recorded/orders-model"), IrLayout.DocumentTree,
+                IrStorageFormat.Json, Versioning.parse("4").ResultValue);
+            CopyOrdersFixture("v4", "plain-json", descriptor.Path.Under(run.Dest));
+            run.Complete(new CompileProduct("fsharp", descriptor, null)).ShouldSucceed();
+        }
+
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(), taskOptions);
+
+        // Run 1: draft.1 fallback publishes via RecordedGenerationTask ledger
+        var draft1Guest = new Draft1OnlyChannelGuest();
+        var draft1Connector = new MepBackendExtensionConnector(null, (_, _) => (draft1Guest.OpenChannel(), "", ""));
+        var first = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Target: "text", Output: outputDir) { OutDir = outDir },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), draft1Connector, [], default);
+        first.Should().BeOfType<Outcome<GenerationSuccess>.Success>(first.ToString());
+        File.Exists(Path.Combine(outputDir, "converted.txt")).Should().BeTrue();
+        File.Exists(Path.Combine(outDir, "generate", "text.json")).Should().BeTrue();
+        File.Exists(Path.Combine(outputDir, GenerationDefaults.OwnershipManifest)).Should().BeFalse();
+
+        // Run 2: draft.2 bounded replaces converted.txt with order.txt cleanly via the same ledger
+        var draft2Guest = new OrdersChannelGuest("4.0.0", ModelAccessCodec.MorphirJson, ModelAccessEncoding.Plain);
+        var draft2Connector = new MepBackendExtensionConnector(null, (_, _) => (draft2Guest, "", ""));
+        var second = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Target: "text", Output: outputDir) { OutDir = outDir },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new RejectingLoader(),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), draft2Connector, [], default);
+        second.Should().BeOfType<Outcome<GenerationSuccess>.Success>(second.ToString());
+        File.Exists(Path.Combine(outputDir, "order.txt")).Should().BeTrue();
+        File.Exists(Path.Combine(outputDir, "converted.txt")).Should().BeFalse("previous draft.1 artifact removed by shared task ledger");
+
+        // Run 3: switching back to draft.1 removes order.txt and installs converted.txt cleanly
+        var draft1Again = new Draft1OnlyChannelGuest();
+        var draft1AgainConnector = new MepBackendExtensionConnector(null, (_, _) => (draft1Again.OpenChannel(), "", ""));
+        var third = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Target: "text", Output: outputDir) { OutDir = outDir },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), draft1AgainConnector, [], default);
+        third.Should().BeOfType<Outcome<GenerationSuccess>.Success>(third.ToString());
+        File.Exists(Path.Combine(outputDir, "converted.txt")).Should().BeTrue();
+        File.Exists(Path.Combine(outputDir, "order.txt")).Should().BeFalse("previous draft.2 artifact removed by shared task ledger");
     }
 
     [Test]
@@ -691,6 +1025,7 @@ public sealed class MepDocumentTreeGenerationTests
 
         public ModelAccessTuple? SelectedTuple { get; private set; }
         public bool DeliveredContextualEnvelope { get; private set; }
+        public string? ReceivedOrderContent { get; private set; }
         public bool Disposed { get; private set; }
 
         public OrdersChannelGuest(string irVersion, ModelAccessCodec codec, ModelAccessEncoding encoding,
@@ -767,6 +1102,7 @@ public sealed class MepDocumentTreeGenerationTests
                     [ModelAccessRequest.NewDocument("order-doc", _orderDocId!)], [], []);
             }
             var content = Encoding.UTF8.GetString(Convert.FromBase64String(delivery.GetProperty("content").GetString()!));
+            ReceivedOrderContent = content;
             if (content.Contains("ir-context/0.1.0-draft.1/document.schema.json", StringComparison.Ordinal))
                 DeliveredContextualEnvelope = true;
             var output = Encoding.UTF8.GetBytes("73\n");
@@ -783,23 +1119,27 @@ public sealed class MepDocumentTreeGenerationTests
         public void Dispose() => Disposed = true;
     }
 
-    private sealed class Draft1OnlyChannelGuest(int maxDecodedBytes = 1024 * 1024)
+    private sealed class Draft1OnlyChannelGuest(int maxDecodedBytes = 1024 * 1024, bool failGenerate = false)
     {
         public string? ReceivedPayloadLayout { get; private set; }
         public string? ReceivedPayloadCodec { get; private set; }
         public string? ReceivedPayloadSha256 { get; private set; }
+        public string? ReceivedModelId { get; private set; }
         public string? ReceivedRevision { get; private set; }
+        public string? ReceivedIrVersion { get; private set; }
         public int GenerateCalls { get; private set; }
 
         public ISingleMessageChannel OpenChannel()
         {
             var limits = new ModelTransportLimits(maxDecodedBytes * 2, maxDecodedBytes, 128, 100_000);
-            var support = new ModelTransportSupport([MepGenerationTransport.V4Tuple, MepGenerationTransport.ClassicTuple], limits, []);
+            var support = new ModelTransportSupport(
+                [MepGenerationTransport.V4Tuple, MepGenerationTransport.Classic31Tuple, MepGenerationTransport.ClassicTuple],
+                limits, []);
             const string claimsJson = """{"claimsVersion":"0.1.0-draft.2","protocolVersions":["0.2.0-draft.1"],"extension":{"id":"org.example.draft1-backend","name":"Draft1 backend","version":"1.0.0","types":["backend"]},"capabilities":{}}""";
             var claims = JsonSerializer.Deserialize(claimsJson, MepJson.Default.CapabilityClaimSet)!;
             var supportJson = JsonSerializer.Serialize(support, MepJson.Default.ModelTransportSupport);
             var capabilities = JsonSerializer.Deserialize(
-                $$"""{"backend":{"targets":["text"],"irVersions":["3.0.0","4.0.0"],"generate":false},"modelTransport":{{supportJson}}}""",
+                $$"""{"backend":{"targets":["text"],"irVersions":["3.0.0","3.1.0","4.0.0"],"generate":false},"modelTransport":{{supportJson}}}""",
                 MepJson.Default.ExtensionCapabilities)!;
 
             var handlers = new Dictionary<string, MethodHandler>
@@ -811,10 +1151,15 @@ public sealed class MepDocumentTreeGenerationTests
                         ReceivedPayloadLayout = request.Model.Payload.Layout.WireValue;
                         ReceivedPayloadCodec = request.Model.Payload.Codec.ToString();
                         ReceivedPayloadSha256 = request.Model.Payload.Sha256.Value;
+                        ReceivedModelId = request.Model.ModelId;
                         ReceivedRevision = request.Model.Revision;
+                        ReceivedIrVersion = request.Model.IrVersion.Value;
                         var decoded = Convert.FromBase64String(request.Model.Payload.Content);
                         using var doc = JsonDocument.Parse(decoded);
                         doc.RootElement.TryGetProperty("formatVersion", out JsonElement _).Should().BeTrue();
+                        if (failGenerate)
+                            return Task.FromResult(new GenerateResult(false, [],
+                                [new Morphir.Mep.Diagnostic(Morphir.Mep.DiagnosticSeverity.Error, "guest.failed", "Simulated draft.1 guest failure.", null, [], null)]));
                         return Task.FromResult(new GenerateResult(true, [new Morphir.Mep.Artifact("converted.txt", "ok\n", false)], []));
                     }),
             };

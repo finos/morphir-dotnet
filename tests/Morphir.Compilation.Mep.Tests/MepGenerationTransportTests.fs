@@ -18,7 +18,7 @@ let private tupleOf (family: ModelFamily) (version: string) =
 [<Tests>]
 let tests =
     testList "MEP generation transport" [
-        test "The host offers the JSON generateModel tuples for IR 4.0.0 and 3.0.0, 4.0.0 first" {
+        test "The host offers the JSON generateModel tuples for IR 4.0.0, 3.1.0 and 3.0.0, newest first" {
             let offered =
                 MepGenerationTransport.Tuples
                 |> List.ofSeq
@@ -42,13 +42,18 @@ let tests =
                     "morphir-ir",
                     ModelCodec.MorphirJson,
                     "0.1.0-draft.1",
+                    "3.1.0"
+                    ModelOperation.GenerateModel,
+                    "morphir-ir",
+                    ModelCodec.MorphirJson,
+                    "0.1.0-draft.1",
                     "3.0.0"
                 ]
                 "the offer"
 
             Expect.equal
                 offered
-                [ MepGenerationTransport.V4Tuple; MepGenerationTransport.ClassicTuple ]
+                [ MepGenerationTransport.V4Tuple; MepGenerationTransport.Classic31Tuple; MepGenerationTransport.ClassicTuple ]
                 "the named tuples"
         }
 
@@ -59,7 +64,7 @@ let tests =
                     ModelFamily.V4, "4.0.0", Some MepGenerationTransport.V4Tuple
                     ModelFamily.Classic, "3", Some MepGenerationTransport.ClassicTuple
                     ModelFamily.Classic, "3.0.0", Some MepGenerationTransport.ClassicTuple
-                    ModelFamily.Classic, "3.1.0", None
+                    ModelFamily.Classic, "3.1.0", Some MepGenerationTransport.Classic31Tuple
                     ModelFamily.Classic, "2", None
                     ModelFamily.Classic, "1", None
                     ModelFamily.Classic, "4", None

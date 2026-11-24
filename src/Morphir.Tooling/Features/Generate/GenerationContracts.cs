@@ -234,6 +234,13 @@ public sealed record ModelDescriptor(SourceFormatVersion Version, ModelFamily Fa
     public static ModelDescriptor From(VersionedModel model) => new(model.SourceVersion, model.Family, model.Kind);
 }
 
+/// <summary>
+/// Original source model identity and tuple metadata preserved across host-side conversion so MEP 0.2.0-draft.1
+/// envelopes keep the original <c>modelId</c> and <c>extension.model_converted</c> reports the true source codec
+/// and digest rather than an intermediate representation.
+/// </summary>
+public sealed record ModelConversionOrigin(string ModelId, string Profile, string Codec, string Revision, string PayloadSha256);
+
 public sealed record LoadedModel(VersionedModel Model, ModelDescriptor Descriptor, ModelRepresentation Representation, RetainedInput Original)
 {
     /// <summary>
@@ -241,6 +248,12 @@ public sealed record LoadedModel(VersionedModel Model, ModelDescriptor Descripto
     /// the model is the input of the pipeline.
     /// </summary>
     public Morphir.Tooling.Features.Transform.ModelLineage? Lineage { get; init; }
+
+    /// <summary>
+    /// Original identity and tuple metadata when the model is being converted from a multi-document tree or another
+    /// representation that differs from <see cref="Representation"/>.
+    /// </summary>
+    public ModelConversionOrigin? ConversionOrigin { get; init; }
 }
 
 public sealed record BackendCapability(ModelFamily Family, NonEmptySet<SourceFormatVersion> Versions, DistributionKind Kind)

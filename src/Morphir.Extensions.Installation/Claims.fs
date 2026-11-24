@@ -403,10 +403,28 @@ module internal Claims =
                 | _ -> invalid $"{limitsPath}.{name}" "Expected a positive integer."
         ]
 
-        Value.Object [
-            "tuples", Value.Array tuples
-            "limits", Value.Object projectedLimits
-        ]
+        let projected =
+            Value.Object [
+                "tuples", Value.Array tuples
+                "limits", Value.Object projectedLimits
+            ]
+
+        let typed =
+            try
+                System.Text.Json.JsonSerializer.Deserialize(
+                    JsonText.toBytes projected,
+                    MepJson.Default.ModelAccessSupport
+                )
+            with
+            | :? System.Text.Json.JsonException as error ->
+                invalid path $"Invalid modelAccess claims: {error.Message}"
+
+        match Option.ofObj typed with
+        | None -> invalid path "Invalid modelAccess claims."
+        | Some support ->
+            match ModelAccess.validateSupport support with
+            | Ok _ -> projected
+            | Error message -> invalid path message
 
     let private capabilities path types value =
         let items = members path value
