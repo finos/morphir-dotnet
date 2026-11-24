@@ -16,7 +16,8 @@ public class ReadmeTests
         using var stream = typeof(ReadmeTests).Assembly.GetManifestResourceStream("Morphir.Diagrams.Slides.README.md")
             ?? throw new InvalidOperationException("The README is not embedded.");
         using var reader = new StreamReader(stream);
-        return reader.ReadToEnd();
+        // A Windows checkout may give the README CRLF line endings.
+        return reader.ReadToEnd().ReplaceLineEndings("\n");
     }
 
     public static IEnumerable<Func<string>> CSharpBlocks() =>
