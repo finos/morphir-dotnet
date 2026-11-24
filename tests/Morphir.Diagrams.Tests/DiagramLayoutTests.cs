@@ -299,4 +299,28 @@ public class DiagramLayoutTests
         roles.ShouldContain(FamilyRole.Activation);
         roles.ShouldContain(FamilyRole.Actor);
     }
+
+    [Test]
+    public void ARailroadTrackHasNoReference()
+    {
+        var layout = Layout("@startebnf\nrule = \"a\", \"b\";\n@endebnf\n");
+        var lines = All(layout.Drawables).Where(IsLine).ToList();
+
+        lines.ShouldNotBeEmpty();
+        lines.ShouldAllBe(line => line.Reference == null);
+    }
+
+    [Test]
+    public void NestedDataTreeReferencesAreCountedOnce()
+    {
+        var layout = Layout("@startjson\n{\"a\": 1, \"b\": {\"c\": 2}}\n@endjson\n");
+        var row = Find(layout, "node=$%2Fa");
+        var cells = ElementOf(row);
+
+        cells.Length.ShouldBe(2);
+        cells.ShouldAllBe(cell => cell.Reference == null);
+        cells.Select(cell => ShapeOf(cell).Text!.Lines[0]).ShouldBe(["a", "1"]);
+        // The object b is drawn as a row of its parent and as its own table: one drawable for each.
+        All(layout.Drawables).Count(drawable => drawable.Reference?.ToString() == "node=$%2Fb").ShouldBe(2);
+    }
 }
