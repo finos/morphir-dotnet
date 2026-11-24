@@ -11,6 +11,10 @@
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
     </PropertyGroup>
     <ItemGroup>
+        <!-- The F# tests check internal readers that have no public surface of their own. -->
+        <InternalsVisibleTo Include="Morphir.Diagrams.FSharp.Tests" />
+    </ItemGroup>
+    <ItemGroup>
         <PackageReference Include="FSharp.Core" />
         <ProjectReference Include="../Morphir.Svg/Morphir.Svg.fsproj" />
         <ProjectReference Include="../Morphir.Bpmn/Morphir.Bpmn.fsproj" />
@@ -31,6 +35,7 @@
         <Compile Include="Selections.fs" />
         <Compile Include="DiagramAnnotations.fs" />
         <Compile Include="Themes.fs" />
+        <Compile Include="CssColors.fs" />
         <Compile Include="Carriage.fs" />
         <Compile Include="Exploration.fs" />
         <Compile Include="DiagramScene.fs" />
