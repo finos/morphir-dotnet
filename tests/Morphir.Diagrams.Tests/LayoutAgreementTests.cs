@@ -205,6 +205,9 @@ public partial class LayoutAgreementTests
                 {
                     entries.Add((order, part++, new Painted(
                         $"rect {N(frame.Box.X)},{N(frame.Box.Y)} {N(frame.Box.Width)}x{N(frame.Box.Height)} {Paint(frame.Paint.Fill, frame.Paint.Stroke, frame.Paint.StrokeWidth)}", reference)));
+                    if (frame.HeaderBand.QuarterEmu > 0)
+                        entries.Add((order, part++, new Painted(
+                            $"path M{N(frame.Box.X + frame.HeaderBand)},{N(frame.Box.Y)} L{N(frame.Box.X + frame.HeaderBand)},{N(frame.Box.Bottom)} {Paint(null, frame.Paint.Stroke, frame.Paint.StrokeWidth)}", reference)));
                     if (frame.Header is { } header) Text(header, order, ref part, reference);
                     foreach (var child in frame.Children) Visit(child, reference);
                     return 0;

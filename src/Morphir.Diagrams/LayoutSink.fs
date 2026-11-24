@@ -569,20 +569,38 @@ module internal LayoutSink =
 
             if hints |> List.contains LayoutHint.Container then
                 let frame = built |> List.tryFind (fun item -> match item.Drawable.Kind with DrawableKind.Shape _ -> true | _ -> false)
-                let header = built |> List.tryFind (fun item -> match item.Drawable.Kind with DrawableKind.Text _ -> true | DrawableKind.Shape shape -> shape.text.IsSome | _ -> false)
-
                 match frame with
                 | Some frame ->
                     let shape = match frame.Drawable.Kind with DrawableKind.Shape shape -> shape | _ -> invalidOp "A frame is a shape."
+                    let after = built |> List.filter (fun item -> not (Object.ReferenceEquals(item, frame)))
+
+                    // A vertical line across the frame, in the frame's stroke, divides a header band from the body.
+                    let band, after =
+                        match after with
+                        | divider :: others ->
+                            match divider.Drawable.Kind with
+                            | DrawableKind.Shape line ->
+                                match line.kind with
+                                | ShapeKind.Path path ->
+                                    match List.ofSeq path.Commands with
+                                    | [ PathCommand.MoveTo top; PathCommand.LineTo bottom ] when
+                                        top.X.Equals bottom.X && top.Y.Equals shape.box.Y && bottom.Y.Equals shape.box.Bottom
+                                        && line.paint.stroke = shape.paint.stroke && line.paint.strokeWidth.Equals shape.paint.strokeWidth ->
+                                        top.X - shape.box.X, others
+                                    | _ -> Distance.Zero, after
+                                | _ -> Distance.Zero, after
+                            | _ -> Distance.Zero, after
+                        | [] -> Distance.Zero, after
+
+                    // The header is the text painted straight after the frame, or the text inside it.
                     let headerText, rest =
-                        match shape.text with
-                        | Some text -> Some text, built |> List.filter (fun item -> not (Object.ReferenceEquals(item, frame)))
-                        | None ->
-                            match header with
-                            | Some header ->
-                                (match header.Drawable.Kind with DrawableKind.Text text -> Some text | _ -> None),
-                                built |> List.filter (fun item -> not (Object.ReferenceEquals(item, frame)) && not (Object.ReferenceEquals(item, header)))
-                            | None -> None, built |> List.filter (fun item -> not (Object.ReferenceEquals(item, frame)))
+                        match shape.text, after with
+                        | Some text, _ -> Some text, after
+                        | None, next :: others ->
+                            match next.Drawable.Kind with
+                            | DrawableKind.Text text -> Some text, others
+                            | _ -> None, after
+                        | None, [] -> None, after
 
                     let container: LayoutContainer =
                         {
@@ -590,6 +608,7 @@ module internal LayoutSink =
                             header = headerText
                             framePaint = shape.paint
                             radius = (match shape.kind with ShapeKind.RoundedRectangle radius -> radius | _ -> Distance.Zero)
+                            band = band
                             children = rest |> List.map (fun item -> item.Drawable) |> ImmutableArray.CreateRange
                         }
 
@@ -599,7 +618,9 @@ module internal LayoutSink =
                 match built with
                 | [ single ] -> { single with Drawable = withRole { single.Drawable with reference = parsed }; Owner = owner |> Option.orElse single.Owner }
                 | _ ->
-                    let children = built |> List.map (fun item -> withRole item.Drawable) |> ImmutableArray.CreateRange
+                    // A role belongs to the element's first shape, its body.
+                    let body = built |> List.tryFindIndex (fun item -> match item.Drawable.Kind with DrawableKind.Shape _ -> true | _ -> false)
+                    let children = built |> List.mapi (fun index item -> if Some index = body then withRole item.Drawable else item.Drawable) |> ImmutableArray.CreateRange
                     let first = if children.IsEmpty then counter + 1 else children |> Seq.map (fun child -> child.PaintOrder) |> Seq.min
 
                     {

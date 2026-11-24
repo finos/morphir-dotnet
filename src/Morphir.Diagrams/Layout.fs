@@ -664,6 +664,7 @@ and [<NoComparison>] LayoutContainer =
           header: LayoutText option
           framePaint: LayoutPaint
           radius: Distance
+          band: Distance
           children: ImmutableArray<Drawable> }
 
     /// The frame's box.
@@ -677,6 +678,10 @@ and [<NoComparison>] LayoutContainer =
 
     /// The frame's corner radius.
     member this.Radius = this.radius
+
+    /// The width of a header band along the frame's left edge, divided from the body by a line in the frame's
+    /// stroke, such as a BPMN pool's; zero for none.
+    member this.HeaderBand = this.band
 
     /// The drawables inside, in paint order.
     member this.Children = this.children

@@ -89,7 +89,34 @@ module internal BpmnSvg =
                 let reference (box: BpmnBox) =
                     if box.Container then (DiagramElementRef.Group(DiagramId.Create box.Id)).ToString() else (DiagramElementRef.Node(DiagramId.Create box.Id)).ToString()
 
+                let role (kind: string) =
+                    match kind with
+                    | "task" | "userTask" | "serviceTask" | "sendTask" | "receiveTask" | "manualTask" | "businessRuleTask" | "scriptTask" | "callActivity" ->
+                        Some Layout.FamilyRole.Task
+                    | kind when kind.EndsWith("Gateway", StringComparison.Ordinal) -> Some Layout.FamilyRole.Gateway
+                    | kind when kind.EndsWith("Event", StringComparison.Ordinal) -> Some Layout.FamilyRole.Event
+                    | "dataObjectReference" | "dataStoreReference" | "dataObject" | "dataStore" | "dataInput" | "dataOutput" -> Some Layout.FamilyRole.DataObject
+                    | "textAnnotation" -> Some Layout.FamilyRole.Note
+                    | _ -> None
+
+                // Containment for the layout, from the diagram's geometry: each box belongs to the smallest container
+                // that holds it.
+                let containers = scene.Boxes |> List.filter (fun box -> box.Container && box.Id <> "")
+
+                for box in scene.Boxes |> List.filter (fun box -> box.Id <> "") do
+                    let holds (outer: BpmnBox) =
+                        outer.Id <> box.Id
+                        && outer.X <= box.X && outer.Y <= box.Y && outer.Right >= box.Right && outer.Bottom >= box.Bottom
+                        && outer.Width * outer.Height > box.Width * box.Height
+
+                    match containers |> List.filter holds |> List.sortBy (fun outer -> outer.Width * outer.Height) with
+                    | owner :: _ -> writer.Own (reference box) (reference owner)
+                    | [] -> ()
+
                 let group (box: BpmnBox) (body: unit -> unit) =
+                    if box.Container then writer.Hint LayoutHint.Container
+                    else role box.Kind |> Option.iter (LayoutHint.Role >> writer.Hint)
+
                     SvgWriting.element
                         writer
                         "g"

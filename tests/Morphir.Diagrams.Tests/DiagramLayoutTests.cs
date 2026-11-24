@@ -323,4 +323,82 @@ public class DiagramLayoutTests
         // The object b is drawn as a row of its parent and as its own table: one drawable for each.
         All(layout.Drawables).Count(drawable => drawable.Reference?.ToString() == "node=$%2Fb").ShouldBe(2);
     }
+
+    private const string Collaboration = """
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="D" targetNamespace="urn:t">
+          <bpmn:collaboration id="C"><bpmn:participant id="Pool" name="Sales" processRef="P"/></bpmn:collaboration>
+          <bpmn:process id="P">
+            <bpmn:laneSet id="LS"><bpmn:lane id="Lane" name="Clerk"><bpmn:flowNodeRef>T</bpmn:flowNodeRef><bpmn:flowNodeRef>G</bpmn:flowNodeRef><bpmn:flowNodeRef>U</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet>
+            <bpmn:task id="T" name="Check"/>
+            <bpmn:exclusiveGateway id="G"/>
+            <bpmn:userTask id="U" name="Approve"/>
+            <bpmn:sequenceFlow id="F1" sourceRef="T" targetRef="G"/>
+            <bpmn:sequenceFlow id="F2" sourceRef="G" targetRef="U"/>
+          </bpmn:process>
+          <bpmndi:BPMNDiagram id="DI"><bpmndi:BPMNPlane id="PL" bpmnElement="C">
+            <bpmndi:BPMNShape id="S0" bpmnElement="Pool" isHorizontal="true"><dc:Bounds x="10" y="10" width="600" height="200"/></bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="S1" bpmnElement="Lane" isHorizontal="true"><dc:Bounds x="40" y="10" width="570" height="200"/></bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="S2" bpmnElement="T"><dc:Bounds x="100.02" y="70.5" width="100" height="80"/></bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="S3" bpmnElement="G" isMarkerVisible="true"><dc:Bounds x="250" y="85" width="50" height="50"/></bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="S4" bpmnElement="U"><dc:Bounds x="350" y="70" width="100" height="80"/></bpmndi:BPMNShape>
+            <bpmndi:BPMNEdge id="E1" bpmnElement="F1"><di:waypoint x="200.02" y="110"/><di:waypoint x="250" y="110"/></bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="E2" bpmnElement="F2"><di:waypoint x="300" y="110"/><di:waypoint x="348" y="110"/></bpmndi:BPMNEdge>
+          </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+        </bpmn:definitions>
+        """;
+
+    [Test]
+    public void FractionalBpmnCoordinatesAgree()
+    {
+        var task = ShapeOf(Find(Layout(Collaboration), "node=T"));
+
+        task.Box.X.ShouldBe(Distance.FromPixels(100.02));
+        task.Box.X.QuarterEmu.ShouldBe(3_810_762L);
+        task.Box.Y.ShouldBe(Distance.FromPixels(70.5));
+        task.Role.ShouldBe(FamilyRole.Task);
+    }
+
+    [Test]
+    public void PoolsAndLanesAreContainersWithRotatedHeaders()
+    {
+        var layout = Layout(Collaboration);
+        var pool = ContainerOf(Find(layout, "group=Pool"));
+        var lane = ContainerOf(Find(layout, "group=Lane"));
+
+        pool.Children.Select(child => child.Reference?.ToString()).ShouldContain("group=Lane");
+        lane.Children.Select(child => child.Reference?.ToString()).ShouldContain("node=T");
+        lane.Header!.Rotation.ShouldBe(270);
+        lane.Header.Lines.ShouldBe(["Clerk"]);
+        lane.Header.Origin.X.ShouldBe(Distance.FromPixels(59));
+    }
+
+    [Test]
+    public void ABpmnGatewayIsADiamondWithItsRole()
+    {
+        var gateway = ElementOf(Find(Layout(Collaboration), "node=G")).Select(ShapeOf).First();
+
+        gateway.Kind.ShouldBe(ShapeKind.Diamond);
+        gateway.Role.ShouldBe(FamilyRole.Gateway);
+    }
+
+    [Test]
+    public void ABpmnUserTaskIconKeepsItsRoundJoins()
+    {
+        var shapes = ElementOf(Find(Layout(Collaboration), "node=U"))
+            .Select(child => child.Kind.Match<LayoutShape?>(shape: shape => shape, line: _ => null, text: _ => null, image: _ => null, element: _ => null, container: _ => null, group: _ => null))
+            .OfType<LayoutShape>().ToList();
+
+        shapes.Skip(1).ShouldContain(shape => shape.Paint.Join == LineJoin.Round);
+    }
+
+    [Test]
+    public void ABpmnWaypointOutsideItsTargetKeepsItsPoint()
+    {
+        var layout = Layout(Collaboration);
+        var flow = LineOf(Find(layout, "edge=G/U/0"));
+
+        flow.Target.Point.X.ShouldBe(Distance.FromPixels(348));
+        flow.Target.Binding!.Target.ShouldBe(ElementOf(Find(layout, "node=U"))[0].Id);
+        flow.Target.Binding.Anchor.Match(across: point => point.X.Value, along: _ => -1.0).ShouldBe(0.0);
+    }
 }
