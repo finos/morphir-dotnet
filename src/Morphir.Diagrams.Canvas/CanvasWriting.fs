@@ -32,8 +32,3 @@ module internal CanvasWriting =
 
         hash
 
-/// The canvas renderers of this package.
-[<AbstractClass; Sealed>]
-type CanvasRenderers private () =
-    /// A registry with every canvas renderer of this package.
-    static member Registry = Morphir.Diagrams.Export.DiagramRenderers.Empty

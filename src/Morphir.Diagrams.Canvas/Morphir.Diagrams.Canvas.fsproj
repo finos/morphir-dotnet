@@ -14,5 +14,7 @@
         <PackageReference Include="FSharp.Core" />
         <ProjectReference Include="../Morphir.Diagrams/Morphir.Diagrams.fsproj" />
         <Compile Include="CanvasWriting.fs" />
+        <Compile Include="DrawIo.fs" />
+        <Compile Include="CanvasRenderers.fs" />
     </ItemGroup>
 </Project>

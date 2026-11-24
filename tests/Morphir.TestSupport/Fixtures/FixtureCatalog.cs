@@ -884,11 +884,11 @@ public static class FixtureCatalog
 
         /// <summary>The offline player, the SVG and the connector bindings of one scene of each family.</summary>
         public static FixtureEntry PlayerDigests { get; } = new(
-            "the player and scene digests of one diagram of each family", "DiagramExport/player-digests.json", "549f90d9c3423fbaf26e6b9a0a17241ef2e3aef13a454f860b2632ad649f0fc1", Provenance);
+            "the player and scene digests of one diagram of each family", "DiagramExport/player-digests.json", "8186bd245c538d15fe18ca26de78ff0fd8084d3fc459c6b7e5e3215819a72cb8", Provenance);
 
         /// <summary>The PNG pixels, JPEG and GIF bytes and raster player of one diagram of each family.</summary>
         public static FixtureEntry RasterDigests { get; } = new(
-            "the raster digests of one diagram of each family", "DiagramExport/raster-digests.json", "a079363eb645dc27c10f720ea95aa0fbd08b4ae459c4f4a1f66b96972b5cbd49", Provenance);
+            "the raster digests of one diagram of each family", "DiagramExport/raster-digests.json", "7cd513eb35e4bddc0d6cc2f5db8fc67e44844ea46803499faf6588f5d1e15417", Provenance);
 
         /// <summary>The approved public API of Morphir.Diagrams.</summary>
         public static FixtureEntry PublicApi { get; } = new(

@@ -58,7 +58,7 @@ public static class DiagramCorpus
             ("flowchart", FixtureCatalog.DiagramsMbt.Flowcharts, "/cases/shared-shapes.mmd"),
             ("sequence", FixtureCatalog.DiagramsMbt.Sequence, "/examples/33.mmd"),
             ("state", FixtureCatalog.DiagramsMbt.States, "/docs/020.mmd"),
-            ("swimlane", FixtureCatalog.DiagramsMbt.Swimlanes, "/cases/shapes.mmd"),
+            ("swimlane", FixtureCatalog.DiagramsMbt.Swimlanes, "/docs/10.mmd"),
             ("architecture", FixtureCatalog.DiagramsMbt.Architecture, "/all-ports.mmd"),
             ("activity", FixtureCatalog.DiagramsMbt.PlantUmlActivity, "/fixtures/modern/docs/45.puml"),
             ("railroad", FixtureCatalog.DiagramsMbt.PlantUml, "/fixtures/ebnf/doc-17.puml"),
