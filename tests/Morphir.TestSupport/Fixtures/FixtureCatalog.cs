@@ -53,6 +53,15 @@ public static class FixtureCatalog
         /// </summary>
         public static IReadOnlyList<KitFileSpelling> FileSpellings => DocumentTreeCases.Value.FileSpellings;
 
+        private static readonly Lazy<IReadOnlyList<KitCanonicalSpelling>> Spellings = new(() =>
+            [.. UpstreamIr.KitFeatures.SelectMany(feature => KitSpellingReader.Read(Path.GetFileName(feature.RelativePath), ReadText(feature)))]);
+
+        /// <summary>
+        /// Each case of the kit features pinned beside the Ion fixtures (<see cref="UpstreamIr.KitFeatures"/>) that states
+        /// both a canonical YAML and a canonical JSON spelling, in the kit's order: the vectors of the canonical YAML writer.
+        /// </summary>
+        public static IReadOnlyList<KitCanonicalSpelling> CanonicalSpellings => Spellings.Value;
+
         /// <summary>The tree case with this kit id.</summary>
         public static KitTreeCase Case(string id) =>
             DocumentTree.FirstOrDefault(kitCase => kitCase.Id == id)

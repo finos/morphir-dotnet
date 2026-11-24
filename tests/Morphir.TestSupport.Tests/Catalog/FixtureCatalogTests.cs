@@ -29,6 +29,22 @@ public class FixtureCatalogTests
     }
 
     [Test]
+    public void TheKitStatesCanonicalYamlAndJsonSpellingsAsReferenceData()
+    {
+        var spellings = FixtureCatalog.Kit.CanonicalSpellings;
+        spellings.Count.Should().BeGreaterThan(40, "the pinned kit features state many YAML and JSON pairs");
+        spellings.Select(spelling => spelling.Name).Should().OnlyHaveUniqueItems();
+
+        var integer = spellings.Single(spelling => spelling.Id == "values-0001" && spelling.Feature == "values.feature");
+        integer.Yaml.Should().Be("Literal:\n  IntegerLiteral: 42");
+        integer.Json.Should().Be("{ \"Literal\": { \"IntegerLiteral\": 42 } }");
+
+        var variable = spellings.Single(spelling => spelling.Id == "values-0002" && spelling.Feature == "values.feature");
+        variable.Yaml.Should().Be("Variable: x", "an outline's YAML and JSON example rows are one pair");
+        variable.Json.Should().Be("{ \"Variable\": \"x\" }");
+    }
+
+    [Test]
     public void EachFileOfTheCatalogMatchesItsHash()
     {
         foreach (var entry in FixtureCatalog.All)
