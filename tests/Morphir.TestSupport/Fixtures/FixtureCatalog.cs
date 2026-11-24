@@ -890,8 +890,12 @@ public static class FixtureCatalog
         public static FixtureEntry RasterDigests { get; } = new(
             "the raster digests of one diagram of each family", "DiagramExport/raster-digests.json", "a079363eb645dc27c10f720ea95aa0fbd08b4ae459c4f4a1f66b96972b5cbd49", Provenance);
 
+        /// <summary>The approved public API of Morphir.Diagrams.</summary>
+        public static FixtureEntry PublicApi { get; } = new(
+            "the approved public API of Morphir.Diagrams", "DiagramExport/public-api.txt", "29d6c0856feb2ad9b4412c48002abea5bbe11d25c10d42c163fa093957a3edc0", Provenance);
+
         /// <summary>Every digest fixture.</summary>
-        public static IReadOnlyList<FixtureEntry> Files { get; } = [SvgDigests, PlayerDigests, RasterDigests];
+        public static IReadOnlyList<FixtureEntry> Files { get; } = [SvgDigests, PlayerDigests, RasterDigests, PublicApi];
     }
 
     /// <summary>Every file that the catalog owns and serves.</summary>
