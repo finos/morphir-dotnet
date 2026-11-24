@@ -316,8 +316,10 @@ internal static class RecordFile
         Write(path, record, afterWait, ct, beforeReplace, PathRemoval.Default);
 
     /// <param name="cleanup">Removes the staged record when the write fails or is cancelled. Tests replace it.</param>
+    /// <param name="warnings">Receives a warning that names a staged record whose removal the file system refuses, with its
+    /// reason. A warning that the writer refuses is dropped; the failure or the cancellation of the write stands.</param>
     internal static void Write(string path, TaskRecord record, Action? afterWait, CancellationToken ct, Action? beforeReplace,
-        PathRemoval cleanup)
+        PathRemoval cleanup, TextWriter? warnings = null)
     {
         ct.ThrowIfCancellationRequested();
         var directory = Path.GetDirectoryName(path)!;
@@ -348,7 +350,17 @@ internal static class RecordFile
         {
             // A replaced record moved the staged one; only a failed or cancelled write still has it. Its removal never
             // hides the failure or the cancellation.
-            cleanup.TryRemove(temporary);
+            if (!cleanup.TryRemove(temporary, out var reason) && warnings is not null)
+            {
+                try
+                {
+                    warnings.WriteLine($"warning: the staged record {temporary} could not be removed after its write failed ({reason.Message}). The next run of the task can remove it.");
+                }
+                catch (Exception refused) when (refused is not (OutOfMemoryException or AccessViolationException))
+                {
+                    // The warning is lost; the failure or the cancellation of the write stands.
+                }
+            }
             // A cancellation that comes with a failed replacement is the outcome, not the failure (exit code 130).
             ct.ThrowIfCancellationRequested();
             throw;
@@ -421,5 +433,25 @@ internal sealed record PathRemoval(Action<string> Delete, Func<Exception, bool> 
         }
     }
 
-    private static bool Exists(string path) => File.Exists(path) || Directory.Exists(path);
+    /// <summary>
+    /// Whether something may be at <paramref name="path"/>. Only a lookup that finds no such file or directory says no: a
+    /// lookup that the file system denies (a parent without search permission, for example) may hide what is there, so
+    /// the removal tries and keeps the file system's reason. <see cref="File.Exists"/> would say no to both.
+    /// </summary>
+    private static bool Exists(string path)
+    {
+        try
+        {
+            File.GetAttributes(path);
+            return true;
+        }
+        catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return false;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            return true;
+        }
+    }
 }

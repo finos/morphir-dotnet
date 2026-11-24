@@ -149,6 +149,24 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
             var recorded = false;
             // The failure of an uncommitted publication waits for the rollback, which a cancellation can still overtake.
             Checked<PublishedCompile>? refused = null;
+            var rolledBack = false;
+
+            // The run holds compile.lock: no reader sees the IR of a run whose record is not complete. The removals retry
+            // while another handle holds a file and never throw, so the failure or the cancellation of the run stands. A
+            // path that the file system still refuses to remove is named in a warning with the reason of the refusal, and
+            // the next compile clears compile.dest.
+            void RollBack()
+            {
+                rolledBack = true;
+                var paths = moved && !recorded ? new[] { staging, target } : [staging];
+                // Every removal runs first; the warnings follow, and a warning that stderr refuses is dropped.
+                var remaining = new List<(string Path, Exception Reason)>();
+                foreach (var path in paths)
+                    if (!removal.TryRemove(path, out var reason)) remaining.Add((path, reason));
+                var record = remaining.Count == 0 ? "" : RecordState();
+                foreach (var (left, reason) in remaining)
+                    Warn($"warning: {left} could not be removed after the publication failed ({reason.Message}). {record}, and the next compile clears {run.Dest}.");
+            }
             try
             {
                 string? failure;
@@ -188,20 +206,17 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
                     else recorded = true;
                 }
             }
+            catch (Exception) when (!recorded)
+            {
+                // Whatever an uncommitted publication throws, its rollback runs first, and a cancellation during the
+                // rollback is the outcome of the run (exit code 130).
+                RollBack();
+                ct.ThrowIfCancellationRequested();
+                throw;
+            }
             finally
             {
-                // The run holds compile.lock: no reader sees the IR of a run whose record is not complete. The removals retry
-                // while another handle holds a file and never throw, so the failure or the cancellation of the run stands. A
-                // path that the file system still refuses to remove is named in a warning with the reason of the refusal, and
-                // the next compile clears compile.dest.
-                var rolledBack = moved && !recorded ? new[] { staging, target } : [staging];
-                // Every removal runs first; the warnings follow, and a warning that stderr refuses is dropped.
-                var remaining = new List<(string Path, Exception Reason)>();
-                foreach (var path in rolledBack)
-                    if (!removal.TryRemove(path, out var reason)) remaining.Add((path, reason!));
-                var record = remaining.Count == 0 ? "" : RecordState();
-                foreach (var (left, reason) in remaining)
-                    Warn($"warning: {left} could not be removed after the publication failed ({reason.Message}). {record}, and the next compile clears {run.Dest}.");
+                if (!rolledBack) RollBack();
             }
             if (refused is not null)
             {

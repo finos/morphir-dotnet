@@ -226,7 +226,8 @@ public sealed class CompileTaskRun : IDisposable
         };
         try
         {
-            RecordFile.Write(Location.Record, record, afterWait: null, ct, _options.BeforeRecordReplace);
+            RecordFile.Write(Location.Record, record, afterWait: null, ct, _options.BeforeRecordReplace, _options.Removal ?? PathRemoval.Default,
+                _options.Diagnostics);
             return new Outcome<TaskRecord>.Success(record);
         }
         catch (Exception error) when (TaskFailures.IsIo(error))

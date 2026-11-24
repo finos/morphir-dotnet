@@ -369,9 +369,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
     /// </summary>
     internal static bool IsLayoutValidation(ConfigDiagnostic diagnostic) =>
         diagnostic.Code == SchemaValidation
-        && diagnostic.KeyPath.Length == 2
-        && diagnostic.KeyPath.Head == "ir"
-        && diagnostic.KeyPath.Tail.Head is "layout" or "mode";
+        && (ConfigValueProjections.IsAt(diagnostic, ["ir", "layout"]) || ConfigValueProjections.IsAt(diagnostic, ["ir", "mode"]));
 
     private const string LayoutKey = "ir.layout";
     private const string ModeKey = "ir.mode";
@@ -422,15 +420,10 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
                 ? new(ConfigValueProjections.TryText(value, out var text) ? text : null, origin)
                 : null;
 
-        private SettingOrigin.Configuration? ConfiguredOrigin(string[] path)
-        {
-            if (Origin(path) is SettingOrigin.Configuration own) return own;
-            foreach (var (key, origin) in loaded.Origins)
-                if (key.Length > path.Length && key.Take(path.Length).SequenceEqual(path, StringComparer.Ordinal)
-                    && !origin.Source.Role.Equals(SourceRole.Defaults))
-                    return new SettingOrigin.Configuration(origin.Source.Path, ConfigValueProjections.KeyText(path));
-            return null;
-        }
+        private SettingOrigin.Configuration? ConfiguredOrigin(string[] path) =>
+            ConfigValueProjections.TryFindConfiguredOrigin(loaded.Origins, path, out var origin)
+                ? new SettingOrigin.Configuration(origin.Source.Path, ConfigValueProjections.KeyText(path))
+                : null;
 
         public Setting<string>? String(params string[] path) =>
             Find(path) is { } value && ConfigValueProjections.TryText(value, out var text) ? new(text, Origin(path)) : null;

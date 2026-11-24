@@ -49,7 +49,7 @@ let tests =
 
               Expect.equal
                   (members |> Array.map _.Name |> Array.sort)
-                  [| "TryFind"; "TryFindOrigin"; "TryText"; "TryTextList"; "TryVersionText" |]
+                  [| "TryFind"; "TryFindConfiguredOrigin"; "TryFindOrigin"; "TryText"; "TryTextList"; "TryVersionText" |]
                   "members"
 
               for item in members do
@@ -61,6 +61,40 @@ let tests =
                       |> Option.map (fun value -> (value :?> System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute).ReturnValue)
 
                   Expect.equal attribute (Some false) $"{item.Name}: [MaybeNullWhen(false)] on {output.Name}"
+
+          testCase "TryFindConfiguredOrigin takes the key's own origin, or for a table the first configured key below it"
+          <| fun _ ->
+              let source role path = { Path = path; Format = DocumentFormat.Toml; Role = role; Order = 0; Profile = None }
+              let at role path = { Source = source role path; Position = None }
+
+              let origins =
+                  Map.ofList
+                      [ [ "ir"; "layout"; "unexpected" ], at SourceRole.RootPrimary "morphir.toml"
+                        [ "ir"; "mode" ], at SourceRole.Defaults "<defaults>"
+                        [ "ir"; "format" ], at SourceRole.RootPrimary "morphir.toml" ]
+
+              let find (path: string list) =
+                  let mutable origin = Unchecked.defaultof<ValueOrigin>
+                  if ConfigValueProjections.TryFindConfiguredOrigin(origins, path, &origin) then Some origin.Source.Path else None
+
+              Expect.equal (find [ "ir"; "format" ]) (Some "morphir.toml") "the key's own origin"
+              Expect.equal (find [ "ir"; "layout" ]) (Some "morphir.toml") "the origin of a key below the table"
+              Expect.equal (find [ "ir"; "mode" ]) None "a default is not configured"
+              Expect.equal (find [ "ir"; "lay" ]) None "a key that only begins the same is not below"
+
+          testCase "IsAt compares a diagnostic's key path with one segment for each key"
+          <| fun _ ->
+              let diagnostic path =
+                  { Code = "config.validation"
+                    Message = ""
+                    Severity = DiagnosticSeverity.Error
+                    Source = { Path = "morphir.toml"; Format = DocumentFormat.Toml; Role = SourceRole.RootPrimary; Order = 0; Profile = None }
+                    KeyPath = path
+                    Position = None }
+
+              Expect.isTrue (ConfigValueProjections.IsAt(diagnostic [ "ir"; "layout" ], [| "ir"; "layout" |])) "the same path"
+              Expect.isFalse (ConfigValueProjections.IsAt(diagnostic [ "ir.layout" ], [| "ir"; "layout" |])) "one dotted key is another path"
+              Expect.isFalse (ConfigValueProjections.IsAt(diagnostic [ "ir"; "layout"; "x" ], [| "ir"; "layout" |])) "a key below"
 
           testCase "TryFind takes one segment for each key, so a dotted key stays one key"
           <| fun _ ->

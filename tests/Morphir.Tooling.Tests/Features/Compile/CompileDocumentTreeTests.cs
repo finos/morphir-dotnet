@@ -337,7 +337,7 @@ public sealed class CompileDocumentTreeTests
         Succeeded(await Run(workspace, Inputs()));
         LeaveTheTreeAsAStaleStage(workspace, crashed);
         var written = File.ReadAllBytes(Succeeded(await Run(workspace, Inputs(layout: "single-file"))).Publication.IrPath);
-        var request = CompilePublishRequest.ForDocumentTree("fsharp", Morphir.IR.Versioning.parse("4").ResultValue, null, written,
+        var request = CompilePublishRequest.ForDocumentTree("fsharp", Morphir.IR.Model.SourceFormatVersion.Create("4").Version, null, written,
             Passed(CompileDocumentTree.Write(written)));
         var settings = Passed(new ProjectCompileSettingsResolver().Resolve(Inputs(), workspace.Context()));
         var publication = Passed(await new TaskRecordCompilePublisher(Quiet, hooks).BeginAsync(settings, default));
@@ -570,6 +570,61 @@ public sealed class CompileDocumentTreeTests
     }
 
     [Test]
+    public async Task ACancellationDuringTheRollbackOfAStageThatThrowsExitsWithOneThirty()
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs()));
+        using var cancellation = new CancellationTokenSource();
+        var hooks = new CompilePublicationHooks
+        {
+            // A stage that fails with an error that is not one of the file system's.
+            StageTree = (staging, files) =>
+            {
+                StagePartly(staging, files);
+                throw new InvalidOperationException("The tree writer broke.");
+            },
+            Removal = new PathRemoval(path =>
+            {
+                if (path.EndsWith(".morphir-ir.staging", StringComparison.Ordinal))
+                    throw new IOException("The process cannot access the file because it is being used by another process.");
+                PathRemoval.DeletePath(path);
+            }, _ => true, _ => cancellation.Cancel()),
+        };
+
+        var cancelled = await RunWith(workspace, Inputs(), hooks, ct: cancellation.Token);
+
+        cancelled.ExitCode.Should().Be(130, "a cancellation during the rollback is the outcome, whatever the stage threw");
+        IsTombstone(workspace).Should().BeTrue();
+    }
+
+    [Test]
+    public async Task ARefusedCleanupOfTheStagedRecordIsAWarningWithItsReason()
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs()));
+        var warnings = new StringWriter();
+        // The staged record stays where the file system refuses its removal; compile.dest is cleared as usual.
+        var removal = new PathRemoval(path =>
+        {
+            if (Path.GetFileName(path).StartsWith(".compile.json.", StringComparison.Ordinal))
+                throw new UnauthorizedAccessException("Access to the path is denied.");
+            PathRemoval.DeletePath(path);
+        }, _ => false, _ => { });
+
+        var failed = await RunWith(workspace, Inputs(), new CompilePublicationHooks(), Quiet with
+        {
+            Diagnostics = warnings,
+            Removal = removal,
+            BeforeRecordReplace = () => throw new IOException("The record could not be renamed."),
+        });
+
+        failed.ExitCode.Should().Be(2, "the refused cleanup keeps the failure of the record");
+        CompileRunners.ErrorCodes(failed).Should().Equal("compile.record_write_failed");
+        var staged = Directory.EnumerateFiles(OutRoot(workspace), ".compile.json.*").Should().ContainSingle().Subject;
+        warnings.ToString().Should().Contain(staged).And.Contain("Access to the path is denied.");
+    }
+
+    [Test]
     public async Task APermanentRefusalToClearCompileDestKeepsItsReason()
     {
         using var workspace = Project();
@@ -655,7 +710,7 @@ public sealed class CompileDocumentTreeTests
     {
         using var workspace = Project();
         var written = File.ReadAllBytes(Succeeded(await Run(workspace, Inputs(layout: "single-file"))).Publication.IrPath);
-        var request = CompilePublishRequest.ForDocumentTree("fsharp", Morphir.IR.Versioning.parse("4").ResultValue, null, written,
+        var request = CompilePublishRequest.ForDocumentTree("fsharp", Morphir.IR.Model.SourceFormatVersion.Create("4").Version, null, written,
             Passed(CompileDocumentTree.Write(written)));
         var settings = Passed(new ProjectCompileSettingsResolver().Resolve(Inputs(), workspace.Context()));
         var warnings = new StringWriter();
@@ -751,7 +806,7 @@ public sealed class CompileDocumentTreeTests
     {
         using var workspace = Project();
         var written = File.ReadAllBytes(Succeeded(await Run(workspace, Inputs(layout: "single-file"))).Publication.IrPath);
-        var version = Morphir.IR.Versioning.parse("4").ResultValue;
+        var version = Morphir.IR.Model.SourceFormatVersion.Create("4").Version;
         var request = layout == "document-tree"
             ? CompilePublishRequest.ForDocumentTree("fsharp", version, null, written, Passed(CompileDocumentTree.Write(written)))
             : new CompilePublishRequest("fsharp", version, null, written);

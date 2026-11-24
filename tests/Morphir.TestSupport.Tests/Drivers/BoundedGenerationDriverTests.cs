@@ -57,7 +57,9 @@ public sealed class BoundedGenerationDriverTests
             .And.Contain("layout = \"document-tree\"");
         workspace.ReadText(workspace.File("src/Domain.fs")).Should().Be(BoundedOrdersRecordMother.DomainSource);
         workspace.ReadText(workspace.File("bounded-orders.mode")).Should().Be("compiled-orders");
-        workspace.Exists(workspace.File("build-artifacts/compile.json")).Should().BeFalse("the compile writes the record");
+        // The journey compiles with the default out root, so its record is .morphir/out/compile.json.
+        workspace.Exists(workspace.File(".morphir/out/compile.json")).Should().BeFalse("the compile writes the record");
+        workspace.Exists(workspace.File("build-artifacts/compile.json")).Should().BeFalse("no recorded tree is prepared");
     }
 
     [Test]
