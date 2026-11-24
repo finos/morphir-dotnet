@@ -149,6 +149,8 @@ partial class Build : FalloutBuild
         ("Morphir.Diagrams", SourceDirectory / "Morphir.Diagrams" / "Morphir.Diagrams.fsproj", true),
         // Morphir.Diagrams.Raster references Morphir.Diagrams.
         ("Morphir.Diagrams.Raster", SourceDirectory / "Morphir.Diagrams.Raster" / "Morphir.Diagrams.Raster.fsproj", true),
+        // Morphir.Diagrams.Canvas references Morphir.Diagrams.
+        ("Morphir.Diagrams.Canvas", SourceDirectory / "Morphir.Diagrams.Canvas" / "Morphir.Diagrams.Canvas.fsproj", true),
         ("Morphir.Models", MorphirModelsProject, true),
         ("Morphir.Compilation", SourceDirectory / "Morphir.Compilation" / "Morphir.Compilation.fsproj", true),
         ("Morphir.MiddleEnd", SourceDirectory / "Morphir.MiddleEnd" / "Morphir.MiddleEnd.fsproj", true),

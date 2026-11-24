@@ -39,7 +39,7 @@ Each task writes its tests first and confirms they fail for the stated reason, t
 
 ## 5. The Morphir.Diagrams.Canvas package and draw.io
 
-- [ ] 5.1 Create `src/Morphir.Diagrams.Canvas`, with the project settings from interop rule 1, a README, the licence and repository metadata. Create `tests/Morphir.Diagrams.Canvas.Tests` (TUnit). Add both to `Morphir.slnx`, the suite to `build/Helpers/TestPlan.cs`, and the package to `LibraryPackages` after Morphir.Diagrams. Verify `./build.sh --target Pack` produces the package with no warnings and the build tests pass.
+- [x] 5.1 Create `src/Morphir.Diagrams.Canvas`, with the project settings from interop rule 1, a README, the licence and repository metadata. Create `tests/Morphir.Diagrams.Canvas.Tests` (TUnit). Add both to `Morphir.slnx`, the suite to `build/Helpers/TestPlan.cs`, and the package to `LibraryPackages` after Morphir.Diagrams. Verify `./build.sh --target Pack` produces the package with no warnings and the build tests pass.
 - [ ] 5.2 Build a hand-made file in the current draw.io release that uses a `UserObject`, a container, an edge across containers, a free edge, rotated text, the `block`, `open`, `oval` and `async` markers, the opacity styles and each UML and BPMN role style. Record the release and the confirmed style names in the README. Then write the `drawio-export` scenarios, including named ends across every corpus, free lines, participant paint order and the cross-container edge, and implement the renderer (design DIO-1).
 - [ ] 5.3 Open one rendered diagram of each family in draw.io and confirm that it opens and that edges stay attached when shapes move. Then record a digest per family in the tests. Verify the digests and the equal-bytes scenario.
 
