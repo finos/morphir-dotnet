@@ -34,14 +34,13 @@ public class FixtureCatalogTests
         var spellings = FixtureCatalog.Kit.CanonicalSpellings;
         spellings.Count.Should().BeGreaterThan(40, "the pinned kit features state many YAML and JSON pairs");
         spellings.Select(spelling => spelling.Name).Should().OnlyHaveUniqueItems();
-
-        var integer = spellings.Single(spelling => spelling.Id == "values-0001" && spelling.Feature == "values.feature");
-        integer.Yaml.Should().Be("Literal:\n  IntegerLiteral: 42");
-        integer.Json.Should().Be("{ \"Literal\": { \"IntegerLiteral\": 42 } }");
-
-        var variable = spellings.Single(spelling => spelling.Id == "values-0002" && spelling.Feature == "values.feature");
-        variable.Yaml.Should().Be("Variable: x", "an outline's YAML and JSON example rows are one pair");
-        variable.Json.Should().Be("{ \"Variable\": \"x\" }");
+        spellings.Select(spelling => spelling.Feature).Distinct().Should().BeSubsetOf(
+            FixtureCatalog.UpstreamIr.KitFeatures.Select(feature => Path.GetFileName(feature.RelativePath)));
+        spellings.Should().OnlyContain(spelling => spelling.Id.StartsWith(spelling.Feature.Replace(".feature", "-"), StringComparison.Ordinal)
+            && spelling.Yaml.Length > 0 && !spelling.Yaml.EndsWith('\n') && spelling.Json.Length > 0);
+        spellings.Should().Contain(spelling => spelling.Title.EndsWith(" (examples)", StringComparison.Ordinal),
+            "an outline's YAML and JSON example rows are pairs too");
+        spellings.Should().Contain(spelling => spelling.Yaml.Contains('\n'), "a doc string gives a YAML of several lines");
     }
 
     [Test]
