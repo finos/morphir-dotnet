@@ -1262,9 +1262,31 @@ module ClassicJson =
     /// <summary>
     /// Reads a v1, v2 or v3 Library, or a Specs distribution at 3.1.0, including dependency specifications.
     /// </summary>
+    /// <summary>Reads a complete classic distribution document from <paramref name="root"/>.</summary>
     /// <remarks>The result keeps no reference to the document that holds <paramref name="root"/>.</remarks>
     let readDistribution (root: JsonElement) : Result<ClassicDocument, ClassicJsonError> =
         guarded (fun () -> ClassicJsonDecoder.document (root.Clone()))
+
+    /// <summary>
+    /// For C# callers: reads a complete classic distribution document from <paramref name="root"/>, setting either
+    /// <paramref name="document"/> or <paramref name="error"/>. C# calls this <c>TryReadDistribution</c>.
+    /// </summary>
+    [<CompiledName("TryReadDistribution")>]
+    let tryReadDistribution
+        (
+            root: JsonElement,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)>] document: byref<ClassicDocument>,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] error: byref<ClassicJsonError>
+        ) : bool =
+        match readDistribution root with
+        | Result.Ok loaded ->
+            document <- loaded
+            error <- Unchecked.defaultof<_>
+            true
+        | Result.Error failure ->
+            document <- Unchecked.defaultof<_>
+            error <- failure
+            false
 
     /// <summary>
     /// Reads as <see cref="readDistribution"/> does, and refuses a v3 document with a member that the classic model

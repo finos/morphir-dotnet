@@ -1161,6 +1161,36 @@ module YamlDocuments =
     [<CompiledName("MalformedFlowYaml")>]
     let malformedFlowYaml = "formatVersion: [broken\n"
 
+    /// A malformed YAML document starting with <c>formatVersion: 4</c> and an unclosed <c>distribution</c> sequence.
+    [<CompiledName("MalformedDistributionSequenceYaml")>]
+    let malformedDistributionSequenceYaml = "formatVersion: 4\ndistribution: [broken\n"
+
+    /// A YAML document carrying an undeclared <c>$schema</c> URI without any MEP marker.
+    [<CompiledName("UndeclaredSchemaYaml")>]
+    let undeclaredSchemaYaml =
+        "$schema: \"https://example.com/unknown.schema.json\"\ncontext: {}\ndocument: {}\n"
+
+    /// The <see cref="FixtureCatalog.Models.V4DailyRate"/> JSON document with an invalid trailing comma
+    /// before the closing brace, which JSON must refuse as <c>malformed-json</c> and never silently decode as YAML.
+    [<CompiledName("TrailingCommaV4DailyRateJson")>]
+    let trailingCommaV4DailyRateJson =
+        let text = (FixtureCatalog.ReadText FixtureCatalog.Models.V4DailyRate).TrimEnd()
+        let lastBrace = text.LastIndexOf('}')
+        text.Substring(0, lastBrace).TrimEnd() + ",\n}\n"
+
+    /// A truncated malformed JSON object payload.
+    [<CompiledName("MalformedJsonBrace")>]
+    let malformedJsonBrace = "{broken"
+
+    /// An empty JSON object payload used to construct mixed-profile tree fixtures.
+    [<CompiledName("EmptyJsonObject")>]
+    let emptyJsonObject = "{}"
+
+    /// A plain YAML manifest carrying a disallowed YAML anchor on <c>formatVersion</c>.
+    [<CompiledName("AnchoredManifestYaml")>]
+    let anchoredManifestYaml =
+        "formatVersion: &v 4\ndistribution: Library\npackage: acme/orders\npathBudget: 4000\n"
+
     /// A package metadata YAML payload (<c>package.yaml</c>) ignored by document-tree reads with a notice.
     [<CompiledName("PackageMetadataYaml")>]
     let packageMetadataYaml = "formatVersion: 4\nversion: 1.0.0\n"
@@ -1317,6 +1347,64 @@ module YamlDocuments =
             match Morphir.Json.V4.V4JsonWriter.writeDistribution true dist with
             | Ok bytes -> bytes
             | Result.Error err -> failwith $"Failed to write v4 single-file JSON: {err}"
+
+    /// Builds a v4 bounded Orders tree for <paramref name="profile"/> with its manifest <c>formatVersion</c>
+    /// rewritten to the explicit quoted string <paramref name="explicitVersion"/>.
+    let v4OrdersTreeWithExplicitVersion (profile: string) (explicitVersion: string) : VFileTree =
+        let manifestName =
+            if profile.EndsWith("-yaml", System.StringComparison.Ordinal) then "manifest.yaml" else "manifest.json"
+
+        BoundedOrders.catalogDocuments "v4" profile
+        |> Map.map (fun location fixture ->
+            if location = manifestName then
+                let original = FixtureCatalog.ReadText fixture
+
+                let updated =
+                    if manifestName = "manifest.yaml" then
+                        original.Replace("formatVersion: 4", $"formatVersion: \"{explicitVersion}\"")
+                    else
+                        original
+                            .Replace("\"formatVersion\": 4", $"\"formatVersion\": \"{explicitVersion}\"")
+                            .Replace("\"formatVersion\":4", $"\"formatVersion\":\"{explicitVersion}\"")
+
+                VFile.ofText location updated
+            else
+                VFile.ofBytes location (System.ReadOnlyMemory(FixtureCatalog.ReadBytes fixture))
+        )
+        |> VFileTree.fromFileMap
+
+    /// For C# callers: returns the files (relative path -> UTF-8 bytes) of the v4 bounded Orders tree for
+    /// <paramref name="profile"/> with its manifest <c>formatVersion</c> set to <paramref name="explicitVersion"/>.
+    [<CompiledName("OrdersTreeWithExplicitVersion")>]
+    let ordersTreeWithExplicitVersion (profile: string) (explicitVersion: string) : System.Collections.Generic.IReadOnlyDictionary<string, byte array> =
+        let tree = v4OrdersTreeWithExplicitVersion profile explicitVersion
+        let entries = System.Collections.Generic.Dictionary<string, byte array>(System.StringComparer.Ordinal)
+
+        for KeyValue(location, file) in VFileTree.toFileMap tree do
+            match VFile.readText file with
+            | Ok text -> entries[location] <- System.Text.Encoding.UTF8.GetBytes text
+            | Result.Error err -> failwith $"Failed to read mother tree entry '{location}': {err}"
+
+        System.Collections.ObjectModel.ReadOnlyDictionary<string, byte array>(entries)
+        :> System.Collections.Generic.IReadOnlyDictionary<string, byte array>
+
+    /// For C# callers: returns the files (relative path -> UTF-8 bytes) of the v4 bounded Orders tree for
+    /// <paramref name="profile"/> with an unknown <c>UnknownBodyTag</c> inside <c>order.value</c>.
+    [<CompiledName("OrdersTreeWithUnknownBodyTag")>]
+    let ordersTreeWithUnknownBodyTag (profile: string) : System.Collections.Generic.IReadOnlyDictionary<string, byte array> =
+        let ext = if profile.EndsWith("-yaml", System.StringComparison.Ordinal) then ".yaml" else ".json"
+        let memberPath = $"pkg/acme/orders/domain/order.value{ext}"
+        let entries = System.Collections.Generic.Dictionary<string, byte array>(System.StringComparer.Ordinal)
+
+        for KeyValue(location, fixture) in BoundedOrders.catalogDocuments "v4" profile do
+            if location = memberPath then
+                let mutated = (FixtureCatalog.ReadText fixture).Replace("ExpressionBody", "UnknownBodyTag")
+                entries[location] <- System.Text.Encoding.UTF8.GetBytes mutated
+            else
+                entries[location] <- FixtureCatalog.ReadBytes fixture
+
+        System.Collections.ObjectModel.ReadOnlyDictionary<string, byte array>(entries)
+        :> System.Collections.Generic.IReadOnlyDictionary<string, byte array>
 
     /// A valid v4 JSON document tree with two compacted value members whose aliases each expand to
     /// ~3 * longWordLength bytes so each member fits individually under a tight budget while their

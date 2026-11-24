@@ -48,7 +48,7 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
                 return Failure("invalid-input-format", $"Unsupported input format '{input.Format}'.", original.SourcePath, kind: GenerationFailureKind.Invocation);
 
             if (original is RetainedInput.File candidate && input.Format == InputFormat.Auto && !IsIon(candidate)
-                && (HasYamlExtension(candidate) || (!HasJsonExtension(candidate) && IsExtensionlessMorphirYaml(candidate, limits, ct))))
+                && (HasYamlExtension(candidate) || (!HasJsonExtension(candidate) && LooksLikeYamlFile(candidate.Entry.Memory.Span, ct))))
                 return Failure("unsupported-format", "YAML model input is unsupported; use JSON or Ion IR.", original.SourcePath);
 
             if (original is RetainedInput.Tree tree)
@@ -112,17 +112,8 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         if (IsIon(file)) return DecodeIon(file, limits);
         if (HasYamlExtension(file)) return DecodeYaml(file, limits, ct);
         if (HasJsonExtension(file)) return DecodeJson(file, limits, ct);
-
-        try
-        {
-            return DecodeJson(file, limits, ct);
-        }
-        catch (JsonException)
-        {
-            if (TryReadBoundedMorphirYaml(file, limits, ct, out var root))
-                return DecodeJsonElement(root, file, ModelRepresentation.Yaml);
-            throw;
-        }
+        if (LooksLikeYamlFile(file.Entry.Memory.Span, ct)) return DecodeYaml(file, limits, ct);
+        return DecodeJson(file, limits, ct);
     }
 
     private static Outcome<LoadedModel> DecodeTree(RetainedInput.Tree tree, InputFormat format, ModelReadLimits limits, CancellationToken ct)
@@ -246,49 +237,199 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
     private static bool HasJsonExtension(RetainedInput.File file) =>
         Path.GetExtension(file.SourcePath).Equals(".json", StringComparison.OrdinalIgnoreCase);
 
-    private static bool HasMorphirOrMepRootKey(JsonElement root) =>
-        root.ValueKind == JsonValueKind.Object
-        && (root.TryGetProperty("formatVersion", out _)
-            || root.TryGetProperty("distribution", out _)
-            || root.TryGetProperty("$schema", out _)
-            || root.TryGetProperty("envelopeVersion", out _)
-            || root.TryGetProperty("morphir_model", out _)
-            || root.TryGetProperty("jsonrpc", out _));
-
-    private static bool TryReadBoundedMorphirYaml(RetainedInput.File file, ModelReadLimits limits, CancellationToken ct, out JsonElement root)
+    /// <summary>
+    /// Bounded, cancellation-aware syntactic Auto classifier for extensionless non-Ion single files.
+    /// Distinguishes YAML framing, YAML flow mappings, and YAML block mappings from JSON upfront so
+    /// <see cref="DecodeAutoFile"/> and <see cref="DecodeLegacy"/> route directly to YAML or JSON with
+    /// no silent cross-codec fallback. Standard JSON object starts (<c>{"...</c> or <c>{}</c>) and arrays
+    /// (<c>[</c>) stay JSON so malformed JSON (for example trailing commas) reports <c>malformed-json</c>.
+    /// </summary>
+    internal static bool LooksLikeYamlFile(ReadOnlySpan<byte> bytes, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        if (IsBinary(file.Entry.Memory.Span))
-        {
-            root = default;
-            return false;
-        }
-        if (DocumentTreeStore.TryReadYamlDocument(file.SourcePath, file.Entry.Memory, limits.MaxBytes, limits.MaxDepth, limits.MaxNodes, ct, out root, out _)
-            && HasMorphirOrMepRootKey(root))
-            return true;
+        if (bytes.IsEmpty || IsBinary(bytes)) return false;
+        if (bytes.StartsWith(new byte[] { 0xEF, 0xBB, 0xBF })) bytes = bytes[3..];
 
-        root = default;
+        var index = SkipAsciiWhitespace(bytes, 0, ct);
+        if (index >= bytes.Length) return false;
+
+        var first = bytes[index];
+
+        // Leading YAML-only framing: '#' comment (LF, CRLF, or CR-only), %YAML/%TAG directives, or '---' marker.
+        if (first == (byte)'#') return true;
+        if (first == (byte)'%' && (StartsWithToken(bytes, index, "%YAML"u8) || StartsWithToken(bytes, index, "%TAG"u8)))
+            return true;
+        if (StartsWithToken(bytes, index, "---"u8)) return true;
+
+        // Leading '{': standard JSON object starts '{"...' or '{}' stay JSON.
+        if (first == (byte)'{')
+        {
+            var innerIndex = SkipAsciiWhitespace(bytes, index + 1, ct);
+            if (innerIndex >= bytes.Length) return false;
+            var inner = bytes[innerIndex];
+            if (inner is (byte)'"' or (byte)'}') return false;
+            if (inner == (byte)'#') return true;
+            if (inner == (byte)'?' && IsWhitespaceOrEof(bytes, innerIndex + 1)) return true;
+            if (inner == (byte)'\'') return TryMatchSingleQuotedFlowKey(bytes, innerIndex, ct);
+            return TryMatchUnquotedFlowKey(bytes, innerIndex, ct);
+        }
+
+        // Leading '[' stays JSON.
+        if (first == (byte)'[') return false;
+
+        // Block mapping start outside '{' / '[':
+        if (first == (byte)'?' && IsWhitespaceOrEof(bytes, index + 1)) return true;
+        if (first == (byte)'"') return TryMatchDoubleQuotedBlockKey(bytes, index, ct);
+        if (first == (byte)'\'') return TryMatchSingleQuotedBlockKey(bytes, index, ct);
+        return TryMatchPlainBlockKey(bytes, index, ct);
+    }
+
+    private static int SkipAsciiWhitespace(ReadOnlySpan<byte> bytes, int index, CancellationToken ct)
+    {
+        while (index < bytes.Length && bytes[index] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
+        {
+            if ((index & 1023) == 0) ct.ThrowIfCancellationRequested();
+            index++;
+        }
+        return index;
+    }
+
+    private static bool IsWhitespaceOrEof(ReadOnlySpan<byte> bytes, int index) =>
+        index >= bytes.Length || bytes[index] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n';
+
+    private static bool IsFlowDelimiterOrWhitespaceOrEof(ReadOnlySpan<byte> bytes, int index) =>
+        index >= bytes.Length
+        || bytes[index] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n'
+            or (byte)',' or (byte)'}' or (byte)']' or (byte)'{' or (byte)'[';
+
+    private static bool StartsWithToken(ReadOnlySpan<byte> bytes, int index, ReadOnlySpan<byte> token) =>
+        bytes[index..].StartsWith(token) && IsWhitespaceOrEof(bytes, index + token.Length);
+
+    private static bool TryMatchSingleQuotedFlowKey(ReadOnlySpan<byte> bytes, int start, CancellationToken ct)
+    {
+        var i = start + 1;
+        while (i < bytes.Length)
+        {
+            if ((i & 1023) == 0) ct.ThrowIfCancellationRequested();
+            if (bytes[i] == (byte)'\'')
+            {
+                if (i + 1 < bytes.Length && bytes[i + 1] == (byte)'\'')
+                {
+                    i += 2;
+                    continue;
+                }
+                i++;
+                break;
+            }
+            i++;
+        }
+        if (i > bytes.Length || bytes[i - 1] != (byte)'\'') return false;
+        i = SkipAsciiWhitespace(bytes, i, ct);
+        if (i >= bytes.Length || bytes[i] != (byte)':') return false;
+        return i + 1 >= bytes.Length || bytes[i + 1] != (byte)':';
+    }
+
+    private static bool TryMatchUnquotedFlowKey(ReadOnlySpan<byte> bytes, int start, CancellationToken ct)
+    {
+        if (bytes[start] is (byte)'"' or (byte)'}' or (byte)'{' or (byte)'[' or (byte)']' or (byte)',')
+            return false;
+        var i = start;
+        while (i < bytes.Length)
+        {
+            if ((i & 1023) == 0) ct.ThrowIfCancellationRequested();
+            var b = bytes[i];
+            if (b is (byte)',' or (byte)'}' or (byte)']' or (byte)'{' or (byte)'[' or (byte)'\r' or (byte)'\n')
+                return false;
+            if (b == (byte)':')
+            {
+                if (i + 1 < bytes.Length && bytes[i + 1] == (byte)':') return false;
+                if (IsFlowDelimiterOrWhitespaceOrEof(bytes, i + 1)) return true;
+            }
+            i++;
+        }
         return false;
     }
 
-    private static bool IsExtensionlessMorphirYaml(RetainedInput.File file, ModelReadLimits limits, CancellationToken ct)
+    private static bool TryMatchDoubleQuotedBlockKey(ReadOnlySpan<byte> bytes, int start, CancellationToken ct)
     {
-        var bytes = file.Entry.Memory;
-        if (bytes.Span.StartsWith(new byte[] { 0xEF, 0xBB, 0xBF })) bytes = bytes[3..];
-        try
+        var i = start + 1;
+        var closed = false;
+        while (i < bytes.Length)
         {
-            CheckJsonBudget(bytes.Span, limits, ct);
-            using var document = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = limits.MaxDepth });
-            return false;
+            if ((i & 1023) == 0) ct.ThrowIfCancellationRequested();
+            var b = bytes[i];
+            if (b == (byte)'\\')
+            {
+                i += 2;
+                continue;
+            }
+            if (b is (byte)'\r' or (byte)'\n') return false;
+            if (b == (byte)'"')
+            {
+                i++;
+                closed = true;
+                break;
+            }
+            i++;
         }
-        catch (InputLimitException)
+        if (!closed) return false;
+        while (i < bytes.Length && bytes[i] is (byte)' ' or (byte)'\t')
+            i++;
+        if (i >= bytes.Length || bytes[i] != (byte)':') return false;
+        if (i + 1 < bytes.Length && bytes[i + 1] == (byte)':') return false;
+        return IsWhitespaceOrEof(bytes, i + 1);
+    }
+
+    private static bool TryMatchSingleQuotedBlockKey(ReadOnlySpan<byte> bytes, int start, CancellationToken ct)
+    {
+        var i = start + 1;
+        var closed = false;
+        while (i < bytes.Length)
         {
-            return false;
+            if ((i & 1023) == 0) ct.ThrowIfCancellationRequested();
+            var b = bytes[i];
+            if (b is (byte)'\r' or (byte)'\n') return false;
+            if (b == (byte)'\'')
+            {
+                if (i + 1 < bytes.Length && bytes[i + 1] == (byte)'\'')
+                {
+                    i += 2;
+                    continue;
+                }
+                i++;
+                closed = true;
+                break;
+            }
+            i++;
         }
-        catch (JsonException)
+        if (!closed) return false;
+        while (i < bytes.Length && bytes[i] is (byte)' ' or (byte)'\t')
+            i++;
+        if (i >= bytes.Length || bytes[i] != (byte)':') return false;
+        if (i + 1 < bytes.Length && bytes[i + 1] == (byte)':') return false;
+        return IsWhitespaceOrEof(bytes, i + 1);
+    }
+
+    private static bool TryMatchPlainBlockKey(ReadOnlySpan<byte> bytes, int start, CancellationToken ct)
+    {
+        var first = bytes[start];
+        if (first is (byte)'}' or (byte)']' or (byte)',') return false;
+        if (first == (byte)'-' && IsWhitespaceOrEof(bytes, start + 1)) return false;
+
+        var i = start;
+        while (i < bytes.Length)
         {
-            return TryReadBoundedMorphirYaml(file, limits, ct, out _);
+            if ((i & 1023) == 0) ct.ThrowIfCancellationRequested();
+            var b = bytes[i];
+            if (b is (byte)'\r' or (byte)'\n') return false;
+            if (b == (byte)':')
+            {
+                if (i + 1 < bytes.Length && bytes[i + 1] == (byte)':') return false;
+                if (IsWhitespaceOrEof(bytes, i + 1)) return true;
+            }
+            i++;
         }
+        return false;
     }
 
     private static Outcome<LoadedModel> DecodeIon(RetainedInput.File file, ModelReadLimits limits)
@@ -367,15 +508,15 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         DistributionModel distribution;
         if (text == "4" || text.StartsWith("4.", StringComparison.Ordinal))
         {
-            var decoded = Morphir.Json.V4.V4Json.readDistribution(root);
-            if (decoded.IsError) return Failure(decoded.ErrorValue.Rule, decoded.ErrorValue.Message, file.SourcePath, decoded.ErrorValue.Location);
-            distribution = DistributionModel.NewV4(decoded.ResultValue.Distribution);
+            if (!Morphir.Json.V4.V4Json.TryReadDistribution(root, out var decoded, out var error))
+                return Failure(error.Rule, error.Message, file.SourcePath, error.Location);
+            distribution = DistributionModel.NewV4(decoded.Distribution);
         }
         else
         {
-            var decoded = Morphir.Json.Classic.ClassicJson.readDistribution(root);
-            if (decoded.IsError) return Failure(decoded.ErrorValue.Rule, decoded.ErrorValue.Message, file.SourcePath, decoded.ErrorValue.Location);
-            distribution = DistributionModel.NewClassic(decoded.ResultValue.Distribution);
+            if (!Morphir.Json.Classic.ClassicJson.TryReadDistribution(root, out var decoded, out var error))
+                return Failure(error.Rule, error.Message, file.SourcePath, error.Location);
+            distribution = DistributionModel.NewClassic(decoded.Distribution);
         }
         var model = new VersionedModel(parsedVersion, distribution);
         return new Outcome<LoadedModel>.Success(new(model, ModelDescriptor.From(model), representation, file));
@@ -403,8 +544,8 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
             .Select(error => new GenerationDiagnostic(
                 error.Code,
                 error.Message,
-                error.FileOrNull ?? defaultPath,
-                error.LocationOrNull ?? "$"))
+                error.File ?? defaultPath,
+                error.Location ?? "$"))
             .ToImmutableArray();
         return new Outcome<LoadedModel>.Failure(new GenerationFailure(kind, diagnostics));
     }

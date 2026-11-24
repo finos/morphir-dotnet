@@ -76,20 +76,28 @@ public sealed class GenerationDocumentTreeLoaderTests
         }
     }
 
+    private static string WriteTreeBytes(string root, string folderName, IReadOnlyDictionary<string, byte[]> documents)
+    {
+        var directory = Path.Combine(root, folderName);
+        foreach (var pair in documents)
+        {
+            var target = Path.Combine(directory, pair.Key.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.WriteAllBytes(target, pair.Value);
+        }
+        return directory;
+    }
+
     [Test]
     public async Task PreservesExplicitFourZeroZeroFormatVersionInJsonAndYamlTrees()
     {
         await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
-        var jsonTree = CopyOrdersTree(sandbox.Work, "v4", "plain-json", "v400-json");
-        var jsonManifest = Path.Combine(jsonTree, "manifest.json");
-        File.WriteAllText(jsonManifest, File.ReadAllText(jsonManifest).Replace("\"formatVersion\": 4", "\"formatVersion\": \"4.0.0\""));
+        var jsonTree = WriteTreeBytes(sandbox.Work, "v400-json", DocumentTreeMother.YamlDocuments.OrdersTreeWithExplicitVersion("plain-json", "4.0.0"));
         var loadedJson = ((Outcome<LoadedModel>.Success)await LoadAsync(jsonTree)).Value;
         loadedJson.Model.SourceVersion.Text.Should().Be("4.0.0");
         loadedJson.Representation.Should().Be(ModelRepresentation.JsonTree);
 
-        var yamlTree = CopyOrdersTree(sandbox.Work, "v4", "plain-yaml", "v400-yaml");
-        var yamlManifest = Path.Combine(yamlTree, "manifest.yaml");
-        File.WriteAllText(yamlManifest, File.ReadAllText(yamlManifest).Replace("formatVersion: 4", "formatVersion: \"4.0.0\""));
+        var yamlTree = WriteTreeBytes(sandbox.Work, "v400-yaml", DocumentTreeMother.YamlDocuments.OrdersTreeWithExplicitVersion("plain-yaml", "4.0.0"));
         var loadedYaml = ((Outcome<LoadedModel>.Success)await LoadAsync(yamlTree)).Value;
         loadedYaml.Model.SourceVersion.Text.Should().Be("4.0.0");
         loadedYaml.Representation.Should().Be(ModelRepresentation.YamlTree);
@@ -171,11 +179,9 @@ public sealed class GenerationDocumentTreeLoaderTests
     public async Task GenerationReportPreservesMemberPathAndNonRootNestedCodecLocation(string profile)
     {
         await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
-        var treePath = CopyOrdersTree(sandbox.Work, "v4", profile, $"nested-location-{profile}");
+        var treePath = WriteTreeBytes(sandbox.Work, $"nested-location-{profile}", DocumentTreeMother.YamlDocuments.OrdersTreeWithUnknownBodyTag(profile));
         var extension = profile.EndsWith("-yaml", StringComparison.Ordinal) ? ".yaml" : ".json";
         var relativeMember = $"pkg/acme/orders/domain/order.value{extension}";
-        var memberPath = Path.Combine(treePath, relativeMember.Replace('/', Path.DirectorySeparatorChar));
-        File.WriteAllText(memberPath, File.ReadAllText(memberPath).Replace("ExpressionBody", "UnknownBodyTag"));
 
         var output = Path.Combine(sandbox.Work, "out");
         var overrides = new GenerateOverrides(treePath, "fsharp", output);
@@ -386,11 +392,11 @@ public sealed class GenerationDocumentTreeLoaderTests
             }
         }
 
-        // Non-Morphir extensionless inputs remain malformed-json in Auto mode rather than reclassifying as YAML.
-        var nonMorphirPath = Path.Combine(sandbox.Work, "non-morphir");
-        File.WriteAllText(nonMorphirPath, DocumentTreeMother.YamlDocuments.NonMorphirPlainYaml);
-        var nonMorphirFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(nonMorphirPath, InputFormat.Auto)).Error;
-        nonMorphirFailure.Diagnostics[0].Code.Should().Be("malformed-json");
+        // Truncated malformed JSON stays malformed-json in Auto mode rather than reclassifying as YAML.
+        var malformedJsonPath = Path.Combine(sandbox.Work, "malformed-json");
+        File.WriteAllText(malformedJsonPath, DocumentTreeMother.YamlDocuments.MalformedJsonBrace);
+        var malformedJsonFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(malformedJsonPath, InputFormat.Auto)).Error;
+        malformedJsonFailure.Diagnostics[0].Code.Should().Be("malformed-json");
 
         // Compacted YAML that fits raw byte capture limits but exceeds MaxBytes on expansion is refused.
         var bombPath = Path.Combine(sandbox.Work, "compacted-bomb.yaml");
@@ -399,6 +405,51 @@ public sealed class GenerationDocumentTreeLoaderTests
         var tightByteLimit = Encoding.UTF8.GetByteCount(bombText) + 32;
         var expansionFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(bombPath, InputFormat.Yaml, new(MaxBytes: tightByteLimit))).Error;
         expansionFailure.Diagnostics[0].Code.Should().Be("tree.file_too_large");
+    }
+
+    [Test]
+    public async Task AutoModePreservesYamlDiagnosticsAndRefusesMalformedTrailingCommaJsonWithoutSilentFallback()
+    {
+        await using var sandbox = TestSandbox.Create("morphir-auto-classifier-");
+
+        // 1. Extensionless invalid YAML with unclosed distribution sequence must report invalid_yaml at /distribution/0 (not malformed-json).
+        var invalidSeqPath = Path.Combine(sandbox.Work, "invalid-seq-yaml");
+        File.WriteAllText(invalidSeqPath, DocumentTreeMother.YamlDocuments.MalformedDistributionSequenceYaml);
+        var invalidSeqFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(invalidSeqPath, InputFormat.Auto)).Error;
+        invalidSeqFailure.Diagnostics[0].Code.Should().Be("invalid_yaml");
+        invalidSeqFailure.Diagnostics[0].Location.Should().Be("/distribution/0");
+
+        // 2. Extensionless YAML exceeding node budget must report YAML node-budget diagnostic (not malformed-json).
+        var validYamlPath = Path.Combine(sandbox.Work, "budget-yaml");
+        File.WriteAllText(validYamlPath, DocumentTreeMother.YamlDocuments.V4DailyRateYaml("4"));
+        var nodeBudgetFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(validYamlPath, InputFormat.Auto, new(MaxNodes: 1))).Error;
+        nodeBudgetFailure.Diagnostics[0].Code.Should().Be("tree.document_node_limit");
+
+        // 3. Extensionless YAML with undeclared $schema must report context.undeclared_schema (not malformed-json).
+        var badSchemaPath = Path.Combine(sandbox.Work, "bad-schema-yaml");
+        File.WriteAllText(badSchemaPath, DocumentTreeMother.YamlDocuments.UndeclaredSchemaYaml);
+        var badSchemaFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(badSchemaPath, InputFormat.Auto)).Error;
+        badSchemaFailure.Diagnostics[0].Code.Should().Be("context.undeclared_schema");
+
+        // 4. Extensionless malformed JSON (trailing comma in v4 daily-rate JSON) must fail as malformed-json, NOT silently decode as YAML.
+        var trailingCommaPath = Path.Combine(sandbox.Work, "trailing-comma-json");
+        File.WriteAllText(trailingCommaPath, DocumentTreeMother.YamlDocuments.TrailingCommaV4DailyRateJson);
+        var trailingCommaOutcome = await LoadAsync(trailingCommaPath, InputFormat.Auto);
+        var trailingCommaFailure = trailingCommaOutcome.Should().BeOfType<Outcome<LoadedModel>.Failure>().Subject.Error;
+        trailingCommaFailure.Diagnostics[0].Code.Should().Be("malformed-json");
+
+        var output = Path.Combine(sandbox.Work, "trailing-comma-out");
+        var genOutcome = await RunGenerateAsync(trailingCommaPath, "fsharp", output);
+        var genReport = GenerationReport.From(genOutcome, new GenerateOverrides(trailingCommaPath, "fsharp", output));
+        genReport.Success.Should().BeFalse();
+        genReport.ExitCode.Should().NotBe(0);
+        genReport.Diagnostics[0].Code.Should().Be("malformed-json");
+
+        // 5. Binary Ion payload with a .yaml suffix still classifies as Ion in Auto mode (Ion precedence).
+        var binaryIonWithYamlSuffix = Path.Combine(sandbox.Work, "binary-ion.yaml");
+        File.WriteAllBytes(binaryIonWithYamlSuffix, [0xE0, 0x01, 0x00, 0xEA, 0xD0]);
+        var binaryIonFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(binaryIonWithYamlSuffix, InputFormat.Auto)).Error;
+        binaryIonFailure.Diagnostics[0].Code.Should().NotBe("invalid_yaml");
     }
 
     [Test]

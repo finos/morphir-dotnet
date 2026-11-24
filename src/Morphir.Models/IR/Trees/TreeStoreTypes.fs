@@ -255,14 +255,14 @@ type StoreError =
 type TreeDiagnostic internal (code: string, file: string option, location: string option, position: string, message: string, legacyMessage: string option) =
     /// <summary>The stable diagnostic code.</summary>
     member _.Code = code
-    /// <summary>The file, as a physical path from the tree's root, or none for an error of the whole tree.</summary>
-    member _.File = file
-    /// <summary>For C# callers: the file, as a physical path from the tree's root, or null.</summary>
-    member _.FileOrNull: string | null = Option.toObj file
-    /// <summary>The structured codec location (JSONPath or JSON Pointer), or none when the diagnostic has none.</summary>
-    member _.Location = location
-    /// <summary>For C# callers: the structured codec location (JSONPath or JSON Pointer), or null.</summary>
-    member _.LocationOrNull: string | null = Option.toObj location
+    /// <summary>The file, as a physical path from the tree's root, or null for an error of the whole tree.</summary>
+    member _.File: string | null = Option.toObj file
+    /// <summary>The file option for F# callers within this assembly and its test suite.</summary>
+    member internal _.FileOption = file
+    /// <summary>The structured codec location (JSONPath or JSON Pointer), or null when the diagnostic has none.</summary>
+    member _.Location: string | null = Option.toObj location
+    /// <summary>The location option for F# callers within this assembly and its test suite.</summary>
+    member internal _.LocationOption = location
     /// <summary>What is wrong, without any leading location prefix.</summary>
     member _.Message =
         if String.IsNullOrEmpty position then message else $"{message}{position}"
@@ -295,7 +295,7 @@ type StoredTree =
 
 /// <summary>
 /// A whole document tree that was read and joined into a <see cref="Morphir.IR.Model.VersionedModel"/>,
-/// together with the serialization profile it was read from and its read report. For C# callers.
+/// together with the serialization profile it was read from and read-report projections for C# callers.
 /// </summary>
 [<Sealed>]
 type LoadedTreeModel internal
@@ -305,14 +305,30 @@ type LoadedTreeModel internal
         tree: StoredTree,
         report: ReadReport
     ) =
+    let notices =
+        report.Notices
+        |> List.map string
+        |> List.toArray
+        :> System.Collections.Generic.IReadOnlyList<string>
+
+    let compactedFiles =
+        report.CompactedFiles
+        |> List.map string
+        |> List.toArray
+        :> System.Collections.Generic.IReadOnlyList<string>
+
     /// <summary>The joined model with its exact declared manifest <c>formatVersion</c>.</summary>
     member _.Model = model
     /// <summary>The serialization profile of the tree (<c>json</c> or <c>yaml</c>).</summary>
     member _.Profile = profile
-    /// <summary>The underlying stored tree.</summary>
-    member _.Tree = tree
-    /// <summary>The read report (notices and compacted files).</summary>
-    member _.Report = report
+    /// <summary>Notices recorded while reading the tree (dropped manifest fields or ignored package metadata files).</summary>
+    member _.Notices: System.Collections.Generic.IReadOnlyList<string> = notices
+    /// <summary>Relative paths of tree documents that were read from compacted name-context envelopes.</summary>
+    member _.CompactedFiles: System.Collections.Generic.IReadOnlyList<string> = compactedFiles
+    /// <summary>The underlying stored tree for internal F# callers.</summary>
+    member internal _.Tree = tree
+    /// <summary>The read report for internal F# callers.</summary>
+    member internal _.Report = report
     /// <summary>The profile and declared format version.</summary>
     override _.ToString() = $"LoadedTreeModel({profile.WireValue}, {model.SourceVersion.Text})"
 

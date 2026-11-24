@@ -91,7 +91,15 @@ their supported semantic release declarations, and v4. JSON document trees
 both plain and name-compacted (contextual envelopes), support IR `3.1.0` and
 `4` / `4.0.0`. Ion text, binary and trees support releases 3.0.0, 3.1.0 and
 4.0.0. Automatic detection recognizes the binary marker even without an Ion
-suffix. An Ion tree has `manifest.ion` at its root. Trees with more than one
+suffix. For single files without a `.json`, `.yaml`, `.yml`, `.ion`, or `.ionb`
+suffix, `auto` classifies the file syntactically before decoding (with no
+cross-codec fallback): Ion binary/text markers route to Ion; YAML comments
+(`#`), directives (`%YAML`/`%TAG`), document markers (`---`), YAML block
+mappings, and YAML flow mappings with non-double-quoted first keys route to
+YAML; and JSON objects (`{"...`, `{}`) and arrays (`[`) route to JSON so
+malformed JSON reports `malformed-json` instead of decoding as YAML (pass
+`--input-format yaml` or a `.yaml`/`.yml` suffix for YAML flow syntax with a
+double-quoted first key). An Ion tree has `manifest.ion` at its root. Trees with more than one
 manifest (for example `manifest.json` alongside `manifest.yaml` or
 `manifest.ion`) are refused as ambiguous, and an explicit `--input-format`
 must match the tree's manifest profile.

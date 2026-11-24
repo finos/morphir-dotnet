@@ -50,7 +50,7 @@ let private tryReadModelErrors options files =
         List.ofSeq errors
 
 let private diagCodesAndFiles (errors: TreeDiagnostic list) =
-    errors |> List.map (fun e -> e.Code, e.File)
+    errors |> List.map (fun e -> e.Code, Option.ofObj e.File)
 
 [<Tests>]
 let tests =
@@ -124,9 +124,7 @@ let tests =
                 Expect.equal v4Json.Model.SourceVersion.Text "4" "Exact v4 JSON declared formatVersion"
 
                 // Explicit string "4.0.0" in manifest is preserved verbatim.
-                let files400 =
-                    catalogTree "v4" "plain-yaml"
-                    |> Driver.withText "manifest.yaml" (fun text -> text.Replace("formatVersion: 4", "formatVersion: \"4.0.0\""))
+                let files400 = YamlDocs.v4OrdersTreeWithExplicitVersion "plain-yaml" "4.0.0"
 
                 let v400 = tryReadModelOk TreeReadOptions.Defaults files400
                 Expect.equal v400.Model.SourceVersion.Text "4.0.0" "Preserves exact 4.0.0 string"
@@ -230,10 +228,10 @@ let tests =
 
                 for name, files in
                     [
-                        "json + yaml", baseJson |> Driver.withFile "manifest.yaml" "formatVersion: 4\n"
+                        "json + yaml", baseJson |> Driver.withFile "manifest.yaml" YamlDocs.minimalV4PlainYaml
                         "json + ion", baseJson |> Driver.withFile "manifest.ion" YamlDocs.minimalIonManifest
                         "yaml + ion", baseYaml |> Driver.withFile "manifest.ion" YamlDocs.minimalIonManifest
-                        "yaml + yml", baseYaml |> Driver.withFile "manifest.yml" "formatVersion: 4\n"
+                        "yaml + yml", baseYaml |> Driver.withFile "manifest.yml" YamlDocs.minimalV4PlainYaml
                     ] do
                     let errors =
                         DocumentTreeStore.readAnyProfile TreeReadOptions.Defaults files |> refusal
@@ -264,7 +262,7 @@ let tests =
 
                 let mixedInYaml =
                     yamlTree
-                    |> Driver.withFile "pkg/acme/orders/domain/extra.type.json" "{}"
+                    |> Driver.withFile "pkg/acme/orders/domain/extra.type.json" YamlDocs.emptyJsonObject
 
                 let mixedErrors =
                     DocumentTreeStore.readAnyProfile TreeReadOptions.Defaults mixedInYaml |> refusal
@@ -682,7 +680,7 @@ let tests =
 
                 Expect.isFalse ok "Invalid context alias entry is refused"
                 Expect.equal (errors[0].Code) "context.invalid_entry" "Context invalid entry code"
-                Expect.equal (nonNull errors[0].LocationOrNull) "$.context.names.bad" "Structured JSONPath location preserved"
+                Expect.equal (nonNull errors[0].Location) "$.context.names.bad" "Structured JSONPath location preserved"
                 Expect.stringContains errors[0].Message "context.names.bad" "Message describes entry"
 
                 // Converting to legacy StoreError preserves the exact legacy message without duplicating a prefix.
@@ -710,15 +708,17 @@ let tests =
 
                 Expect.isNonEmpty errors "Aggregate expanded bytes across two members exceed shared allowance"
                 Expect.equal (errors[0].Code) "tree.file_too_large" "Aggregate expansion limit code"
-                Expect.equal (errors[0].File) (Some "pkg/acme/orders/domain/beta.value.json") "Second member hits shared allowance"
+                Expect.equal (Option.ofObj errors[0].File) (Some "pkg/acme/orders/domain/beta.value.json") "Second member hits shared allowance"
 
-                // With sufficient aggregate budget, the same tree loads cleanly.
+                // With sufficient aggregate budget, the same tree loads cleanly and exposes C#-friendly report projections.
                 let loaded =
                     tryReadModelOk
                         (TreeReadOptions.Defaults.WithMaxFileBytes(aggregateBudget).WithMaxTotalBytes(8192L))
                         vfileTree
 
                 Expect.equal loaded.Profile TreeProfile.Json "Tree succeeds when aggregate budget suffices"
+                Expect.isEmpty loaded.Notices "No notices on clean compacted tree"
+                Expect.equal loaded.CompactedFiles.Count 2 "Both compacted value files projected for C#"
             }
 
             test "Enforces expansion byte and node limits incrementally on compacted documents" {
@@ -798,15 +798,15 @@ let tests =
                 let malformed = yamlTree |> Driver.withFile "manifest.yaml" YamlDocs.malformedFlowYaml
                 let malformedErrors = tryReadModelErrors TreeReadOptions.Defaults malformed
                 Expect.equal (diagCodesAndFiles malformedErrors) [ "invalid_yaml", Some "manifest.yaml" ] "Malformed YAML"
-                Expect.isNotNull malformedErrors[0].LocationOrNull "YAML error carries pointer location"
+                Expect.isNotNull malformedErrors[0].Location "YAML error carries pointer location"
 
                 let anchored =
                     yamlTree
-                    |> Driver.withText "manifest.yaml" (fun text -> text.Replace("4", "&v 4"))
+                    |> Driver.withFile "manifest.yaml" YamlDocs.anchoredManifestYaml
 
                 let anchoredErrors = tryReadModelErrors TreeReadOptions.Defaults anchored
                 Expect.equal (diagCodesAndFiles anchoredErrors) [ "unsupported_yaml_feature", Some "manifest.yaml" ] "Anchors refused"
-                Expect.equal (nonNull anchoredErrors[0].LocationOrNull) "/formatVersion" "Exact structured YAML pointer location"
+                Expect.equal (nonNull anchoredErrors[0].Location) "/formatVersion" "Exact structured YAML pointer location"
                 Expect.isFalse (anchoredErrors[0].Message.StartsWith("/formatVersion")) "Location is separate from message body"
 
                 // Nested YAML key containing ": " must not be truncated by string splitting.
@@ -827,7 +827,7 @@ let tests =
 
                 Expect.isFalse colonOk "Anchor under nested key containing ': ' is refused"
                 Expect.equal (errors[0].Code) "unsupported_yaml_feature" "Anchor error code"
-                Expect.equal (nonNull errors[0].LocationOrNull) "/outer/note: detail" "Structured pointer preserves ': ' in key"
+                Expect.equal (nonNull errors[0].Location) "/outer/note: detail" "Structured pointer preserves ': ' in key"
                 Expect.isFalse (errors[0].Message.StartsWith("/outer/note")) "Message body does not repeat pointer"
 
                 let missingFile = "pkg/acme/orders/domain/order.value.yaml"
