@@ -218,4 +218,85 @@ public class DiagramLayoutTests
         roles.ShouldContain(FamilyRole.Initial);
         roles.ShouldContain(FamilyRole.Final);
     }
+
+    private const string Exchange = """
+        sequenceDiagram
+          participant A
+          participant B
+          A->>B: hi
+          B-->>A: ok
+          A->>A: self
+          create participant C
+          A->>C: new
+        """;
+
+    [Test]
+    public void AParticipantIsACompositeElementThatOwnsItsLifeline()
+    {
+        var layout = Layout(Exchange);
+        var children = ElementOf(Find(layout, "participant=A"));
+
+        children.Length.ShouldBe(3);
+        children.Count(IsLine).ShouldBe(1);
+        children.Where(child => !IsLine(child)).Select(child => ShapeOf(child).Text!.Lines[0]).ShouldBe(["A", "A"]);
+        // The lifeline paints before the messages and the head and foot after them.
+        var lifeline = children.Single(IsLine);
+        lifeline.PaintOrder.ShouldBeLessThan(Find(layout, "message=A/B/0").PaintOrder);
+        children.Where(child => !IsLine(child)).ShouldAllBe(child => child.PaintOrder > Find(layout, "message=A/B/0").PaintOrder);
+    }
+
+    [Test]
+    public void AMessageAnchorsAlongTheLifelinesAtItsRow()
+    {
+        var layout = Layout(Exchange);
+        var message = LineOf(Find(layout, "message=A/B/0"));
+        var lifeline = ElementOf(Find(layout, "participant=B")).Single(IsLine);
+        var line = LineOf(lifeline);
+        var expected = (message.Target.Point.Y - line.Source.Point.Y) / (line.Target.Point.Y - line.Source.Point.Y);
+
+        message.Target.Binding!.Target.ShouldBe(lifeline.Id);
+        message.Target.Binding.Anchor.Match(across: _ => -1.0, along: fraction => fraction.Value).ShouldBe(expected, 1e-9);
+    }
+
+    [Test]
+    public void ASelfMessageBindsOneLifelineTwiceAtDifferentAnchors()
+    {
+        var layout = Layout(Exchange);
+        var message = LineOf(Find(layout, "message=A/A/0"));
+
+        message.Source.Binding!.Target.ShouldBe(message.Target.Binding!.Target);
+        message.Source.Binding.Anchor.ShouldNotBe(message.Target.Binding.Anchor);
+    }
+
+    [Test]
+    public void ACreationMessageBindsTheNewParticipantsHead()
+    {
+        var layout = Layout(Exchange);
+        var message = LineOf(Find(layout, "message=A/C/0"));
+        var head = ElementOf(Find(layout, "participant=C")).First(child => !IsLine(child));
+
+        message.Target.Binding!.Target.ShouldBe(head.Id);
+        // The head faces the sender on its left side.
+        message.Target.Binding.Anchor.Match(across: point => point.X.Value, along: _ => -1.0).ShouldBe(0.0);
+    }
+
+    [Test]
+    public void ADashedReplyKeepsItsDash()
+    {
+        var reply = LineOf(Find(Layout(Exchange), "message=B/A/0"));
+
+        reply.Paint.Dash.ShouldNotBeEmpty();
+        reply.Paint.StrokeWidth.ShouldBe(Distance.FromPixels(1.4));
+    }
+
+    [Test]
+    public void ActivationsAndActorsHaveFamilyRoles()
+    {
+        var layout = Layout("sequenceDiagram\n  actor U\n  participant S\n  U->>S: go\n  activate S\n  S-->>U: done\n  deactivate S\n");
+        var roles = All(layout.Drawables).Select(drawable => drawable.Kind.Match<FamilyRole?>(shape: shape => shape.Role, line: _ => null, text: _ => null, image: _ => null, element: _ => null, container: _ => null, group: _ => null))
+            .OfType<FamilyRole>().ToList();
+
+        roles.ShouldContain(FamilyRole.Activation);
+        roles.ShouldContain(FamilyRole.Actor);
+    }
 }

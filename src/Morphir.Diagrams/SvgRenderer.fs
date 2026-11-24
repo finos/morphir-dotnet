@@ -42,6 +42,12 @@ module internal LayoutRoles =
                         | _ -> ()
                 | None -> ()
             ]
+        | Diagram.Sequence model ->
+            [
+                for participant in model.Participants do
+                    if participant.Kind = ParticipantKind.Actor then
+                        (DiagramElementRef.Participant participant.Id).ToString(), FamilyRole.Actor
+            ]
         | _ -> []
 
 /// Produces standalone, script-free SVG from a diagram model.
