@@ -285,6 +285,32 @@ public sealed class GenerationDocumentTreeLoaderTests
     }
 
     [Test]
+    [Arguments("plain-json")]
+    [Arguments("plain-yaml")]
+    public async Task DirectDecodeValidatesInvalidLimitsWithoutThrowingOnJsonAndYamlTrees(string profile)
+    {
+        await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
+        var treePath = CopyOrdersTree(sandbox.Work, "v4", profile, $"invalid-limits-{profile}");
+        var captured = await new BoundedModelCapture().CaptureAsync(new(treePath), ModelReadLimits.Default, default);
+        var retained = ((Outcome<RetainedInput>.Success)captured).Value;
+
+        foreach (var invalidLimits in new[]
+        {
+            new ModelReadLimits(MaxDepth: 0),
+            new ModelReadLimits(MaxNodes: 0),
+            new ModelReadLimits(MaxBytes: 0),
+            new ModelReadLimits(MaxEntries: 0),
+            new ModelReadLimits(MaxPathLength: 0),
+        })
+        {
+            var outcome = GenerationModelLoader.Decode(retained, new(treePath, InputFormat.Auto), invalidLimits, default);
+            var failure = outcome.Should().BeOfType<Outcome<LoadedModel>.Failure>().Subject.Error;
+            failure.Kind.Should().Be(GenerationFailureKind.Invocation);
+            failure.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("invalid-input-limits");
+        }
+    }
+
+    [Test]
     [Arguments("yaml", InputFormat.Auto)]
     [Arguments("yml", InputFormat.Auto)]
     [Arguments("txt", InputFormat.Yaml)]
@@ -330,6 +356,21 @@ public sealed class GenerationDocumentTreeLoaderTests
         {
             var mepSchemaFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(mepWithSchemaPath, format)).Error;
             mepSchemaFailure.Diagnostics[0].Code.Should().Be("unsupported-profile");
+        }
+
+        // Extensionless YAML starting with MEP marker keys (including envelopeVersion before $schema)
+        // must be classified as YAML and return unsupported-profile in Auto mode, not malformed-json.
+        foreach (var (name, content) in new[]
+        {
+            ("mep-envelope-first", DocumentTreeMother.YamlDocuments.mepEnvelopeFirstWithSchemaYaml),
+            ("mep-morphir-model", DocumentTreeMother.YamlDocuments.mepMorphirModelYaml),
+            ("mep-jsonrpc", DocumentTreeMother.YamlDocuments.mepJsonRpcYaml),
+        })
+        {
+            var extensionlessPath = Path.Combine(sandbox.Work, name);
+            File.WriteAllText(extensionlessPath, content);
+            var autoFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(extensionlessPath, InputFormat.Auto)).Error;
+            autoFailure.Diagnostics[0].Code.Should().Be("unsupported-profile", $"{name} should classify as unsupported-profile in Auto mode");
         }
 
         // Compacted YAML that fits raw byte capture limits but exceeds MaxBytes on expansion is refused.

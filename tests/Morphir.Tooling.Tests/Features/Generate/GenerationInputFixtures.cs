@@ -1,10 +1,7 @@
 using Eleven19.IonDotnet.Builders;
 using System.Text;
 using System.Text.Json;
-using Morphir.Files;
-using Morphir.IR.Trees;
-using Morphir.Json.Classic;
-using Morphir.Json.V4;
+using Morphir.Models.TestSupport;
 using Morphir.TestSupport.Fixtures;
 using Morphir.Testing;
 
@@ -17,7 +14,6 @@ internal static class GenerationInputFixtures
 
     public static string DailyRate(string directory, string version, string format)
     {
-        var fixtures = Path.Combine(GenerateSteps.RepositoryRoot(), "tests", "Fixtures", "MorphirIon");
         Directory.CreateDirectory(directory);
         if (format is "json" or "yaml" or "json-tree" or "yaml-tree")
         {
@@ -27,16 +23,15 @@ internal static class GenerationInputFixtures
         if (format == "tree")
         {
             var path = Path.Combine(directory, "tree");
-            var source = Path.Combine(fixtures, "trees", "v3-daily-rate");
-            foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+            foreach (var file in FixtureCatalog.UpstreamIr.V3DailyRateIonTree.Files)
             {
-                var target = Path.Combine(path, Path.GetRelativePath(source, file));
+                var target = Path.Combine(path, file.Location.Replace('/', Path.DirectorySeparatorChar));
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                File.WriteAllText(target, File.ReadAllText(file).Replace("3.0.0", version));
+                File.WriteAllText(target, FixtureCatalog.ReadText(file.Entry).Replace("3.0.0", version));
             }
             return path;
         }
-        var text = File.ReadAllText(Path.Combine(fixtures, "pairs", "v3-daily-rate.ion")).Replace("3.0.0", version);
+        var text = FixtureCatalog.ReadText(FixtureCatalog.UpstreamIr.V3DailyRateIon).Replace("3.0.0", version);
         return WriteIon(directory, format, text);
     }
 
@@ -84,15 +79,7 @@ internal static class GenerationInputFixtures
 
         var v3 = FixtureCatalog.ReadText(V3DailyRatePair);
         if (version is "1" or "2")
-        {
-            using var parsed = JsonDocument.Parse(v3);
-            var decoded = ClassicJson.readDistribution(parsed.RootElement);
-            if (decoded.IsError) throw new InvalidOperationException($"Failed to decode catalog v3 daily-rate fixture: {decoded.ErrorValue}");
-            var profile = version == "1" ? ClassicWireProfileModule.v1 : ClassicWireProfileModule.v2;
-            var written = ClassicJsonWriter.writeJsonAttributes(profile, true, decoded.ResultValue.Distribution);
-            if (written.IsError) throw new InvalidOperationException($"Failed to project catalog daily-rate fixture to v{version}: {written.ErrorValue}");
-            return Encoding.UTF8.GetString(written.ResultValue);
-        }
+            return DocumentTreeMother.YamlDocuments.ProjectClassicJsonToVersion(version, v3);
 
         return version.Contains('.') ? v3.Replace("\"formatVersion\":3", $"\"formatVersion\":\"{version}\"") : v3;
     }
@@ -113,38 +100,17 @@ internal static class GenerationInputFixtures
             return path;
         }
 
-        using var parsed = JsonDocument.Parse(json);
-        StoredTree storedTree;
-        if (version.StartsWith('4'))
-        {
-            var decoded = V4Json.readDistribution(parsed.RootElement);
-            if (decoded.IsError) throw new InvalidOperationException($"Failed to read v4 fixture: {decoded.ErrorValue}");
-            storedTree = StoredTree.NewV4Tree(V4DocumentTreeModule.Split(decoded.ResultValue.Distribution));
-        }
-        else
-        {
-            var decoded = ClassicJson.readDistribution(parsed.RootElement);
-            if (decoded.IsError) throw new InvalidOperationException($"Failed to read classic fixture: {decoded.ErrorValue}");
-            storedTree = StoredTree.NewClassicTree(ClassicDocumentTree.Split(decoded.ResultValue.Distribution));
-        }
-
-        var written = DocumentTreeStore.Write(WriteOptionsModule.defaults, storedTree);
-        if (written.IsError) throw new InvalidOperationException($"Failed to write document tree fixture: {string.Join("; ", written.ErrorValue)}");
-
+        var treeFiles = DocumentTreeMother.YamlDocuments.SplitJsonModelToTreeFiles(version, json);
         var treeRoot = Path.Combine(directory, format);
         Directory.CreateDirectory(treeRoot);
         var isYamlTree = format == "yaml-tree";
 
-        foreach (var entry in written.ResultValue.FilesByLocation)
+        foreach (var entry in treeFiles)
         {
-            var text = VFileModule.readText(entry.Value).ResultValue;
-            if (entry.Key == "manifest.json" && version == "4.0.0")
-                text = text.Replace("\"formatVersion\":4", "\"formatVersion\":\"4.0.0\"").Replace("\"formatVersion\": 4", "\"formatVersion\": \"4.0.0\"");
-
             var relativePath = isYamlTree ? Path.ChangeExtension(entry.Key, ".yaml") : entry.Key;
             var targetPath = Path.Combine(treeRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-            File.WriteAllText(targetPath, isYamlTree ? JsonToYaml(text) : text);
+            File.WriteAllText(targetPath, isYamlTree ? JsonToYaml(entry.Value) : entry.Value);
         }
 
         return treeRoot;

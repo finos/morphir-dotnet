@@ -291,7 +291,7 @@ public sealed class ModelValidationTests
         using var cts = new CancellationTokenSource();
         var badIonTree = new RetainedInput.Tree(
             "/virtual/broken-ion-tree",
-            [new RetainedEntry("manifest.ion", System.Text.Encoding.UTF8.GetBytes("morphir::{broken"))]);
+            [new RetainedEntry("manifest.ion", System.Text.Encoding.UTF8.GetBytes(Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.malformedIonManifest))]);
 
         var outcome = GenerationModelLoader.DecodeLegacy(
             badIonTree,

@@ -4,6 +4,7 @@ using Morphir.Files;
 using Morphir.IR.Model;
 using Morphir.IR.Trees;
 using Morphir.Ion;
+using Morphir.Tooling.Infrastructure;
 
 namespace Morphir.Tooling.Features.Generate;
 
@@ -41,6 +42,8 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         try
         {
             ct.ThrowIfCancellationRequested();
+            if (CheckLimits(limits, original.SourcePath) is { } invalidLimits)
+                return invalidLimits;
             if (input.Format is not (InputFormat.Auto or InputFormat.Json or InputFormat.Ion))
                 return Failure("invalid-input-format", $"Unsupported input format '{input.Format}'.", original.SourcePath, kind: GenerationFailureKind.Invocation);
 
@@ -74,6 +77,8 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         try
         {
             ct.ThrowIfCancellationRequested();
+            if (CheckLimits(limits, original.SourcePath) is { } invalidLimits)
+                return invalidLimits;
             if (input.Format is not (InputFormat.Auto or InputFormat.Json or InputFormat.Yaml or InputFormat.Ion))
                 return Failure("invalid-input-format", $"Unsupported input format '{input.Format}'.", original.SourcePath, kind: GenerationFailureKind.Invocation);
 
@@ -211,6 +216,13 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
     private static IonReadLimits IonLimits(ModelReadLimits limits) =>
         new((int)Math.Min(limits.MaxBytes, int.MaxValue), limits.MaxDepth, limits.MaxNodes);
 
+    private static Outcome<LoadedModel>? CheckLimits(ModelReadLimits limits, string path)
+    {
+        if (limits.MaxBytes <= 0 || limits.MaxEntries <= 0 || limits.MaxDepth <= 0 || limits.MaxNodes <= 0 || limits.MaxPathLength <= 0)
+            return Failure("invalid-input-limits", BoundedCapture.InvalidLimitsMessage, path, kind: GenerationFailureKind.Invocation);
+        return null;
+    }
+
     private static bool IsYaml(RetainedInput.File file)
     {
         if (IsBinary(file.Entry.Memory.Span)) return false;
@@ -219,7 +231,10 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         return prefix.StartsWith("---", StringComparison.Ordinal)
             || prefix.StartsWith("formatVersion:", StringComparison.Ordinal)
             || prefix.StartsWith("distribution:", StringComparison.Ordinal)
-            || prefix.StartsWith("$schema:", StringComparison.Ordinal);
+            || prefix.StartsWith("$schema:", StringComparison.Ordinal)
+            || prefix.StartsWith("envelopeVersion:", StringComparison.Ordinal)
+            || prefix.StartsWith("morphir_model:", StringComparison.Ordinal)
+            || prefix.StartsWith("jsonrpc:", StringComparison.Ordinal);
     }
 
     private static Outcome<LoadedModel> DecodeIon(RetainedInput.File file, ModelReadLimits limits)

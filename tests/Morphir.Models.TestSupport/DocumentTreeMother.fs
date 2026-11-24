@@ -1166,6 +1166,20 @@ module YamlDocuments =
     let mepEnvelopeWithSchemaYaml =
         "$schema: \"https://morphir.finos.org/schemas/mep/0.2.0/model-envelope.schema.json\"\nenvelopeVersion: \"0.1.0\"\npayload: {}\n"
 
+    /// A MEP model-envelope YAML document whose first key is <c>envelopeVersion:</c> followed by <c>$schema:</c>,
+    /// testing extensionless <c>Auto</c> YAML detection and MEP classification.
+    let mepEnvelopeFirstWithSchemaYaml =
+        "envelopeVersion: \"0.1.0\"\n$schema: \"https://morphir.finos.org/schemas/mep/0.2.0/model-envelope.schema.json\"\npayload: {}\n"
+
+    /// A YAML document starting with the <c>morphir_model:</c> MEP marker key.
+    let mepMorphirModelYaml = "morphir_model:\n  formatVersion: 4\n"
+
+    /// A YAML document starting with the <c>jsonrpc:</c> MEP marker key.
+    let mepJsonRpcYaml = "jsonrpc: \"2.0\"\nmethod: \"morphir/model\"\n"
+
+    /// A malformed Ion manifest payload used to test failed Ion tree decoding under cancellation.
+    let malformedIonManifest = "morphir::{broken"
+
     /// A deeply nested YAML mapping of <paramref name="depth"/> flow levels used to verify iterative
     /// YAML decoding does not exhaust the process stack when <c>MaxDepth = Int32.MaxValue</c>.
     let deepNestedYaml (depth: int) : string =
@@ -1247,3 +1261,61 @@ module YamlDocuments =
 
         System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(entries)
         :> System.Collections.Generic.IReadOnlyDictionary<string, string>
+
+    /// For C# callers: projects a classic v3 single-file JSON distribution to classic wire profile v1 or v2.
+    [<CompiledName("ProjectClassicJsonToVersion")>]
+    let projectClassicJsonToVersion (version: string) (v3Json: string) : string =
+        use parsed = JsonDocument.Parse v3Json
+
+        match Morphir.Json.Classic.ClassicJson.readDistribution parsed.RootElement with
+        | Result.Error err -> failwith $"Failed to decode classic fixture: {err}"
+        | Ok loaded ->
+            let profile =
+                if version = "1" then Morphir.Json.Classic.ClassicWireProfile.v1
+                else Morphir.Json.Classic.ClassicWireProfile.v2
+
+            match Morphir.Json.Classic.ClassicJsonWriter.writeJsonAttributes profile true loaded.Distribution with
+            | Result.Error err -> failwith $"Failed to project classic fixture to v{version}: {err}"
+            | Ok bytes -> System.Text.Encoding.UTF8.GetString bytes
+
+    /// For C# callers: splits a v3.1.0 or v4 single-file JSON distribution into its document-tree files
+    /// (relative path -> JSON text) as a .NET read-only dictionary, keeping F# list/Result handling inside F#.
+    [<CompiledName("SplitJsonModelToTreeFiles")>]
+    let splitJsonModelToTreeFiles (version: string) (json: string) : System.Collections.Generic.IReadOnlyDictionary<string, string> =
+        use parsed = JsonDocument.Parse json
+
+        let storedTree =
+            if version.StartsWith("4", System.StringComparison.Ordinal) then
+                match Morphir.Json.V4.V4Json.readDistribution parsed.RootElement with
+                | Ok loaded -> V4Tree(V4DocumentTree.split loaded.Distribution)
+                | Result.Error err -> failwith $"Failed to read v4 fixture: {err}"
+            else
+                match Morphir.Json.Classic.ClassicJson.readDistribution parsed.RootElement with
+                | Ok loaded -> ClassicTree(ClassicDocumentTree.split loaded.Distribution)
+                | Result.Error err -> failwith $"Failed to read classic fixture: {err}"
+
+        match DocumentTreeStore.write WriteOptions.defaults storedTree with
+        | Result.Error errors ->
+            let joined = errors |> List.map string |> String.concat "; "
+            failwith $"Failed to write document tree fixture: {joined}"
+        | Ok tree ->
+            let entries = System.Collections.Generic.Dictionary<string, string>(System.StringComparer.Ordinal)
+
+            for KeyValue(location, file) in VFileTree.toFileMap tree do
+                let text =
+                    match VFile.readText file with
+                    | Ok value -> value
+                    | Result.Error err -> failwith $"Failed to read written tree file '{location}': {err}"
+
+                let adjusted =
+                    if location = "manifest.json" && version = "4.0.0" then
+                        text
+                            .Replace("\"formatVersion\":4", "\"formatVersion\":\"4.0.0\"")
+                            .Replace("\"formatVersion\": 4", "\"formatVersion\": \"4.0.0\"")
+                    else
+                        text
+
+                entries[location] <- adjusted
+
+            System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(entries)
+            :> System.Collections.Generic.IReadOnlyDictionary<string, string>

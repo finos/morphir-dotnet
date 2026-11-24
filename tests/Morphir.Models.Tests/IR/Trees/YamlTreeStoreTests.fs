@@ -614,6 +614,33 @@ let tests =
                 Expect.isTrue deepOk "Deep YAML (3000 levels) decodes iteratively at MaxDepth = Int32.MaxValue without stack overflow"
             }
 
+            test "Enforces MaxDepth = 1 identically on JSON and YAML trees with scalar manifest members" {
+                let jsonManifestOnly =
+                    Driver.ofTexts [
+                        "manifest.json",
+                        """{"formatVersion":4,"distribution":"Library","package":"acme/orders","pathBudget":4000}"""
+                    ]
+
+                let yamlManifestOnly =
+                    Driver.ofTexts [
+                        "manifest.yaml",
+                        "formatVersion: 4\ndistribution: Library\npackage: acme/orders\npathBudget: 4000\n"
+                    ]
+
+                // At MaxDepth = 1, the root object is depth 1 and its scalar children are depth 2 -> both refuse.
+                let jsonErrors = tryReadModelErrors (TreeReadOptions.Defaults.WithMaxDepth 1) jsonManifestOnly
+                let yamlErrors = tryReadModelErrors (TreeReadOptions.Defaults.WithMaxDepth 1) yamlManifestOnly
+
+                Expect.equal (diagCodesAndFiles jsonErrors) [ "depth_limit_exceeded", Some "manifest.json" ] "JSON manifest with scalars refuses at MaxDepth = 1"
+                Expect.equal (diagCodesAndFiles yamlErrors) [ "depth_limit_exceeded", Some "manifest.yaml" ] "YAML manifest with scalars refuses at MaxDepth = 1"
+
+                // At MaxDepth = 2, both manifests with scalar children succeed identically.
+                let jsonLoaded = tryReadModelOk (TreeReadOptions.Defaults.WithMaxDepth 2) jsonManifestOnly
+                let yamlLoaded = tryReadModelOk (TreeReadOptions.Defaults.WithMaxDepth 2) yamlManifestOnly
+                Expect.equal jsonLoaded.Model.SourceVersion.Text "4" "JSON manifest loads at MaxDepth = 2"
+                Expect.equal yamlLoaded.Model.SourceVersion.Text "4" "YAML manifest loads at MaxDepth = 2"
+            }
+
             test "Preserves structured JSONPath location for nested context validation errors and keeps legacy StoreError message" {
                 let invalidBytes = ReadOnlyMemory(Encoding.UTF8.GetBytes YamlDocs.contextualYamlWithInvalidAliasEntry)
                 let mutable doc = Unchecked.defaultof<JsonElement>

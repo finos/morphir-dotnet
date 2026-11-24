@@ -38,9 +38,14 @@ exception private ContextExpansionRefused of TreeDiagnostic
 /// inside it is left for the decoder to refuse as the wrong type.
 /// </remarks>
 module internal ContextExpansion =
+    [<RequireQualifiedAccess>]
+    type private DepthAccounting =
+        | ContainerOnly
+        | IncludeScalars
+
     // Count one node per container or scalar value, excluding property names and closing tokens.
     // The original parser still supplies the syntax diagnostic for malformed input.
-    let countJsonNodesCancellable maxDepth nodeLimit (ct: CancellationToken) file (bytes: ReadOnlyMemory<byte>) =
+    let private countJsonNodesWith (depthAccounting: DepthAccounting) maxDepth nodeLimit (ct: CancellationToken) file (bytes: ReadOnlyMemory<byte>) =
         ct.ThrowIfCancellationRequested()
 
         match nodeLimit with
@@ -67,6 +72,9 @@ module internal ContextExpansion =
                     | JsonTokenType.StartObject | JsonTokenType.StartArray when reader.CurrentDepth >= maxDepth ->
                         refusal <- Some(StoreErrors.error "depth_limit_exceeded" (Some file)
                             $"The file is nested more than {maxDepth} levels deep.")
+                    | _ when depthAccounting = DepthAccounting.IncludeScalars && reader.CurrentDepth >= maxDepth ->
+                        refusal <- Some(StoreErrors.error "depth_limit_exceeded" (Some file)
+                            $"The file is nested more than {maxDepth} levels deep.")
                     | _ when nodes >= maxNodes ->
                         refusal <- Some(StoreErrors.error "tree.document_node_limit" (Some file)
                             "The decoded document exceeds the available maxNodes for this exchange.")
@@ -77,8 +85,11 @@ module internal ContextExpansion =
                 | None -> Ok nodes
             with :? JsonException -> Ok 0
 
+    let countJsonNodesCancellable maxDepth nodeLimit (ct: CancellationToken) file (bytes: ReadOnlyMemory<byte>) =
+        countJsonNodesWith DepthAccounting.IncludeScalars maxDepth nodeLimit ct file bytes
+
     let countJsonNodes maxDepth nodeLimit file (bytes: ReadOnlyMemory<byte>) =
-        countJsonNodesCancellable maxDepth nodeLimit CancellationToken.None file bytes
+        countJsonNodesWith DepthAccounting.ContainerOnly maxDepth nodeLimit CancellationToken.None file bytes
 
     /// The table that a position resolves through.
     type Table =
@@ -1296,6 +1307,7 @@ module internal ContextExpansion =
     /// <c>depth_limit_exceeded</c>.
     /// </summary>
     let private expandPart
+        (depthAccounting: DepthAccounting)
         (limits: ContextLimits)
         byteLimit
         maxNodes
@@ -1470,7 +1482,7 @@ module internal ContextExpansion =
             if work |> Option.exists (fun meter -> not (meter.TryCharge(BoundedTreeWorkBudget.Blocks(int64 bytes.Length)))) then
                 exhausted ()
             else
-                countJsonNodesCancellable maxDepth maxNodes ct file bytes
+                countJsonNodesWith depthAccounting maxDepth maxNodes ct file bytes
                 |> Result.mapError (List.map StoreErrors.ofStoreError)
                 |> Result.bind (fun nodes ->
                     try
@@ -1479,15 +1491,16 @@ module internal ContextExpansion =
                     with :? JsonException -> tooDeep ())
 
     let expand limits family file context document =
-        expandPart limits None None None CancellationToken.None file context Projection.Complete "$" (rootOf family) document
+        expandPart DepthAccounting.ContainerOnly limits None None None CancellationToken.None file context Projection.Complete "$" (rootOf family) document
         |> Result.map (fun (root, _, _) -> root)
         |> Result.mapError StoreErrors.toStoreErrors
 
     let expandCountedDetailed limits byteLimit maxNodes ct family file context document =
-        expandPart limits byteLimit maxNodes None ct file context Projection.Complete "$" (rootOf family) document
+        expandPart DepthAccounting.IncludeScalars limits byteLimit maxNodes None ct file context Projection.Complete "$" (rootOf family) document
 
     let expandBounded limits limit maxNodes work family file context projection document =
         expandPart
+            DepthAccounting.ContainerOnly
             limits
             (Some limit)
             maxNodes
@@ -1506,6 +1519,7 @@ module internal ContextExpansion =
         let shape = memberShape family isType holdsDefinitions
 
         expandPart
+            DepthAccounting.ContainerOnly
             limits
             (Some limit)
             maxNodes
@@ -1547,6 +1561,7 @@ module internal ContextExpansion =
                 && hasMember "$name" element
                 ->
                 expandPart
+                    DepthAccounting.ContainerOnly
                     ContextLimits.draft1
                     (Some limit)
                     None

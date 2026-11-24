@@ -169,6 +169,9 @@ A tree is recorded as one digest: the SHA-256 of the lines `<SHA-256 of the file
 | `trees/complete-example/` | `aea6c6ef293b328fc3d9351ce85beff1f9b2ff977e43c1e875fb6b78f1937e52` | 13 |
 | `trees/greeting-example/` | `80b984d840413280e3c553d3e5e79001ceabcfe6936ed9a23aa9eac64009aeef` | 18 |
 | `trees/v3-daily-rate/` | `b5f293aa7ac8cefa1f705c80644a5a744054b2be55ade760369fe3ad4074fedd` | 3 |
+| `trees/v3-daily-rate/manifest.ion` | `655a8604be8cd2db6488ce45cd3152aabbe62b870f93fdcd4af94f1c90fa50a1` | 1 |
+| `trees/v3-daily-rate/pkg/car/rental/inventory/daily-rate.value.ion` | `754ce7627f3db7199a6f7ad514a064e5368c50471eabfd0348af1a755d2aa196` | 1 |
+| `trees/v3-daily-rate/pkg/car/rental/inventory/module.ion` | `80f3802f6bd8134981575b708e23a8174ae375f0905f4d0b0f68545a0396b6af` | 1 |
 | `trees/v3-library-nodes/` | `0c892d057ccff6a4dc4dfc83cb9929762ebd2781b7a9b52437d8f8abb64cda1a` | 26 |
 | `trees/v3-specs/` | `d2a86d5bbe70644e2f6b6783ae268e073c738bb6ef6839e9d800aa6fb3a5d622` | 12 |
 | `trees/v4-application/` | `04c70164bebef63154ff41c9d4e5992056d2bb6e92ae59b363a964c07bc76801` | 6 |
