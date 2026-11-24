@@ -1,6 +1,6 @@
 # Morphir.Ion
 
-`Morphir.Ion` reads Morphir's Amazon Ion formats into immutable F# values. It reads Ion 1.0 text and binary, the Ion IR format as a single file or as a document tree, and the Morphir Extension Protocol (MEP) `morphir_model` document. It does not write Ion.
+`Morphir.Ion` reads Morphir's Amazon Ion formats into immutable F# values. It reads Ion 1.0 text and binary, the Ion IR format as a single file or as a document tree, and the Morphir Extension Protocol (MEP) `morphir_model` document. It writes the Ion IR format as canonical Ion 1.0 text, as a single file or as a document tree. It does not write binary Ion or the `morphir_model` document.
 
 ## Reading Ion
 
@@ -113,6 +113,40 @@ Local draft codes, which this reader defines because the upstream documents leav
 | `invalid_document_payload` | A document payload, `constraints` or `extensions` holds Ion with no JSON form: a float, timestamp, symbol, blob, clob, S-expression, typed null, repeated member, or an annotation other than `number::` on a number string. |
 | `malformed_ion` | The input is not valid Ion. |
 | `ion_ir_decode_failed` | The decoder failed in a way it did not expect, on the larger stack it falls back to. This is a defect in the reader, reported as an error rather than ending the process. |
+
+## Writing the Ion IR format
+
+`IonIrWriter` writes an `IrDocument` as the canonical text of draft `0.1.0-draft.1`. What it writes reads back through `IonIr.read` and `IonIrTree.read` as the same distribution.
+
+- `IonIrWriter.write document` gives the UTF-8 bytes of one datagram: the header, the dependencies, the modules, and the `morphir_footer::{}` footer. `writeText` gives the same text as a string.
+- `IonIrWriter.writeTree pathBudget document` gives a flat `VFileTree` of the document tree, and `writeTreeFiles` gives its files as `(location, bytes)` pairs in ordinal order. The manifest states `pathBudget`. `IonIrWriter.DefaultPathBudget` is 4000, and a budget under `IonIrWriter.MinimumPathBudget` (64) is refused.
+- `IonIrWriter.readJson json` reads Morphir IR JSON into an `IrDocument`, and `IonIrWriter.ofJson json` writes that JSON as one Ion datagram. A JSON reader's error keeps its rule as `Code` and its JSON location as `Location`.
+
+The text follows the draft's canonical layout. Each struct member, list item and S-expression operand is on its own line, two spaces deeper than its container. A comma follows every struct member and list item, and no comma separates operands. Annotations touch the value they annotate, and the file ends with one line feed and has no byte-order mark. A symbol is bare when Ion reads the bare text back as that symbol, and single-quoted otherwise, so `'on event'`, `'value-in-USD'` and `'true'` are quoted. Quoted text uses `\0`, `\a`, `\b`, `\t`, `\n`, `\v`, `\f`, `\r`, `\\`, `\"` and `\'`. Any other control character, which Ion text does not allow raw, is written as a `\x` escape, and every other character stays as UTF-8. Every empty optional list is left out: `dependencies`, `modules`, `types`, `values`, `typeParams`, `constructors`, `args`, `arguments`, `inputTypes` and `inputs`.
+
+The writer starts from the IR, so it cannot keep a source spelling that the IR does not hold:
+
+- A v3 library states `formatVersion` `3.0.0` and a v3 `specs` distribution `3.1.0`. A v3 library writes each module, then its types and values as top-level elements that name the module. A v3 `specs` distribution and every dependency hold their members inline. A v4 module holds its types and values inline.
+- A v3 type attribute must be the empty object, because Ion has no spelling for a v3 type attribute. A v3 value or pattern attribute must be the classic JSON of a type, which Ion writes as `{ inferredType }`, or `[]`, which Ion leaves out and reads back as the unit type. Any other attribute is `unrepresentable_attribute`.
+- A v3 module keeps its members in name order, because the classic model holds them in maps.
+- An annotation with no arguments is the compact string, and so is one with one string argument that is not empty.
+- A v4 float that kept its lexeme is `(float "lexeme")`. Without a lexeme, it is a bare Ion float in its shortest scientific text, such as `1.5e0` or `1e2`.
+- A v4 integer literal outside the 128-bit range is `(int "digits")`. A document number is an Ion int when it is a 64-bit integer, an Ion decimal when the decimal's text gives the lexeme back and the lexeme has no positive exponent, and `number::"lexeme"` otherwise.
+
+A tree puts only the module's own members in `module.ion`, and writes one file for each type and value. Each file leaves out the names its path supplies. A member path longer than the budget has its stem cut to a prefix, `__` and eight hex digits of the escaped name's SHA-256, and that file states its `name`. A module path longer than the budget is `path_over_budget`, because only a type or value stem can be cut. Stems come from `TreeStems.escapeName`, so `morphir/SDK` is `morphir/_sdk` and the type `con` is `con_.type.ion`.
+
+A write returns an `IonIrError`, never an exception, with one of these codes:
+
+| Code | Meaning |
+| --- | --- |
+| `unsupported_format_version_major` | The IR is neither 3 nor 4, such as classic IR 2. |
+| `unsupported_format_version_minor` | The IR is a v4 release other than `4.0.0`. |
+| `unrepresentable_attribute` | A v3 attribute has no Ion spelling. |
+| `unsupported_node` | A node Ion cannot hold: a let binding with documentation or a body other than an expression, an external body with no binding, or a document literal in a pattern. |
+| `literal_out_of_range` | A v3 float literal is not finite. |
+| `invalid_path_budget` | A tree's path budget is under 64. |
+| `path_over_budget` | A tree path does not fit the budget, and no cut stem makes it fit. |
+| `invalid_json` | The input of `readJson` is not JSON. |
 
 ## The `morphir_model` document
 

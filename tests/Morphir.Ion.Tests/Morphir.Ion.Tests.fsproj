@@ -41,6 +41,7 @@
         <Compile Include="IonIrTreeTests.fs" />
         <Compile Include="IonIrTreeReferenceTests.fs" />
         <Compile Include="IonIrParserTests.fs" />
+        <Compile Include="IonIrWriterTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

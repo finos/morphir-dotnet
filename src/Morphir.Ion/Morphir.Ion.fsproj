@@ -4,7 +4,7 @@
         <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
         <RootNamespace>Morphir.Ion</RootNamespace>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
-        <Description>Reads Morphir's Amazon Ion formats: the Ion IR format and the MEP morphir_model document</Description>
+        <Description>Reads and writes Morphir's Amazon Ion formats: the Ion IR format, and reads the MEP morphir_model document</Description>
         <PackageTags>$(PackageTags);morphir;ion;ir;mep</PackageTags>
         <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
         <IsTrimmable>true</IsTrimmable>
@@ -38,6 +38,10 @@
         <Compile Include="Ir/IonSources.fs" />
         <Compile Include="Ir/IonIrTree.fs" />
         <Compile Include="Ir/IonIrParser.fs" />
+        <Compile Include="Ir/IonTextWriter.fs" />
+        <Compile Include="Ir/V4IonWriter.fs" />
+        <Compile Include="Ir/ClassicIonWriter.fs" />
+        <Compile Include="Ir/IonIrWriter.fs" />
         <Compile Include="IrProjection.fs" />
         <Compile Include="ModelDocument.fs" />
     </ItemGroup>
