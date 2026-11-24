@@ -3,8 +3,12 @@
 
 namespace Morphir.Diagrams
 
+open System
+open System.Collections.Generic
 open System.Collections.Immutable
 open System.Globalization
+open System.Text
+open System.Xml
 open Morphir.Svg
 
 [<RequireQualifiedAccess>]
@@ -12,13 +16,44 @@ module internal SvgWriting =
     let number (value: int) =
         value.ToString(CultureInfo.InvariantCulture)
 
-    let private attributes (pairs: (string * string) list) =
-        pairs |> List.map (fun (name, value) -> SvgAttribute.Create(name, value)) |> List.toArray
+    /// Diagram text with each character that XML cannot hold, a control character or an unpaired
+    /// surrogate, replaced by U+FFFD. Text that XML can hold is returned unchanged.
+    let legible (value: string) =
+        let rec valid index =
+            if index >= value.Length then true
+            elif Char.IsHighSurrogate value[index] && index + 1 < value.Length && Char.IsLowSurrogate value[index + 1] then valid (index + 2)
+            elif XmlConvert.IsXmlChar value[index] then valid (index + 1)
+            else false
 
-    type SceneBuilder(prefix: string, options: SvgRenderOptions) =
+        if valid 0 then
+            value
+        else
+            let copy = StringBuilder(value.Length)
+            let mutable index = 0
+
+            while index < value.Length do
+                if Char.IsHighSurrogate value[index] && index + 1 < value.Length && Char.IsLowSurrogate value[index + 1] then
+                    copy.Append(value, index, 2) |> ignore
+                    index <- index + 2
+                else
+                    copy.Append(if XmlConvert.IsXmlChar value[index] then value[index] else '\uFFFD') |> ignore
+                    index <- index + 1
+
+            copy.ToString()
+
+    /// A text node of diagram text, legible in XML.
+    let text (value: string) = SvgNode.CreateText(legible value)
+
+    let private attributes (pairs: (string * string) list) =
+        pairs |> List.map (fun (name, value) -> SvgAttribute.Create(name, legible value)) |> List.toArray
+
+    type SceneBuilder(prefix: string, options: SvgRenderOptions, onFills: bool) =
         let root = ResizeArray<SvgNode>()
         let connectors = ResizeArray<DiagramConnector>()
         let mutable current = root
+        let hints = Dictionary<SvgNode, LayoutHint list>(HashIdentity.Reference)
+        let owners = ResizeArray<string * string>()
+        let mutable pending: LayoutHint list = []
 
         /// Namespace of the generated identifiers of this diagram.
         member _.Prefix = prefix
@@ -30,12 +65,24 @@ module internal SvgWriting =
             let children = ResizeArray<SvgNode>()
             current <- children
 
+            // Hints describe the element that follows them, not its children.
+            let described = pending
+            pending <- []
+
             try
                 body ()
             finally
                 current <- enclosing
 
-            enclosing.Add(SvgNode.CreateElement(name, attributes pairs, children))
+            let node = SvgNode.CreateElement(name, attributes pairs, children)
+            if not described.IsEmpty then hints[node] <- described
+            enclosing.Add node
+
+        /// Tells the layout sink something about the next element, which the SVG does not say.
+        member _.Hint(hint: LayoutHint) = pending <- pending @ [ hint ]
+
+        /// Records that the drawable with the child reference belongs to the drawable with the owner reference.
+        member _.Own (child: string) (owner: string) = owners.Add((child, owner))
 
         member _.BindConnector source target data reversed =
             connectors.Add(DiagramConnector(connectors.Count, source, target, data, reversed))
@@ -49,6 +96,7 @@ module internal SvgWriting =
                 | None -> document
 
             DiagramScene(document, Reading.immutable connectors, options, ImmutableArray.Empty, [])
+                .WithCapture({ Root = document.Root; Hints = hints; Owners = List.ofSeq owners; Roles = []; OnFills = onFills })
 
     let element (writer: SceneBuilder) name pairs body = writer.Element name pairs body
 
@@ -74,7 +122,7 @@ module internal SvgWriting =
             ]
             (fun () ->
                 if lines.Length = 1 then
-                    writer.Add(SvgNode.CreateText value)
+                    writer.Add(text value)
                 else
                     lines
                     |> Array.iteri (fun index line ->
@@ -82,7 +130,7 @@ module internal SvgWriting =
                             writer
                             "tspan"
                             [ "x", number x; "dy", (if index = 0 then "0" else number step) ]
-                            (fun () -> writer.Add(SvgNode.CreateText line))))
+                            (fun () -> writer.Add(text line))))
 
     /// The estimated advance of monospace text, in whole pixels.
     let textWidth size (value: string) =
@@ -224,17 +272,17 @@ module internal SvgWriting =
             |> Seq.toArray
 
         let draw prefix =
-            let writer = SceneBuilder(prefix, options)
+            let writer = SceneBuilder(prefix, options, onFills)
             let id = prefix + "-diagram"
             let style = Theme.styleSheet id onFills options
-            element writer "title" [] (fun () -> writer.Add(SvgNode.CreateText title))
+            element writer "title" [] (fun () -> writer.Add(text title))
 
             element
                 writer
                 "defs"
                 []
                 (fun () ->
-                    element writer "style" [] (fun () -> writer.Add(SvgNode.CreateText style))
+                    element writer "style" [] (fun () -> writer.Add(text style))
 
                     for head, stroke in heads do
                         marker writer head stroke

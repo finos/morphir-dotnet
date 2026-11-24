@@ -310,6 +310,8 @@ module internal SequenceSvg =
                 "data-depth", SvgWriting.number activation.Depth
             ]
             (fun () ->
+                writer.Hint(LayoutHint.Role Layout.FamilyRole.Activation)
+
                 SvgWriting.rectangle
                     writer
                     left
@@ -417,6 +419,10 @@ module internal SequenceSvg =
                         let fill =
                             match Option.ofObj box.Color with
                             | Some color when literalColor.IsMatch color && color <> "transparent" -> color
+                            | Some color when color <> "transparent" ->
+                                let name = if box.Label = "" then "a box" else $"the box {box.Label}"
+                                writer.Hint(LayoutHint.Unresolved(color, name))
+                                "none"
                             | _ -> "none"
 
                         SvgWriting.empty
@@ -441,6 +447,10 @@ module internal SequenceSvg =
                 for participant in model.Participants do
                     let px = x participant.Id
                     let lifelineEnd = messageRow participant.DestroyedBy |> Option.defaultValue (bottom + 6)
+
+                    // The lifeline is drawn under the messages, outside its participant's group, but belongs to it.
+                    writer.Hint(LayoutHint.Owner((DiagramElementRef.Participant participant.Id).ToString()))
+                    writer.Hint(LayoutHint.Lifeline participant.Id.Value)
 
                     SvgWriting.path
                         writer

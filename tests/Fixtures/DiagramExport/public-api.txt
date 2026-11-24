@@ -1,0 +1,3389 @@
+static class Morphir.Diagrams.AnimatedRenderer
+  method Morphir.Diagrams.RenderedDiagram Render(Morphir.Diagrams.DiagramScene)
+  method Morphir.Diagrams.RenderedDiagram Render(Morphir.Diagrams.DiagramScene, System.Collections.Generic.IReadOnlyList`1[Morphir.Diagrams.PlaybackStep])
+  method Morphir.Diagrams.RenderedDiagram Render(Morphir.Diagrams.DiagramScene, System.Collections.Generic.IReadOnlyList`1[Morphir.Diagrams.PlaybackStep], System.Collections.Generic.IReadOnlyList`1[Morphir.Diagrams.NodeVisit])
+sealed class Morphir.Diagrams.ArchitectureAlignment
+  method Boolean get_IsRow()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramId] get_Members()
+  method System.String ToString()
+  property Boolean IsRow
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramId] Members
+sealed class Morphir.Diagrams.ArchitectureDiagram
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.ArchitectureAlignment] get_Alignments()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.ArchitectureEdge] get_Edges()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.ArchitectureGroup] get_Groups()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.ArchitectureJunction] get_Junctions()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.ArchitectureService] get_Services()
+  method System.String ToString()
+  method System.String get_Title()
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.ArchitectureAlignment] Alignments
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.ArchitectureEdge] Edges
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.ArchitectureGroup] Groups
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.ArchitectureJunction] Junctions
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.ArchitectureService] Services
+  property System.String Title
+sealed class Morphir.Diagrams.ArchitectureEdge
+  method Boolean get_SourceGroup()
+  method Boolean get_SourceHead()
+  method Boolean get_TargetGroup()
+  method Boolean get_TargetHead()
+  method Char get_SourceSide()
+  method Char get_TargetSide()
+  method Morphir.Diagrams.DiagramId get_Source()
+  method Morphir.Diagrams.DiagramId get_Target()
+  method System.String ToString()
+  method System.String get_Label()
+  property Boolean SourceGroup
+  property Boolean SourceHead
+  property Boolean TargetGroup
+  property Boolean TargetHead
+  property Char SourceSide
+  property Char TargetSide
+  property Morphir.Diagrams.DiagramId Source
+  property Morphir.Diagrams.DiagramId Target
+  property System.String Label
+sealed class Morphir.Diagrams.ArchitectureGroup
+  method Morphir.Diagrams.DiagramId get_Id()
+  method Morphir.Diagrams.DiagramId get_Parent()
+  method System.String ToString()
+  method System.String get_Icon()
+  method System.String get_Label()
+  property Morphir.Diagrams.DiagramId Id
+  property Morphir.Diagrams.DiagramId Parent
+  property System.String Icon
+  property System.String Label
+sealed class Morphir.Diagrams.ArchitectureJunction
+  method Morphir.Diagrams.DiagramId get_Id()
+  method Morphir.Diagrams.DiagramId get_Parent()
+  method System.String ToString()
+  property Morphir.Diagrams.DiagramId Id
+  property Morphir.Diagrams.DiagramId Parent
+sealed class Morphir.Diagrams.ArchitectureService
+  method Morphir.Diagrams.DiagramId get_Id()
+  method Morphir.Diagrams.DiagramId get_Parent()
+  method System.String ToString()
+  method System.String get_Icon()
+  method System.String get_IconText()
+  method System.String get_Label()
+  property Morphir.Diagrams.DiagramId Id
+  property Morphir.Diagrams.DiagramId Parent
+  property System.String Icon
+  property System.String IconText
+  property System.String Label
+sealed class Morphir.Diagrams.BpmnDiagram
+  method Boolean TryCreate(Morphir.Bpmn.BpmnDocument, System.String, Morphir.Diagrams.BpmnGeometry, Morphir.Diagrams.BpmnDiagram ByRef, System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] ByRef)
+  method Boolean get_UsesSuppliedGeometry()
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Diagrams.BpmnDiagram,System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic]] Create(Morphir.Bpmn.BpmnDocument, System.String, Morphir.Diagrams.BpmnGeometry)
+  method Morphir.Bpmn.BpmnDocument get_Document()
+  method Morphir.Bpmn.BpmnElement get_View()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] get_Diagnostics()
+  method System.String ToString()
+  property Boolean UsesSuppliedGeometry
+  property Morphir.Bpmn.BpmnDocument Document
+  property Morphir.Bpmn.BpmnElement View
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] Diagnostics
+sealed class Morphir.Diagrams.BpmnGeometry
+  method Boolean Equals(Morphir.Diagrams.BpmnGeometry)
+  method Boolean Equals(Morphir.Diagrams.BpmnGeometry, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsAutomatic()
+  method Boolean get_IsPreferSupplied()
+  method Boolean get_IsRequireSupplied()
+  method Int32 CompareTo(Morphir.Diagrams.BpmnGeometry)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.BpmnGeometry get_Automatic()
+  method Morphir.Diagrams.BpmnGeometry get_PreferSupplied()
+  method Morphir.Diagrams.BpmnGeometry get_RequireSupplied()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsAutomatic
+  property Boolean IsPreferSupplied
+  property Boolean IsRequireSupplied
+  property Int32 Tag
+  property Morphir.Diagrams.BpmnGeometry Automatic
+  property Morphir.Diagrams.BpmnGeometry PreferSupplied
+  property Morphir.Diagrams.BpmnGeometry RequireSupplied
+  property System.String WireValue
+static class Morphir.Diagrams.BpmnGeometry+Tags
+  field Int32 Automatic
+  field Int32 PreferSupplied
+  field Int32 RequireSupplied
+sealed class Morphir.Diagrams.Color
+  method Boolean Equals(System.Object)
+  method Boolean TryParse(System.String, Morphir.Diagrams.Color ByRef, Morphir.Diagrams.Diagnostic ByRef)
+  method Double ContrastRatio(Morphir.Diagrams.Color)
+  method Int32 GetHashCode()
+  method Int32 get_B()
+  method Int32 get_G()
+  method Int32 get_R()
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Diagrams.Color,Morphir.Diagrams.Diagnostic] Parse(System.String)
+  method Morphir.Diagrams.Color CompositeOver(Morphir.Diagrams.Color)
+  method Morphir.Diagrams.Color Create(System.String)
+  method Morphir.Diagrams.Color FromRgb(Int32, Int32, Int32)
+  method Morphir.Diagrams.Color FromRgba(Int32, Int32, Int32, System.Decimal)
+  method System.Decimal get_Opacity()
+  method System.String ToCss()
+  method System.String ToString()
+  property Int32 B
+  property Int32 G
+  property Int32 R
+  property System.Decimal Opacity
+sealed class Morphir.Diagrams.ColorFamily
+  method Boolean Equals(Morphir.Diagrams.ColorFamily)
+  method Boolean Equals(Morphir.Diagrams.ColorFamily, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsBackend()
+  method Boolean get_IsCloud()
+  method Boolean get_IsDatabase()
+  method Boolean get_IsExternal()
+  method Boolean get_IsFrontend()
+  method Boolean get_IsMessageBus()
+  method Boolean get_IsSecurity()
+  method Int32 CompareTo(Morphir.Diagrams.ColorFamily)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.ColorFamily get_Backend()
+  method Morphir.Diagrams.ColorFamily get_Cloud()
+  method Morphir.Diagrams.ColorFamily get_Database()
+  method Morphir.Diagrams.ColorFamily get_External()
+  method Morphir.Diagrams.ColorFamily get_Frontend()
+  method Morphir.Diagrams.ColorFamily get_MessageBus()
+  method Morphir.Diagrams.ColorFamily get_Security()
+  method System.Collections.Generic.IReadOnlyList`1[Morphir.Diagrams.ColorFamily] get_All()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsBackend
+  property Boolean IsCloud
+  property Boolean IsDatabase
+  property Boolean IsExternal
+  property Boolean IsFrontend
+  property Boolean IsMessageBus
+  property Boolean IsSecurity
+  property Int32 Tag
+  property Morphir.Diagrams.ColorFamily Backend
+  property Morphir.Diagrams.ColorFamily Cloud
+  property Morphir.Diagrams.ColorFamily Database
+  property Morphir.Diagrams.ColorFamily External
+  property Morphir.Diagrams.ColorFamily Frontend
+  property Morphir.Diagrams.ColorFamily MessageBus
+  property Morphir.Diagrams.ColorFamily Security
+  property System.Collections.Generic.IReadOnlyList`1[Morphir.Diagrams.ColorFamily] All
+  property System.String WireValue
+static class Morphir.Diagrams.ColorFamily+Tags
+  field Int32 Backend
+  field Int32 Cloud
+  field Int32 Database
+  field Int32 External
+  field Int32 Frontend
+  field Int32 MessageBus
+  field Int32 Security
+sealed class Morphir.Diagrams.ConnectorStyle
+  method Boolean Equals(Morphir.Diagrams.ConnectorStyle)
+  method Boolean Equals(Morphir.Diagrams.ConnectorStyle, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsCurved()
+  method Boolean get_IsElbow()
+  method Boolean get_IsRounded()
+  method Int32 CompareTo(Morphir.Diagrams.ConnectorStyle)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.ConnectorStyle get_Curved()
+  method Morphir.Diagrams.ConnectorStyle get_Elbow()
+  method Morphir.Diagrams.ConnectorStyle get_Rounded()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsCurved
+  property Boolean IsElbow
+  property Boolean IsRounded
+  property Int32 Tag
+  property Morphir.Diagrams.ConnectorStyle Curved
+  property Morphir.Diagrams.ConnectorStyle Elbow
+  property Morphir.Diagrams.ConnectorStyle Rounded
+  property System.String WireValue
+static class Morphir.Diagrams.ConnectorStyle+Tags
+  field Int32 Curved
+  field Int32 Elbow
+  field Int32 Rounded
+sealed class Morphir.Diagrams.DataFormat
+  method Boolean Equals(Morphir.Diagrams.DataFormat)
+  method Boolean Equals(Morphir.Diagrams.DataFormat, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsJson()
+  method Boolean get_IsYaml()
+  method Int32 CompareTo(Morphir.Diagrams.DataFormat)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.DataFormat get_Json()
+  method Morphir.Diagrams.DataFormat get_Yaml()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsJson
+  property Boolean IsYaml
+  property Int32 Tag
+  property Morphir.Diagrams.DataFormat Json
+  property Morphir.Diagrams.DataFormat Yaml
+  property System.String WireValue
+static class Morphir.Diagrams.DataFormat+Tags
+  field Int32 Json
+  field Int32 Yaml
+sealed class Morphir.Diagrams.DataHighlight
+  method System.Collections.Immutable.ImmutableArray`1[System.String] get_Path()
+  method System.String ToString()
+  method System.String get_Stereotype()
+  property System.Collections.Immutable.ImmutableArray`1[System.String] Path
+  property System.String Stereotype
+sealed class Morphir.Diagrams.DataMember
+  method Morphir.Diagrams.DataValue get_Value()
+  method System.String ToString()
+  method System.String get_Key()
+  property Morphir.Diagrams.DataValue Value
+  property System.String Key
+sealed class Morphir.Diagrams.DataTreeDiagram
+  method Morphir.Diagrams.DataFormat get_Format()
+  method Morphir.Diagrams.DataValue get_Root()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DataHighlight] get_Highlights()
+  method System.Collections.Immutable.ImmutableArray`1[System.String] get_HighlightedIds()
+  method System.Collections.Immutable.ImmutableArray`1[System.String] get_OccurrenceIds()
+  method System.String OccurrenceOf(Morphir.Diagrams.DataValue)
+  method System.String ToString()
+  method System.String get_Title()
+  property Morphir.Diagrams.DataFormat Format
+  property Morphir.Diagrams.DataValue Root
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DataHighlight] Highlights
+  property System.Collections.Immutable.ImmutableArray`1[System.String] HighlightedIds
+  property System.Collections.Immutable.ImmutableArray`1[System.String] OccurrenceIds
+  property System.String Title
+sealed class Morphir.Diagrams.DataValue
+  method Morphir.Diagrams.DataValueKind get_Kind()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DataMember] get_Members()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DataValue] get_Items()
+  method System.String ToString()
+  method System.String get_Text()
+  property Morphir.Diagrams.DataValueKind Kind
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DataMember] Members
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DataValue] Items
+  property System.String Text
+sealed class Morphir.Diagrams.DataValueKind
+  method Boolean Equals(Morphir.Diagrams.DataValueKind)
+  method Boolean Equals(Morphir.Diagrams.DataValueKind, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsArray()
+  method Boolean get_IsBoolean()
+  method Boolean get_IsNull()
+  method Boolean get_IsNumber()
+  method Boolean get_IsObject()
+  method Boolean get_IsString()
+  method Int32 CompareTo(Morphir.Diagrams.DataValueKind)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.DataValueKind get_Array()
+  method Morphir.Diagrams.DataValueKind get_Boolean()
+  method Morphir.Diagrams.DataValueKind get_Null()
+  method Morphir.Diagrams.DataValueKind get_Number()
+  method Morphir.Diagrams.DataValueKind get_Object()
+  method Morphir.Diagrams.DataValueKind get_String()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsArray
+  property Boolean IsBoolean
+  property Boolean IsNull
+  property Boolean IsNumber
+  property Boolean IsObject
+  property Boolean IsString
+  property Int32 Tag
+  property Morphir.Diagrams.DataValueKind Array
+  property Morphir.Diagrams.DataValueKind Boolean
+  property Morphir.Diagrams.DataValueKind Null
+  property Morphir.Diagrams.DataValueKind Number
+  property Morphir.Diagrams.DataValueKind Object
+  property Morphir.Diagrams.DataValueKind String
+  property System.String WireValue
+static class Morphir.Diagrams.DataValueKind+Tags
+  field Int32 Array
+  field Int32 Boolean
+  field Int32 Null
+  field Int32 Number
+  field Int32 Object
+  field Int32 String
+sealed class Morphir.Diagrams.Diagnostic
+  method Morphir.Diagrams.Diagnostic Error(System.String, System.String)
+  method Morphir.Diagrams.Diagnostic Warning(System.String, System.String)
+  method Morphir.Diagrams.DiagnosticSeverity get_Severity()
+  method Morphir.Diagrams.SourceSpan get_Span()
+  method System.String ToString()
+  method System.String get_Code()
+  method System.String get_Message()
+  property Morphir.Diagrams.DiagnosticSeverity Severity
+  property Morphir.Diagrams.SourceSpan Span
+  property System.String Code
+  property System.String Message
+sealed class Morphir.Diagrams.DiagnosticSeverity
+  method Boolean Equals(Morphir.Diagrams.DiagnosticSeverity)
+  method Boolean Equals(Morphir.Diagrams.DiagnosticSeverity, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsError()
+  method Boolean get_IsWarning()
+  method Int32 CompareTo(Morphir.Diagrams.DiagnosticSeverity)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.DiagnosticSeverity get_Error()
+  method Morphir.Diagrams.DiagnosticSeverity get_Warning()
+  method System.String ToString()
+  property Boolean IsError
+  property Boolean IsWarning
+  property Int32 Tag
+  property Morphir.Diagrams.DiagnosticSeverity Error
+  property Morphir.Diagrams.DiagnosticSeverity Warning
+static class Morphir.Diagrams.DiagnosticSeverity+Tags
+  field Int32 Error
+  field Int32 Warning
+abstract class Morphir.Diagrams.Diagram
+  method Boolean Equals(Morphir.Diagrams.Diagram)
+  method Boolean Equals(Morphir.Diagrams.Diagram, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsArchitecture()
+  method Boolean get_IsBpmn()
+  method Boolean get_IsDataTree()
+  method Boolean get_IsFlowchart()
+  method Boolean get_IsRailroad()
+  method Boolean get_IsSequence()
+  method Boolean get_IsState()
+  method Boolean get_IsSwimlane()
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.Diagram NewArchitecture(Morphir.Diagrams.ArchitectureDiagram)
+  method Morphir.Diagrams.Diagram NewBpmn(Morphir.Diagrams.BpmnDiagram)
+  method Morphir.Diagrams.Diagram NewDataTree(Morphir.Diagrams.DataTreeDiagram)
+  method Morphir.Diagrams.Diagram NewFlowchart(Morphir.Diagrams.Flowchart)
+  method Morphir.Diagrams.Diagram NewRailroad(Morphir.Diagrams.RailroadDiagram)
+  method Morphir.Diagrams.Diagram NewSequence(Morphir.Diagrams.SequenceDiagram)
+  method Morphir.Diagrams.Diagram NewState(Morphir.Diagrams.StateDiagram)
+  method Morphir.Diagrams.Diagram NewSwimlane(Morphir.Diagrams.SwimlaneDiagram)
+  method System.String ToString()
+  method T Match[T](System.Func`2[Morphir.Diagrams.Flowchart,T], System.Func`2[Morphir.Diagrams.SequenceDiagram,T], System.Func`2[Morphir.Diagrams.StateDiagram,T], System.Func`2[Morphir.Diagrams.SwimlaneDiagram,T], System.Func`2[Morphir.Diagrams.ArchitectureDiagram,T], System.Func`2[Morphir.Diagrams.RailroadDiagram,T], System.Func`2[Morphir.Diagrams.DataTreeDiagram,T], System.Func`2[Morphir.Diagrams.BpmnDiagram,T])
+  property Boolean IsArchitecture
+  property Boolean IsBpmn
+  property Boolean IsDataTree
+  property Boolean IsFlowchart
+  property Boolean IsRailroad
+  property Boolean IsSequence
+  property Boolean IsState
+  property Boolean IsSwimlane
+  property Int32 Tag
+class Morphir.Diagrams.Diagram+Architecture : Morphir.Diagrams.Diagram
+  method Morphir.Diagrams.ArchitectureDiagram get_Item()
+  property Morphir.Diagrams.ArchitectureDiagram Item
+class Morphir.Diagrams.Diagram+Bpmn : Morphir.Diagrams.Diagram
+  method Morphir.Diagrams.BpmnDiagram get_Item()
+  property Morphir.Diagrams.BpmnDiagram Item
+class Morphir.Diagrams.Diagram+DataTree : Morphir.Diagrams.Diagram
+  method Morphir.Diagrams.DataTreeDiagram get_Item()
+  property Morphir.Diagrams.DataTreeDiagram Item
+class Morphir.Diagrams.Diagram+Flowchart : Morphir.Diagrams.Diagram
+  method Morphir.Diagrams.Flowchart get_Item()
+  property Morphir.Diagrams.Flowchart Item
+class Morphir.Diagrams.Diagram+Railroad : Morphir.Diagrams.Diagram
+  method Morphir.Diagrams.RailroadDiagram get_Item()
+  property Morphir.Diagrams.RailroadDiagram Item
+class Morphir.Diagrams.Diagram+Sequence : Morphir.Diagrams.Diagram
+  method Morphir.Diagrams.SequenceDiagram get_Item()
+  property Morphir.Diagrams.SequenceDiagram Item
+class Morphir.Diagrams.Diagram+State : Morphir.Diagrams.Diagram
+  method Morphir.Diagrams.StateDiagram get_Item()
+  property Morphir.Diagrams.StateDiagram Item
+class Morphir.Diagrams.Diagram+Swimlane : Morphir.Diagrams.Diagram
+  method Morphir.Diagrams.SwimlaneDiagram get_Item()
+  property Morphir.Diagrams.SwimlaneDiagram Item
+static class Morphir.Diagrams.Diagram+Tags
+  field Int32 Architecture
+  field Int32 Bpmn
+  field Int32 DataTree
+  field Int32 Flowchart
+  field Int32 Railroad
+  field Int32 Sequence
+  field Int32 State
+  field Int32 Swimlane
+abstract class Morphir.Diagrams.DiagramAnnotationError
+  method Boolean Equals(Morphir.Diagrams.DiagramAnnotationError)
+  method Boolean Equals(Morphir.Diagrams.DiagramAnnotationError, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsDuplicateId()
+  method Boolean get_IsInvalidSelection()
+  method Boolean get_IsInvalidTextSelection()
+  method Boolean get_IsMalformed()
+  method Boolean get_IsUnresolvedDocument()
+  method Int32 CompareTo(Morphir.Diagrams.DiagramAnnotationError)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.DiagramAnnotationError NewDuplicateId(Morphir.Knowledge.Iri)
+  method Morphir.Diagrams.DiagramAnnotationError NewInvalidSelection(Morphir.Diagrams.DiagramSelectionError)
+  method Morphir.Diagrams.DiagramAnnotationError NewInvalidTextSelection(Morphir.Knowledge.SelectionError)
+  method Morphir.Diagrams.DiagramAnnotationError NewMalformed(System.String, System.String)
+  method Morphir.Diagrams.DiagramAnnotationError NewUnresolvedDocument(Morphir.Knowledge.DocumentVersion)
+  method System.String ToString()
+  method T Match[T](System.Func`2[Morphir.Knowledge.DocumentVersion,T], System.Func`2[Morphir.Diagrams.DiagramSelectionError,T], System.Func`2[Morphir.Knowledge.SelectionError,T], System.Func`3[System.String,System.String,T], System.Func`2[Morphir.Knowledge.Iri,T])
+  property Boolean IsDuplicateId
+  property Boolean IsInvalidSelection
+  property Boolean IsInvalidTextSelection
+  property Boolean IsMalformed
+  property Boolean IsUnresolvedDocument
+  property Int32 Tag
+class Morphir.Diagrams.DiagramAnnotationError+DuplicateId : Morphir.Diagrams.DiagramAnnotationError
+  method Morphir.Knowledge.Iri get_Item()
+  property Morphir.Knowledge.Iri Item
+class Morphir.Diagrams.DiagramAnnotationError+InvalidSelection : Morphir.Diagrams.DiagramAnnotationError
+  method Morphir.Diagrams.DiagramSelectionError get_Item()
+  property Morphir.Diagrams.DiagramSelectionError Item
+class Morphir.Diagrams.DiagramAnnotationError+InvalidTextSelection : Morphir.Diagrams.DiagramAnnotationError
+  method Morphir.Knowledge.SelectionError get_Item()
+  property Morphir.Knowledge.SelectionError Item
+class Morphir.Diagrams.DiagramAnnotationError+Malformed : Morphir.Diagrams.DiagramAnnotationError
+  method System.String get_node()
+  method System.String get_reason()
+  property System.String node
+  property System.String reason
+static class Morphir.Diagrams.DiagramAnnotationError+Tags
+  field Int32 DuplicateId
+  field Int32 InvalidSelection
+  field Int32 InvalidTextSelection
+  field Int32 Malformed
+  field Int32 UnresolvedDocument
+class Morphir.Diagrams.DiagramAnnotationError+UnresolvedDocument : Morphir.Diagrams.DiagramAnnotationError
+  method Morphir.Knowledge.DocumentVersion get_Item()
+  property Morphir.Knowledge.DocumentVersion Item
+sealed class Morphir.Diagrams.DiagramAnnotationSet
+  method Boolean TryCreate(System.Collections.Generic.IEnumerable`1[Morphir.Knowledge.Annotation`2[Morphir.Diagrams.DiagramSelection,System.String]], System.Collections.Generic.IEnumerable`1[Morphir.Knowledge.KnowledgeLink`2[Morphir.Diagrams.LinkEndpoint,Morphir.Diagrams.LinkEndpoint]], System.Collections.Generic.IEnumerable`1[Morphir.Knowledge.Rdf.Quad], Morphir.Diagrams.DiagramAnnotationSet ByRef, Morphir.Diagrams.DiagramAnnotationError ByRef)
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Diagrams.DiagramAnnotationSet,Morphir.Diagrams.DiagramAnnotationError] Validate(System.Collections.Generic.IEnumerable`1[Morphir.Knowledge.Annotation`2[Morphir.Diagrams.DiagramSelection,System.String]], System.Collections.Generic.IEnumerable`1[Morphir.Knowledge.KnowledgeLink`2[Morphir.Diagrams.LinkEndpoint,Morphir.Diagrams.LinkEndpoint]], System.Collections.Generic.IEnumerable`1[Morphir.Knowledge.Rdf.Quad])
+  method Morphir.Diagrams.DiagramAnnotationSet Create(System.Collections.Generic.IEnumerable`1[Morphir.Knowledge.Annotation`2[Morphir.Diagrams.DiagramSelection,System.String]], System.Collections.Generic.IEnumerable`1[Morphir.Knowledge.KnowledgeLink`2[Morphir.Diagrams.LinkEndpoint,Morphir.Diagrams.LinkEndpoint]])
+  method Morphir.Diagrams.DiagramAnnotationSet Create(System.Collections.Generic.IEnumerable`1[Morphir.Knowledge.Annotation`2[Morphir.Diagrams.DiagramSelection,System.String]], System.Collections.Generic.IEnumerable`1[Morphir.Knowledge.KnowledgeLink`2[Morphir.Diagrams.LinkEndpoint,Morphir.Diagrams.LinkEndpoint]], System.Collections.Generic.IEnumerable`1[Morphir.Knowledge.Rdf.Quad])
+  method Morphir.Diagrams.DiagramAnnotationSet WithComments(System.Collections.Generic.IEnumerable`1[Morphir.Knowledge.Annotation`2[Morphir.Diagrams.DiagramSelection,System.String]])
+  method Morphir.Diagrams.DiagramAnnotationSet WithLinks(System.Collections.Generic.IEnumerable`1[Morphir.Knowledge.KnowledgeLink`2[Morphir.Diagrams.LinkEndpoint,Morphir.Diagrams.LinkEndpoint]])
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Knowledge.Annotation`2[Morphir.Diagrams.DiagramSelection,System.String]] get_Comments()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Knowledge.KnowledgeLink`2[Morphir.Diagrams.LinkEndpoint,Morphir.Diagrams.LinkEndpoint]] get_Links()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Knowledge.Rdf.Quad] get_Other()
+  method System.String ToString()
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Knowledge.Annotation`2[Morphir.Diagrams.DiagramSelection,System.String]] Comments
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Knowledge.KnowledgeLink`2[Morphir.Diagrams.LinkEndpoint,Morphir.Diagrams.LinkEndpoint]] Links
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Knowledge.Rdf.Quad] Other
+static class Morphir.Diagrams.DiagramAnnotations
+  method Boolean TryRead(Morphir.Knowledge.Rdf.RdfDataset, System.Func`2[Morphir.Knowledge.DocumentVersion,Morphir.Diagrams.DiagramSnapshot], System.Func`2[Morphir.Knowledge.DocumentVersion,Morphir.Knowledge.TextSnapshot], Morphir.Diagrams.DiagramAnnotationSet ByRef, Morphir.Diagrams.DiagramAnnotationError ByRef)
+  method Boolean TryWrite(Morphir.Diagrams.DiagramAnnotationSet, System.Func`2[Morphir.Knowledge.DocumentVersion,Morphir.Knowledge.TextSnapshot], Morphir.Knowledge.Rdf.RdfDataset ByRef, Morphir.Diagrams.DiagramAnnotationError ByRef)
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Diagrams.DiagramAnnotationSet,Morphir.Diagrams.DiagramAnnotationError] Read(Morphir.Knowledge.Rdf.RdfDataset, System.Func`2[Morphir.Knowledge.DocumentVersion,Morphir.Diagrams.DiagramSnapshot], System.Func`2[Morphir.Knowledge.DocumentVersion,Morphir.Knowledge.TextSnapshot])
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Knowledge.Rdf.RdfDataset,Morphir.Diagrams.DiagramAnnotationError] Write(Morphir.Diagrams.DiagramAnnotationSet)
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Knowledge.Rdf.RdfDataset,Morphir.Diagrams.DiagramAnnotationError] Write(Morphir.Diagrams.DiagramAnnotationSet, System.Func`2[Morphir.Knowledge.DocumentVersion,Morphir.Knowledge.TextSnapshot])
+sealed class Morphir.Diagrams.DiagramConnector
+  method Boolean get_IsReversed()
+  method Int32 get_Ordinal()
+  method Morphir.Diagrams.DiagramId get_Source()
+  method Morphir.Diagrams.DiagramId get_Target()
+  method System.String ToString()
+  method System.String get_PathData()
+  property Boolean IsReversed
+  property Int32 Ordinal
+  property Morphir.Diagrams.DiagramId Source
+  property Morphir.Diagrams.DiagramId Target
+  property System.String PathData
+sealed class Morphir.Diagrams.DiagramDocument
+  method Morphir.Diagrams.Diagram get_Diagram()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] get_Diagnostics()
+  method System.String ToString()
+  method System.String get_Source()
+  property Morphir.Diagrams.Diagram Diagram
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] Diagnostics
+  property System.String Source
+sealed class Morphir.Diagrams.DiagramElementKind
+  method Boolean Equals(Morphir.Diagrams.DiagramElementKind)
+  method Boolean Equals(Morphir.Diagrams.DiagramElementKind, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsEdge()
+  method Boolean get_IsFrame()
+  method Boolean get_IsGroup()
+  method Boolean get_IsMessage()
+  method Boolean get_IsNode()
+  method Boolean get_IsNote()
+  method Boolean get_IsParticipant()
+  method Boolean get_IsStep()
+  method Int32 CompareTo(Morphir.Diagrams.DiagramElementKind)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.DiagramElementKind get_Edge()
+  method Morphir.Diagrams.DiagramElementKind get_Frame()
+  method Morphir.Diagrams.DiagramElementKind get_Group()
+  method Morphir.Diagrams.DiagramElementKind get_Message()
+  method Morphir.Diagrams.DiagramElementKind get_Node()
+  method Morphir.Diagrams.DiagramElementKind get_Note()
+  method Morphir.Diagrams.DiagramElementKind get_Participant()
+  method Morphir.Diagrams.DiagramElementKind get_Step()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsEdge
+  property Boolean IsFrame
+  property Boolean IsGroup
+  property Boolean IsMessage
+  property Boolean IsNode
+  property Boolean IsNote
+  property Boolean IsParticipant
+  property Boolean IsStep
+  property Int32 Tag
+  property Morphir.Diagrams.DiagramElementKind Edge
+  property Morphir.Diagrams.DiagramElementKind Frame
+  property Morphir.Diagrams.DiagramElementKind Group
+  property Morphir.Diagrams.DiagramElementKind Message
+  property Morphir.Diagrams.DiagramElementKind Node
+  property Morphir.Diagrams.DiagramElementKind Note
+  property Morphir.Diagrams.DiagramElementKind Participant
+  property Morphir.Diagrams.DiagramElementKind Step
+  property System.String WireValue
+static class Morphir.Diagrams.DiagramElementKind+Tags
+  field Int32 Edge
+  field Int32 Frame
+  field Int32 Group
+  field Int32 Message
+  field Int32 Node
+  field Int32 Note
+  field Int32 Participant
+  field Int32 Step
+abstract class Morphir.Diagrams.DiagramElementRef
+  method Boolean Equals(System.Object)
+  method Boolean TryParse(System.String, Morphir.Diagrams.DiagramElementRef ByRef, Morphir.Diagrams.DiagramReferenceError ByRef)
+  method Boolean TryParseIri(Morphir.Knowledge.Iri, Morphir.Knowledge.Iri, Morphir.Diagrams.DiagramElementRef ByRef, Morphir.Diagrams.DiagramReferenceError ByRef)
+  method Boolean TryToIri(Morphir.Knowledge.Iri, Morphir.Knowledge.Iri ByRef, Morphir.Diagrams.DiagramReferenceError ByRef)
+  method Int32 GetHashCode()
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Diagrams.DiagramElementRef,Morphir.Diagrams.DiagramReferenceError] Parse(System.String)
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Diagrams.DiagramElementRef,Morphir.Diagrams.DiagramReferenceError] ParseIri(Morphir.Knowledge.Iri, Morphir.Knowledge.Iri)
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Knowledge.Iri,Morphir.Diagrams.DiagramReferenceError] ToIri(Morphir.Knowledge.Iri)
+  method Morphir.Diagrams.DiagramElementKind get_Kind()
+  method Morphir.Diagrams.DiagramElementRef Create(System.String)
+  method Morphir.Diagrams.DiagramElementRef Edge(Morphir.Diagrams.DiagramId, Morphir.Diagrams.DiagramId, Int32)
+  method Morphir.Diagrams.DiagramElementRef Frame(Int32)
+  method Morphir.Diagrams.DiagramElementRef Group(Morphir.Diagrams.DiagramId)
+  method Morphir.Diagrams.DiagramElementRef Message(Morphir.Diagrams.DiagramId, Morphir.Diagrams.DiagramId, Int32)
+  method Morphir.Diagrams.DiagramElementRef Node(Morphir.Diagrams.DiagramId)
+  method Morphir.Diagrams.DiagramElementRef Note(Int32)
+  method Morphir.Diagrams.DiagramElementRef Participant(Morphir.Diagrams.DiagramId)
+  method Morphir.Diagrams.DiagramElementRef Step(Int32)
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramElementRef] Enumerate(Morphir.Diagrams.Diagram)
+  method System.String ToString()
+  method T Match[T](System.Func`2[Morphir.Diagrams.DiagramId,T], System.Func`2[Morphir.Diagrams.DiagramId,T], System.Func`4[Morphir.Diagrams.DiagramId,Morphir.Diagrams.DiagramId,System.Int32,T], System.Func`2[Morphir.Diagrams.DiagramId,T], System.Func`4[Morphir.Diagrams.DiagramId,Morphir.Diagrams.DiagramId,System.Int32,T], System.Func`2[System.Int32,T], System.Func`2[System.Int32,T], System.Func`2[System.Int32,T])
+  property Morphir.Diagrams.DiagramElementKind Kind
+static class Morphir.Diagrams.DiagramExploration
+  method Morphir.Diagrams.ExplorationResult Reachable(Morphir.Diagrams.Diagram, Morphir.Diagrams.DiagramId, Morphir.Diagrams.ExplorationDirection, Morphir.Diagrams.LinkFollowing)
+  method Morphir.Diagrams.ExplorationResult Route(Morphir.Diagrams.Diagram, Morphir.Diagrams.DiagramId, Morphir.Diagrams.DiagramId, Morphir.Diagrams.LinkFollowing)
+static class Morphir.Diagrams.DiagramIcons
+  method Boolean Contains(System.String)
+  method System.Collections.Immutable.ImmutableArray`1[System.String] get_Keys()
+  property System.Collections.Immutable.ImmutableArray`1[System.String] Keys
+sealed class Morphir.Diagrams.DiagramId
+  method Boolean Equals(System.Object)
+  method Boolean TryParse(System.String, Morphir.Diagrams.DiagramId ByRef, Morphir.Diagrams.Diagnostic ByRef)
+  method Int32 GetHashCode()
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Diagrams.DiagramId,Morphir.Diagrams.Diagnostic] Parse(System.String)
+  method Morphir.Diagrams.DiagramId Create(System.String)
+  method System.String ToString()
+  method System.String get_Value()
+  property System.String Value
+sealed class Morphir.Diagrams.DiagramLanguage
+  method Boolean Equals(Morphir.Diagrams.DiagramLanguage)
+  method Boolean Equals(Morphir.Diagrams.DiagramLanguage, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsBpmn()
+  method Boolean get_IsMermaid()
+  method Boolean get_IsPlantUml()
+  method Int32 CompareTo(Morphir.Diagrams.DiagramLanguage)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.DiagramLanguage get_Bpmn()
+  method Morphir.Diagrams.DiagramLanguage get_Mermaid()
+  method Morphir.Diagrams.DiagramLanguage get_PlantUml()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsBpmn
+  property Boolean IsMermaid
+  property Boolean IsPlantUml
+  property Int32 Tag
+  property Morphir.Diagrams.DiagramLanguage Bpmn
+  property Morphir.Diagrams.DiagramLanguage Mermaid
+  property Morphir.Diagrams.DiagramLanguage PlantUml
+  property System.String WireValue
+static class Morphir.Diagrams.DiagramLanguage+Tags
+  field Int32 Bpmn
+  field Int32 Mermaid
+  field Int32 PlantUml
+static class Morphir.Diagrams.DiagramMetadata
+  method Boolean TryRead(System.ReadOnlyMemory`1[System.Byte], Morphir.Knowledge.Rdf.RdfDataset ByRef, Morphir.Diagrams.DiagramMetadataError ByRef)
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Knowledge.Rdf.RdfDataset,Morphir.Diagrams.DiagramMetadataError] Read(System.ReadOnlyMemory`1[System.Byte])
+abstract class Morphir.Diagrams.DiagramMetadataError
+  method Boolean Equals(Morphir.Diagrams.DiagramMetadataError)
+  method Boolean Equals(Morphir.Diagrams.DiagramMetadataError, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsRdfXml()
+  method Boolean get_IsStatements()
+  method Boolean get_IsSvg()
+  method Boolean get_IsUnsupportedMediaType()
+  method Int32 CompareTo(Morphir.Diagrams.DiagramMetadataError)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.DiagramMetadataError NewRdfXml(Morphir.Knowledge.Rdf.RdfXmlReadError)
+  method Morphir.Diagrams.DiagramMetadataError NewStatements(Morphir.Knowledge.Rdf.NQuadsReadError)
+  method Morphir.Diagrams.DiagramMetadataError NewSvg(Morphir.Svg.SvgReadError)
+  method Morphir.Diagrams.DiagramMetadataError NewUnsupportedMediaType(System.String)
+  method System.String ToString()
+  method T Match[T](System.Func`2[Morphir.Svg.SvgReadError,T], System.Func`2[Morphir.Knowledge.Rdf.RdfXmlReadError,T], System.Func`2[Morphir.Knowledge.Rdf.NQuadsReadError,T], System.Func`2[System.String,T])
+  property Boolean IsRdfXml
+  property Boolean IsStatements
+  property Boolean IsSvg
+  property Boolean IsUnsupportedMediaType
+  property Int32 Tag
+class Morphir.Diagrams.DiagramMetadataError+RdfXml : Morphir.Diagrams.DiagramMetadataError
+  method Morphir.Knowledge.Rdf.RdfXmlReadError get_Item()
+  property Morphir.Knowledge.Rdf.RdfXmlReadError Item
+class Morphir.Diagrams.DiagramMetadataError+Statements : Morphir.Diagrams.DiagramMetadataError
+  method Morphir.Knowledge.Rdf.NQuadsReadError get_Item()
+  property Morphir.Knowledge.Rdf.NQuadsReadError Item
+class Morphir.Diagrams.DiagramMetadataError+Svg : Morphir.Diagrams.DiagramMetadataError
+  method Morphir.Svg.SvgReadError get_Item()
+  property Morphir.Svg.SvgReadError Item
+static class Morphir.Diagrams.DiagramMetadataError+Tags
+  field Int32 RdfXml
+  field Int32 Statements
+  field Int32 Svg
+  field Int32 UnsupportedMediaType
+class Morphir.Diagrams.DiagramMetadataError+UnsupportedMediaType : Morphir.Diagrams.DiagramMetadataError
+  method System.String get_mediaType()
+  property System.String mediaType
+class Morphir.Diagrams.DiagramReferenceError
+  method Boolean Equals(Morphir.Diagrams.DiagramReferenceError)
+  method Boolean Equals(Morphir.Diagrams.DiagramReferenceError, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsDocumentHasFragment()
+  method Boolean get_IsEmpty()
+  method Boolean get_IsInvalidKey()
+  method Boolean get_IsNotInDocument()
+  method Boolean get_IsUnknownKind()
+  method Int32 CompareTo(Morphir.Diagrams.DiagramReferenceError)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.DiagramReferenceError NewDocumentHasFragment(Morphir.Knowledge.Iri)
+  method Morphir.Diagrams.DiagramReferenceError NewInvalidKey(System.String)
+  method Morphir.Diagrams.DiagramReferenceError NewNotInDocument(Morphir.Knowledge.Iri)
+  method Morphir.Diagrams.DiagramReferenceError NewUnknownKind(System.String)
+  method Morphir.Diagrams.DiagramReferenceError get_Empty()
+  method System.String ToString()
+  method T Match[T](System.Func`1[T], System.Func`2[System.String,T], System.Func`2[System.String,T], System.Func`2[Morphir.Knowledge.Iri,T], System.Func`2[Morphir.Knowledge.Iri,T])
+  property Boolean IsDocumentHasFragment
+  property Boolean IsEmpty
+  property Boolean IsInvalidKey
+  property Boolean IsNotInDocument
+  property Boolean IsUnknownKind
+  property Int32 Tag
+  property Morphir.Diagrams.DiagramReferenceError Empty
+class Morphir.Diagrams.DiagramReferenceError+DocumentHasFragment : Morphir.Diagrams.DiagramReferenceError
+  method Morphir.Knowledge.Iri get_document()
+  property Morphir.Knowledge.Iri document
+class Morphir.Diagrams.DiagramReferenceError+InvalidKey : Morphir.Diagrams.DiagramReferenceError
+  method System.String get_reference()
+  property System.String reference
+class Morphir.Diagrams.DiagramReferenceError+NotInDocument : Morphir.Diagrams.DiagramReferenceError
+  method Morphir.Knowledge.Iri get_iri()
+  property Morphir.Knowledge.Iri iri
+static class Morphir.Diagrams.DiagramReferenceError+Tags
+  field Int32 DocumentHasFragment
+  field Int32 Empty
+  field Int32 InvalidKey
+  field Int32 NotInDocument
+  field Int32 UnknownKind
+class Morphir.Diagrams.DiagramReferenceError+UnknownKind : Morphir.Diagrams.DiagramReferenceError
+  method System.String get_kind()
+  property System.String kind
+sealed class Morphir.Diagrams.DiagramScene
+  method Morphir.Diagrams.SvgRenderOptions get_Options()
+  method Morphir.Svg.SvgDocument get_Document()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] get_Diagnostics()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramConnector] get_Connectors()
+  method System.String ToString()
+  property Morphir.Diagrams.SvgRenderOptions Options
+  property Morphir.Svg.SvgDocument Document
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] Diagnostics
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramConnector] Connectors
+sealed class Morphir.Diagrams.DiagramSelection
+  method Boolean Equals(System.Object)
+  method Boolean TryCreate(Morphir.Diagrams.DiagramSnapshot, System.Collections.Generic.IEnumerable`1[Morphir.Diagrams.DiagramElementRef], Morphir.Diagrams.DiagramSelection ByRef, Morphir.Diagrams.DiagramSelectionError ByRef)
+  method Boolean TryRead(Morphir.Diagrams.DiagramSnapshot, System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramElementRef] ByRef, Morphir.Diagrams.DiagramSelectionError ByRef)
+  method Int32 GetHashCode()
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Diagrams.DiagramSelection,Morphir.Diagrams.DiagramSelectionError] TryCreate(Morphir.Diagrams.DiagramSnapshot, System.Collections.Generic.IEnumerable`1[Morphir.Diagrams.DiagramElementRef])
+  method Microsoft.FSharp.Core.FSharpResult`2[System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramElementRef],Morphir.Diagrams.DiagramSelectionError] TryRead(Morphir.Diagrams.DiagramSnapshot)
+  method Morphir.Knowledge.DocumentVersion get_Version()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramElementRef] get_Elements()
+  method System.String ToString()
+  property Morphir.Knowledge.DocumentVersion Version
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramElementRef] Elements
+abstract class Morphir.Diagrams.DiagramSelectionError
+  method Boolean Equals(Morphir.Diagrams.DiagramSelectionError)
+  method Boolean Equals(Morphir.Diagrams.DiagramSelectionError, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsEmpty()
+  method Boolean get_IsUnknownElement()
+  method Boolean get_IsVersionMismatch()
+  method Int32 CompareTo(Morphir.Diagrams.DiagramSelectionError)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.DiagramSelectionError NewUnknownElement(Morphir.Diagrams.DiagramElementRef)
+  method Morphir.Diagrams.DiagramSelectionError get_Empty()
+  method Morphir.Diagrams.DiagramSelectionError get_VersionMismatch()
+  method System.String ToString()
+  method T Match[T](System.Func`1[T], System.Func`2[Morphir.Diagrams.DiagramElementRef,T], System.Func`1[T])
+  property Boolean IsEmpty
+  property Boolean IsUnknownElement
+  property Boolean IsVersionMismatch
+  property Int32 Tag
+  property Morphir.Diagrams.DiagramSelectionError Empty
+  property Morphir.Diagrams.DiagramSelectionError VersionMismatch
+static class Morphir.Diagrams.DiagramSelectionError+Tags
+  field Int32 Empty
+  field Int32 UnknownElement
+  field Int32 VersionMismatch
+class Morphir.Diagrams.DiagramSelectionError+UnknownElement : Morphir.Diagrams.DiagramSelectionError
+  method Morphir.Diagrams.DiagramElementRef get_Item()
+  property Morphir.Diagrams.DiagramElementRef Item
+sealed class Morphir.Diagrams.DiagramSnapshot
+  method Boolean Contains(Morphir.Diagrams.DiagramElementRef)
+  method Boolean TryCreate(Morphir.Knowledge.DocumentVersion, Morphir.Diagrams.DiagramDocument, Morphir.Diagrams.DiagramSnapshot ByRef, Morphir.Diagrams.DiagramReferenceError ByRef)
+  method Boolean TryFromSource(Morphir.Knowledge.DocumentId, Morphir.Diagrams.DiagramDocument, Morphir.Diagrams.DiagramSnapshot ByRef, Morphir.Diagrams.DiagramReferenceError ByRef)
+  method Boolean TryResolve(Morphir.Knowledge.Iri, Morphir.Diagrams.DiagramElementRef ByRef)
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Diagrams.DiagramSnapshot,Morphir.Diagrams.DiagramReferenceError] TryCreate(Morphir.Knowledge.DocumentVersion, Morphir.Diagrams.DiagramDocument)
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Diagrams.DiagramSnapshot,Morphir.Diagrams.DiagramReferenceError] TryFromSource(Morphir.Knowledge.DocumentId, Morphir.Diagrams.DiagramDocument)
+  method Morphir.Diagrams.DiagramDocument get_Document()
+  method Morphir.Knowledge.DocumentVersion get_Version()
+  method Morphir.Knowledge.Iri ElementIri(Morphir.Diagrams.DiagramElementRef)
+  method Morphir.Knowledge.RevisionId SourceRevision(Morphir.Diagrams.DiagramDocument)
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramElementRef] get_Elements()
+  method System.String ToString()
+  property Morphir.Diagrams.DiagramDocument Document
+  property Morphir.Knowledge.DocumentVersion Version
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramElementRef] Elements
+static class Morphir.Diagrams.DiagramSource
+  method Boolean TryParse(System.String, Morphir.Diagrams.DiagramDocument ByRef, System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] ByRef)
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Diagrams.DiagramDocument,System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic]] Parse(System.String)
+  method Morphir.Diagrams.DiagramLanguage Detect(System.String)
+  method Morphir.Diagrams.RenderedDiagram RenderAnimated(System.String)
+  method Morphir.Diagrams.RenderedDiagram RenderAnimated(System.String, Morphir.Diagrams.SvgRenderOptions)
+  method Morphir.Diagrams.RenderedDiagram RenderSvg(System.String)
+  method Morphir.Diagrams.RenderedDiagram RenderSvg(System.String, Morphir.Diagrams.SvgRenderOptions)
+sealed class Morphir.Diagrams.DiagramState
+  method Morphir.Diagrams.DiagramId get_Id()
+  method Morphir.Diagrams.DiagramState Create(Morphir.Diagrams.DiagramId, System.String, Morphir.Diagrams.StateRole, System.String, System.Collections.Generic.IReadOnlyList`1[System.String])
+  method Morphir.Diagrams.StateRole get_Role()
+  method System.Collections.Immutable.ImmutableArray`1[System.String] get_Descriptions()
+  method System.String ToString()
+  method System.String get_Label()
+  method System.String get_Region()
+  property Morphir.Diagrams.DiagramId Id
+  property Morphir.Diagrams.StateRole Role
+  property System.Collections.Immutable.ImmutableArray`1[System.String] Descriptions
+  property System.String Label
+  property System.String Region
+sealed class Morphir.Diagrams.DiagramTheme
+  method Boolean TryCreate(System.String, Morphir.Diagrams.ThemePalette, Morphir.Diagrams.ThemePalette, Morphir.Diagrams.DiagramTheme ByRef, System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] ByRef)
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Diagrams.DiagramTheme,System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic]] Validate(System.String, Morphir.Diagrams.ThemePalette, Morphir.Diagrams.ThemePalette)
+  method Morphir.Diagrams.DiagramTheme Create(System.String, Morphir.Diagrams.ThemePalette, Morphir.Diagrams.ThemePalette)
+  method Morphir.Diagrams.ThemePalette get_Dark()
+  method Morphir.Diagrams.ThemePalette get_Light()
+  method System.String ToString()
+  method System.String get_Name()
+  property Morphir.Diagrams.ThemePalette Dark
+  property Morphir.Diagrams.ThemePalette Light
+  property System.String Name
+static class Morphir.Diagrams.DiagramThemes
+  method Morphir.Diagrams.DiagramTheme get_Archify()
+  method Morphir.Diagrams.DiagramTheme get_Cobalt()
+  method Morphir.Diagrams.DiagramTheme get_Darcula()
+  method Morphir.Diagrams.DiagramTheme get_Gruvbox()
+  method Morphir.Diagrams.DiagramTheme get_Material()
+  method Morphir.Diagrams.DiagramTheme get_Monokai()
+  method Morphir.Diagrams.DiagramTheme get_Ocean()
+  method Morphir.Diagrams.DiagramTheme get_Solarized()
+  method System.Collections.Generic.IReadOnlyList`1[Morphir.Diagrams.DiagramTheme] get_All()
+  property Morphir.Diagrams.DiagramTheme Archify
+  property Morphir.Diagrams.DiagramTheme Cobalt
+  property Morphir.Diagrams.DiagramTheme Darcula
+  property Morphir.Diagrams.DiagramTheme Gruvbox
+  property Morphir.Diagrams.DiagramTheme Material
+  property Morphir.Diagrams.DiagramTheme Monokai
+  property Morphir.Diagrams.DiagramTheme Ocean
+  property Morphir.Diagrams.DiagramTheme Solarized
+  property System.Collections.Generic.IReadOnlyList`1[Morphir.Diagrams.DiagramTheme] All
+sealed class Morphir.Diagrams.EdgeHead
+  method Boolean Equals(Morphir.Diagrams.EdgeHead)
+  method Boolean Equals(Morphir.Diagrams.EdgeHead, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsArrow()
+  method Boolean get_IsAsync()
+  method Boolean get_IsCircle()
+  method Boolean get_IsCross()
+  method Boolean get_IsHalfLower()
+  method Boolean get_IsHalfLowerFilled()
+  method Boolean get_IsHalfUpper()
+  method Boolean get_IsHalfUpperFilled()
+  method Boolean get_IsNone()
+  method Boolean get_IsOpenArrow()
+  method Int32 CompareTo(Morphir.Diagrams.EdgeHead)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.EdgeHead get_Arrow()
+  method Morphir.Diagrams.EdgeHead get_Async()
+  method Morphir.Diagrams.EdgeHead get_Circle()
+  method Morphir.Diagrams.EdgeHead get_Cross()
+  method Morphir.Diagrams.EdgeHead get_HalfLower()
+  method Morphir.Diagrams.EdgeHead get_HalfLowerFilled()
+  method Morphir.Diagrams.EdgeHead get_HalfUpper()
+  method Morphir.Diagrams.EdgeHead get_HalfUpperFilled()
+  method Morphir.Diagrams.EdgeHead get_None()
+  method Morphir.Diagrams.EdgeHead get_OpenArrow()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsArrow
+  property Boolean IsAsync
+  property Boolean IsCircle
+  property Boolean IsCross
+  property Boolean IsHalfLower
+  property Boolean IsHalfLowerFilled
+  property Boolean IsHalfUpper
+  property Boolean IsHalfUpperFilled
+  property Boolean IsNone
+  property Boolean IsOpenArrow
+  property Int32 Tag
+  property Morphir.Diagrams.EdgeHead Arrow
+  property Morphir.Diagrams.EdgeHead Async
+  property Morphir.Diagrams.EdgeHead Circle
+  property Morphir.Diagrams.EdgeHead Cross
+  property Morphir.Diagrams.EdgeHead HalfLower
+  property Morphir.Diagrams.EdgeHead HalfLowerFilled
+  property Morphir.Diagrams.EdgeHead HalfUpper
+  property Morphir.Diagrams.EdgeHead HalfUpperFilled
+  property Morphir.Diagrams.EdgeHead None
+  property Morphir.Diagrams.EdgeHead OpenArrow
+  property System.String WireValue
+static class Morphir.Diagrams.EdgeHead+Tags
+  field Int32 Arrow
+  field Int32 Async
+  field Int32 Circle
+  field Int32 Cross
+  field Int32 HalfLower
+  field Int32 HalfLowerFilled
+  field Int32 HalfUpper
+  field Int32 HalfUpperFilled
+  field Int32 None
+  field Int32 OpenArrow
+sealed class Morphir.Diagrams.ExplorationDirection
+  method Boolean Equals(Morphir.Diagrams.ExplorationDirection)
+  method Boolean Equals(Morphir.Diagrams.ExplorationDirection, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsDownstream()
+  method Boolean get_IsUpstream()
+  method Int32 CompareTo(Morphir.Diagrams.ExplorationDirection)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.ExplorationDirection get_Downstream()
+  method Morphir.Diagrams.ExplorationDirection get_Upstream()
+  method System.String ToString()
+  property Boolean IsDownstream
+  property Boolean IsUpstream
+  property Int32 Tag
+  property Morphir.Diagrams.ExplorationDirection Downstream
+  property Morphir.Diagrams.ExplorationDirection Upstream
+static class Morphir.Diagrams.ExplorationDirection+Tags
+  field Int32 Downstream
+  field Int32 Upstream
+class Morphir.Diagrams.ExplorationResult
+  method Boolean Equals(Morphir.Diagrams.ExplorationResult)
+  method Boolean Equals(Morphir.Diagrams.ExplorationResult, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsLimitExhausted()
+  method Boolean get_IsMissingElement()
+  method Boolean get_IsReachable()
+  method Boolean get_IsRoute()
+  method Boolean get_IsUnreachable()
+  method Int32 CompareTo(Morphir.Diagrams.ExplorationResult)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.ExplorationResult NewMissingElement(Morphir.Diagrams.DiagramId)
+  method Morphir.Diagrams.ExplorationResult NewReachable(System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramId])
+  method Morphir.Diagrams.ExplorationResult NewRoute(System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramId])
+  method Morphir.Diagrams.ExplorationResult get_LimitExhausted()
+  method Morphir.Diagrams.ExplorationResult get_Unreachable()
+  method System.String ToString()
+  method T Match[T](System.Func`2[System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramId],T], System.Func`2[System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramId],T], System.Func`1[T], System.Func`2[Morphir.Diagrams.DiagramId,T], System.Func`1[T])
+  property Boolean IsLimitExhausted
+  property Boolean IsMissingElement
+  property Boolean IsReachable
+  property Boolean IsRoute
+  property Boolean IsUnreachable
+  property Int32 Tag
+  property Morphir.Diagrams.ExplorationResult LimitExhausted
+  property Morphir.Diagrams.ExplorationResult Unreachable
+class Morphir.Diagrams.ExplorationResult+MissingElement : Morphir.Diagrams.ExplorationResult
+  method Morphir.Diagrams.DiagramId get_Item()
+  property Morphir.Diagrams.DiagramId Item
+class Morphir.Diagrams.ExplorationResult+Reachable : Morphir.Diagrams.ExplorationResult
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramId] get_Item()
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramId] Item
+class Morphir.Diagrams.ExplorationResult+Route : Morphir.Diagrams.ExplorationResult
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramId] get_Item()
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramId] Item
+static class Morphir.Diagrams.ExplorationResult+Tags
+  field Int32 LimitExhausted
+  field Int32 MissingElement
+  field Int32 Reachable
+  field Int32 Route
+  field Int32 Unreachable
+abstract class Morphir.Diagrams.Export.Assessment
+  method Boolean Equals(System.Object)
+  method Boolean get_IsDegraded()
+  method Boolean get_IsNative()
+  method Boolean get_IsUnsupported()
+  method Int32 GetHashCode()
+  method Int32 get_Tag()
+  method Morphir.Diagrams.Export.Assessment NewDegraded(System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Export.Degradation])
+  method Morphir.Diagrams.Export.Assessment NewUnsupported(System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.LayoutFeature])
+  method Morphir.Diagrams.Export.Assessment get_Native()
+  method System.String ToString()
+  method T Match[T](System.Func`1[T], System.Func`2[System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Export.Degradation],T], System.Func`2[System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.LayoutFeature],T])
+  property Boolean IsDegraded
+  property Boolean IsNative
+  property Boolean IsUnsupported
+  property Int32 Tag
+  property Morphir.Diagrams.Export.Assessment Native
+class Morphir.Diagrams.Export.Assessment+Degraded : Morphir.Diagrams.Export.Assessment
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Export.Degradation] get_degradations()
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Export.Degradation] degradations
+static class Morphir.Diagrams.Export.Assessment+Tags
+  field Int32 Degraded
+  field Int32 Native
+  field Int32 Unsupported
+class Morphir.Diagrams.Export.Assessment+Unsupported : Morphir.Diagrams.Export.Assessment
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.LayoutFeature] get_features()
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.LayoutFeature] features
+sealed class Morphir.Diagrams.Export.Degradation
+  method Boolean Equals(System.Object)
+  method Int32 GetHashCode()
+  method Morphir.Diagrams.Layout.LayoutFeature get_Feature()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramElementRef] get_References()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.DrawableId] get_Drawables()
+  method System.String ToString()
+  method System.String get_Fallback()
+  property Morphir.Diagrams.Layout.LayoutFeature Feature
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramElementRef] References
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.DrawableId] Drawables
+  property System.String Fallback
+sealed class Morphir.Diagrams.Export.DegradationPolicy
+  method Boolean Equals(Morphir.Diagrams.Export.DegradationPolicy)
+  method Boolean Equals(Morphir.Diagrams.Export.DegradationPolicy, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsAllowDegraded()
+  method Boolean get_IsPictureFallback()
+  method Boolean get_IsStrict()
+  method Int32 CompareTo(Morphir.Diagrams.Export.DegradationPolicy)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.Export.DegradationPolicy get_AllowDegraded()
+  method Morphir.Diagrams.Export.DegradationPolicy get_PictureFallback()
+  method Morphir.Diagrams.Export.DegradationPolicy get_Strict()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsAllowDegraded
+  property Boolean IsPictureFallback
+  property Boolean IsStrict
+  property Int32 Tag
+  property Morphir.Diagrams.Export.DegradationPolicy AllowDegraded
+  property Morphir.Diagrams.Export.DegradationPolicy PictureFallback
+  property Morphir.Diagrams.Export.DegradationPolicy Strict
+  property System.String WireValue
+static class Morphir.Diagrams.Export.DegradationPolicy+Tags
+  field Int32 AllowDegraded
+  field Int32 PictureFallback
+  field Int32 Strict
+static class Morphir.Diagrams.Export.DiagramExport
+  method Morphir.Diagrams.Export.Assessment Assess(System.Collections.Generic.IReadOnlyList`1[Morphir.Diagrams.Layout.DiagramLayout], Morphir.Diagrams.Export.DiagramRenderer)
+  method Morphir.Diagrams.Layout.LayoutResult Layout(Morphir.Diagrams.Diagram)
+  method Morphir.Diagrams.Layout.LayoutResult Layout(Morphir.Diagrams.Diagram, Morphir.Diagrams.SvgRenderOptions)
+  method System.Threading.Tasks.Task`1[Morphir.Diagrams.Export.RenderResult] RenderAsync(System.Collections.Generic.IReadOnlyList`1[Morphir.Diagrams.Layout.DiagramLayout], Morphir.Diagrams.Export.DiagramRenderer, System.IO.Stream, Morphir.Diagrams.Export.DegradationPolicy, System.Threading.CancellationToken)
+abstract class Morphir.Diagrams.Export.DiagramRenderer
+  constructor Void .ctor()
+  method Morphir.Diagrams.Export.RenderMode get_Mode()
+  method Morphir.Diagrams.Layout.LayoutFeatures get_NativeFeatures()
+  method System.String ToString()
+  method System.String get_FileExtension()
+  method System.String get_MediaType()
+  method System.Threading.Tasks.Task`1[System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic]] RenderAsync(Morphir.Diagrams.Export.RenderPlan, System.IO.Stream, System.Threading.CancellationToken)
+  property Morphir.Diagrams.Export.RenderMode Mode
+  property Morphir.Diagrams.Layout.LayoutFeatures NativeFeatures
+  property System.String FileExtension
+  property System.String MediaType
+sealed class Morphir.Diagrams.Export.DiagramRenderers
+  method Boolean TryFind(System.String, Morphir.Diagrams.Export.DiagramRenderer ByRef)
+  method Morphir.Diagrams.Export.DiagramRenderer Find(System.String)
+  method Morphir.Diagrams.Export.DiagramRenderers Add(Morphir.Diagrams.Export.DiagramRenderer)
+  method Morphir.Diagrams.Export.DiagramRenderers get_Empty()
+  method System.Collections.Generic.IReadOnlyList`1[Morphir.Diagrams.Export.DiagramRenderer] get_Renderers()
+  method System.String ToString()
+  property Morphir.Diagrams.Export.DiagramRenderers Empty
+  property System.Collections.Generic.IReadOnlyList`1[Morphir.Diagrams.Export.DiagramRenderer] Renderers
+abstract class Morphir.Diagrams.Export.LayoutVisitor
+  constructor Void .ctor()
+  method Void Visit(Morphir.Diagrams.Layout.DiagramLayout)
+  method Void Visit(Morphir.Diagrams.Layout.Drawable)
+  method Void VisitContainer(Morphir.Diagrams.Layout.Drawable, Morphir.Diagrams.Layout.LayoutContainer)
+  method Void VisitElement(Morphir.Diagrams.Layout.Drawable, System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.Drawable])
+  method Void VisitGroup(Morphir.Diagrams.Layout.Drawable, System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.Drawable])
+  method Void VisitImage(Morphir.Diagrams.Layout.Drawable, Morphir.Diagrams.Layout.LayoutImage)
+  method Void VisitLine(Morphir.Diagrams.Layout.Drawable, Morphir.Diagrams.Layout.LayoutLine)
+  method Void VisitShape(Morphir.Diagrams.Layout.Drawable, Morphir.Diagrams.Layout.LayoutShape)
+  method Void VisitText(Morphir.Diagrams.Layout.Drawable, Morphir.Diagrams.Layout.LayoutText)
+sealed class Morphir.Diagrams.Export.RenderMode
+  method Boolean Equals(Morphir.Diagrams.Export.RenderMode)
+  method Boolean Equals(Morphir.Diagrams.Export.RenderMode, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsDrawables()
+  method Boolean get_IsOriginalSvg()
+  method Int32 CompareTo(Morphir.Diagrams.Export.RenderMode)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.Export.RenderMode get_Drawables()
+  method Morphir.Diagrams.Export.RenderMode get_OriginalSvg()
+  method System.String ToString()
+  method System.String get_WireValue()
+  method T Match[T](System.Func`1[T], System.Func`1[T])
+  property Boolean IsDrawables
+  property Boolean IsOriginalSvg
+  property Int32 Tag
+  property Morphir.Diagrams.Export.RenderMode Drawables
+  property Morphir.Diagrams.Export.RenderMode OriginalSvg
+  property System.String WireValue
+static class Morphir.Diagrams.Export.RenderMode+Tags
+  field Int32 Drawables
+  field Int32 OriginalSvg
+sealed class Morphir.Diagrams.Export.RenderPlan
+  method Morphir.Diagrams.Export.Assessment get_Assessment()
+  method Morphir.Diagrams.Export.RenderMode get_Mode()
+  method Morphir.Diagrams.Layout.LayoutFeatures get_Features()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.DiagramLayout] get_Pages()
+  method System.String ToString()
+  method Void EnsureFor(Morphir.Diagrams.Export.DiagramRenderer)
+  property Morphir.Diagrams.Export.Assessment Assessment
+  property Morphir.Diagrams.Export.RenderMode Mode
+  property Morphir.Diagrams.Layout.LayoutFeatures Features
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.DiagramLayout] Pages
+sealed class Morphir.Diagrams.Export.RenderResult
+  method Boolean get_HasErrors()
+  method Boolean get_Written()
+  method Morphir.Diagrams.Export.Assessment get_Assessment()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] get_Diagnostics()
+  method System.String ToString()
+  property Boolean HasErrors
+  property Boolean Written
+  property Morphir.Diagrams.Export.Assessment Assessment
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] Diagnostics
+sealed class Morphir.Diagrams.FamilyColors
+  method Morphir.Diagrams.Color get_Fill()
+  method Morphir.Diagrams.Color get_Ink()
+  method Morphir.Diagrams.Color get_Stroke()
+  method Morphir.Diagrams.FamilyColors Create(Morphir.Diagrams.Color, Morphir.Diagrams.Color)
+  method Morphir.Diagrams.FamilyColors Create(Morphir.Diagrams.Color, Morphir.Diagrams.Color, Morphir.Diagrams.Color)
+  method System.String ToString()
+  property Morphir.Diagrams.Color Fill
+  property Morphir.Diagrams.Color Ink
+  property Morphir.Diagrams.Color Stroke
+sealed class Morphir.Diagrams.FlowDirection
+  method Boolean Equals(Morphir.Diagrams.FlowDirection)
+  method Boolean Equals(Morphir.Diagrams.FlowDirection, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsBottomToTop()
+  method Boolean get_IsLeftToRight()
+  method Boolean get_IsRightToLeft()
+  method Boolean get_IsTopToBottom()
+  method Int32 CompareTo(Morphir.Diagrams.FlowDirection)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.FlowDirection get_BottomToTop()
+  method Morphir.Diagrams.FlowDirection get_LeftToRight()
+  method Morphir.Diagrams.FlowDirection get_RightToLeft()
+  method Morphir.Diagrams.FlowDirection get_TopToBottom()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsBottomToTop
+  property Boolean IsLeftToRight
+  property Boolean IsRightToLeft
+  property Boolean IsTopToBottom
+  property Int32 Tag
+  property Morphir.Diagrams.FlowDirection BottomToTop
+  property Morphir.Diagrams.FlowDirection LeftToRight
+  property Morphir.Diagrams.FlowDirection RightToLeft
+  property Morphir.Diagrams.FlowDirection TopToBottom
+  property System.String WireValue
+static class Morphir.Diagrams.FlowDirection+Tags
+  field Int32 BottomToTop
+  field Int32 LeftToRight
+  field Int32 RightToLeft
+  field Int32 TopToBottom
+sealed class Morphir.Diagrams.FlowEdge
+  method Morphir.Diagrams.DiagramId get_Source()
+  method Morphir.Diagrams.DiagramId get_Target()
+  method Morphir.Diagrams.EdgeHead get_EndHead()
+  method Morphir.Diagrams.EdgeHead get_StartHead()
+  method Morphir.Diagrams.FlowLine get_Line()
+  method Morphir.Diagrams.SourceSpan get_Span()
+  method System.String ToString()
+  method System.String get_Label()
+  property Morphir.Diagrams.DiagramId Source
+  property Morphir.Diagrams.DiagramId Target
+  property Morphir.Diagrams.EdgeHead EndHead
+  property Morphir.Diagrams.EdgeHead StartHead
+  property Morphir.Diagrams.FlowLine Line
+  property Morphir.Diagrams.SourceSpan Span
+  property System.String Label
+sealed class Morphir.Diagrams.FlowGroup
+  method Morphir.Diagrams.DiagramId get_Id()
+  method Morphir.Diagrams.DiagramId get_ParentId()
+  method Morphir.Diagrams.SourceSpan get_Span()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramId] get_NodeIds()
+  method System.String ToString()
+  method System.String get_Label()
+  property Morphir.Diagrams.DiagramId Id
+  property Morphir.Diagrams.DiagramId ParentId
+  property Morphir.Diagrams.SourceSpan Span
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramId] NodeIds
+  property System.String Label
+sealed class Morphir.Diagrams.FlowLine
+  method Boolean Equals(Morphir.Diagrams.FlowLine)
+  method Boolean Equals(Morphir.Diagrams.FlowLine, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsDotted()
+  method Boolean get_IsInvisible()
+  method Boolean get_IsSolid()
+  method Boolean get_IsThick()
+  method Int32 CompareTo(Morphir.Diagrams.FlowLine)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.FlowLine get_Dotted()
+  method Morphir.Diagrams.FlowLine get_Invisible()
+  method Morphir.Diagrams.FlowLine get_Solid()
+  method Morphir.Diagrams.FlowLine get_Thick()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsDotted
+  property Boolean IsInvisible
+  property Boolean IsSolid
+  property Boolean IsThick
+  property Int32 Tag
+  property Morphir.Diagrams.FlowLine Dotted
+  property Morphir.Diagrams.FlowLine Invisible
+  property Morphir.Diagrams.FlowLine Solid
+  property Morphir.Diagrams.FlowLine Thick
+  property System.String WireValue
+static class Morphir.Diagrams.FlowLine+Tags
+  field Int32 Dotted
+  field Int32 Invisible
+  field Int32 Solid
+  field Int32 Thick
+sealed class Morphir.Diagrams.FlowNode
+  method Morphir.Diagrams.DiagramId get_Id()
+  method Morphir.Diagrams.FlowShape get_Shape()
+  method Morphir.Diagrams.SourceSpan get_Span()
+  method System.String ToString()
+  method System.String get_Label()
+  property Morphir.Diagrams.DiagramId Id
+  property Morphir.Diagrams.FlowShape Shape
+  property Morphir.Diagrams.SourceSpan Span
+  property System.String Label
+sealed class Morphir.Diagrams.FlowShape
+  method Boolean Equals(Morphir.Diagrams.FlowShape)
+  method Boolean Equals(Morphir.Diagrams.FlowShape, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsAsymmetric()
+  method Boolean get_IsBar()
+  method Boolean get_IsCircle()
+  method Boolean get_IsCrossedCircle()
+  method Boolean get_IsCylinder()
+  method Boolean get_IsDiamond()
+  method Boolean get_IsDocument()
+  method Boolean get_IsDoubleCircle()
+  method Boolean get_IsFilledCircle()
+  method Boolean get_IsFramedCircle()
+  method Boolean get_IsHexagon()
+  method Boolean get_IsNote()
+  method Boolean get_IsParallelogram()
+  method Boolean get_IsRectangle()
+  method Boolean get_IsReverseParallelogram()
+  method Boolean get_IsReverseTrapezoid()
+  method Boolean get_IsRounded()
+  method Boolean get_IsSmallCircle()
+  method Boolean get_IsStadium()
+  method Boolean get_IsSubroutine()
+  method Boolean get_IsText()
+  method Boolean get_IsThickCircle()
+  method Boolean get_IsTrapezoid()
+  method Int32 CompareTo(Morphir.Diagrams.FlowShape)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.FlowShape get_Asymmetric()
+  method Morphir.Diagrams.FlowShape get_Bar()
+  method Morphir.Diagrams.FlowShape get_Circle()
+  method Morphir.Diagrams.FlowShape get_CrossedCircle()
+  method Morphir.Diagrams.FlowShape get_Cylinder()
+  method Morphir.Diagrams.FlowShape get_Diamond()
+  method Morphir.Diagrams.FlowShape get_Document()
+  method Morphir.Diagrams.FlowShape get_DoubleCircle()
+  method Morphir.Diagrams.FlowShape get_FilledCircle()
+  method Morphir.Diagrams.FlowShape get_FramedCircle()
+  method Morphir.Diagrams.FlowShape get_Hexagon()
+  method Morphir.Diagrams.FlowShape get_Note()
+  method Morphir.Diagrams.FlowShape get_Parallelogram()
+  method Morphir.Diagrams.FlowShape get_Rectangle()
+  method Morphir.Diagrams.FlowShape get_ReverseParallelogram()
+  method Morphir.Diagrams.FlowShape get_ReverseTrapezoid()
+  method Morphir.Diagrams.FlowShape get_Rounded()
+  method Morphir.Diagrams.FlowShape get_SmallCircle()
+  method Morphir.Diagrams.FlowShape get_Stadium()
+  method Morphir.Diagrams.FlowShape get_Subroutine()
+  method Morphir.Diagrams.FlowShape get_Text()
+  method Morphir.Diagrams.FlowShape get_ThickCircle()
+  method Morphir.Diagrams.FlowShape get_Trapezoid()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsAsymmetric
+  property Boolean IsBar
+  property Boolean IsCircle
+  property Boolean IsCrossedCircle
+  property Boolean IsCylinder
+  property Boolean IsDiamond
+  property Boolean IsDocument
+  property Boolean IsDoubleCircle
+  property Boolean IsFilledCircle
+  property Boolean IsFramedCircle
+  property Boolean IsHexagon
+  property Boolean IsNote
+  property Boolean IsParallelogram
+  property Boolean IsRectangle
+  property Boolean IsReverseParallelogram
+  property Boolean IsReverseTrapezoid
+  property Boolean IsRounded
+  property Boolean IsSmallCircle
+  property Boolean IsStadium
+  property Boolean IsSubroutine
+  property Boolean IsText
+  property Boolean IsThickCircle
+  property Boolean IsTrapezoid
+  property Int32 Tag
+  property Morphir.Diagrams.FlowShape Asymmetric
+  property Morphir.Diagrams.FlowShape Bar
+  property Morphir.Diagrams.FlowShape Circle
+  property Morphir.Diagrams.FlowShape CrossedCircle
+  property Morphir.Diagrams.FlowShape Cylinder
+  property Morphir.Diagrams.FlowShape Diamond
+  property Morphir.Diagrams.FlowShape Document
+  property Morphir.Diagrams.FlowShape DoubleCircle
+  property Morphir.Diagrams.FlowShape FilledCircle
+  property Morphir.Diagrams.FlowShape FramedCircle
+  property Morphir.Diagrams.FlowShape Hexagon
+  property Morphir.Diagrams.FlowShape Note
+  property Morphir.Diagrams.FlowShape Parallelogram
+  property Morphir.Diagrams.FlowShape Rectangle
+  property Morphir.Diagrams.FlowShape ReverseParallelogram
+  property Morphir.Diagrams.FlowShape ReverseTrapezoid
+  property Morphir.Diagrams.FlowShape Rounded
+  property Morphir.Diagrams.FlowShape SmallCircle
+  property Morphir.Diagrams.FlowShape Stadium
+  property Morphir.Diagrams.FlowShape Subroutine
+  property Morphir.Diagrams.FlowShape Text
+  property Morphir.Diagrams.FlowShape ThickCircle
+  property Morphir.Diagrams.FlowShape Trapezoid
+  property System.String WireValue
+static class Morphir.Diagrams.FlowShape+Tags
+  field Int32 Asymmetric
+  field Int32 Bar
+  field Int32 Circle
+  field Int32 CrossedCircle
+  field Int32 Cylinder
+  field Int32 Diamond
+  field Int32 Document
+  field Int32 DoubleCircle
+  field Int32 FilledCircle
+  field Int32 FramedCircle
+  field Int32 Hexagon
+  field Int32 Note
+  field Int32 Parallelogram
+  field Int32 Rectangle
+  field Int32 ReverseParallelogram
+  field Int32 ReverseTrapezoid
+  field Int32 Rounded
+  field Int32 SmallCircle
+  field Int32 Stadium
+  field Int32 Subroutine
+  field Int32 Text
+  field Int32 ThickCircle
+  field Int32 Trapezoid
+sealed class Morphir.Diagrams.Flowchart
+  method Morphir.Diagrams.FlowDirection get_Direction()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.FlowEdge] get_Edges()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.FlowGroup] get_Groups()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.FlowNode] get_Nodes()
+  method System.String ToString()
+  property Morphir.Diagrams.FlowDirection Direction
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.FlowEdge] Edges
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.FlowGroup] Groups
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.FlowNode] Nodes
+sealed class Morphir.Diagrams.Layout.BaseRole
+  method Boolean Equals(Morphir.Diagrams.Layout.BaseRole)
+  method Boolean Equals(Morphir.Diagrams.Layout.BaseRole, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsArrow()
+  method Boolean get_IsBackground()
+  method Boolean get_IsFrame()
+  method Boolean get_IsMask()
+  method Boolean get_IsMuted()
+  method Boolean get_IsText()
+  method Int32 CompareTo(Morphir.Diagrams.Layout.BaseRole)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.Layout.BaseRole get_Arrow()
+  method Morphir.Diagrams.Layout.BaseRole get_Background()
+  method Morphir.Diagrams.Layout.BaseRole get_Frame()
+  method Morphir.Diagrams.Layout.BaseRole get_Mask()
+  method Morphir.Diagrams.Layout.BaseRole get_Muted()
+  method Morphir.Diagrams.Layout.BaseRole get_Text()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsArrow
+  property Boolean IsBackground
+  property Boolean IsFrame
+  property Boolean IsMask
+  property Boolean IsMuted
+  property Boolean IsText
+  property Int32 Tag
+  property Morphir.Diagrams.Layout.BaseRole Arrow
+  property Morphir.Diagrams.Layout.BaseRole Background
+  property Morphir.Diagrams.Layout.BaseRole Frame
+  property Morphir.Diagrams.Layout.BaseRole Mask
+  property Morphir.Diagrams.Layout.BaseRole Muted
+  property Morphir.Diagrams.Layout.BaseRole Text
+  property System.String WireValue
+static class Morphir.Diagrams.Layout.BaseRole+Tags
+  field Int32 Arrow
+  field Int32 Background
+  field Int32 Frame
+  field Int32 Mask
+  field Int32 Muted
+  field Int32 Text
+abstract class Morphir.Diagrams.Layout.ColorSource
+  method Boolean Equals(Morphir.Diagrams.Layout.ColorSource)
+  method Boolean Equals(Morphir.Diagrams.Layout.ColorSource, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsAuthored()
+  method Boolean get_IsBase()
+  method Boolean get_IsFamily()
+  method Int32 CompareTo(Morphir.Diagrams.Layout.ColorSource)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.Layout.ColorSource NewBase(Morphir.Diagrams.Layout.BaseRole)
+  method Morphir.Diagrams.Layout.ColorSource NewFamily(Morphir.Diagrams.ColorFamily)
+  method Morphir.Diagrams.Layout.ColorSource get_Authored()
+  method System.String ToString()
+  method T Match[T](System.Func`2[Morphir.Diagrams.ColorFamily,T], System.Func`2[Morphir.Diagrams.Layout.BaseRole,T], System.Func`1[T])
+  property Boolean IsAuthored
+  property Boolean IsBase
+  property Boolean IsFamily
+  property Int32 Tag
+  property Morphir.Diagrams.Layout.ColorSource Authored
+class Morphir.Diagrams.Layout.ColorSource+Base : Morphir.Diagrams.Layout.ColorSource
+  method Morphir.Diagrams.Layout.BaseRole get_role()
+  property Morphir.Diagrams.Layout.BaseRole role
+class Morphir.Diagrams.Layout.ColorSource+Family : Morphir.Diagrams.Layout.ColorSource
+  method Morphir.Diagrams.ColorFamily get_family()
+  property Morphir.Diagrams.ColorFamily family
+static class Morphir.Diagrams.Layout.ColorSource+Tags
+  field Int32 Authored
+  field Int32 Base
+  field Int32 Family
+sealed class Morphir.Diagrams.Layout.DiagramLayout
+  method Boolean Equals(System.Object)
+  method Int32 GetHashCode()
+  method Morphir.Diagrams.Color get_Background()
+  method Morphir.Diagrams.Layout.LayoutBox get_Bounds()
+  method Morphir.Diagrams.Layout.LayoutFeatures get_Features()
+  method Morphir.Svg.SvgDocument get_Svg()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.Drawable] get_Drawables()
+  method System.String ToString()
+  property Morphir.Diagrams.Color Background
+  property Morphir.Diagrams.Layout.LayoutBox Bounds
+  property Morphir.Diagrams.Layout.LayoutFeatures Features
+  property Morphir.Svg.SvgDocument Svg
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.Drawable] Drawables
+struct Morphir.Diagrams.Layout.Distance
+  method Boolean Equals(Morphir.Diagrams.Layout.Distance)
+  method Boolean Equals(System.Object)
+  method Double ToCentimetres()
+  method Double ToInches()
+  method Double ToMillimetres()
+  method Double ToPixels()
+  method Double ToPoints()
+  method Double op_Division(Morphir.Diagrams.Layout.Distance, Morphir.Diagrams.Layout.Distance)
+  method Int32 CompareTo(Morphir.Diagrams.Layout.Distance)
+  method Int32 GetHashCode()
+  method Int64 ToEmu()
+  method Int64 get_QuarterEmu()
+  method Morphir.Diagrams.Layout.Distance FromCentimetres(Double)
+  method Morphir.Diagrams.Layout.Distance FromEmu(Int64)
+  method Morphir.Diagrams.Layout.Distance FromInches(Double)
+  method Morphir.Diagrams.Layout.Distance FromMillimetres(Double)
+  method Morphir.Diagrams.Layout.Distance FromPixels(Double)
+  method Morphir.Diagrams.Layout.Distance FromPoints(Double)
+  method Morphir.Diagrams.Layout.Distance FromQuarterEmu(Int64)
+  method Morphir.Diagrams.Layout.Distance Max(Morphir.Diagrams.Layout.Distance, Morphir.Diagrams.Layout.Distance)
+  method Morphir.Diagrams.Layout.Distance Min(Morphir.Diagrams.Layout.Distance, Morphir.Diagrams.Layout.Distance)
+  method Morphir.Diagrams.Layout.Distance Scale(Double)
+  method Morphir.Diagrams.Layout.Distance get_Zero()
+  method Morphir.Diagrams.Layout.Distance op_Addition(Morphir.Diagrams.Layout.Distance, Morphir.Diagrams.Layout.Distance)
+  method Morphir.Diagrams.Layout.Distance op_Multiply(Morphir.Diagrams.Layout.Distance, Double)
+  method Morphir.Diagrams.Layout.Distance op_Subtraction(Morphir.Diagrams.Layout.Distance, Morphir.Diagrams.Layout.Distance)
+  method Morphir.Diagrams.Layout.Distance op_UnaryNegation(Morphir.Diagrams.Layout.Distance)
+  method System.String ToString()
+  property Int64 QuarterEmu
+  property Morphir.Diagrams.Layout.Distance Zero
+sealed class Morphir.Diagrams.Layout.Drawable
+  method Boolean Equals(Morphir.Diagrams.Layout.Drawable)
+  method Boolean Equals(Morphir.Diagrams.Layout.Drawable, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_PaintOrder()
+  method Morphir.Diagrams.DiagramElementRef get_Reference()
+  method Morphir.Diagrams.Layout.DrawableId get_Id()
+  method Morphir.Diagrams.Layout.DrawableKind get_Kind()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.DrawableLink] get_Links()
+  method System.String ToString()
+  property Int32 PaintOrder
+  property Morphir.Diagrams.DiagramElementRef Reference
+  property Morphir.Diagrams.Layout.DrawableId Id
+  property Morphir.Diagrams.Layout.DrawableKind Kind
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.DrawableLink] Links
+sealed class Morphir.Diagrams.Layout.DrawableId
+  method Boolean Equals(System.Object)
+  method Boolean TryParse(System.String, Morphir.Diagrams.Layout.DrawableId ByRef, Morphir.Diagrams.Diagnostic ByRef)
+  method Int32 GetHashCode()
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Diagrams.Layout.DrawableId,Morphir.Diagrams.Diagnostic] Parse(System.String)
+  method Morphir.Diagrams.Layout.DrawableId Create(System.String)
+  method System.String ToString()
+  method System.String get_Value()
+  property System.String Value
+abstract class Morphir.Diagrams.Layout.DrawableKind
+  method Boolean Equals(Morphir.Diagrams.Layout.DrawableKind)
+  method Boolean Equals(Morphir.Diagrams.Layout.DrawableKind, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsContainer()
+  method Boolean get_IsElement()
+  method Boolean get_IsGroup()
+  method Boolean get_IsImage()
+  method Boolean get_IsLine()
+  method Boolean get_IsShape()
+  method Boolean get_IsText()
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.Layout.DrawableKind NewContainer(Morphir.Diagrams.Layout.LayoutContainer)
+  method Morphir.Diagrams.Layout.DrawableKind NewElement(System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.Drawable])
+  method Morphir.Diagrams.Layout.DrawableKind NewGroup(System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.Drawable])
+  method Morphir.Diagrams.Layout.DrawableKind NewImage(Morphir.Diagrams.Layout.LayoutImage)
+  method Morphir.Diagrams.Layout.DrawableKind NewLine(Morphir.Diagrams.Layout.LayoutLine)
+  method Morphir.Diagrams.Layout.DrawableKind NewShape(Morphir.Diagrams.Layout.LayoutShape)
+  method Morphir.Diagrams.Layout.DrawableKind NewText(Morphir.Diagrams.Layout.LayoutText)
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.Drawable] get_Children()
+  method System.String ToString()
+  method T Match[T](System.Func`2[Morphir.Diagrams.Layout.LayoutShape,T], System.Func`2[Morphir.Diagrams.Layout.LayoutLine,T], System.Func`2[Morphir.Diagrams.Layout.LayoutText,T], System.Func`2[Morphir.Diagrams.Layout.LayoutImage,T], System.Func`2[System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.Drawable],T], System.Func`2[Morphir.Diagrams.Layout.LayoutContainer,T], System.Func`2[System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.Drawable],T])
+  property Boolean IsContainer
+  property Boolean IsElement
+  property Boolean IsGroup
+  property Boolean IsImage
+  property Boolean IsLine
+  property Boolean IsShape
+  property Boolean IsText
+  property Int32 Tag
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.Drawable] Children
+class Morphir.Diagrams.Layout.DrawableKind+Container : Morphir.Diagrams.Layout.DrawableKind
+  method Morphir.Diagrams.Layout.LayoutContainer get_container()
+  property Morphir.Diagrams.Layout.LayoutContainer container
+class Morphir.Diagrams.Layout.DrawableKind+Element : Morphir.Diagrams.Layout.DrawableKind
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.Drawable] get_children()
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.Drawable] children
+class Morphir.Diagrams.Layout.DrawableKind+Group : Morphir.Diagrams.Layout.DrawableKind
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.Drawable] get_children()
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.Drawable] children
+class Morphir.Diagrams.Layout.DrawableKind+Image : Morphir.Diagrams.Layout.DrawableKind
+  method Morphir.Diagrams.Layout.LayoutImage get_image()
+  property Morphir.Diagrams.Layout.LayoutImage image
+class Morphir.Diagrams.Layout.DrawableKind+Line : Morphir.Diagrams.Layout.DrawableKind
+  method Morphir.Diagrams.Layout.LayoutLine get_line()
+  property Morphir.Diagrams.Layout.LayoutLine line
+class Morphir.Diagrams.Layout.DrawableKind+Shape : Morphir.Diagrams.Layout.DrawableKind
+  method Morphir.Diagrams.Layout.LayoutShape get_shape()
+  property Morphir.Diagrams.Layout.LayoutShape shape
+static class Morphir.Diagrams.Layout.DrawableKind+Tags
+  field Int32 Container
+  field Int32 Element
+  field Int32 Group
+  field Int32 Image
+  field Int32 Line
+  field Int32 Shape
+  field Int32 Text
+class Morphir.Diagrams.Layout.DrawableKind+Text : Morphir.Diagrams.Layout.DrawableKind
+  method Morphir.Diagrams.Layout.LayoutText get_text()
+  property Morphir.Diagrams.Layout.LayoutText text
+sealed class Morphir.Diagrams.Layout.DrawableLink
+  method Boolean Equals(Morphir.Diagrams.Layout.DrawableLink)
+  method Boolean Equals(Morphir.Diagrams.Layout.DrawableLink, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsWeb()
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method System.String ToString()
+  method System.String get_Predicate()
+  method System.String get_Target()
+  property Boolean IsWeb
+  property System.String Predicate
+  property System.String Target
+sealed class Morphir.Diagrams.Layout.FamilyRole
+  method Boolean Equals(Morphir.Diagrams.Layout.FamilyRole)
+  method Boolean Equals(Morphir.Diagrams.Layout.FamilyRole, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsActivation()
+  method Boolean get_IsActor()
+  method Boolean get_IsChoice()
+  method Boolean get_IsDataObject()
+  method Boolean get_IsEvent()
+  method Boolean get_IsFinal()
+  method Boolean get_IsForkJoin()
+  method Boolean get_IsGateway()
+  method Boolean get_IsHistory()
+  method Boolean get_IsInitial()
+  method Boolean get_IsLifeline()
+  method Boolean get_IsNote()
+  method Boolean get_IsTask()
+  method Int32 CompareTo(Morphir.Diagrams.Layout.FamilyRole)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.Layout.FamilyRole get_Activation()
+  method Morphir.Diagrams.Layout.FamilyRole get_Actor()
+  method Morphir.Diagrams.Layout.FamilyRole get_Choice()
+  method Morphir.Diagrams.Layout.FamilyRole get_DataObject()
+  method Morphir.Diagrams.Layout.FamilyRole get_Event()
+  method Morphir.Diagrams.Layout.FamilyRole get_Final()
+  method Morphir.Diagrams.Layout.FamilyRole get_ForkJoin()
+  method Morphir.Diagrams.Layout.FamilyRole get_Gateway()
+  method Morphir.Diagrams.Layout.FamilyRole get_History()
+  method Morphir.Diagrams.Layout.FamilyRole get_Initial()
+  method Morphir.Diagrams.Layout.FamilyRole get_Lifeline()
+  method Morphir.Diagrams.Layout.FamilyRole get_Note()
+  method Morphir.Diagrams.Layout.FamilyRole get_Task()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsActivation
+  property Boolean IsActor
+  property Boolean IsChoice
+  property Boolean IsDataObject
+  property Boolean IsEvent
+  property Boolean IsFinal
+  property Boolean IsForkJoin
+  property Boolean IsGateway
+  property Boolean IsHistory
+  property Boolean IsInitial
+  property Boolean IsLifeline
+  property Boolean IsNote
+  property Boolean IsTask
+  property Int32 Tag
+  property Morphir.Diagrams.Layout.FamilyRole Activation
+  property Morphir.Diagrams.Layout.FamilyRole Actor
+  property Morphir.Diagrams.Layout.FamilyRole Choice
+  property Morphir.Diagrams.Layout.FamilyRole DataObject
+  property Morphir.Diagrams.Layout.FamilyRole Event
+  property Morphir.Diagrams.Layout.FamilyRole Final
+  property Morphir.Diagrams.Layout.FamilyRole ForkJoin
+  property Morphir.Diagrams.Layout.FamilyRole Gateway
+  property Morphir.Diagrams.Layout.FamilyRole History
+  property Morphir.Diagrams.Layout.FamilyRole Initial
+  property Morphir.Diagrams.Layout.FamilyRole Lifeline
+  property Morphir.Diagrams.Layout.FamilyRole Note
+  property Morphir.Diagrams.Layout.FamilyRole Task
+  property System.String WireValue
+static class Morphir.Diagrams.Layout.FamilyRole+Tags
+  field Int32 Activation
+  field Int32 Actor
+  field Int32 Choice
+  field Int32 DataObject
+  field Int32 Event
+  field Int32 Final
+  field Int32 ForkJoin
+  field Int32 Gateway
+  field Int32 History
+  field Int32 Initial
+  field Int32 Lifeline
+  field Int32 Note
+  field Int32 Task
+sealed class Morphir.Diagrams.Layout.Fraction
+  method Boolean Equals(System.Object)
+  method Boolean TryParse(Double, Morphir.Diagrams.Layout.Fraction ByRef, Morphir.Diagrams.Diagnostic ByRef)
+  method Double get_Value()
+  method Int32 GetHashCode()
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Diagrams.Layout.Fraction,Morphir.Diagrams.Diagnostic] Parse(Double)
+  method Morphir.Diagrams.Layout.Fraction Create(Double)
+  method Morphir.Diagrams.Layout.Fraction get_Half()
+  method Morphir.Diagrams.Layout.Fraction get_One()
+  method Morphir.Diagrams.Layout.Fraction get_Zero()
+  method System.String ToString()
+  property Double Value
+  property Morphir.Diagrams.Layout.Fraction Half
+  property Morphir.Diagrams.Layout.Fraction One
+  property Morphir.Diagrams.Layout.Fraction Zero
+sealed class Morphir.Diagrams.Layout.FractionPoint
+  method Boolean Equals(System.Object)
+  method Int32 GetHashCode()
+  method Morphir.Diagrams.Layout.Fraction get_X()
+  method Morphir.Diagrams.Layout.Fraction get_Y()
+  method Morphir.Diagrams.Layout.FractionPoint Create(Morphir.Diagrams.Layout.Fraction, Morphir.Diagrams.Layout.Fraction)
+  method Morphir.Diagrams.Layout.FractionPoint get_Centre()
+  method System.String ToString()
+  property Morphir.Diagrams.Layout.Fraction X
+  property Morphir.Diagrams.Layout.Fraction Y
+  property Morphir.Diagrams.Layout.FractionPoint Centre
+struct Morphir.Diagrams.Layout.LayoutBox
+  method Boolean Equals(Morphir.Diagrams.Layout.LayoutBox)
+  method Boolean Equals(Morphir.Diagrams.Layout.LayoutBox, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Int32 CompareTo(Morphir.Diagrams.Layout.LayoutBox)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Morphir.Diagrams.Layout.Distance get_Bottom()
+  method Morphir.Diagrams.Layout.Distance get_Height()
+  method Morphir.Diagrams.Layout.Distance get_Right()
+  method Morphir.Diagrams.Layout.Distance get_Width()
+  method Morphir.Diagrams.Layout.Distance get_X()
+  method Morphir.Diagrams.Layout.Distance get_Y()
+  method Morphir.Diagrams.Layout.LayoutBox At(Morphir.Diagrams.Layout.LayoutPoint)
+  method Morphir.Diagrams.Layout.LayoutBox Create(Morphir.Diagrams.Layout.Distance, Morphir.Diagrams.Layout.Distance, Morphir.Diagrams.Layout.Distance, Morphir.Diagrams.Layout.Distance)
+  method Morphir.Diagrams.Layout.LayoutBox Include(Morphir.Diagrams.Layout.LayoutPoint)
+  method Morphir.Diagrams.Layout.LayoutBox Union(Morphir.Diagrams.Layout.LayoutBox)
+  method Morphir.Diagrams.Layout.LayoutPoint get_Centre()
+  method System.String ToString()
+  property Morphir.Diagrams.Layout.Distance Bottom
+  property Morphir.Diagrams.Layout.Distance Height
+  property Morphir.Diagrams.Layout.Distance Right
+  property Morphir.Diagrams.Layout.Distance Width
+  property Morphir.Diagrams.Layout.Distance X
+  property Morphir.Diagrams.Layout.Distance Y
+  property Morphir.Diagrams.Layout.LayoutPoint Centre
+sealed class Morphir.Diagrams.Layout.LayoutColor
+  method Boolean Equals(Morphir.Diagrams.Layout.LayoutColor)
+  method Boolean Equals(Morphir.Diagrams.Layout.LayoutColor, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsOpaque()
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Morphir.Diagrams.Color get_Color()
+  method Morphir.Diagrams.Layout.ColorSource get_Source()
+  method System.String ToString()
+  property Boolean IsOpaque
+  property Morphir.Diagrams.Color Color
+  property Morphir.Diagrams.Layout.ColorSource Source
+sealed class Morphir.Diagrams.Layout.LayoutContainer
+  method Boolean Equals(Morphir.Diagrams.Layout.LayoutContainer)
+  method Boolean Equals(Morphir.Diagrams.Layout.LayoutContainer, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Morphir.Diagrams.Layout.Distance get_HeaderBand()
+  method Morphir.Diagrams.Layout.Distance get_Radius()
+  method Morphir.Diagrams.Layout.LayoutBox get_Box()
+  method Morphir.Diagrams.Layout.LayoutPaint get_Paint()
+  method Morphir.Diagrams.Layout.LayoutText get_Header()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.Drawable] get_Children()
+  method System.String ToString()
+  property Morphir.Diagrams.Layout.Distance HeaderBand
+  property Morphir.Diagrams.Layout.Distance Radius
+  property Morphir.Diagrams.Layout.LayoutBox Box
+  property Morphir.Diagrams.Layout.LayoutPaint Paint
+  property Morphir.Diagrams.Layout.LayoutText Header
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.Drawable] Children
+sealed class Morphir.Diagrams.Layout.LayoutFeature
+  method Boolean Equals(Morphir.Diagrams.Layout.LayoutFeature)
+  method Boolean Equals(Morphir.Diagrams.Layout.LayoutFeature, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsAttachedConnectors()
+  method Boolean get_IsContainers()
+  method Boolean get_IsCylinders()
+  method Boolean get_IsDashPatterns()
+  method Boolean get_IsDiamonds()
+  method Boolean get_IsEllipses()
+  method Boolean get_IsExactRoutes()
+  method Boolean get_IsFamilyRoles()
+  method Boolean get_IsFillOpacity()
+  method Boolean get_IsHexagons()
+  method Boolean get_IsInterleavedContainers()
+  method Boolean get_IsInterleavedPainting()
+  method Boolean get_IsLineTargets()
+  method Boolean get_IsLinks()
+  method Boolean get_IsMessageHeads()
+  method Boolean get_IsOpenAndCircleHeads()
+  method Boolean get_IsPages()
+  method Boolean get_IsPaths()
+  method Boolean get_IsPolylines()
+  method Boolean get_IsRotatedText()
+  method Boolean get_IsRoundedRectangles()
+  method Boolean get_IsSmoothCurves()
+  method Boolean get_IsStrokeAndTextOpacity()
+  method Boolean get_IsSvgImages()
+  method Boolean get_IsWrappedText()
+  method Int32 CompareTo(Morphir.Diagrams.Layout.LayoutFeature)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.Layout.LayoutFeature get_AttachedConnectors()
+  method Morphir.Diagrams.Layout.LayoutFeature get_Containers()
+  method Morphir.Diagrams.Layout.LayoutFeature get_Cylinders()
+  method Morphir.Diagrams.Layout.LayoutFeature get_DashPatterns()
+  method Morphir.Diagrams.Layout.LayoutFeature get_Diamonds()
+  method Morphir.Diagrams.Layout.LayoutFeature get_Ellipses()
+  method Morphir.Diagrams.Layout.LayoutFeature get_ExactRoutes()
+  method Morphir.Diagrams.Layout.LayoutFeature get_FamilyRoles()
+  method Morphir.Diagrams.Layout.LayoutFeature get_FillOpacity()
+  method Morphir.Diagrams.Layout.LayoutFeature get_Hexagons()
+  method Morphir.Diagrams.Layout.LayoutFeature get_InterleavedContainers()
+  method Morphir.Diagrams.Layout.LayoutFeature get_InterleavedPainting()
+  method Morphir.Diagrams.Layout.LayoutFeature get_LineTargets()
+  method Morphir.Diagrams.Layout.LayoutFeature get_Links()
+  method Morphir.Diagrams.Layout.LayoutFeature get_MessageHeads()
+  method Morphir.Diagrams.Layout.LayoutFeature get_OpenAndCircleHeads()
+  method Morphir.Diagrams.Layout.LayoutFeature get_Pages()
+  method Morphir.Diagrams.Layout.LayoutFeature get_Paths()
+  method Morphir.Diagrams.Layout.LayoutFeature get_Polylines()
+  method Morphir.Diagrams.Layout.LayoutFeature get_RotatedText()
+  method Morphir.Diagrams.Layout.LayoutFeature get_RoundedRectangles()
+  method Morphir.Diagrams.Layout.LayoutFeature get_SmoothCurves()
+  method Morphir.Diagrams.Layout.LayoutFeature get_StrokeAndTextOpacity()
+  method Morphir.Diagrams.Layout.LayoutFeature get_SvgImages()
+  method Morphir.Diagrams.Layout.LayoutFeature get_WrappedText()
+  method System.Collections.Generic.IReadOnlyList`1[Morphir.Diagrams.Layout.LayoutFeature] get_All()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsAttachedConnectors
+  property Boolean IsContainers
+  property Boolean IsCylinders
+  property Boolean IsDashPatterns
+  property Boolean IsDiamonds
+  property Boolean IsEllipses
+  property Boolean IsExactRoutes
+  property Boolean IsFamilyRoles
+  property Boolean IsFillOpacity
+  property Boolean IsHexagons
+  property Boolean IsInterleavedContainers
+  property Boolean IsInterleavedPainting
+  property Boolean IsLineTargets
+  property Boolean IsLinks
+  property Boolean IsMessageHeads
+  property Boolean IsOpenAndCircleHeads
+  property Boolean IsPages
+  property Boolean IsPaths
+  property Boolean IsPolylines
+  property Boolean IsRotatedText
+  property Boolean IsRoundedRectangles
+  property Boolean IsSmoothCurves
+  property Boolean IsStrokeAndTextOpacity
+  property Boolean IsSvgImages
+  property Boolean IsWrappedText
+  property Int32 Tag
+  property Morphir.Diagrams.Layout.LayoutFeature AttachedConnectors
+  property Morphir.Diagrams.Layout.LayoutFeature Containers
+  property Morphir.Diagrams.Layout.LayoutFeature Cylinders
+  property Morphir.Diagrams.Layout.LayoutFeature DashPatterns
+  property Morphir.Diagrams.Layout.LayoutFeature Diamonds
+  property Morphir.Diagrams.Layout.LayoutFeature Ellipses
+  property Morphir.Diagrams.Layout.LayoutFeature ExactRoutes
+  property Morphir.Diagrams.Layout.LayoutFeature FamilyRoles
+  property Morphir.Diagrams.Layout.LayoutFeature FillOpacity
+  property Morphir.Diagrams.Layout.LayoutFeature Hexagons
+  property Morphir.Diagrams.Layout.LayoutFeature InterleavedContainers
+  property Morphir.Diagrams.Layout.LayoutFeature InterleavedPainting
+  property Morphir.Diagrams.Layout.LayoutFeature LineTargets
+  property Morphir.Diagrams.Layout.LayoutFeature Links
+  property Morphir.Diagrams.Layout.LayoutFeature MessageHeads
+  property Morphir.Diagrams.Layout.LayoutFeature OpenAndCircleHeads
+  property Morphir.Diagrams.Layout.LayoutFeature Pages
+  property Morphir.Diagrams.Layout.LayoutFeature Paths
+  property Morphir.Diagrams.Layout.LayoutFeature Polylines
+  property Morphir.Diagrams.Layout.LayoutFeature RotatedText
+  property Morphir.Diagrams.Layout.LayoutFeature RoundedRectangles
+  property Morphir.Diagrams.Layout.LayoutFeature SmoothCurves
+  property Morphir.Diagrams.Layout.LayoutFeature StrokeAndTextOpacity
+  property Morphir.Diagrams.Layout.LayoutFeature SvgImages
+  property Morphir.Diagrams.Layout.LayoutFeature WrappedText
+  property System.Collections.Generic.IReadOnlyList`1[Morphir.Diagrams.Layout.LayoutFeature] All
+  property System.String WireValue
+static class Morphir.Diagrams.Layout.LayoutFeature+Tags
+  field Int32 AttachedConnectors
+  field Int32 Containers
+  field Int32 Cylinders
+  field Int32 DashPatterns
+  field Int32 Diamonds
+  field Int32 Ellipses
+  field Int32 ExactRoutes
+  field Int32 FamilyRoles
+  field Int32 FillOpacity
+  field Int32 Hexagons
+  field Int32 InterleavedContainers
+  field Int32 InterleavedPainting
+  field Int32 LineTargets
+  field Int32 Links
+  field Int32 MessageHeads
+  field Int32 OpenAndCircleHeads
+  field Int32 Pages
+  field Int32 Paths
+  field Int32 Polylines
+  field Int32 RotatedText
+  field Int32 RoundedRectangles
+  field Int32 SmoothCurves
+  field Int32 StrokeAndTextOpacity
+  field Int32 SvgImages
+  field Int32 WrappedText
+sealed class Morphir.Diagrams.Layout.LayoutFeatures
+  method Boolean Contains(Morphir.Diagrams.Layout.LayoutFeature)
+  method Boolean Equals(System.Object)
+  method Boolean IsSubsetOf(Morphir.Diagrams.Layout.LayoutFeatures)
+  method Boolean get_IsEmpty()
+  method Int32 GetHashCode()
+  method Int32 get_Count()
+  method Morphir.Diagrams.Layout.LayoutFeatures Add(Morphir.Diagrams.Layout.LayoutFeature)
+  method Morphir.Diagrams.Layout.LayoutFeatures Except(Morphir.Diagrams.Layout.LayoutFeatures)
+  method Morphir.Diagrams.Layout.LayoutFeatures Of(Morphir.Diagrams.Layout.LayoutFeature[])
+  method Morphir.Diagrams.Layout.LayoutFeatures Remove(Morphir.Diagrams.Layout.LayoutFeature)
+  method Morphir.Diagrams.Layout.LayoutFeatures Union(Morphir.Diagrams.Layout.LayoutFeatures)
+  method Morphir.Diagrams.Layout.LayoutFeatures get_All()
+  method Morphir.Diagrams.Layout.LayoutFeatures get_None()
+  method System.Collections.Generic.IReadOnlyList`1[Morphir.Diagrams.Layout.LayoutFeature] get_Items()
+  method System.String ToString()
+  property Boolean IsEmpty
+  property Int32 Count
+  property Morphir.Diagrams.Layout.LayoutFeatures All
+  property Morphir.Diagrams.Layout.LayoutFeatures None
+  property System.Collections.Generic.IReadOnlyList`1[Morphir.Diagrams.Layout.LayoutFeature] Items
+sealed class Morphir.Diagrams.Layout.LayoutImage
+  method Boolean Equals(System.Object)
+  method Int32 GetHashCode()
+  method Morphir.Diagrams.Layout.LayoutBox get_Box()
+  method Morphir.Svg.SvgDocument get_Svg()
+  method System.String ToString()
+  method System.String get_SvgText()
+  property Morphir.Diagrams.Layout.LayoutBox Box
+  property Morphir.Svg.SvgDocument Svg
+  property System.String SvgText
+sealed class Morphir.Diagrams.Layout.LayoutLine
+  method Boolean Equals(Morphir.Diagrams.Layout.LayoutLine)
+  method Boolean Equals(Morphir.Diagrams.Layout.LayoutLine, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Morphir.Diagrams.Layout.LayoutPaint get_Paint()
+  method Morphir.Diagrams.Layout.LayoutText get_Label()
+  method Morphir.Diagrams.Layout.LineEnd get_Source()
+  method Morphir.Diagrams.Layout.LineEnd get_Target()
+  method Morphir.Diagrams.Layout.PathData get_ExactPath()
+  method Morphir.Diagrams.Layout.RouteStyle get_Route()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.LayoutPoint] get_Waypoints()
+  method System.String ToString()
+  property Morphir.Diagrams.Layout.LayoutPaint Paint
+  property Morphir.Diagrams.Layout.LayoutText Label
+  property Morphir.Diagrams.Layout.LineEnd Source
+  property Morphir.Diagrams.Layout.LineEnd Target
+  property Morphir.Diagrams.Layout.PathData ExactPath
+  property Morphir.Diagrams.Layout.RouteStyle Route
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.LayoutPoint] Waypoints
+sealed class Morphir.Diagrams.Layout.LayoutPaint
+  method Boolean Equals(Morphir.Diagrams.Layout.LayoutPaint)
+  method Boolean Equals(Morphir.Diagrams.Layout.LayoutPaint, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Morphir.Diagrams.Layout.Distance get_StrokeWidth()
+  method Morphir.Diagrams.Layout.LayoutColor get_Fill()
+  method Morphir.Diagrams.Layout.LayoutColor get_Ink()
+  method Morphir.Diagrams.Layout.LayoutColor get_Stroke()
+  method Morphir.Diagrams.Layout.LineCap get_Cap()
+  method Morphir.Diagrams.Layout.LineJoin get_Join()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.Distance] get_Dash()
+  method System.String ToString()
+  property Morphir.Diagrams.Layout.Distance StrokeWidth
+  property Morphir.Diagrams.Layout.LayoutColor Fill
+  property Morphir.Diagrams.Layout.LayoutColor Ink
+  property Morphir.Diagrams.Layout.LayoutColor Stroke
+  property Morphir.Diagrams.Layout.LineCap Cap
+  property Morphir.Diagrams.Layout.LineJoin Join
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.Distance] Dash
+struct Morphir.Diagrams.Layout.LayoutPoint
+  method Boolean Equals(Morphir.Diagrams.Layout.LayoutPoint)
+  method Boolean Equals(Morphir.Diagrams.Layout.LayoutPoint, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Int32 CompareTo(Morphir.Diagrams.Layout.LayoutPoint)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Morphir.Diagrams.Layout.Distance get_X()
+  method Morphir.Diagrams.Layout.Distance get_Y()
+  method Morphir.Diagrams.Layout.LayoutPoint Create(Morphir.Diagrams.Layout.Distance, Morphir.Diagrams.Layout.Distance)
+  method Morphir.Diagrams.Layout.LayoutPoint Offset(Morphir.Diagrams.Layout.Distance, Morphir.Diagrams.Layout.Distance)
+  method Morphir.Diagrams.Layout.LayoutPoint get_Origin()
+  method System.String ToString()
+  property Morphir.Diagrams.Layout.Distance X
+  property Morphir.Diagrams.Layout.Distance Y
+  property Morphir.Diagrams.Layout.LayoutPoint Origin
+sealed class Morphir.Diagrams.Layout.LayoutResult
+  method Morphir.Diagrams.Layout.DiagramLayout get_Layout()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] get_Diagnostics()
+  method System.String ToString()
+  property Morphir.Diagrams.Layout.DiagramLayout Layout
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] Diagnostics
+sealed class Morphir.Diagrams.Layout.LayoutShape
+  method Boolean Equals(Morphir.Diagrams.Layout.LayoutShape)
+  method Boolean Equals(Morphir.Diagrams.Layout.LayoutShape, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Morphir.Diagrams.Layout.FamilyRole get_Role()
+  method Morphir.Diagrams.Layout.LayoutBox get_Box()
+  method Morphir.Diagrams.Layout.LayoutColor get_Backdrop()
+  method Morphir.Diagrams.Layout.LayoutPaint get_Paint()
+  method Morphir.Diagrams.Layout.LayoutText get_Text()
+  method Morphir.Diagrams.Layout.ShapeKind get_Kind()
+  method System.String ToString()
+  property Morphir.Diagrams.Layout.FamilyRole Role
+  property Morphir.Diagrams.Layout.LayoutBox Box
+  property Morphir.Diagrams.Layout.LayoutColor Backdrop
+  property Morphir.Diagrams.Layout.LayoutPaint Paint
+  property Morphir.Diagrams.Layout.LayoutText Text
+  property Morphir.Diagrams.Layout.ShapeKind Kind
+sealed class Morphir.Diagrams.Layout.LayoutText
+  method Boolean Equals(Morphir.Diagrams.Layout.LayoutText)
+  method Boolean Equals(Morphir.Diagrams.Layout.LayoutText, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_Wraps()
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Rotation()
+  method Int32 get_Weight()
+  method Morphir.Diagrams.Layout.Distance get_Advance()
+  method Morphir.Diagrams.Layout.Distance get_Size()
+  method Morphir.Diagrams.Layout.LayoutBox get_Box()
+  method Morphir.Diagrams.Layout.LayoutColor get_Ink()
+  method Morphir.Diagrams.Layout.LayoutPoint get_Origin()
+  method Morphir.Diagrams.Layout.TextAlign get_Align()
+  method Morphir.Diagrams.Layout.TextChip get_Chip()
+  method System.Collections.Immutable.ImmutableArray`1[System.String] get_Lines()
+  method System.String ToString()
+  property Boolean Wraps
+  property Int32 Rotation
+  property Int32 Weight
+  property Morphir.Diagrams.Layout.Distance Advance
+  property Morphir.Diagrams.Layout.Distance Size
+  property Morphir.Diagrams.Layout.LayoutBox Box
+  property Morphir.Diagrams.Layout.LayoutColor Ink
+  property Morphir.Diagrams.Layout.LayoutPoint Origin
+  property Morphir.Diagrams.Layout.TextAlign Align
+  property Morphir.Diagrams.Layout.TextChip Chip
+  property System.Collections.Immutable.ImmutableArray`1[System.String] Lines
+abstract class Morphir.Diagrams.Layout.LineAnchor
+  method Boolean Equals(Morphir.Diagrams.Layout.LineAnchor)
+  method Boolean Equals(Morphir.Diagrams.Layout.LineAnchor, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsAcross()
+  method Boolean get_IsAlong()
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.Layout.LineAnchor NewAcross(Morphir.Diagrams.Layout.FractionPoint)
+  method Morphir.Diagrams.Layout.LineAnchor NewAlong(Morphir.Diagrams.Layout.Fraction)
+  method System.String ToString()
+  method T Match[T](System.Func`2[Morphir.Diagrams.Layout.FractionPoint,T], System.Func`2[Morphir.Diagrams.Layout.Fraction,T])
+  property Boolean IsAcross
+  property Boolean IsAlong
+  property Int32 Tag
+class Morphir.Diagrams.Layout.LineAnchor+Across : Morphir.Diagrams.Layout.LineAnchor
+  method Morphir.Diagrams.Layout.FractionPoint get_point()
+  property Morphir.Diagrams.Layout.FractionPoint point
+class Morphir.Diagrams.Layout.LineAnchor+Along : Morphir.Diagrams.Layout.LineAnchor
+  method Morphir.Diagrams.Layout.Fraction get_fraction()
+  property Morphir.Diagrams.Layout.Fraction fraction
+static class Morphir.Diagrams.Layout.LineAnchor+Tags
+  field Int32 Across
+  field Int32 Along
+sealed class Morphir.Diagrams.Layout.LineBinding
+  method Boolean Equals(Morphir.Diagrams.Layout.LineBinding)
+  method Boolean Equals(Morphir.Diagrams.Layout.LineBinding, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Morphir.Diagrams.Layout.DrawableId get_Target()
+  method Morphir.Diagrams.Layout.LineAnchor get_Anchor()
+  method System.String ToString()
+  property Morphir.Diagrams.Layout.DrawableId Target
+  property Morphir.Diagrams.Layout.LineAnchor Anchor
+sealed class Morphir.Diagrams.Layout.LineCap
+  method Boolean Equals(Morphir.Diagrams.Layout.LineCap)
+  method Boolean Equals(Morphir.Diagrams.Layout.LineCap, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsButt()
+  method Boolean get_IsRound()
+  method Boolean get_IsSquare()
+  method Int32 CompareTo(Morphir.Diagrams.Layout.LineCap)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.Layout.LineCap get_Butt()
+  method Morphir.Diagrams.Layout.LineCap get_Round()
+  method Morphir.Diagrams.Layout.LineCap get_Square()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsButt
+  property Boolean IsRound
+  property Boolean IsSquare
+  property Int32 Tag
+  property Morphir.Diagrams.Layout.LineCap Butt
+  property Morphir.Diagrams.Layout.LineCap Round
+  property Morphir.Diagrams.Layout.LineCap Square
+  property System.String WireValue
+static class Morphir.Diagrams.Layout.LineCap+Tags
+  field Int32 Butt
+  field Int32 Round
+  field Int32 Square
+sealed class Morphir.Diagrams.Layout.LineEnd
+  method Boolean Equals(Morphir.Diagrams.Layout.LineEnd)
+  method Boolean Equals(Morphir.Diagrams.Layout.LineEnd, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Morphir.Diagrams.EdgeHead get_Head()
+  method Morphir.Diagrams.Layout.LayoutPoint get_Point()
+  method Morphir.Diagrams.Layout.LineBinding get_Binding()
+  method System.String ToString()
+  property Morphir.Diagrams.EdgeHead Head
+  property Morphir.Diagrams.Layout.LayoutPoint Point
+  property Morphir.Diagrams.Layout.LineBinding Binding
+sealed class Morphir.Diagrams.Layout.LineJoin
+  method Boolean Equals(Morphir.Diagrams.Layout.LineJoin)
+  method Boolean Equals(Morphir.Diagrams.Layout.LineJoin, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsBevel()
+  method Boolean get_IsMiter()
+  method Boolean get_IsRound()
+  method Int32 CompareTo(Morphir.Diagrams.Layout.LineJoin)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.Layout.LineJoin get_Bevel()
+  method Morphir.Diagrams.Layout.LineJoin get_Miter()
+  method Morphir.Diagrams.Layout.LineJoin get_Round()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsBevel
+  property Boolean IsMiter
+  property Boolean IsRound
+  property Int32 Tag
+  property Morphir.Diagrams.Layout.LineJoin Bevel
+  property Morphir.Diagrams.Layout.LineJoin Miter
+  property Morphir.Diagrams.Layout.LineJoin Round
+  property System.String WireValue
+static class Morphir.Diagrams.Layout.LineJoin+Tags
+  field Int32 Bevel
+  field Int32 Miter
+  field Int32 Round
+class Morphir.Diagrams.Layout.PathCommand
+  method Boolean Equals(Morphir.Diagrams.Layout.PathCommand)
+  method Boolean Equals(Morphir.Diagrams.Layout.PathCommand, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsArcTo()
+  method Boolean get_IsClose()
+  method Boolean get_IsCubicTo()
+  method Boolean get_IsLineTo()
+  method Boolean get_IsMoveTo()
+  method Boolean get_IsQuadraticTo()
+  method Int32 CompareTo(Morphir.Diagrams.Layout.PathCommand)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.Layout.PathCommand NewArcTo(Morphir.Diagrams.Layout.Distance, Morphir.Diagrams.Layout.Distance, Double, Boolean, Boolean, Morphir.Diagrams.Layout.LayoutPoint)
+  method Morphir.Diagrams.Layout.PathCommand NewCubicTo(Morphir.Diagrams.Layout.LayoutPoint, Morphir.Diagrams.Layout.LayoutPoint, Morphir.Diagrams.Layout.LayoutPoint)
+  method Morphir.Diagrams.Layout.PathCommand NewLineTo(Morphir.Diagrams.Layout.LayoutPoint)
+  method Morphir.Diagrams.Layout.PathCommand NewMoveTo(Morphir.Diagrams.Layout.LayoutPoint)
+  method Morphir.Diagrams.Layout.PathCommand NewQuadraticTo(Morphir.Diagrams.Layout.LayoutPoint, Morphir.Diagrams.Layout.LayoutPoint)
+  method Morphir.Diagrams.Layout.PathCommand get_Close()
+  method System.String ToString()
+  method T Match[T](System.Func`2[Morphir.Diagrams.Layout.LayoutPoint,T], System.Func`2[Morphir.Diagrams.Layout.LayoutPoint,T], System.Func`4[Morphir.Diagrams.Layout.LayoutPoint,Morphir.Diagrams.Layout.LayoutPoint,Morphir.Diagrams.Layout.LayoutPoint,T], System.Func`3[Morphir.Diagrams.Layout.LayoutPoint,Morphir.Diagrams.Layout.LayoutPoint,T], System.Func`7[Morphir.Diagrams.Layout.Distance,Morphir.Diagrams.Layout.Distance,System.Double,System.Boolean,System.Boolean,Morphir.Diagrams.Layout.LayoutPoint,T], System.Func`1[T])
+  property Boolean IsArcTo
+  property Boolean IsClose
+  property Boolean IsCubicTo
+  property Boolean IsLineTo
+  property Boolean IsMoveTo
+  property Boolean IsQuadraticTo
+  property Int32 Tag
+  property Morphir.Diagrams.Layout.PathCommand Close
+class Morphir.Diagrams.Layout.PathCommand+ArcTo : Morphir.Diagrams.Layout.PathCommand
+  method Boolean get_largeArc()
+  method Boolean get_sweep()
+  method Double get_rotation()
+  method Morphir.Diagrams.Layout.Distance get_radiusX()
+  method Morphir.Diagrams.Layout.Distance get_radiusY()
+  method Morphir.Diagrams.Layout.LayoutPoint get_point()
+  property Boolean largeArc
+  property Boolean sweep
+  property Double rotation
+  property Morphir.Diagrams.Layout.Distance radiusX
+  property Morphir.Diagrams.Layout.Distance radiusY
+  property Morphir.Diagrams.Layout.LayoutPoint point
+class Morphir.Diagrams.Layout.PathCommand+CubicTo : Morphir.Diagrams.Layout.PathCommand
+  method Morphir.Diagrams.Layout.LayoutPoint get_control1()
+  method Morphir.Diagrams.Layout.LayoutPoint get_control2()
+  method Morphir.Diagrams.Layout.LayoutPoint get_point()
+  property Morphir.Diagrams.Layout.LayoutPoint control1
+  property Morphir.Diagrams.Layout.LayoutPoint control2
+  property Morphir.Diagrams.Layout.LayoutPoint point
+class Morphir.Diagrams.Layout.PathCommand+LineTo : Morphir.Diagrams.Layout.PathCommand
+  method Morphir.Diagrams.Layout.LayoutPoint get_point()
+  property Morphir.Diagrams.Layout.LayoutPoint point
+class Morphir.Diagrams.Layout.PathCommand+MoveTo : Morphir.Diagrams.Layout.PathCommand
+  method Morphir.Diagrams.Layout.LayoutPoint get_point()
+  property Morphir.Diagrams.Layout.LayoutPoint point
+class Morphir.Diagrams.Layout.PathCommand+QuadraticTo : Morphir.Diagrams.Layout.PathCommand
+  method Morphir.Diagrams.Layout.LayoutPoint get_control()
+  method Morphir.Diagrams.Layout.LayoutPoint get_point()
+  property Morphir.Diagrams.Layout.LayoutPoint control
+  property Morphir.Diagrams.Layout.LayoutPoint point
+static class Morphir.Diagrams.Layout.PathCommand+Tags
+  field Int32 ArcTo
+  field Int32 Close
+  field Int32 CubicTo
+  field Int32 LineTo
+  field Int32 MoveTo
+  field Int32 QuadraticTo
+sealed class Morphir.Diagrams.Layout.PathData
+  method Boolean Equals(System.Object)
+  method Boolean TryParse(System.String, Morphir.Diagrams.Layout.PathData ByRef, Morphir.Diagrams.Diagnostic ByRef)
+  method Boolean get_HasArcs()
+  method Int32 GetHashCode()
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Diagrams.Layout.PathData,Morphir.Diagrams.Diagnostic] Parse(System.String)
+  method Morphir.Diagrams.Layout.PathData Create(System.String)
+  method Morphir.Diagrams.Layout.PathData WithoutArcs(Morphir.Diagrams.Layout.Distance)
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.PathCommand] get_Commands()
+  method System.String ToString()
+  property Boolean HasArcs
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Layout.PathCommand] Commands
+sealed class Morphir.Diagrams.Layout.RouteStyle
+  method Boolean Equals(Morphir.Diagrams.Layout.RouteStyle)
+  method Boolean Equals(Morphir.Diagrams.Layout.RouteStyle, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsCurved()
+  method Boolean get_IsOrthogonal()
+  method Boolean get_IsStraight()
+  method Int32 CompareTo(Morphir.Diagrams.Layout.RouteStyle)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.Layout.RouteStyle get_Curved()
+  method Morphir.Diagrams.Layout.RouteStyle get_Orthogonal()
+  method Morphir.Diagrams.Layout.RouteStyle get_Straight()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsCurved
+  property Boolean IsOrthogonal
+  property Boolean IsStraight
+  property Int32 Tag
+  property Morphir.Diagrams.Layout.RouteStyle Curved
+  property Morphir.Diagrams.Layout.RouteStyle Orthogonal
+  property Morphir.Diagrams.Layout.RouteStyle Straight
+  property System.String WireValue
+static class Morphir.Diagrams.Layout.RouteStyle+Tags
+  field Int32 Curved
+  field Int32 Orthogonal
+  field Int32 Straight
+sealed class Morphir.Diagrams.Layout.Scale
+  method Boolean Equals(System.Object)
+  method Boolean TryParse(Double, Morphir.Diagrams.Layout.Scale ByRef, Morphir.Diagrams.Diagnostic ByRef)
+  method Double get_Value()
+  method Int32 GetHashCode()
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Diagrams.Layout.Scale,Morphir.Diagrams.Diagnostic] Parse(Double)
+  method Morphir.Diagrams.Layout.Scale Create(Double)
+  method Morphir.Diagrams.Layout.Scale get_One()
+  method System.String ToString()
+  property Double Value
+  property Morphir.Diagrams.Layout.Scale One
+class Morphir.Diagrams.Layout.ShapeKind
+  method Boolean Equals(Morphir.Diagrams.Layout.ShapeKind)
+  method Boolean Equals(Morphir.Diagrams.Layout.ShapeKind, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsCylinder()
+  method Boolean get_IsDiamond()
+  method Boolean get_IsEllipse()
+  method Boolean get_IsHexagon()
+  method Boolean get_IsPath()
+  method Boolean get_IsRectangle()
+  method Boolean get_IsRoundedRectangle()
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.Layout.ShapeKind NewCylinder(Morphir.Diagrams.Layout.Distance)
+  method Morphir.Diagrams.Layout.ShapeKind NewHexagon(Morphir.Diagrams.Layout.Distance)
+  method Morphir.Diagrams.Layout.ShapeKind NewPath(Morphir.Diagrams.Layout.PathData)
+  method Morphir.Diagrams.Layout.ShapeKind NewRoundedRectangle(Morphir.Diagrams.Layout.Distance)
+  method Morphir.Diagrams.Layout.ShapeKind get_Diamond()
+  method Morphir.Diagrams.Layout.ShapeKind get_Ellipse()
+  method Morphir.Diagrams.Layout.ShapeKind get_Rectangle()
+  method System.String ToString()
+  method System.String get_WireValue()
+  method T Match[T](System.Func`1[T], System.Func`2[Morphir.Diagrams.Layout.Distance,T], System.Func`1[T], System.Func`1[T], System.Func`2[Morphir.Diagrams.Layout.Distance,T], System.Func`2[Morphir.Diagrams.Layout.Distance,T], System.Func`2[Morphir.Diagrams.Layout.PathData,T])
+  property Boolean IsCylinder
+  property Boolean IsDiamond
+  property Boolean IsEllipse
+  property Boolean IsHexagon
+  property Boolean IsPath
+  property Boolean IsRectangle
+  property Boolean IsRoundedRectangle
+  property Int32 Tag
+  property Morphir.Diagrams.Layout.ShapeKind Diamond
+  property Morphir.Diagrams.Layout.ShapeKind Ellipse
+  property Morphir.Diagrams.Layout.ShapeKind Rectangle
+  property System.String WireValue
+class Morphir.Diagrams.Layout.ShapeKind+Cylinder : Morphir.Diagrams.Layout.ShapeKind
+  method Morphir.Diagrams.Layout.Distance get_cap()
+  property Morphir.Diagrams.Layout.Distance cap
+class Morphir.Diagrams.Layout.ShapeKind+Hexagon : Morphir.Diagrams.Layout.ShapeKind
+  method Morphir.Diagrams.Layout.Distance get_inset()
+  property Morphir.Diagrams.Layout.Distance inset
+class Morphir.Diagrams.Layout.ShapeKind+Path : Morphir.Diagrams.Layout.ShapeKind
+  method Morphir.Diagrams.Layout.PathData get_data()
+  property Morphir.Diagrams.Layout.PathData data
+class Morphir.Diagrams.Layout.ShapeKind+RoundedRectangle : Morphir.Diagrams.Layout.ShapeKind
+  method Morphir.Diagrams.Layout.Distance get_radius()
+  property Morphir.Diagrams.Layout.Distance radius
+static class Morphir.Diagrams.Layout.ShapeKind+Tags
+  field Int32 Cylinder
+  field Int32 Diamond
+  field Int32 Ellipse
+  field Int32 Hexagon
+  field Int32 Path
+  field Int32 Rectangle
+  field Int32 RoundedRectangle
+sealed class Morphir.Diagrams.Layout.TextAlign
+  method Boolean Equals(Morphir.Diagrams.Layout.TextAlign)
+  method Boolean Equals(Morphir.Diagrams.Layout.TextAlign, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsEnd()
+  method Boolean get_IsMiddle()
+  method Boolean get_IsStart()
+  method Int32 CompareTo(Morphir.Diagrams.Layout.TextAlign)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.Layout.TextAlign get_End()
+  method Morphir.Diagrams.Layout.TextAlign get_Middle()
+  method Morphir.Diagrams.Layout.TextAlign get_Start()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsEnd
+  property Boolean IsMiddle
+  property Boolean IsStart
+  property Int32 Tag
+  property Morphir.Diagrams.Layout.TextAlign End
+  property Morphir.Diagrams.Layout.TextAlign Middle
+  property Morphir.Diagrams.Layout.TextAlign Start
+  property System.String WireValue
+static class Morphir.Diagrams.Layout.TextAlign+Tags
+  field Int32 End
+  field Int32 Middle
+  field Int32 Start
+sealed class Morphir.Diagrams.Layout.TextChip
+  method Boolean Equals(Morphir.Diagrams.Layout.TextChip)
+  method Boolean Equals(Morphir.Diagrams.Layout.TextChip, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Morphir.Diagrams.Layout.Distance get_Radius()
+  method Morphir.Diagrams.Layout.LayoutBox get_Box()
+  method Morphir.Diagrams.Layout.LayoutColor get_Color()
+  method System.String ToString()
+  property Morphir.Diagrams.Layout.Distance Radius
+  property Morphir.Diagrams.Layout.LayoutBox Box
+  property Morphir.Diagrams.Layout.LayoutColor Color
+abstract class Morphir.Diagrams.LinkEndpoint
+  method Boolean Equals(System.Object)
+  method Boolean get_IsDiagram()
+  method Boolean get_IsResource()
+  method Boolean get_IsText()
+  method Int32 GetHashCode()
+  method Int32 get_Tag()
+  method Morphir.Diagrams.LinkEndpoint FromDiagram(Morphir.Diagrams.DiagramSelection)
+  method Morphir.Diagrams.LinkEndpoint FromResource(Morphir.Knowledge.Iri)
+  method Morphir.Diagrams.LinkEndpoint FromText(Morphir.Knowledge.TextSelection)
+  method Morphir.Diagrams.LinkEndpoint NewDiagram(Morphir.Diagrams.DiagramSelection)
+  method Morphir.Diagrams.LinkEndpoint NewResource(Morphir.Knowledge.Iri)
+  method Morphir.Diagrams.LinkEndpoint NewText(Morphir.Knowledge.TextSelection)
+  method System.String ToString()
+  method T Match[T](System.Func`2[Morphir.Diagrams.DiagramSelection,T], System.Func`2[Morphir.Knowledge.TextSelection,T], System.Func`2[Morphir.Knowledge.Iri,T])
+  property Boolean IsDiagram
+  property Boolean IsResource
+  property Boolean IsText
+  property Int32 Tag
+class Morphir.Diagrams.LinkEndpoint+Diagram : Morphir.Diagrams.LinkEndpoint
+  method Morphir.Diagrams.DiagramSelection get_Item()
+  property Morphir.Diagrams.DiagramSelection Item
+class Morphir.Diagrams.LinkEndpoint+Resource : Morphir.Diagrams.LinkEndpoint
+  method Morphir.Knowledge.Iri get_Item()
+  property Morphir.Knowledge.Iri Item
+static class Morphir.Diagrams.LinkEndpoint+Tags
+  field Int32 Diagram
+  field Int32 Resource
+  field Int32 Text
+class Morphir.Diagrams.LinkEndpoint+Text : Morphir.Diagrams.LinkEndpoint
+  method Morphir.Knowledge.TextSelection get_Item()
+  property Morphir.Knowledge.TextSelection Item
+sealed class Morphir.Diagrams.LinkFollowing
+  method Boolean Equals(Morphir.Diagrams.LinkFollowing)
+  method Boolean Equals(Morphir.Diagrams.LinkFollowing, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsAllLinks()
+  method Boolean get_IsArrowheads()
+  method Int32 CompareTo(Morphir.Diagrams.LinkFollowing)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.LinkFollowing get_AllLinks()
+  method Morphir.Diagrams.LinkFollowing get_Arrowheads()
+  method System.String ToString()
+  property Boolean IsAllLinks
+  property Boolean IsArrowheads
+  property Int32 Tag
+  property Morphir.Diagrams.LinkFollowing AllLinks
+  property Morphir.Diagrams.LinkFollowing Arrowheads
+static class Morphir.Diagrams.LinkFollowing+Tags
+  field Int32 AllLinks
+  field Int32 Arrowheads
+static class Morphir.Diagrams.Mermaid
+  method Boolean TryParse(System.String, Morphir.Diagrams.DiagramDocument ByRef, System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] ByRef)
+  method Boolean TryPrint(Morphir.Diagrams.Diagram, System.String ByRef, System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] ByRef)
+  method Boolean TryPrintZenUml(Morphir.Diagrams.Diagram, System.String ByRef, System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] ByRef)
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Diagrams.DiagramDocument,System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic]] Parse(System.String)
+  method Microsoft.FSharp.Core.FSharpResult`2[System.String,System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic]] Print(Morphir.Diagrams.Diagram)
+  method Microsoft.FSharp.Core.FSharpResult`2[System.String,System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic]] PrintZenUml(Morphir.Diagrams.Diagram)
+  method Morphir.Diagrams.RenderedDiagram RenderAnimated(System.String)
+  method Morphir.Diagrams.RenderedDiagram RenderAnimated(System.String, Morphir.Diagrams.SvgRenderOptions)
+  method Morphir.Diagrams.RenderedDiagram RenderSvg(System.String)
+  method Morphir.Diagrams.RenderedDiagram RenderSvg(System.String, Morphir.Diagrams.SvgRenderOptions)
+sealed class Morphir.Diagrams.MetadataEmbedding
+  method Boolean Equals(Morphir.Diagrams.MetadataEmbedding)
+  method Boolean Equals(Morphir.Diagrams.MetadataEmbedding, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsNQuads()
+  method Boolean get_IsNTriples()
+  method Boolean get_IsRdfXml()
+  method Int32 CompareTo(Morphir.Diagrams.MetadataEmbedding)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.MetadataEmbedding get_NQuads()
+  method Morphir.Diagrams.MetadataEmbedding get_NTriples()
+  method Morphir.Diagrams.MetadataEmbedding get_RdfXml()
+  method System.String ToString()
+  method System.String get_WireValue()
+  method T Match[T](System.Func`1[T], System.Func`1[T], System.Func`1[T])
+  property Boolean IsNQuads
+  property Boolean IsNTriples
+  property Boolean IsRdfXml
+  property Int32 Tag
+  property Morphir.Diagrams.MetadataEmbedding NQuads
+  property Morphir.Diagrams.MetadataEmbedding NTriples
+  property Morphir.Diagrams.MetadataEmbedding RdfXml
+  property System.String WireValue
+static class Morphir.Diagrams.MetadataEmbedding+Tags
+  field Int32 NQuads
+  field Int32 NTriples
+  field Int32 RdfXml
+sealed class Morphir.Diagrams.NodeVisit
+  method Int64 get_DurationMilliseconds()
+  method Int64 get_StartMilliseconds()
+  method Morphir.Diagrams.DiagramElementRef get_Reference()
+  method Morphir.Diagrams.NodeVisit Create(Morphir.Diagrams.DiagramElementRef, Int64, Int64)
+  method System.String ToString()
+  property Int64 DurationMilliseconds
+  property Int64 StartMilliseconds
+  property Morphir.Diagrams.DiagramElementRef Reference
+sealed class Morphir.Diagrams.NotePlacement
+  method Boolean Equals(Morphir.Diagrams.NotePlacement)
+  method Boolean Equals(Morphir.Diagrams.NotePlacement, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsLeft()
+  method Boolean get_IsOver()
+  method Boolean get_IsRight()
+  method Int32 CompareTo(Morphir.Diagrams.NotePlacement)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.NotePlacement get_Left()
+  method Morphir.Diagrams.NotePlacement get_Over()
+  method Morphir.Diagrams.NotePlacement get_Right()
+  method System.String ToString()
+  property Boolean IsLeft
+  property Boolean IsOver
+  property Boolean IsRight
+  property Int32 Tag
+  property Morphir.Diagrams.NotePlacement Left
+  property Morphir.Diagrams.NotePlacement Over
+  property Morphir.Diagrams.NotePlacement Right
+static class Morphir.Diagrams.NotePlacement+Tags
+  field Int32 Left
+  field Int32 Over
+  field Int32 Right
+sealed class Morphir.Diagrams.Participant
+  method Morphir.Diagrams.DiagramId get_Id()
+  method Morphir.Diagrams.ParticipantKind get_Kind()
+  method System.Nullable`1[System.Int32] get_CreatedBy()
+  method System.Nullable`1[System.Int32] get_DestroyedBy()
+  method System.String ToString()
+  method System.String get_Label()
+  property Morphir.Diagrams.DiagramId Id
+  property Morphir.Diagrams.ParticipantKind Kind
+  property System.Nullable`1[System.Int32] CreatedBy
+  property System.Nullable`1[System.Int32] DestroyedBy
+  property System.String Label
+sealed class Morphir.Diagrams.ParticipantKind
+  method Boolean Equals(Morphir.Diagrams.ParticipantKind)
+  method Boolean Equals(Morphir.Diagrams.ParticipantKind, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsActor()
+  method Boolean get_IsBoundary()
+  method Boolean get_IsCollections()
+  method Boolean get_IsControl()
+  method Boolean get_IsDatabase()
+  method Boolean get_IsEntity()
+  method Boolean get_IsParticipant()
+  method Boolean get_IsQueue()
+  method Int32 CompareTo(Morphir.Diagrams.ParticipantKind)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.ParticipantKind get_Actor()
+  method Morphir.Diagrams.ParticipantKind get_Boundary()
+  method Morphir.Diagrams.ParticipantKind get_Collections()
+  method Morphir.Diagrams.ParticipantKind get_Control()
+  method Morphir.Diagrams.ParticipantKind get_Database()
+  method Morphir.Diagrams.ParticipantKind get_Entity()
+  method Morphir.Diagrams.ParticipantKind get_Participant()
+  method Morphir.Diagrams.ParticipantKind get_Queue()
+  method System.String ToString()
+  property Boolean IsActor
+  property Boolean IsBoundary
+  property Boolean IsCollections
+  property Boolean IsControl
+  property Boolean IsDatabase
+  property Boolean IsEntity
+  property Boolean IsParticipant
+  property Boolean IsQueue
+  property Int32 Tag
+  property Morphir.Diagrams.ParticipantKind Actor
+  property Morphir.Diagrams.ParticipantKind Boundary
+  property Morphir.Diagrams.ParticipantKind Collections
+  property Morphir.Diagrams.ParticipantKind Control
+  property Morphir.Diagrams.ParticipantKind Database
+  property Morphir.Diagrams.ParticipantKind Entity
+  property Morphir.Diagrams.ParticipantKind Participant
+  property Morphir.Diagrams.ParticipantKind Queue
+static class Morphir.Diagrams.ParticipantKind+Tags
+  field Int32 Actor
+  field Int32 Boundary
+  field Int32 Collections
+  field Int32 Control
+  field Int32 Database
+  field Int32 Entity
+  field Int32 Participant
+  field Int32 Queue
+static class Morphir.Diagrams.PlantUml
+  method Boolean TryParse(System.String, Morphir.Diagrams.DiagramDocument ByRef, System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] ByRef)
+  method Boolean TryPrint(Morphir.Diagrams.Diagram, System.String ByRef, System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] ByRef)
+  method Microsoft.FSharp.Core.FSharpResult`2[Morphir.Diagrams.DiagramDocument,System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic]] Parse(System.String)
+  method Microsoft.FSharp.Core.FSharpResult`2[System.String,System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic]] Print(Morphir.Diagrams.Diagram)
+sealed class Morphir.Diagrams.PlaybackStep
+  method Int64 get_DurationMilliseconds()
+  method Int64 get_StartMilliseconds()
+  method Morphir.Diagrams.DiagramConnector get_Connector()
+  method Morphir.Diagrams.PlaybackStep Create(Morphir.Diagrams.DiagramConnector, Int64, Int64)
+  method System.String ToString()
+  property Int64 DurationMilliseconds
+  property Int64 StartMilliseconds
+  property Morphir.Diagrams.DiagramConnector Connector
+sealed class Morphir.Diagrams.RailroadDiagram
+  method Boolean get_IsRegex()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.RailroadRule] get_Rules()
+  method System.Collections.Immutable.ImmutableArray`1[System.String] get_OccurrenceIds()
+  method System.String OccurrenceOf(Morphir.Diagrams.RailroadItem)
+  method System.String ToString()
+  method System.String get_Fingerprint()
+  property Boolean IsRegex
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.RailroadRule] Rules
+  property System.Collections.Immutable.ImmutableArray`1[System.String] OccurrenceIds
+  property System.String Fingerprint
+sealed class Morphir.Diagrams.RailroadItem
+  method Int32 get_Minimum()
+  method Morphir.Diagrams.RailroadKind get_Kind()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.RailroadItem] get_Children()
+  method System.Nullable`1[System.Int32] get_Maximum()
+  method System.String ToString()
+  method System.String get_Text()
+  property Int32 Minimum
+  property Morphir.Diagrams.RailroadKind Kind
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.RailroadItem] Children
+  property System.Nullable`1[System.Int32] Maximum
+  property System.String Text
+sealed class Morphir.Diagrams.RailroadKind
+  method Boolean Equals(Morphir.Diagrams.RailroadKind)
+  method Boolean Equals(Morphir.Diagrams.RailroadKind, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsAssertion()
+  method Boolean get_IsCharacterClass()
+  method Boolean get_IsChoice()
+  method Boolean get_IsEmpty()
+  method Boolean get_IsException()
+  method Boolean get_IsGroup()
+  method Boolean get_IsNonTerminal()
+  method Boolean get_IsOptional()
+  method Boolean get_IsRepeat()
+  method Boolean get_IsSequence()
+  method Boolean get_IsSpecial()
+  method Boolean get_IsTerminal()
+  method Int32 CompareTo(Morphir.Diagrams.RailroadKind)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.RailroadKind get_Assertion()
+  method Morphir.Diagrams.RailroadKind get_CharacterClass()
+  method Morphir.Diagrams.RailroadKind get_Choice()
+  method Morphir.Diagrams.RailroadKind get_Empty()
+  method Morphir.Diagrams.RailroadKind get_Exception()
+  method Morphir.Diagrams.RailroadKind get_Group()
+  method Morphir.Diagrams.RailroadKind get_NonTerminal()
+  method Morphir.Diagrams.RailroadKind get_Optional()
+  method Morphir.Diagrams.RailroadKind get_Repeat()
+  method Morphir.Diagrams.RailroadKind get_Sequence()
+  method Morphir.Diagrams.RailroadKind get_Special()
+  method Morphir.Diagrams.RailroadKind get_Terminal()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsAssertion
+  property Boolean IsCharacterClass
+  property Boolean IsChoice
+  property Boolean IsEmpty
+  property Boolean IsException
+  property Boolean IsGroup
+  property Boolean IsNonTerminal
+  property Boolean IsOptional
+  property Boolean IsRepeat
+  property Boolean IsSequence
+  property Boolean IsSpecial
+  property Boolean IsTerminal
+  property Int32 Tag
+  property Morphir.Diagrams.RailroadKind Assertion
+  property Morphir.Diagrams.RailroadKind CharacterClass
+  property Morphir.Diagrams.RailroadKind Choice
+  property Morphir.Diagrams.RailroadKind Empty
+  property Morphir.Diagrams.RailroadKind Exception
+  property Morphir.Diagrams.RailroadKind Group
+  property Morphir.Diagrams.RailroadKind NonTerminal
+  property Morphir.Diagrams.RailroadKind Optional
+  property Morphir.Diagrams.RailroadKind Repeat
+  property Morphir.Diagrams.RailroadKind Sequence
+  property Morphir.Diagrams.RailroadKind Special
+  property Morphir.Diagrams.RailroadKind Terminal
+  property System.String WireValue
+static class Morphir.Diagrams.RailroadKind+Tags
+  field Int32 Assertion
+  field Int32 CharacterClass
+  field Int32 Choice
+  field Int32 Empty
+  field Int32 Exception
+  field Int32 Group
+  field Int32 NonTerminal
+  field Int32 Optional
+  field Int32 Repeat
+  field Int32 Sequence
+  field Int32 Special
+  field Int32 Terminal
+sealed class Morphir.Diagrams.RailroadOutcome
+  method Boolean Equals(Morphir.Diagrams.RailroadOutcome)
+  method Boolean Equals(Morphir.Diagrams.RailroadOutcome, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsError()
+  method Boolean get_IsExhausted()
+  method Boolean get_IsMatched()
+  method Boolean get_IsNotMatched()
+  method Boolean get_IsUnsupported()
+  method Int32 CompareTo(Morphir.Diagrams.RailroadOutcome)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.RailroadOutcome get_Error()
+  method Morphir.Diagrams.RailroadOutcome get_Exhausted()
+  method Morphir.Diagrams.RailroadOutcome get_Matched()
+  method Morphir.Diagrams.RailroadOutcome get_NotMatched()
+  method Morphir.Diagrams.RailroadOutcome get_Unsupported()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsError
+  property Boolean IsExhausted
+  property Boolean IsMatched
+  property Boolean IsNotMatched
+  property Boolean IsUnsupported
+  property Int32 Tag
+  property Morphir.Diagrams.RailroadOutcome Error
+  property Morphir.Diagrams.RailroadOutcome Exhausted
+  property Morphir.Diagrams.RailroadOutcome Matched
+  property Morphir.Diagrams.RailroadOutcome NotMatched
+  property Morphir.Diagrams.RailroadOutcome Unsupported
+  property System.String WireValue
+static class Morphir.Diagrams.RailroadOutcome+Tags
+  field Int32 Error
+  field Int32 Exhausted
+  field Int32 Matched
+  field Int32 NotMatched
+  field Int32 Unsupported
+sealed class Morphir.Diagrams.RailroadRule
+  method Morphir.Diagrams.RailroadItem get_Body()
+  method System.String ToString()
+  method System.String get_Comment()
+  method System.String get_Name()
+  property Morphir.Diagrams.RailroadItem Body
+  property System.String Comment
+  property System.String Name
+sealed class Morphir.Diagrams.RailroadTrace
+  method Morphir.Diagrams.RailroadOutcome get_Outcome()
+  method Morphir.Diagrams.RailroadTrace Create(Morphir.Diagrams.RailroadDiagram, Morphir.Diagrams.RailroadOutcome, System.Collections.Generic.IEnumerable`1[Morphir.Diagrams.RailroadVisit], System.String)
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.RailroadVisit] get_Visits()
+  method System.String ToString()
+  method System.String get_Failure()
+  method System.String get_Fingerprint()
+  property Morphir.Diagrams.RailroadOutcome Outcome
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.RailroadVisit] Visits
+  property System.String Failure
+  property System.String Fingerprint
+sealed class Morphir.Diagrams.RailroadVisit
+  method Morphir.Diagrams.RailroadVisit Create(System.String, Morphir.Diagrams.RailroadVisitResult)
+  method Morphir.Diagrams.RailroadVisit Create(System.String, Morphir.Diagrams.RailroadVisitResult, Int32, Int32)
+  method Morphir.Diagrams.RailroadVisitResult get_Result()
+  method System.Nullable`1[System.Int32] get_InputLength()
+  method System.Nullable`1[System.Int32] get_InputStart()
+  method System.String ToString()
+  method System.String get_Occurrence()
+  property Morphir.Diagrams.RailroadVisitResult Result
+  property System.Nullable`1[System.Int32] InputLength
+  property System.Nullable`1[System.Int32] InputStart
+  property System.String Occurrence
+sealed class Morphir.Diagrams.RailroadVisitResult
+  method Boolean Equals(Morphir.Diagrams.RailroadVisitResult)
+  method Boolean Equals(Morphir.Diagrams.RailroadVisitResult, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsMatched()
+  method Boolean get_IsNotMatched()
+  method Int32 CompareTo(Morphir.Diagrams.RailroadVisitResult)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.RailroadVisitResult get_Matched()
+  method Morphir.Diagrams.RailroadVisitResult get_NotMatched()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsMatched
+  property Boolean IsNotMatched
+  property Int32 Tag
+  property Morphir.Diagrams.RailroadVisitResult Matched
+  property Morphir.Diagrams.RailroadVisitResult NotMatched
+  property System.String WireValue
+static class Morphir.Diagrams.RailroadVisitResult+Tags
+  field Int32 Matched
+  field Int32 NotMatched
+sealed class Morphir.Diagrams.RenderedDiagram
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] get_Diagnostics()
+  method System.String ToString()
+  method System.String get_MediaType()
+  method System.String get_Output()
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] Diagnostics
+  property System.String MediaType
+  property System.String Output
+sealed class Morphir.Diagrams.SequenceActivation
+  method Morphir.Diagrams.DiagramId get_Participant()
+  method Morphir.Diagrams.SequenceActivationKind get_Kind()
+  method Morphir.Diagrams.SourceSpan get_Span()
+  method System.String ToString()
+  property Morphir.Diagrams.DiagramId Participant
+  property Morphir.Diagrams.SequenceActivationKind Kind
+  property Morphir.Diagrams.SourceSpan Span
+sealed class Morphir.Diagrams.SequenceActivationKind
+  method Boolean Equals(Morphir.Diagrams.SequenceActivationKind)
+  method Boolean Equals(Morphir.Diagrams.SequenceActivationKind, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsActivate()
+  method Boolean get_IsDeactivate()
+  method Int32 CompareTo(Morphir.Diagrams.SequenceActivationKind)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.SequenceActivationKind get_Activate()
+  method Morphir.Diagrams.SequenceActivationKind get_Deactivate()
+  method System.String ToString()
+  property Boolean IsActivate
+  property Boolean IsDeactivate
+  property Int32 Tag
+  property Morphir.Diagrams.SequenceActivationKind Activate
+  property Morphir.Diagrams.SequenceActivationKind Deactivate
+static class Morphir.Diagrams.SequenceActivationKind+Tags
+  field Int32 Activate
+  field Int32 Deactivate
+sealed class Morphir.Diagrams.SequenceBox
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramId] get_Participants()
+  method System.String ToString()
+  method System.String get_Color()
+  method System.String get_Label()
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramId] Participants
+  property System.String Color
+  property System.String Label
+sealed class Morphir.Diagrams.SequenceDiagram
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Participant] get_Participants()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.SequenceBox] get_Boxes()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.SequenceEvent] get_Events()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.SequenceMessage] get_Messages()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.SequenceNote] get_Notes()
+  method System.String ToString()
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Participant] Participants
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.SequenceBox] Boxes
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.SequenceEvent] Events
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.SequenceMessage] Messages
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.SequenceNote] Notes
+abstract class Morphir.Diagrams.SequenceEvent
+  method Boolean Equals(Morphir.Diagrams.SequenceEvent)
+  method Boolean Equals(Morphir.Diagrams.SequenceEvent, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsActivation()
+  method Boolean get_IsFrame()
+  method Boolean get_IsMessage()
+  method Boolean get_IsNote()
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.SequenceEvent NewActivation(Morphir.Diagrams.SequenceActivation)
+  method Morphir.Diagrams.SequenceEvent NewFrame(Morphir.Diagrams.SequenceFrame)
+  method Morphir.Diagrams.SequenceEvent NewMessage(Morphir.Diagrams.SequenceMessage)
+  method Morphir.Diagrams.SequenceEvent NewNote(Morphir.Diagrams.SequenceNote)
+  method System.String ToString()
+  method T Match[T](System.Func`2[Morphir.Diagrams.SequenceMessage,T], System.Func`2[Morphir.Diagrams.SequenceNote,T], System.Func`2[Morphir.Diagrams.SequenceActivation,T], System.Func`2[Morphir.Diagrams.SequenceFrame,T])
+  property Boolean IsActivation
+  property Boolean IsFrame
+  property Boolean IsMessage
+  property Boolean IsNote
+  property Int32 Tag
+class Morphir.Diagrams.SequenceEvent+Activation : Morphir.Diagrams.SequenceEvent
+  method Morphir.Diagrams.SequenceActivation get_Item()
+  property Morphir.Diagrams.SequenceActivation Item
+class Morphir.Diagrams.SequenceEvent+Frame : Morphir.Diagrams.SequenceEvent
+  method Morphir.Diagrams.SequenceFrame get_Item()
+  property Morphir.Diagrams.SequenceFrame Item
+class Morphir.Diagrams.SequenceEvent+Message : Morphir.Diagrams.SequenceEvent
+  method Morphir.Diagrams.SequenceMessage get_Item()
+  property Morphir.Diagrams.SequenceMessage Item
+class Morphir.Diagrams.SequenceEvent+Note : Morphir.Diagrams.SequenceEvent
+  method Morphir.Diagrams.SequenceNote get_Item()
+  property Morphir.Diagrams.SequenceNote Item
+static class Morphir.Diagrams.SequenceEvent+Tags
+  field Int32 Activation
+  field Int32 Frame
+  field Int32 Message
+  field Int32 Note
+sealed class Morphir.Diagrams.SequenceFrame
+  method Morphir.Diagrams.SequenceFrameKind get_Kind()
+  method Morphir.Diagrams.SourceSpan get_Span()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.SequenceFrameSection] get_Sections()
+  method System.String ToString()
+  method System.String get_Color()
+  property Morphir.Diagrams.SequenceFrameKind Kind
+  property Morphir.Diagrams.SourceSpan Span
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.SequenceFrameSection] Sections
+  property System.String Color
+sealed class Morphir.Diagrams.SequenceFrameKind
+  method Boolean Equals(Morphir.Diagrams.SequenceFrameKind)
+  method Boolean Equals(Morphir.Diagrams.SequenceFrameKind, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsAlternative()
+  method Boolean get_IsBreak()
+  method Boolean get_IsCritical()
+  method Boolean get_IsLoop()
+  method Boolean get_IsOptional()
+  method Boolean get_IsParallel()
+  method Boolean get_IsParallelOver()
+  method Boolean get_IsRectangle()
+  method Boolean get_IsTry()
+  method Int32 CompareTo(Morphir.Diagrams.SequenceFrameKind)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.SequenceFrameKind get_Alternative()
+  method Morphir.Diagrams.SequenceFrameKind get_Break()
+  method Morphir.Diagrams.SequenceFrameKind get_Critical()
+  method Morphir.Diagrams.SequenceFrameKind get_Loop()
+  method Morphir.Diagrams.SequenceFrameKind get_Optional()
+  method Morphir.Diagrams.SequenceFrameKind get_Parallel()
+  method Morphir.Diagrams.SequenceFrameKind get_ParallelOver()
+  method Morphir.Diagrams.SequenceFrameKind get_Rectangle()
+  method Morphir.Diagrams.SequenceFrameKind get_Try()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsAlternative
+  property Boolean IsBreak
+  property Boolean IsCritical
+  property Boolean IsLoop
+  property Boolean IsOptional
+  property Boolean IsParallel
+  property Boolean IsParallelOver
+  property Boolean IsRectangle
+  property Boolean IsTry
+  property Int32 Tag
+  property Morphir.Diagrams.SequenceFrameKind Alternative
+  property Morphir.Diagrams.SequenceFrameKind Break
+  property Morphir.Diagrams.SequenceFrameKind Critical
+  property Morphir.Diagrams.SequenceFrameKind Loop
+  property Morphir.Diagrams.SequenceFrameKind Optional
+  property Morphir.Diagrams.SequenceFrameKind Parallel
+  property Morphir.Diagrams.SequenceFrameKind ParallelOver
+  property Morphir.Diagrams.SequenceFrameKind Rectangle
+  property Morphir.Diagrams.SequenceFrameKind Try
+  property System.String WireValue
+static class Morphir.Diagrams.SequenceFrameKind+Tags
+  field Int32 Alternative
+  field Int32 Break
+  field Int32 Critical
+  field Int32 Loop
+  field Int32 Optional
+  field Int32 Parallel
+  field Int32 ParallelOver
+  field Int32 Rectangle
+  field Int32 Try
+sealed class Morphir.Diagrams.SequenceFrameSection
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.SequenceEvent] get_Events()
+  method System.String ToString()
+  method System.String get_Label()
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.SequenceEvent] Events
+  property System.String Label
+sealed class Morphir.Diagrams.SequenceMessage
+  method Boolean get_EndsAtCentre()
+  method Boolean get_IsDashed()
+  method Boolean get_StartsAtCentre()
+  method Morphir.Diagrams.DiagramId get_Receiver()
+  method Morphir.Diagrams.DiagramId get_Sender()
+  method Morphir.Diagrams.EdgeHead get_ReceiverHead()
+  method Morphir.Diagrams.EdgeHead get_SenderHead()
+  method Morphir.Diagrams.SourceSpan get_Span()
+  method System.Nullable`1[System.Decimal] get_Number()
+  method System.String ToString()
+  method System.String get_Text()
+  property Boolean EndsAtCentre
+  property Boolean IsDashed
+  property Boolean StartsAtCentre
+  property Morphir.Diagrams.DiagramId Receiver
+  property Morphir.Diagrams.DiagramId Sender
+  property Morphir.Diagrams.EdgeHead ReceiverHead
+  property Morphir.Diagrams.EdgeHead SenderHead
+  property Morphir.Diagrams.SourceSpan Span
+  property System.Nullable`1[System.Decimal] Number
+  property System.String Text
+sealed class Morphir.Diagrams.SequenceNote
+  method Int32 get_MessageIndex()
+  method Morphir.Diagrams.NotePlacement get_Placement()
+  method Morphir.Diagrams.SourceSpan get_Span()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramId] get_Participants()
+  method System.String ToString()
+  method System.String get_Text()
+  property Int32 MessageIndex
+  property Morphir.Diagrams.NotePlacement Placement
+  property Morphir.Diagrams.SourceSpan Span
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramId] Participants
+  property System.String Text
+sealed class Morphir.Diagrams.SourcePosition
+  method Int32 get_Column()
+  method Int32 get_Line()
+  method Int32 get_Offset()
+  method System.String ToString()
+  property Int32 Column
+  property Int32 Line
+  property Int32 Offset
+sealed class Morphir.Diagrams.SourceSpan
+  method Morphir.Diagrams.SourcePosition get_End()
+  method Morphir.Diagrams.SourcePosition get_Start()
+  method System.String ToString()
+  property Morphir.Diagrams.SourcePosition End
+  property Morphir.Diagrams.SourcePosition Start
+sealed class Morphir.Diagrams.StateDiagram
+  method Morphir.Diagrams.FlowDirection get_Direction()
+  method Morphir.Diagrams.StateDiagram Create(Morphir.Diagrams.FlowDirection, System.Collections.Generic.IReadOnlyList`1[Morphir.Diagrams.DiagramState], System.Collections.Generic.IReadOnlyList`1[Morphir.Diagrams.StateRegion], System.Collections.Generic.IReadOnlyList`1[Morphir.Diagrams.StateTransition])
+  method Morphir.Diagrams.StateDiagram WithCollapsed(Morphir.Diagrams.DiagramId)
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.Diagnostic] Validate()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramId] get_Collapsed()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramState] get_States()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.StateNote] get_Notes()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.StateRegion] get_Regions()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.StateTransition] get_Transitions()
+  method System.String ToString()
+  property Morphir.Diagrams.FlowDirection Direction
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramId] Collapsed
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.DiagramState] States
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.StateNote] Notes
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.StateRegion] Regions
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.StateTransition] Transitions
+sealed class Morphir.Diagrams.StateNote
+  method Morphir.Diagrams.DiagramId get_Target()
+  method Morphir.Diagrams.NotePlacement get_Placement()
+  method System.String ToString()
+  method System.String get_Text()
+  property Morphir.Diagrams.DiagramId Target
+  property Morphir.Diagrams.NotePlacement Placement
+  property System.String Text
+sealed class Morphir.Diagrams.StateRegion
+  method Morphir.Diagrams.DiagramId get_Owner()
+  method Morphir.Diagrams.StateRegion Create(System.String, Morphir.Diagrams.DiagramId)
+  method System.String ToString()
+  method System.String get_Id()
+  property Morphir.Diagrams.DiagramId Owner
+  property System.String Id
+sealed class Morphir.Diagrams.StateRole
+  method Boolean Equals(Morphir.Diagrams.StateRole)
+  method Boolean Equals(Morphir.Diagrams.StateRole, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsChoice()
+  method Boolean get_IsComposite()
+  method Boolean get_IsDeepHistory()
+  method Boolean get_IsEntryPoint()
+  method Boolean get_IsExitPoint()
+  method Boolean get_IsFinal()
+  method Boolean get_IsFork()
+  method Boolean get_IsInitial()
+  method Boolean get_IsJoin()
+  method Boolean get_IsShallowHistory()
+  method Boolean get_IsSimple()
+  method Int32 CompareTo(Morphir.Diagrams.StateRole)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.StateRole get_Choice()
+  method Morphir.Diagrams.StateRole get_Composite()
+  method Morphir.Diagrams.StateRole get_DeepHistory()
+  method Morphir.Diagrams.StateRole get_EntryPoint()
+  method Morphir.Diagrams.StateRole get_ExitPoint()
+  method Morphir.Diagrams.StateRole get_Final()
+  method Morphir.Diagrams.StateRole get_Fork()
+  method Morphir.Diagrams.StateRole get_Initial()
+  method Morphir.Diagrams.StateRole get_Join()
+  method Morphir.Diagrams.StateRole get_ShallowHistory()
+  method Morphir.Diagrams.StateRole get_Simple()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsChoice
+  property Boolean IsComposite
+  property Boolean IsDeepHistory
+  property Boolean IsEntryPoint
+  property Boolean IsExitPoint
+  property Boolean IsFinal
+  property Boolean IsFork
+  property Boolean IsInitial
+  property Boolean IsJoin
+  property Boolean IsShallowHistory
+  property Boolean IsSimple
+  property Int32 Tag
+  property Morphir.Diagrams.StateRole Choice
+  property Morphir.Diagrams.StateRole Composite
+  property Morphir.Diagrams.StateRole DeepHistory
+  property Morphir.Diagrams.StateRole EntryPoint
+  property Morphir.Diagrams.StateRole ExitPoint
+  property Morphir.Diagrams.StateRole Final
+  property Morphir.Diagrams.StateRole Fork
+  property Morphir.Diagrams.StateRole Initial
+  property Morphir.Diagrams.StateRole Join
+  property Morphir.Diagrams.StateRole ShallowHistory
+  property Morphir.Diagrams.StateRole Simple
+  property System.String WireValue
+static class Morphir.Diagrams.StateRole+Tags
+  field Int32 Choice
+  field Int32 Composite
+  field Int32 DeepHistory
+  field Int32 EntryPoint
+  field Int32 ExitPoint
+  field Int32 Final
+  field Int32 Fork
+  field Int32 Initial
+  field Int32 Join
+  field Int32 ShallowHistory
+  field Int32 Simple
+sealed class Morphir.Diagrams.StateTransition
+  method Morphir.Diagrams.DiagramId get_Source()
+  method Morphir.Diagrams.DiagramId get_Target()
+  method Morphir.Diagrams.StateTransition Create(Morphir.Diagrams.DiagramId, Morphir.Diagrams.DiagramId, System.String)
+  method System.String ToString()
+  method System.String get_Action()
+  method System.String get_Event()
+  method System.String get_Guard()
+  method System.String get_Label()
+  property Morphir.Diagrams.DiagramId Source
+  property Morphir.Diagrams.DiagramId Target
+  property System.String Action
+  property System.String Event
+  property System.String Guard
+  property System.String Label
+sealed class Morphir.Diagrams.SvgRenderOptions
+  method Boolean get_Bridges()
+  method Boolean get_HasMetadata()
+  method Morphir.Diagrams.ConnectorStyle get_ConnectorStyle()
+  method Morphir.Diagrams.DiagramTheme get_Theme()
+  method Morphir.Diagrams.RailroadTrace get_RailroadTrace()
+  method Morphir.Diagrams.SvgRenderOptions Create(Morphir.Diagrams.DiagramTheme, Morphir.Diagrams.ThemeMode)
+  method Morphir.Diagrams.SvgRenderOptions WithBridges(Boolean)
+  method Morphir.Diagrams.SvgRenderOptions WithConnectorStyle(Morphir.Diagrams.ConnectorStyle)
+  method Morphir.Diagrams.SvgRenderOptions WithDocument(Morphir.Knowledge.DocumentId)
+  method Morphir.Diagrams.SvgRenderOptions WithMetadata(Morphir.Knowledge.Rdf.RdfDataset, Morphir.Diagrams.MetadataEmbedding, Morphir.Knowledge.Rdf.NamedGraphHandling)
+  method Morphir.Diagrams.SvgRenderOptions WithMode(Morphir.Diagrams.ThemeMode)
+  method Morphir.Diagrams.SvgRenderOptions WithRailroadTrace(Morphir.Diagrams.RailroadTrace)
+  method Morphir.Diagrams.SvgRenderOptions WithTheme(Morphir.Diagrams.DiagramTheme)
+  method Morphir.Diagrams.SvgRenderOptions get_Default()
+  method Morphir.Diagrams.ThemeMode get_Mode()
+  method Morphir.Knowledge.DocumentId get_Document()
+  method System.String ToString()
+  property Boolean Bridges
+  property Boolean HasMetadata
+  property Morphir.Diagrams.ConnectorStyle ConnectorStyle
+  property Morphir.Diagrams.DiagramTheme Theme
+  property Morphir.Diagrams.RailroadTrace RailroadTrace
+  property Morphir.Diagrams.SvgRenderOptions Default
+  property Morphir.Diagrams.ThemeMode Mode
+  property Morphir.Knowledge.DocumentId Document
+static class Morphir.Diagrams.SvgRenderer
+  method Morphir.Diagrams.DiagramScene BuildScene(Morphir.Diagrams.Diagram)
+  method Morphir.Diagrams.DiagramScene BuildScene(Morphir.Diagrams.Diagram, Morphir.Diagrams.SvgRenderOptions)
+  method Morphir.Diagrams.RenderedDiagram Render(Morphir.Diagrams.Diagram)
+  method Morphir.Diagrams.RenderedDiagram Render(Morphir.Diagrams.Diagram, Morphir.Diagrams.SvgRenderOptions)
+sealed class Morphir.Diagrams.SwimlaneConnector
+  method Boolean get_HasHead()
+  method Morphir.Diagrams.DiagramId get_Source()
+  method Morphir.Diagrams.DiagramId get_Target()
+  method Morphir.Diagrams.FlowLine get_Line()
+  method System.String ToString()
+  method System.String get_Label()
+  property Boolean HasHead
+  property Morphir.Diagrams.DiagramId Source
+  property Morphir.Diagrams.DiagramId Target
+  property Morphir.Diagrams.FlowLine Line
+  property System.String Label
+sealed class Morphir.Diagrams.SwimlaneDiagram
+  method Morphir.Diagrams.FlowDirection get_Direction()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.SwimlaneConnector] get_Connectors()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.SwimlaneLane] get_Lanes()
+  method System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.SwimlaneStep] get_Steps()
+  method System.String ToString()
+  property Morphir.Diagrams.FlowDirection Direction
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.SwimlaneConnector] Connectors
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.SwimlaneLane] Lanes
+  property System.Collections.Immutable.ImmutableArray`1[Morphir.Diagrams.SwimlaneStep] Steps
+sealed class Morphir.Diagrams.SwimlaneLane
+  method Morphir.Diagrams.DiagramId get_Id()
+  method Morphir.Diagrams.DiagramId get_Parent()
+  method System.String ToString()
+  method System.String get_Label()
+  property Morphir.Diagrams.DiagramId Id
+  property Morphir.Diagrams.DiagramId Parent
+  property System.String Label
+sealed class Morphir.Diagrams.SwimlaneRole
+  method Boolean Equals(Morphir.Diagrams.SwimlaneRole)
+  method Boolean Equals(Morphir.Diagrams.SwimlaneRole, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsAction()
+  method Boolean get_IsDecision()
+  method Boolean get_IsEnd()
+  method Boolean get_IsFork()
+  method Boolean get_IsJoin()
+  method Boolean get_IsMerge()
+  method Boolean get_IsNote()
+  method Boolean get_IsStart()
+  method Boolean get_IsStop()
+  method Int32 CompareTo(Morphir.Diagrams.SwimlaneRole)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.SwimlaneRole get_Action()
+  method Morphir.Diagrams.SwimlaneRole get_Decision()
+  method Morphir.Diagrams.SwimlaneRole get_End()
+  method Morphir.Diagrams.SwimlaneRole get_Fork()
+  method Morphir.Diagrams.SwimlaneRole get_Join()
+  method Morphir.Diagrams.SwimlaneRole get_Merge()
+  method Morphir.Diagrams.SwimlaneRole get_Note()
+  method Morphir.Diagrams.SwimlaneRole get_Start()
+  method Morphir.Diagrams.SwimlaneRole get_Stop()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsAction
+  property Boolean IsDecision
+  property Boolean IsEnd
+  property Boolean IsFork
+  property Boolean IsJoin
+  property Boolean IsMerge
+  property Boolean IsNote
+  property Boolean IsStart
+  property Boolean IsStop
+  property Int32 Tag
+  property Morphir.Diagrams.SwimlaneRole Action
+  property Morphir.Diagrams.SwimlaneRole Decision
+  property Morphir.Diagrams.SwimlaneRole End
+  property Morphir.Diagrams.SwimlaneRole Fork
+  property Morphir.Diagrams.SwimlaneRole Join
+  property Morphir.Diagrams.SwimlaneRole Merge
+  property Morphir.Diagrams.SwimlaneRole Note
+  property Morphir.Diagrams.SwimlaneRole Start
+  property Morphir.Diagrams.SwimlaneRole Stop
+  property System.String WireValue
+static class Morphir.Diagrams.SwimlaneRole+Tags
+  field Int32 Action
+  field Int32 Decision
+  field Int32 End
+  field Int32 Fork
+  field Int32 Join
+  field Int32 Merge
+  field Int32 Note
+  field Int32 Start
+  field Int32 Stop
+sealed class Morphir.Diagrams.SwimlaneStep
+  method Morphir.Diagrams.DiagramId get_Id()
+  method Morphir.Diagrams.DiagramId get_Lane()
+  method Morphir.Diagrams.SwimlaneRole get_Role()
+  method System.String ToString()
+  method System.String get_Label()
+  property Morphir.Diagrams.DiagramId Id
+  property Morphir.Diagrams.DiagramId Lane
+  property Morphir.Diagrams.SwimlaneRole Role
+  property System.String Label
+sealed class Morphir.Diagrams.ThemeMode
+  method Boolean Equals(Morphir.Diagrams.ThemeMode)
+  method Boolean Equals(Morphir.Diagrams.ThemeMode, System.Collections.IEqualityComparer)
+  method Boolean Equals(System.Object)
+  method Boolean Equals(System.Object, System.Collections.IEqualityComparer)
+  method Boolean get_IsAuto()
+  method Boolean get_IsDark()
+  method Boolean get_IsLight()
+  method Int32 CompareTo(Morphir.Diagrams.ThemeMode)
+  method Int32 CompareTo(System.Object)
+  method Int32 CompareTo(System.Object, System.Collections.IComparer)
+  method Int32 GetHashCode()
+  method Int32 GetHashCode(System.Collections.IEqualityComparer)
+  method Int32 get_Tag()
+  method Morphir.Diagrams.ThemeMode get_Auto()
+  method Morphir.Diagrams.ThemeMode get_Dark()
+  method Morphir.Diagrams.ThemeMode get_Light()
+  method System.String ToString()
+  method System.String get_WireValue()
+  property Boolean IsAuto
+  property Boolean IsDark
+  property Boolean IsLight
+  property Int32 Tag
+  property Morphir.Diagrams.ThemeMode Auto
+  property Morphir.Diagrams.ThemeMode Dark
+  property Morphir.Diagrams.ThemeMode Light
+  property System.String WireValue
+static class Morphir.Diagrams.ThemeMode+Tags
+  field Int32 Auto
+  field Int32 Dark
+  field Int32 Light
+sealed class Morphir.Diagrams.ThemePalette
+  method Morphir.Diagrams.Color get_Arrow()
+  method Morphir.Diagrams.Color get_Background()
+  method Morphir.Diagrams.Color get_Frame()
+  method Morphir.Diagrams.Color get_Mask()
+  method Morphir.Diagrams.Color get_Muted()
+  method Morphir.Diagrams.Color get_Text()
+  method Morphir.Diagrams.FamilyColors Family(Morphir.Diagrams.ColorFamily)
+  method Morphir.Diagrams.ThemePalette Create(Morphir.Diagrams.Color, Morphir.Diagrams.Color, Morphir.Diagrams.Color, Morphir.Diagrams.Color, Morphir.Diagrams.Color, Morphir.Diagrams.FamilyColors, Morphir.Diagrams.FamilyColors, Morphir.Diagrams.FamilyColors, Morphir.Diagrams.FamilyColors, Morphir.Diagrams.FamilyColors, Morphir.Diagrams.FamilyColors, Morphir.Diagrams.FamilyColors)
+  method Morphir.Diagrams.ThemePalette DeriveLight(Morphir.Diagrams.ThemePalette)
+  method Morphir.Diagrams.ThemePalette WithFamily(Morphir.Diagrams.ColorFamily, Morphir.Diagrams.FamilyColors)
+  method Morphir.Diagrams.ThemePalette WithFrame(Morphir.Diagrams.Color)
+  method System.String ToString()
+  property Morphir.Diagrams.Color Arrow
+  property Morphir.Diagrams.Color Background
+  property Morphir.Diagrams.Color Frame
+  property Morphir.Diagrams.Color Mask
+  property Morphir.Diagrams.Color Muted
+  property Morphir.Diagrams.Color Text

@@ -12,14 +12,14 @@ public class MermaidPrinterTests
 {
     private static IEnumerable<(string Name, string Source)> Corpus()
     {
-        using var reference = JsonDocument.Parse(PinnedCorpus.File(FixtureCatalog.DiagramsMbt.Flowcharts, "/reference.json"));
+        using var reference = JsonDocument.Parse(DiagramCorpus.File(FixtureCatalog.DiagramsMbt.Flowcharts, "/reference.json"));
 
         foreach (var fixture in reference.RootElement.GetProperty("fixtures").EnumerateArray().Where(fixture => fixture.GetProperty("accepted").GetBoolean()))
         {
             yield return (fixture.GetProperty("name").GetString()!, fixture.GetProperty("source").GetString()!);
         }
 
-        foreach (var file in PinnedCorpus.Files(FixtureCatalog.DiagramsMbt.Sequence).Where(file => file.Key.EndsWith(".mmd", StringComparison.Ordinal)))
+        foreach (var file in DiagramCorpus.Files(FixtureCatalog.DiagramsMbt.Sequence).Where(file => file.Key.EndsWith(".mmd", StringComparison.Ordinal)))
         {
             yield return (file.Key, file.Value);
         }

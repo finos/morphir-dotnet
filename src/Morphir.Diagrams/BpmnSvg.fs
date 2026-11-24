@@ -77,19 +77,51 @@ module internal BpmnSvg =
                                         writer
                                         "tspan"
                                         [ "x", f x; "dy", (if index = 0 then "0" else f step) ]
-                                        (fun () -> writer.Add(Morphir.Svg.SvgNode.CreateText line))))
+                                        (fun () -> writer.Add(SvgWriting.text line))))
+
+                // A label that the writer wrapped to its box's width may wrap again in a target.
+                let wrapped x y (size: int) (weight: int) fill (anchor: string) (lines: string list) =
+                    if not lines.IsEmpty then writer.Hint LayoutHint.Wraps
+                    text x y size weight fill anchor lines
 
                 let vertical x y (label: string) =
                     SvgWriting.element
                         writer
                         "text"
                         [ "x", f x; "y", f y; "transform", $"rotate(-90 {pt x y})"; "text-anchor", "middle"; "font-family", Theme.fontStack; "font-size", "12"; "font-weight", "600"; "fill", Theme.text ]
-                        (fun () -> writer.Add(Morphir.Svg.SvgNode.CreateText label))
+                        (fun () -> writer.Add(SvgWriting.text label))
 
                 let reference (box: BpmnBox) =
                     if box.Container then (DiagramElementRef.Group(DiagramId.Create box.Id)).ToString() else (DiagramElementRef.Node(DiagramId.Create box.Id)).ToString()
 
+                let role (kind: string) =
+                    match kind with
+                    | "task" | "userTask" | "serviceTask" | "sendTask" | "receiveTask" | "manualTask" | "businessRuleTask" | "scriptTask" | "callActivity" ->
+                        Some Layout.FamilyRole.Task
+                    | kind when kind.EndsWith("Gateway", StringComparison.Ordinal) -> Some Layout.FamilyRole.Gateway
+                    | kind when kind.EndsWith("Event", StringComparison.Ordinal) -> Some Layout.FamilyRole.Event
+                    | "dataObjectReference" | "dataStoreReference" | "dataObject" | "dataStore" | "dataInput" | "dataOutput" -> Some Layout.FamilyRole.DataObject
+                    | "textAnnotation" -> Some Layout.FamilyRole.Note
+                    | _ -> None
+
+                // Containment for the layout, from the diagram's geometry: each box belongs to the smallest container
+                // that holds it.
+                let containers = scene.Boxes |> List.filter (fun box -> box.Container && box.Id <> "")
+
+                for box in scene.Boxes |> List.filter (fun box -> box.Id <> "") do
+                    let holds (outer: BpmnBox) =
+                        outer.Id <> box.Id
+                        && outer.X <= box.X && outer.Y <= box.Y && outer.Right >= box.Right && outer.Bottom >= box.Bottom
+                        && outer.Width * outer.Height > box.Width * box.Height
+
+                    match containers |> List.filter holds |> List.sortBy (fun outer -> outer.Width * outer.Height) with
+                    | owner :: _ -> writer.Own (reference box) (reference owner)
+                    | [] -> ()
+
                 let group (box: BpmnBox) (body: unit -> unit) =
+                    if box.Container then writer.Hint LayoutHint.Container
+                    else role box.Kind |> Option.iter (LayoutHint.Role >> writer.Hint)
+
                     SvgWriting.element
                         writer
                         "g"
@@ -259,7 +291,7 @@ module internal BpmnSvg =
                             | Some "parallelMultiple" -> path $"M{p -2.5 -8.0} H{f (cx + 2.5 * s)} V{f (cy - 2.5 * s)} H{f (cx + 8.0 * s)} V{f (cy + 2.5 * s)} H{f (cx + 2.5 * s)} V{f (cy + 8.0 * s)} H{f (cx - 2.5 * s)} V{f (cy + 2.5 * s)} H{f (cx - 8.0 * s)} V{f (cy - 2.5 * s)} H{f (cx - 2.5 * s)} Z" [ "fill", "none"; "stroke", stroke; "stroke-width", "1.2" ]
                             | _ -> ()
 
-                            text cx (box.Bottom + 15.0) 11 500 Theme.text "middle" (words box.Label 18)
+                            wrapped cx (box.Bottom + 15.0) 11 500 Theme.text "middle" (words box.Label 18)
                         elif BpmnLayout.gateways.Contains kind then
                             let stroke = Theme.stroke ColorFamily.MessageBus
                             let cx, cy = box.CenterX, box.CenterY
@@ -279,14 +311,14 @@ module internal BpmnSvg =
                                 SvgWriting.empty writer "circle" [ "cx", f cx; "cy", f cy; "r", f (9.5 * s); "fill", "none"; "stroke", stroke; "stroke-width", "1.2" ]
                                 path $"M{p 0.0 -6.0} L{p 6.0 -2.0} L{p 4.0 5.0} L{p -4.0 5.0} L{p -6.0 -2.0} Z" [ "fill", "none"; "stroke", stroke; "stroke-width", "1.2" ]
 
-                            text cx (box.Bottom + 15.0) 11 500 Theme.text "middle" (words box.Label 18)
+                            wrapped cx (box.Bottom + 15.0) 11 500 Theme.text "middle" (words box.Label 18)
                         elif kind = "dataStoreReference" then
                             let stroke = Theme.stroke ColorFamily.Database
                             let ry = min 8.0 (box.Height / 6.0)
                             path
                                 $"M{pt box.X (box.Y + ry)} A{f (box.Width / 2.0)},{f ry} 0 0 1 {pt box.Right (box.Y + ry)} V{f (box.Bottom - ry)} A{f (box.Width / 2.0)},{f ry} 0 0 1 {pt box.X (box.Bottom - ry)} Z M{pt box.X (box.Y + ry)} A{f (box.Width / 2.0)},{f ry} 0 0 0 {pt box.Right (box.Y + ry)}"
                                 [ "class", "box"; "fill", Theme.fill ColorFamily.Database; "stroke", stroke; "stroke-width", "1.5" ]
-                            text box.CenterX (box.Bottom + 15.0) 11 500 Theme.text "middle" (words box.Label 18)
+                            wrapped box.CenterX (box.Bottom + 15.0) 11 500 Theme.text "middle" (words box.Label 18)
                         elif BpmnLayout.data.Contains kind then
                             let stroke = Theme.stroke ColorFamily.Database
                             let fold = min 10.0 (box.Width / 3.0)
@@ -303,10 +335,10 @@ module internal BpmnSvg =
                             if kind = "dataInput" || kind = "dataOutput" then
                                 path $"M{pt (box.X + 4.0) (box.Y + 8.0)} h6 v-4 l7,7 l-7,7 v-4 h-6 Z" [ "fill", (if kind = "dataOutput" then stroke else "none"); "stroke", stroke; "stroke-width", "1.2" ]
 
-                            text box.CenterX (box.Bottom + 15.0) 11 500 Theme.text "middle" (words box.Label 18)
+                            wrapped box.CenterX (box.Bottom + 15.0) 11 500 Theme.text "middle" (words box.Label 18)
                         elif kind = "textAnnotation" then
                             path $"M{pt (box.X + 12.0) box.Y} H{f box.X} V{f box.Bottom} H{f (box.X + 12.0)}" [ "class", "box"; "fill", "none"; "stroke", Theme.muted; "stroke-width", "1.5" ]
-                            text (box.X + 8.0) box.CenterY 11 400 Theme.text "start" (words box.Label 22)
+                            wrapped (box.X + 8.0) box.CenterY 11 400 Theme.text "start" (words box.Label 22)
                         else
                             // Activities.
                             let stroke = Theme.stroke ColorFamily.Frontend
@@ -336,7 +368,7 @@ module internal BpmnSvg =
                             | "scriptTask" -> icon $"M{pt (ix + 3.0) (iy + 1.0)} h11 q-3,3 0,7 t0,7 h-11 q3,-3 0,-7 t0,-7 Z M{pt (ix + 5.0) (iy + 5.0)} h6 M{pt (ix + 5.0) (iy + 8.0)} h6 M{pt (ix + 5.0) (iy + 11.0)} h6" false
                             | _ -> ()
 
-                            text box.CenterX (box.CenterY + 4.0) 12 500 Theme.text "middle" (words box.Label 14)
+                            wrapped box.CenterX (box.CenterY + 4.0) 12 500 Theme.text "middle" (words box.Label 14)
 
                             // Markers along the bottom, centred: collapsed subprocess, loop, multi-instance, compensation.
                             let markers =

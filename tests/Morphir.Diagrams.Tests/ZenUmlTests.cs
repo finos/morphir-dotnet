@@ -13,7 +13,7 @@ public class ZenUmlTests
     [Test]
     public void EveryReferenceExampleGivesTheReferenceParticipantsAndMessages()
     {
-        using var reference = JsonDocument.Parse(PinnedCorpus.File(FixtureCatalog.DiagramsMbt.ZenUml, "/semantics.json"));
+        using var reference = JsonDocument.Parse(DiagramCorpus.File(FixtureCatalog.DiagramsMbt.ZenUml, "/semantics.json"));
         var mismatches = new List<string>();
         var count = 0;
 
@@ -102,7 +102,7 @@ public class ZenUmlTests
     [Test]
     public void PrintingWhatWasPrintedGivesTheSameZenUmlForEveryReferenceExample()
     {
-        using var reference = JsonDocument.Parse(PinnedCorpus.File(FixtureCatalog.DiagramsMbt.ZenUml, "/semantics.json"));
+        using var reference = JsonDocument.Parse(DiagramCorpus.File(FixtureCatalog.DiagramsMbt.ZenUml, "/semantics.json"));
         var failures = new List<string>();
 
         foreach (var example in reference.RootElement.GetProperty("examples").EnumerateArray())

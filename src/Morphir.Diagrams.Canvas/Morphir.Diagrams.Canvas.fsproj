@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFrameworks>$(MorphirLibraryTargetFrameworks)</TargetFrameworks>
+        <Description>Exports Morphir.Diagrams layouts as editable draw.io, Excalidraw and Obsidian Excalidraw files.</Description>
+        <PackageTags>$(PackageTags);diagrams;drawio;excalidraw;obsidian</PackageTags>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <IsTrimmable>true</IsTrimmable>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsAotCompatible>true</IsAotCompatible>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="FSharp.Core" />
+        <ProjectReference Include="../Morphir.Diagrams/Morphir.Diagrams.fsproj" />
+        <Compile Include="CanvasWriting.fs" />
+        <Compile Include="DrawIo.fs" />
+        <Compile Include="Excalidraw.fs" />
+        <Compile Include="Obsidian.fs" />
+        <Compile Include="CanvasRenderers.fs" />
+    </ItemGroup>
+</Project>

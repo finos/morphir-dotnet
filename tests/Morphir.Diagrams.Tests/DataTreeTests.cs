@@ -18,7 +18,7 @@ public class DataTreeTests
     /// <summary>Each JSON, YAML and envelope fixture with PlantUML's data, or null where the library refuses it.</summary>
     private static IEnumerable<(string Name, string Source, JsonNode? Data, JsonElement Reference)> Fixtures()
     {
-        var files = PinnedCorpus.Files(FixtureCatalog.DiagramsMbt.PlantUml);
+        var files = DiagramCorpus.Files(FixtureCatalog.DiagramsMbt.PlantUml);
         string File(string suffix) => files.Single(file => file.Key.EndsWith(suffix, StringComparison.Ordinal)).Value;
 
         using var expectations = JsonDocument.Parse(File("/expectations.json"));
@@ -261,5 +261,15 @@ public class DataTreeTests
         data.RootElement.GetProperty("steps").GetArrayLength().ShouldBe(0);
         data.RootElement.GetProperty("visits").EnumerateArray().Select(visit => visit.GetProperty("ref").GetString())
             .ShouldBe(["node=$", "node=$%2Fa", "node=$%2Fb", "node=$%2Fb%2F0"]);
+    }
+
+    [Test]
+    public void TextThatXmlCannotHoldIsDrawnWithReplacementCharacters()
+    {
+        var svg = DiagramSource.RenderSvg("@startjson\n{\"a\":\"\\u0000x\",\"b\":\"\\ud800\"}\n@endjson\n").Output.ShouldNotBeNull();
+        var texts = XDocument.Parse(svg).Descendants().Where(element => element.Name.LocalName == "text").Select(text => text.Value).ToArray();
+
+        texts.ShouldContain("\uFFFDx");
+        texts.ShouldContain("\uFFFD");
     }
 }

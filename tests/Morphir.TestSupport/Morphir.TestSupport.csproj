@@ -31,6 +31,8 @@
     <EmbeddedResource Include="../Fixtures/RdfXml/rdf11-xml.json" LogicalName="Morphir.TestSupport.Fixtures/RdfXml/rdf11-xml.json" />
     <EmbeddedResource Include="../Fixtures/RdfCanon/rdfc10.json" LogicalName="Morphir.TestSupport.Fixtures/RdfCanon/rdfc10.json" />
     <EmbeddedResource Include="../Fixtures/DiagramsMbt/*.json" LogicalName="Morphir.TestSupport.Fixtures/DiagramsMbt/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/DiagramExport/*.json;../Fixtures/DiagramExport/*.txt" LogicalName="Morphir.TestSupport.Fixtures/DiagramExport/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/CssColor/named-colors.json" LogicalName="Morphir.TestSupport.Fixtures/CssColor/named-colors.json" />
     <EmbeddedResource Include="../Fixtures/OkfDocuments/commonmark-0.31.2.json" LogicalName="Morphir.TestSupport.Fixtures/OkfDocuments/commonmark-0.31.2.json" />
     <EmbeddedResource Include="../Fixtures/MorphirContext/examples/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/examples/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirContext/examples/valid/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirContext/examples/valid/%(Filename)%(Extension)" />

@@ -46,3 +46,5 @@ Feature: Each host of a shipped library runs as a managed program
     And the output contains "bpmn render: ok"
     And the output contains "query: ok"
     And the output contains "raster: ok"
+    And the output contains "canvas: ok"
+    And the output contains "slides: ok"

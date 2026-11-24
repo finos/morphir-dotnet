@@ -39,22 +39,35 @@ type DiagramScene
         diagnostics: ImmutableArray<Diagnostic>,
         annotations: (string * AnnotationItem list) list,
         structure: Structure,
-        elements: Set<string>
+        elements: Set<string>,
+        capture: LayoutCapture option
     ) =
     internal new(document, connectors, options, diagnostics, annotations) =
-        DiagramScene(document, connectors, options, diagnostics, annotations, { Nodes = [||]; Connections = [||] }, Set.empty)
+        DiagramScene(document, connectors, options, diagnostics, annotations, { Nodes = [||]; Connections = [||] }, Set.empty, None)
+
+    /// What the drawing pass recorded for the layout, when it recorded it.
+    member internal _.Capture = capture
+
+    /// The scene with family roles for the drawables of these references.
+    member internal this.WithRoles(roles: (string * Layout.FamilyRole) list) =
+        match capture with
+        | Some recorded -> this.WithCapture { recorded with Roles = recorded.Roles @ roles }
+        | None -> this
+
+    member internal _.WithCapture(recorded: LayoutCapture) =
+        DiagramScene(document, connectors, options, diagnostics, annotations, structure, elements, Some recorded)
 
     /// Warnings found while building the scene, such as metadata about elements this diagram lacks.
     member _.Diagnostics = diagnostics
 
     member internal _.WithDiagnostics(found: Diagnostic seq) =
-        DiagramScene(document, connectors, options, ImmutableArray.CreateRange found, annotations, structure, elements)
+        DiagramScene(document, connectors, options, ImmutableArray.CreateRange found, annotations, structure, elements, capture)
 
     /// The player's view of the metadata, by element reference.
     member internal _.Annotations = annotations
 
     member internal _.WithAnnotations(projected: (string * AnnotationItem list) list) =
-        DiagramScene(document, connectors, options, diagnostics, projected, structure, elements)
+        DiagramScene(document, connectors, options, diagnostics, projected, structure, elements, capture)
 
     /// The elements and connections that the player explores.
     member internal _.Structure = structure
@@ -64,7 +77,7 @@ type DiagramScene
 
     member internal _.WithStructure(diagram: Diagram) =
         let references = DiagramElementRef.Enumerate diagram |> Seq.map (fun reference -> reference.ToString()) |> Set.ofSeq
-        DiagramScene(document, connectors, options, diagnostics, annotations, Structures.ofDiagram diagram, references)
+        DiagramScene(document, connectors, options, diagnostics, annotations, Structures.ofDiagram diagram, references, capture)
 
     /// Script-free static document.
     member _.Document = document

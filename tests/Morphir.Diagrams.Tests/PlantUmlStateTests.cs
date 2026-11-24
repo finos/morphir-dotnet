@@ -12,7 +12,7 @@ public class PlantUmlStateTests
 {
     private static (IReadOnlyDictionary<string, string> Files, JsonElement[] Fixtures, HashSet<string> Refusals) Corpus()
     {
-        var files = PinnedCorpus.Files(FixtureCatalog.DiagramsMbt.PlantUmlState)
+        var files = DiagramCorpus.Files(FixtureCatalog.DiagramsMbt.PlantUmlState)
             .ToDictionary(file => file.Key.Replace("tests/corpus/plantuml-state/", ""), file => file.Value);
         using var reference = JsonDocument.Parse(files["reference.json"]);
         using var expectations = JsonDocument.Parse(files["expectations.json"]);

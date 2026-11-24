@@ -45,6 +45,12 @@ openspec/extensions.lock.json text eol=lf
 # Vendored Morphir Ion fixtures are checked by SHA-256, so their bytes must not change
 tests/Fixtures/MorphirIon/** -text
 
+# Diagram export digests and the CSS colour table are checked by SHA-256, so their bytes must not change.
+tests/Fixtures/DiagramExport/** -text
+tests/Fixtures/CssColor/** -text
+# The diagram player scripts are embedded in the library: LF keeps its output the same wherever it is built.
+src/Morphir.Diagrams/*.js text eol=lf
+
 # Preserve original upstream bytes used by the frontend provenance checks.
 tests/Fixtures/Mep/** -text
 tests/Fixtures/MorphirOut/** -text

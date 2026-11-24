@@ -68,9 +68,10 @@
       CVE-2026-85922 affects the Python and Rust Key Vault SDKs, not these
       .NET libraries. Microsoft's October 2026 CVRF lists PyPI/crates.io fixes
       only. Dependency-Check conflates the language-specific CPEs.
-      The separate real .NET vulnerability CVE-2026-85925 is NOT suppressed:
-      Certificates 4.10.0, Keys 4.10.2 and Secrets 4.12.0 meet or exceed
-      the fixed NuGet versions in Microsoft's CVRF: 4.9.1, 4.10.1 and 4.11.1.
+      The separate real .NET vulnerability CVE-2026-85925 is not suppressed by
+      this rule: Certificates 4.10.0, Keys 4.10.2 and Secrets 4.12.0 meet or
+      exceed the fixed NuGet versions in Microsoft's CVRF: 4.9.1, 4.10.1 and
+      4.11.1. The next rule removes only its misattribution to Certificates.
       Review owner: @DamianReeves; pending PR review.
       Verification date: 2026-11-09; next quarterly review: 2027-01-31.
       References:
@@ -80,6 +81,27 @@
     ]]></notes>
     <packageUrl regex="true">^pkg:generic/Azure\.Security\.KeyVault\.(Certificates@4\.10\.0|Keys@4\.10\.2|Secrets@4\.12\.0)$</packageUrl>
     <cve>CVE-2026-85922</cve>
+  </suppress>
+
+  <suppress until="2027-01-31">
+    <notes><![CDATA[
+      CVE-2026-85925 is reported against Azure.Security.KeyVault.Certificates
+      4.10.0 only because Dependency-Check guesses the CPE
+      cpe:2.3:a:microsoft:azure_key_vault_key:4.10.0 for the Certificates
+      assembly. NVD's analysed configuration (last modified 2026-11-23) lists
+      .NET Key Vault Certificates before 4.9.1 and Keys before 4.10.1. This
+      repository pins Certificates 4.10.0 (at or above 4.9.1) and Keys 4.10.2
+      (at or above 4.10.1), and Microsoft's October 2026 CVRF gives the same
+      fixed builds. Keys and Secrets stay unsuppressed for this CVE.
+      Review owner: @DamianReeves; pending PR review.
+      Verification date: 2026-11-24; next quarterly review: 2027-01-31.
+      References:
+      https://nvd.nist.gov/vuln/detail/CVE-2026-85925
+      https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-85925
+      https://api.msrc.microsoft.com/cvrf/v3.0/cvrf/2026-Oct
+    ]]></notes>
+    <packageUrl regex="true">^pkg:generic/Azure\.Security\.KeyVault\.Certificates@4\.10\.0$</packageUrl>
+    <cve>CVE-2026-85925</cve>
   </suppress>
 
   <suppress until="2027-01-31">

@@ -822,6 +822,109 @@ and overlap, and `NodeVisit` highlights of any element, passed to
 `AnimatedRenderer.Render(scene, steps, visits)`. A diagram with nothing to play visits its
 elements in order.
 
+## Layouts and renderers
+
+`DiagramExport.Layout` gives every diagram a renderer-neutral layout, so that renderers for other formats, including
+renderers in your own assemblies, can draw it without parsing SVG. A layout is one page of drawables with exact
+geometry and resolved colours, in one palette; auto mode reads as light. Each drawable has an identifier that is unique
+on its page, an optional element reference, links from the diagram's metadata and a paint-order index:
+
+- **Shapes** have a kind (rectangle, rounded rectangle, ellipse, diamond, cylinder, hexagon or a normalised path), a
+  box, a paint, optional text and an optional family role, such as `gateway` or `lifeline`.
+- **Lines** have two ends, each with its exact point, its arrowhead and an optional binding to a drawable, plus the
+  routing waypoints, a route style and the exact path the SVG draws, including rounded corners and bridges.
+- **Text** has its lines, baseline origin, advance, alignment, size, weight, rotation and a measured box.
+- **Images** hold standalone SVG documents, such as architecture icons.
+- **Composite elements** gather several drawables under one reference, such as a sequence participant and its lifeline;
+  **containers** have a frame and a header, such as subgraphs, lanes and pools; **groups** gather drawables for
+  painting only.
+
+Lengths are `Distance` values: whole quarter English Metric Units, exact for CSS pixels with two decimal places,
+points, centimetres, millimetres, inches and EMU. `Fraction` (0 to 1) holds anchors and `Scale` holds factors.
+
+A renderer declares the `LayoutFeature`s it draws natively, from a closed set: shape kinds, polylines, exact routes,
+smooth curves, attached connectors, line targets, open and circle heads, message heads, wrapped and rotated text,
+containers, family roles, interleaved painting and containers, fill opacity, stroke and text opacity, dash patterns,
+links, SVG images and pages. Everything else is the baseline: rectangles, straight segments with no head or a filled
+arrow, upright text, opaque colours and solid or default-dashed strokes. `DiagramExport.Assess` says whether pages are
+native, degraded (with each fallback) or unsupported for a renderer, and `DiagramExport.RenderAsync` lowers them to
+the renderer's features before it draws. A cylinder becomes a path, or a rectangle; a container becomes a group; a
+binding the renderer cannot keep is removed while the end keeps its point. The policy decides what happens to
+degraded pages: `Strict` writes nothing and returns errors, `AllowDegraded` writes them with `layout/degraded`
+warnings, and `PictureFallback` draws each degraded page as one SVG image, with a `layout/pictured` warning.
+
+```csharp
+using System;
+using System.Collections.Immutable;
+using System.IO;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using Morphir.Diagrams;
+using Morphir.Diagrams.Export;
+using Morphir.Diagrams.Layout;
+
+DiagramSource.TryParse("flowchart LR\n  A[Start] --> B{Approve?}", out var document, out _);
+var layout = DiagramExport.Layout(document!.Diagram).Layout!;
+var renderer = new OutlineRenderer();
+
+Console.WriteLine(DiagramExport.Assess([layout], renderer));
+using var output = new MemoryStream();
+var result = await DiagramExport.RenderAsync([layout], renderer, output, DegradationPolicy.AllowDegraded, CancellationToken.None);
+var renderers = DiagramRenderers.Empty.Add(renderer);
+if (renderers.TryFind("flow.outline.txt", out var found)) Console.WriteLine(found.MediaType);
+
+/// <summary>Writes one line for each shape and line of the first page.</summary>
+sealed class OutlineRenderer : DiagramRenderer
+{
+    public override string MediaType => "text/plain";
+    public override string FileExtension => ".outline.txt";
+    public override LayoutFeatures NativeFeatures => LayoutFeatures.Of(LayoutFeature.Diamonds, LayoutFeature.AttachedConnectors);
+
+    public override async Task<ImmutableArray<Diagnostic>> RenderAsync(RenderPlan plan, Stream output, CancellationToken cancellationToken)
+    {
+        plan.EnsureFor(this);
+        var outline = new Outline();
+        outline.Visit(plan.Pages[0]);
+        await output.WriteAsync(Encoding.UTF8.GetBytes(outline.Text.ToString()), cancellationToken);
+        return [Diagnostic.Warning("outline/no-text", "The outline leaves out text.")];
+    }
+
+    private sealed class Outline : LayoutVisitor
+    {
+        public StringBuilder Text { get; } = new();
+
+        public override void VisitShape(Drawable drawable, LayoutShape shape) => Text.AppendLine($"{drawable.Reference} {shape.Kind.WireValue} {shape.Box}");
+
+        public override void VisitLine(Drawable drawable, LayoutLine line) => Text.AppendLine($"{drawable.Reference} {line.Source.Point} to {line.Target.Point}");
+    }
+}
+```
+
+To write a renderer:
+
+- Subclass `DiagramRenderer` and declare `NativeFeatures` honestly; a renderer never receives a feature it does not
+  declare. Call `plan.EnsureFor(this)` before writing: it refuses a plan lowered for another renderer.
+- Branch on drawables with their `Match` members or a `LayoutVisitor`; compare values with `Equals`, not `==`.
+- Do not seek the output. A renderer that builds a ZIP builds it in memory and copies it. The library flushes the
+  output after the renderer and never closes it, and a renderer's exceptions reach the caller unchanged.
+- Return diagnostics through `Diagnostic.Error` and `Diagnostic.Warning`, with codes under your own prefix, such as
+  `my-renderer/approximated`.
+- A renderer that draws each page's original SVG overrides `Mode` with `RenderMode.OriginalSvg`. It declares no
+  features, receives the pages unlowered, and its assessment is native.
+- Register renderers explicitly in `DiagramRenderers`; lookup matches the longest extension, ignoring case, and
+  nothing is discovered by reflection, so registration works under Native AOT and trimming.
+
+The layout vocabulary grows without breaking compiled renderers: a new drawable kind, shape kind, path command or
+arrowhead arrives only with a new feature, so a renderer that does not declare it receives its fallback. An existing
+`Match` member meets a newer case only through such a feature. Family roles, colour sources, route styles, line caps
+and joins are advisory: treat a value you do not recognise as absent. Layout types have no public constructors, and
+the public API is checked against an approved listing.
+
+Two packages hold renderers built on layouts: [Morphir.Diagrams.Canvas](../Morphir.Diagrams.Canvas/README.md) writes
+editable draw.io, Excalidraw and Obsidian Excalidraw files, and [Morphir.Diagrams.Slides](../Morphir.Diagrams.Slides/README.md)
+writes PowerPoint, OpenDocument, Google Slides and reveal.js presentations.
+
 ## Migration coverage
 
 | Mermaid family | Supported syntax |

@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-diagram-canvas-export: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+svg .box { fill: var(--panel); stroke: var(--fg); stroke-width: 1.5; }
+svg .new { fill: var(--panel); stroke: var(--link); stroke-width: 2; }
+svg text { fill: var(--fg); font: 13px system-ui, sans-serif; }
+svg .flow { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrow); }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-diagram-canvas-export: design</h1>
+<p class="meta">OpenSpec change | 2026-11-21 | proposed, revised after two reviews</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#decisions">Decisions</a></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for the motivation. This section describes how the code works today.</p>
+<ul>
+<li><strong>Writers:</strong> each family has an internal writer (<code>FlowchartSvg</code>, <code>SequenceSvg</code>, <code>RailroadSvg</code>, <code>DataTreeSvg</code>, <code>BpmnSvg</code>). State, swimlane and architecture diagrams use the flowchart writer through their internal <code>Projection</code>. Together the writers are about 4,800 lines.
+  <ul>
+  <li>Each writer computes positions and writes SVG in the same pass through <code>SvgWriting.SceneBuilder</code>.</li>
+  <li><code>SvgWriting.document</code> runs the drawing callback twice. The first pass works out a fingerprint, and the second writes with the final ID prefix.</li>
+  <li>The writers emit in phases rather than by containment. Flowcharts emit container backgrounds, then edges, then nodes. BPMN emits pools and lanes, then flows, then nodes.</li>
+  </ul></li>
+<li><strong>Coordinates and paths:</strong> flowchart, sequence, railroad and data-tree coordinates are whole pixels. BPMN coordinates come from the DI as floats and are written with <code>0.##</code>. BPMN icon paths use relative commands, including <code>a</code>, <code>c</code> and <code>s</code>. BPMN lane headers are rotated text. Flowchart icons are <code>&lt;use&gt;</code> of symbols.</li>
+<li><strong>Identity in the SVG:</strong> drawn elements carry <code>data-ref</code>, often on a group that holds several primitives. Railroad tracks and the trace overlays have no reference. Colours are CSS variables, except colours the author set, such as a sequence <code>box Aqua</code>.</li>
+<li><strong>Links:</strong> these come from the metadata projection in <code>Carriage.project</code>, which can give several links for one reference, marks which are web links, and sorts its items by kind and identity. The layout keeps that order and takes only <code>link</code> items.</li>
+<li><strong>Colours:</strong> <code>Color.Parse</code> reads hex and <code>rgb</code> functions only. Authored colours such as <code>Aqua</code> reach the SVG as written. Some primitives also carry <code>fill-opacity</code>, and BPMN and railroad paths set <code>stroke-linecap</code> and <code>stroke-linejoin</code>.</li>
+<li><strong>Diagnostics:</strong> <code>Diagnostic</code> has an internal constructor, so another assembly cannot create one today.</li>
+<li><strong>Reusable public types:</strong> <code>Color</code>, <code>ColorFamily</code>, <code>ThemePalette</code>, <code>ThemeMode</code>, <code>EdgeHead</code> (none, arrow, open arrow, circle, cross, async, and the four half heads), <code>SvgRenderOptions</code> and <code>DiagramElementRef</code>.</li>
+<li><strong>Downstream outputs:</strong> Morphir.Diagrams.Raster paints the public <code>SvgDocument</code>. The player and the animated GIF also read <code>DiagramScene.Connectors</code> and the playback structure.</li>
+<li><strong>Tests:</strong> <code>tests/Morphir.Diagrams.Tests</code> (TUnit) reads the pinned corpora through <code>PinnedCorpus</code> and <code>FixtureCatalog</code>. <code>tests/Morphir.Diagrams.FSharp.Tests</code> (Expecto) has no FsCheck yet. The black-box smoke scenarios in <code>LibraryHosts.feature</code> and <code>NativeAot.feature</code> run the <code>diagrams-smoke</code> program.</li>
+</ul>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong></p>
+<ul>
+<li>A public layout that covers every primitive the SVG draws and agrees with it at the SVG's precision.</li>
+<li>A renderer contract that an external assembly can implement against Morphir.Diagrams alone, and that stays compatible as the vocabulary grows.</li>
+<li>Fallbacks applied centrally, in a defined order.</li>
+<li>Two editable targets that open correctly in their applications.</li>
+</ul>
+<p><strong>Non-goals:</strong></p>
+<ul>
+<li>Producing SVG from the layout, or painting rasters from it (<a href="#draw-1">DRAW-1</a>).</li>
+<li>Letting callers build or edit layouts.</li>
+<li>Reading draw.io or Excalidraw files back.</li>
+<li>Animation in layouts.</li>
+</ul>
+
+<h2 id="decisions">Decisions</h2>
+<p>The decisions follow one diagram from source to two files:</p>
+<pre><code class="language-text">flowchart LR
+  subgraph books
+    A[Start] --&gt; B{Approve?}
+  end
+  B --&gt;|yes| C[(Ledger)]
+</code></pre>
+
+<svg viewBox="0 0 760 170" role="img" aria-labelledby="flow-title">
+<title id="flow-title">Data flow: a diagram passes through one drawing pass into an SVG document and a layout; the layout is assessed and lowered into a render plan for each renderer.</title>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+<rect class="box" x="10" y="60" width="100" height="44" rx="6"/><text x="60" y="87" text-anchor="middle">Diagram</text>
+<rect class="new" x="150" y="60" width="130" height="44" rx="6"/><text x="215" y="80" text-anchor="middle">Final pass</text><text x="215" y="96" text-anchor="middle">(two sinks)</text>
+<rect class="box" x="330" y="10" width="140" height="44" rx="6"/><text x="400" y="37" text-anchor="middle">SvgDocument</text>
+<rect class="new" x="330" y="110" width="140" height="44" rx="6"/><text x="400" y="137" text-anchor="middle">DiagramLayout</text>
+<rect class="box" x="520" y="10" width="220" height="44" rx="6"/><text x="630" y="37" text-anchor="middle">SVG, raster, GIF, player</text>
+<rect class="new" x="520" y="110" width="100" height="44" rx="6"/><text x="570" y="130" text-anchor="middle">Assess,</text><text x="570" y="146" text-anchor="middle">lower</text>
+<rect class="new" x="650" y="110" width="100" height="44" rx="6"/><text x="700" y="130" text-anchor="middle">RenderPlan</text><text x="700" y="146" text-anchor="middle">→ renderer</text>
+<path class="flow" d="M110,82 H148"/><path class="flow" d="M280,72 L328,40"/><path class="flow" d="M280,92 L328,128"/>
+<path class="flow" d="M470,32 H518"/><path class="flow" d="M470,132 H518"/><path class="flow" d="M620,132 H648"/>
+</svg>
+
+<h3 id="draw-1">DRAW-1. Record the layout in the final pass, by owner</h3>
+<p>The writers keep their layout code and their SVG output. <code>SceneBuilder</code> gains a layout sink, which is active only in the second, final run of <code>SvgWriting.document</code>. Every primitive a writer emits records a drawable, with these parts:</p>
+<ul>
+<li>its kind and geometry</li>
+<li>its paint</li>
+<li>the element reference it draws, if any</li>
+<li>its <em>owner</em>: the identifier of the container or composite element that contains it, or none</li>
+</ul>
+<p>The writers already know each owner from the model. The node <code>A</code> belongs to the subgraph <code>books</code>, and a participant's lifeline belongs to the participant, although the SVG draws it outside the participant's group. So containment doesn't depend on the order in which phases emit.</p>
+<p>The agreement test has two parts. First, it lists every primitive the SVG paints, in document order, and compares that list with the primitives the layout's drawables stand for, in paint order, one entry each. This catches primitives with no reference and anything painted out of order. Second, it checks references and owners: each <code>data-ref</code> names one drawable, and each primitive belongs to its innermost referenced group, except for the documented owners such as lifelines.</p>
+<p>The sink numbers drawables in the order they are recorded, which is SVG paint order. When the pass ends, it builds the containment tree from the owners. In the example, the line from <code>A</code> to <code>B</code> is recorded before both nodes, so its paint index is lower, but the nodes are still children of the <code>books</code> container.</p>
+<p>The sink does not ask the writers to emit primitives twice. The final pass keeps its SVG tree, and <code>SceneBuilder</code> records, beside each element, the hints that the SVG does not carry: a connector's routing waypoints and style, that a group is a container, the owner of an element drawn outside its owner's group (a lifeline), and an authored colour the writer could not paint. The writers also record the containment that the model gives, as pairs of child and owner references. When a layout is asked for, the sink walks the tree in document order, which is paint order, and turns each primitive into part of a drawable. It takes kinds from the writer's own attributes (<code>data-shape</code>, <code>data-kind</code>, the <code>outline</code>, <code>box</code>, <code>decoration</code> and <code>mask</code> classes), geometry from the exact numbers the writer formatted, and ends from <code>data-source</code>, <code>data-target</code>, <code>data-sender</code>, <code>data-receiver</code> or the edge's reference. Nothing is guessed from geometry, and the SVG output is unchanged by construction. Adjacent primitives that draw one thing become one drawable: an opaque underlay and its box (the shape's backdrop), a label chip and its text, a body and the text inside it, and a line and its label. A kind drawn with several primitives becomes one shape that stands for all of them: the cylinder's rounded rectangle and top ellipse are one cylinder, so a renderer with native cylinders draws no extra ellipse. Primitives that no kind covers, such as a subroutine's side bars, are drawables of their own in the node's element. Symbol uses become image drawables. Their SVG is a standalone document: an <code>svg</code> root with the symbol's view box (<code>0 0 24 24</code> for icons) and the image box's width and height, so it scales as the <code>&lt;use&gt;</code> does. The root carries the paint the symbol sets for its children (<code>fill="none"</code>, the stroke, its width, caps and joins), with <code>currentColor</code> replaced by the ink at the point of use, followed by a copy of the symbol's content and its definitions.</p>
+<p>Alternatives considered:</p>
+<ul>
+<li><strong>Produce SVG from the layout.</strong> This rewrites every writer, and the layout would have to carry SVG-only details to keep the bytes identical.</li>
+<li><strong>Read our own SVG back.</strong> That means guessing kinds from polygons and paths.</li>
+<li><strong>Containment by call nesting.</strong> This fails because the writers emit by phase.</li>
+</ul>
+
+<h3 id="draw-2">DRAW-2. Digest baselines before any refactor</h3>
+<p>The first implementation task records three sets of digests before any writer changes:</p>
+<ul>
+<li>SHA-256 digests of the SVG of every pinned corpus diagram, for each built-in theme, mode, connector style and bridge setting</li>
+<li>digests of the player HTML, PNG, JPEG and GIF output for one diagram of each family, covering playback order, metadata, a railroad trace and highlights. PNG bytes come from the runtime's zlib, so a PNG is digested as its size and decoded pixels, and the player HTML is digested with each embedded PNG replaced by its pixel digest. The JPEG and GIF encoders are the library's own and use no runtime compression, so their bytes are digested directly. This keeps the baselines the same on every CI platform.</li>
+<li>digests of the connector bindings and playback structure that the player and GIF read</li>
+</ul>
+<p>The digests are committed as fixtures, each with its catalog entry and provenance row. Every later task must keep them unchanged. A digest that changes is a defect to fix. It is not re-approved.</p>
+
+<h3 id="unit-1">UNIT-1. Quarter EMU, captured from the SVG's own numbers</h3>
+<p><code>Distance</code> is a struct over an <code>int64</code> count of quarter EMU. A struct is safe because <code>default</code> is zero, which is valid. Quarter EMU makes every hundredth of a CSS pixel exact (381 units), as well as points (50,800 units), centimetres, millimetres, inches and whole EMU.</p>
+<p>The sink captures each coordinate from the number the writer formats. For BPMN, it parses the same <code>0.##</code> text the SVG gets, so the layout agrees with the SVG by construction. For example, <code>100.02</code> px becomes 3,810,762 units.</p>
+<ul>
+<li>Arithmetic is checked: overflow throws.</li>
+<li>Multiplying by a number rounds half to even. Dividing one distance by another gives a <code>float</code>.</li>
+<li>Renderers that need whole EMU (OOXML and Google Slides) round half to even with <code>ToEmu()</code>, which can differ by up to half an EMU.</li>
+<li><code>Fraction</code> and <code>Scale</code> are classes with <code>Parse</code>, <code>TryParse</code> and <code>Create</code>.</li>
+</ul>
+<p>Alternatives considered:</p>
+<ul>
+<li><strong>Whole EMU</strong> cannot hold 0.01 px.</li>
+<li><strong>Hundredths of a pixel</strong> cannot hold a point exactly.</li>
+<li><strong>A rational type</strong> is exact for everything but costs a GCD on every operation.</li>
+</ul>
+
+<h3 id="lay-1">LAY-1. A layout keeps the SVG of its own pass</h3>
+<p><code>DiagramExport.Layout(diagram, options)</code> works in four steps:</p>
+<ol>
+<li>It resolves auto to light, because draw.io and Excalidraw open on a white canvas.</li>
+<li>It runs the SVG pipeline once.</li>
+<li>It returns the layout with that pass's <code>SvgDocument</code> as <code>DiagramLayout.Svg</code>.</li>
+<li>It reports the same diagnostics as <code>SvgRenderer.Render</code>.</li>
+</ol>
+<p>Layout equality compares the bounds, the background, the drawables and <code>Svg.Render()</code> text, because <code>SvgDocument</code> has reference equality.</p>
+
+<h3 id="lay-2">LAY-2. The drawable model</h3>
+<pre><code class="language-fsharp">namespace Morphir.Diagrams.Layout
+
+[&lt;Sealed&gt;] type DrawableId          // page-local, ordinal text such as "d17"; Parse/TryParse/Create
+[&lt;Sealed&gt;] type Drawable =
+    member Id: DrawableId
+    member Reference: DiagramElementRef | null
+    member PaintOrder: int
+    member Kind: DrawableKind          // Match, or LayoutVisitor
+
+[&lt;RequireQualifiedAccess&gt;]
+type DrawableKind =
+    | Shape of LayoutShape             // ShapeKind, Box, Paint, Text | null, Role | null
+    | Line of LayoutLine               // Source/Target: LineEnd; Waypoints; Route; ExactPath: PathData | null; Paint; Label | null
+    | Text of LayoutText               // Lines, Baseline, Advance, Align, Size, Weight, Rotation, Box, Wraps
+    | Image of LayoutImage             // Box, Svg: SvgDocument
+    | Element of ImmutableArray&lt;Drawable&gt;      // one reference over several primitives
+    | Container of LayoutContainer     // Box, Header: LayoutText, Children
+    | Group of ImmutableArray&lt;Drawable&gt;
+
+type LineEnd = { Point: LayoutPoint; Head: EdgeHead; Binding: LineBinding | null }   // head independent of binding
+type LineBinding = { Target: DrawableId; Anchor: LineAnchor }
+type LineAnchor = | Across of FractionPoint        // shapes, images, containers: clamped to the box
+                  | Along of Fraction              // lines: a fraction of the length
+type LayoutColor = { Color: Color; Source: ColorSource }      // effective opacity; ColorSource: Family | BaseRole | Authored
+type LayoutPaint = { Fill: LayoutColor | null; Stroke: LayoutColor | null; Ink: LayoutColor
+                     StrokeWidth: Distance; Dash: ImmutableArray&lt;Distance&gt;
+                     Cap: LineCap; Join: LineJoin }                 // advisory
+type DrawableLink = { Predicate: string; Target: string; IsWeb: bool }   // Drawable.Links, in projection order
+
+[&lt;Sealed&gt;]
+type DiagramLayout =
+    member Bounds: LayoutBox; member Background: Color
+    member Drawables: ImmutableArray&lt;Drawable&gt;     // roots, by containment
+    member Features: LayoutFeatures; member Svg: SvgDocument
+</code></pre>
+<ul>
+<li>Every layout type has internal construction, so a renderer can read layouts but never build one, as interop rule 2 requires.</li>
+<li>C# reads optional values as <code>T | null</code>, branches through <code>Match</code> members or the visitor, and compares values with <code>Equals</code>.</li>
+<li>The record sketches above stand for sealed classes whose properties are read-only.</li>
+<li>Authored colours go through a new internal reader that adds the 148 CSS named colours to what <code>Color.Parse</code> reads. A value it cannot read gets the writer's default colour and a <code>layout/unresolved-colour</code> warning. <code>Color.Parse</code> itself does not change.</li>
+<li>A creation message binds the created participant's head shape, because the SVG ends it on the side of that box. Other messages bind lifelines along their length.</li>
+</ul>
+<p>In the example:</p>
+<ul>
+<li>the source end of <code>B --&gt; C</code> binds to <code>B</code>'s shape at anchor (1, 0.5), and its target end binds to <code>C</code>'s cylinder</li>
+<li>the label <code>yes</code> is the line's label</li>
+<li>a link to the subgraph would bind the <code>books</code> container's identifier instead</li>
+</ul>
+
+<h3 id="path-1">PATH-1. One path normaliser</h3>
+<p><code>PathData</code> parses SVG path grammar and normalises it to absolute <code>M</code>, <code>L</code>, <code>C</code>, <code>Q</code>, <code>A</code> and <code>Z</code>:</p>
+<ul>
+<li>relative commands become absolute</li>
+<li><code>H</code> and <code>V</code> become <code>L</code></li>
+<li><code>S</code> and <code>T</code> become <code>C</code> and <code>Q</code>, with their control points reflected</li>
+</ul>
+<p><code>PathData.WithoutArcs(tolerance)</code> turns arcs into cubic curves for targets without arcs, such as DrawingML. The agreement test formats both sides with the SVG's number formatting before comparing them.</p>
+
+<h3 id="cap-1">CAP-1. Features, the baseline and the order of lowering</h3>
+<p>The features and their meanings are in the <a href="specs/diagram-renderers/spec.md">diagram-renderers</a> spec. The baseline is rectangles, straight segments with no head or a filled arrow, upright text, elements and groups painted together, opaque colours, and solid or default-dashed strokes.</p>
+<p>Lowering is a pure function of the pages and the declared features. It returns the lowered pages and the degradations. It runs in these passes, and the spec lists the same order:</p>
+<ol>
+<li><strong>Containers</strong> become groups with a header text.</li>
+<li><strong>Family roles</strong> are removed.</li>
+<li><strong>Shape kinds and paths</strong> fall back. A kind becomes a path, or a rectangle without paths, and never an image, so its text stays editable. A path from the layout becomes an image, or a rectangle without images.</li>
+<li><strong>Images</strong> are removed when SVG images are not declared.</li>
+<li><strong>Bindings</strong> are resolved over the whole page, now that every replacement is known. A binding survives only with attached connectors and an eligible target: a shape or image, a container if containers are declared, or a line if line targets are declared and the route table keeps that line as one line, judged without its own bindings so no cycle arises. Otherwise the end keeps its point and loses the binding.</li>
+<li><strong>Routes</strong> follow the route table below.</li>
+<li><strong>Arrowheads</strong> fall back: message heads to open or filled arrows, then open and circle heads to filled arrows.</li>
+<li><strong>Text</strong> loses its rotation, then its wrapping.</li>
+<li><strong>Opacity</strong> is composited over the background, first for fills, then for strokes and ink.</li>
+<li><strong>Dash patterns</strong> become the default dash.</li>
+<li><strong>Links</strong> are removed.</li>
+<li><strong>Paint order</strong> is only checked. Each unit whose drawables are not consecutive in paint order is reported: an element or group without interleaved painting, and a native container without interleaved containers.</li>
+</ol>
+<p>Bindings come before routes because the route depends on them. Bindings come after every replacement so that no binding can name a drawable that was removed or turned into a group.</p>
+<p>Each line gets the first route that applies:</p>
+<table>
+<thead><tr><th>Renderer declares</th><th>The line receives</th><th>Degraded when</th></tr></thead>
+<tbody>
+<tr><td>Exact routes</td><td>Its exact path, waypoints and route style</td><td>Never</td></tr>
+<tr><td>Smooth curves, for a curved line</td><td>Its waypoints and the curved style</td><td>Never, by the meaning of smooth curves</td></tr>
+<tr><td>Polylines</td><td>A polyline through its waypoints</td><td>The exact path has rounded corners, curves or bridges</td></tr>
+<tr><td>None of these, with a bound end or two waypoints</td><td>One straight segment between its ends</td><td>The line has bends, or as for polylines</td></tr>
+<tr><td>None of these, no bound end</td><td>A group of straight segments, heads on the first and last</td><td>As for polylines</td></tr>
+</tbody>
+</table>
+<p>A test runs every combination of the four line features against a curved, an orthogonal, a bridged and a straight line, and checks the received route and the degradation for each.</p>
+<p>Several fallbacks of one pass on one drawable are recorded as one degradation; fallbacks of different passes, such as a lost binding and a simpler arrowhead, are each recorded. For example, a cylinder for a renderer without cylinders or paths becomes a rectangle in pass 3, whether or not the renderer declares images, and is recorded once: cylinders become rectangles.</p>
+<p>For the worked example:</p>
+<table>
+<thead><tr><th>Renderer</th><th>Assessment</th><th>What changes</th></tr></thead>
+<tbody>
+<tr><td>draw.io</td><td>Degraded</td><td>Only interleaved containers: <code>books</code> is one container cell, and the line <code>B --&gt; C</code> leaves it, so draw.io paints that line above the container's nodes instead of below them.</td></tr>
+<tr><td>Excalidraw</td><td>Degraded</td><td><code>books</code> becomes a group with header text, and <code>node=C</code> becomes a rectangle instead of a cylinder.</td></tr>
+<tr><td>A renderer with no features</td><td>Degraded</td><td>As for Excalidraw, plus the diamond becomes a rectangle, the lines lose their bindings and become straight segments, and <code>books</code> is reported for paint order.</td></tr>
+</tbody>
+</table>
+
+<h3 id="api-1">API-1. Render plans, the renderer and the visitor</h3>
+<pre><code class="language-fsharp">namespace Morphir.Diagrams.Export
+
+[&lt;Sealed&gt;]
+type RenderPlan internal (pages, assessment, mode: RenderMode, features: LayoutFeatures) =
+    member Pages: ImmutableArray&lt;DiagramLayout&gt;     // lowered, or unlowered for OriginalSvg
+    member Assessment: Assessment
+    member Mode = mode
+    member Features = features                         // what the pages were lowered to
+    member EnsureFor(renderer: DiagramRenderer) : unit // ArgumentException unless mode matches
+                                                       // and Features ⊆ renderer.NativeFeatures
+
+[&lt;RequireQualifiedAccess&gt;]
+type RenderMode = Drawables | OriginalSvg
+
+[&lt;AbstractClass&gt;]
+type DiagramRenderer() =
+    abstract MediaType: string
+    abstract FileExtension: string
+    abstract NativeFeatures: LayoutFeatures
+    abstract Mode: RenderMode
+    default _.Mode = RenderMode.Drawables
+    abstract RenderAsync: plan: RenderPlan * output: Stream * cancellationToken: CancellationToken
+                          -&gt; Task&lt;ImmutableArray&lt;Diagnostic&gt;&gt;
+
+type Diagnostic with      // new public factories on the existing type
+    static member Error(code: string | null, message: string | null) : Diagnostic
+    static member Warning(code: string | null, message: string | null) : Diagnostic
+
+[&lt;AbstractClass&gt;]
+type LayoutVisitor() =      // one virtual method per DrawableKind case;
+    ...                     // Element, Container and Group default to visiting their children
+</code></pre>
+<ul>
+<li><strong>Why abstract classes:</strong> F# cannot write default interface methods, and an abstract class can gain virtual members later.</li>
+<li><strong>No bypass:</strong> a caller cannot build a <code>RenderPlan</code>, so a renderer can't be driven past the assessment. A plan can still be kept and handed to another renderer directly, so it records its mode and features, and <code>EnsureFor</code> refuses a plan that uses a feature the renderer doesn't declare. Every renderer in the library's packages calls it first, and the README tells external renderers to do the same.</li>
+<li><strong>Diagnostics:</strong> the factories are members of the existing <code>Diagnostic</code> type, so renderers and the library return one type. A code is <code>prefix/name</code> in lowercase letters, digits and hyphens. The README asks external renderers to use their own prefix. A test assembly with its own renderer returns an error and a warning through the facade.</li>
+<li><strong>Original SVG:</strong> a renderer in this mode, such as reveal.js in the slide change, receives the pages unlowered and draws only <code>DiagramLayout.Svg</code>. It declares no features, so the assessment is native without claiming editable connectors or links that it doesn't write.</li>
+<li><strong>Stream rules:</strong>
+  <ul>
+  <li>Renderers must not seek. A renderer that writes a ZIP builds it in a <code>MemoryStream</code> and copies it, so the bytes are the same for any stream.</li>
+  <li>The facade flushes after the renderer returns and never disposes the stream.</li>
+  <li>A token that is already cancelled ends the call before the renderer is invoked.</li>
+  <li>A renderer's exceptions pass through unchanged.</li>
+  </ul></li>
+</ul>
+
+<h3 id="api-2">API-2. The facade, the registry and compatibility</h3>
+<pre><code class="language-csharp">var result = DiagramExport.Layout(diagram, SvgRenderOptions.Default);      // LayoutResult: Layout | null, Diagnostics
+DiagramLayout[] pages = [result.Layout!];
+var assessment = DiagramExport.Assess(pages, renderer);                    // Match(native, degraded, unsupported)
+var outcome = await DiagramExport.RenderAsync(pages, renderer, stream, DegradationPolicy.AllowDegraded, ct);
+
+var renderers = DiagramRenderers.Empty.Add(new DrawIoRenderer()).Add(new ExcalidrawRenderer());
+if (renderers.TryFind("flow.excalidraw.md", out var found)) { /* found is not null here */ }
+</code></pre>
+<ul>
+<li><code>TryFind</code> uses a non-nullable <code>out</code> with <code>[MaybeNullWhen(false)]</code>, and <code>TryParse</code> members follow the same pattern.</li>
+<li>A C# test project with nullable analysis enabled and warnings treated as errors compiles these calls.</li>
+<li><strong>The compatibility policy</strong> from the spec is enforced in three ways:
+  <ul>
+  <li>a feature added later is the only way a new <code>DrawableKind</code>, <code>ShapeKind</code> or path command appears</li>
+  <li><code>Match</code> overloads are only ever added, never changed. An older overload that meets a newer case throws <code>InvalidOperationException</code>, which a plan can't cause, because the case arrives only with a feature the older renderer doesn't declare.</li>
+  <li><code>EdgeHead</code> follows the same rule: a new head arrives only with a new head feature, and falls back to an existing head.</li>
+  <li>a test compares the public API of Morphir.Diagrams with an approved listing in the fixture catalog, so an accidental breaking change fails the build</li>
+  </ul></li>
+<li>Once a release ships this API, package validation against that release replaces the listing.</li>
+</ul>
+
+<h3 id="pkg-1">PKG-1. The contract in Morphir.Diagrams, the renderers in Morphir.Diagrams.Canvas</h3>
+<p>The layout, features, lowering and contract live in Morphir.Diagrams, where the drawing pass is, so an external renderer depends only on Morphir.Diagrams.</p>
+<p>Morphir.Diagrams.Canvas holds the three canvas renderers. It references Morphir.Diagrams only, and writes with <code>XmlWriter</code> and <code>Utf8JsonWriter</code>.</p>
+
+<h3 id="dio-1">DIO-1. The draw.io mapping</h3>
+<table>
+<thead><tr><th>Layout</th><th>draw.io</th></tr></thead>
+<tbody>
+<tr><td>Cell wrapper</td><td><code>&lt;UserObject id label morphir-ref link&gt;</code> around an <code>mxCell</code> with no <code>id</code> of its own, as draw.io's codec expects</td></tr>
+<tr><td>Shape kinds</td><td><code>rounded=0</code>, <code>rounded=1</code>, <code>ellipse</code>, <code>rhombus</code>, <code>shape=cylinder3</code>, <code>shape=hexagon</code></td></tr>
+<tr><td>Image</td><td><code>shape=image;image=data:image/svg+xml,…</code></td></tr>
+<tr><td>Container</td><td><code>container=1</code> with a header band. Children name it as their <code>parent</code>, with geometry relative to it.</td></tr>
+<tr><td>Element, group</td><td>No cell. Their children become cells of the nearest container or the layer, in paint order, and each carries the element's reference. A sequence participant is then three cells: its lifeline before the messages, its head and foot after them, as in the SVG.</td></tr>
+<tr><td>Edge</td><td>The parent is the nearest common container of the bound ends, or the layer, and points are relative to it. Bound ends use <code>source</code>, <code>target</code>, <code>exitX</code>, <code>exitY</code>, <code>entryX</code> and <code>entryY</code>. Free ends use <code>mxPoint as="sourcePoint"</code> or <code>"targetPoint"</code>. Waypoints are an <code>Array as="points"</code>, and the style is <code>edgeStyle=orthogonalEdgeStyle</code> or <code>curved=1</code>. Heads are <code>block</code> with <code>endFill=1</code>, <code>open</code>, <code>oval</code> with <code>endFill=1</code>, or <code>none</code>.</td></tr>
+<tr><td>Opacity</td><td><code>fillOpacity</code>, <code>strokeOpacity</code> and <code>textOpacity</code>, in percent</td></tr>
+<tr><td>Text</td><td><code>html=1;whiteSpace=wrap</code>, with the label HTML-escaped and line breaks as <code>&lt;br&gt;</code>. Rotated text uses <code>rotation</code>.</td></tr>
+<tr><td>Role</td><td>draw.io's UML and BPMN library styles. Task 5.2 checks their names in draw.io.</td></tr>
+</tbody>
+</table>
+<p>draw.io declares interleaved painting, because elements and groups have no cells. It does not declare interleaved containers, because a container cell paints its whole subtree together. A line that leaves a container is a cell of the layer, so it paints above the container's nodes. The assessment reports this for each such container.</p>
+<p>Cell IDs are <code>0</code> and <code>1</code> (the root and the layer), then the drawable IDs. Cells are written parents first, then siblings in paint order. The file has no <code>modified</code>, <code>etag</code>, <code>agent</code> or <code>version</code> attributes.</p>
+
+<h3 id="exc-1">EXC-1. The Excalidraw mapping</h3>
+<ul>
+<li><strong>Elements:</strong> <code>rectangle</code> (with <code>roundness</code> type 3 for rounded rectangles), <code>ellipse</code>, <code>diamond</code>, <code>arrow</code>, <code>text</code>, and <code>image</code>, whose SVG goes in <code>files</code> as a data URL. Elements are written in paint order, which is also Excalidraw's painting order, so Excalidraw declares interleaved painting.</li>
+<li><strong>Arrows:</strong> every line is an <code>arrow</code>, because Excalidraw binds only arrows. A line with no heads has null <code>startArrowhead</code> and <code>endArrowhead</code>. Each arrow has <code>startBinding</code> and <code>endBinding</code>, mirrored in the bound element's <code>boundElements</code>. Its points are relative to the first point, and a curved line gets <code>roundness</code> type 2. Heads map to <code>triangle</code>, <code>arrow</code> and <code>dot</code>.</li>
+<li><strong>Curves:</strong> Excalidraw draws a rounded arrow as a curve through its points, which meets the meaning of smooth curves. Task 6.1 checks this in the pinned release by sampling the rendered curve at each waypoint.</li>
+<li><strong>Text:</strong> Excalidraw only lets rectangles, ellipses, diamonds and arrows contain text. So a label of an image or of a group becomes a free text element that shares a group identifier with its drawable.</li>
+<li><strong>Opacity:</strong> element <code>opacity</code> fades the fill, stroke and text together, so Excalidraw declares neither opacity feature, and lowering makes every colour opaque.</li>
+<li><strong>Determinism:</strong>
+  <ul>
+  <li>IDs are <code>m</code> followed by the element's index in paint order in hexadecimal, padded to eight characters.</li>
+  <li><code>seed</code> and <code>versionNonce</code> come from a 32-bit FNV-1a hash of the ID.</li>
+  <li><code>version</code> and <code>updated</code> are 1.</li>
+  <li>An image's file ID is the first 40 hex digits of the SHA-256 of its SVG.</li>
+  </ul></li>
+<li><strong>References:</strong> <code>customData</code> holds <code>{"morphirRef": "node=A"}</code>.</li>
+<li><strong>Version check:</strong> task 6.1 pins the Excalidraw release whose importer is used to check the scenes, and records it in the README.</li>
+</ul>
+
+<h3 id="obs-1">OBS-1. The Obsidian note</h3>
+<p>The note has three parts:</p>
+<ul>
+<li>front matter <code>excalidraw-plugin: parsed</code></li>
+<li><code># Excalidraw Data</code> with <code>## Text Elements</code>, where each text is its exact content, multi-line where it has line breaks, followed by <code>␠^</code>, its eight-character element ID and a blank line. The plugin parses block references of exactly eight characters, and the element IDs from <a href="#exc-1">EXC-1</a> are eight characters by construction.</li>
+<li><code>%%</code>, <code>## Drawing</code>, a <code>json</code> code block with the scene, and <code>%%</code></li>
+</ul>
+<p>Text in the note matches the JSON exactly, so the plugin's habit of preferring the Markdown text changes nothing.</p>
+<p>The plugin splits the section at each <code>␠^</code> followed by eight characters at the end of a line. A text that itself contains such a line would be split into two entries, so the renderer leaves it out of the section and the plugin reads it from the scene. Task 6.3 checks that the pinned release does this.</p>
+<p>The renderer declares no SVG images. This is a decision to keep each note a single file. The plugin could import data URLs into the vault, but that would add files beside the note. Task 6.3 pins the plugin release that the notes are checked against.</p>
+
+<h3 id="test-1">TEST-1. How the tests prove the specs</h3>
+<p>The <code>test-manager</code> skill classifies these tests as follows:</p>
+<ul>
+<li><strong>Unit</strong> (<code>tests/Morphir.Diagrams.Tests</code>, TUnit):
+  <ul>
+  <li>the agreement test: the page-wide paint list, then references and owners, against the public SVG renderer's output (<a href="#draw-1">DRAW-1</a>)</li>
+  <li>the route table over every combination of line features</li>
+  <li>a diagnostics test from the test assembly's own renderer</li>
+  <li>a separate text-box test against the theme's text-width estimate</li>
+  <li>the stream, cancellation and failure scenarios</li>
+  <li>a renderer defined in the test assembly</li>
+  <li>the approved API listing</li>
+  </ul></li>
+<li><strong>Property</strong> (<code>tests/Morphir.Diagrams.FSharp.Tests</code>, Expecto with <code>Expecto.FsCheck</code>): lowering over corpus layouts and any subset of features. The corpus reader moves from <code>PinnedCorpus</code> into <code>tests/Morphir.TestSupport</code> so that both projects use the catalog.</li>
+<li><strong>Unit</strong> (<code>tests/Morphir.Diagrams.Canvas.Tests</code>, TUnit): structural checks on every corpus diagram and digests for each target. The checks against the applications run before any digest is recorded.</li>
+<li><strong>Smoke:</strong> the existing <code>LibraryHosts.feature</code> and <code>NativeAot.feature</code> scenarios run <code>diagrams-smoke</code>, which gains one export to each canvas target and asserts that each succeeds.</li>
+<li><strong>Review:</strong> the <code>test-manager-reviewer</code> agent reviews the test diff.</li>
+</ul>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>A writer emits a primitive without recording a drawable.</td><td>The coverage requirement and the agreement test run over every corpus. The helpers require a drawable.</td></tr>
+<tr><td>A helper changes an SVG byte.</td><td>The digest baselines (<a href="#draw-2">DRAW-2</a>) are recorded first and checked in every task.</td></tr>
+<tr><td>Owners recorded wrongly give the wrong containment.</td><td>Containment scenarios cover subgraphs, participants, lanes and data-tree rows, and draw.io parenting tests read it.</td></tr>
+<tr><td>The model grows to about forty public types.</td><td>Internal construction, the approved API listing, and review by the <code>fsharp-csharp-interop-reviewer</code> agent.</td></tr>
+<tr><td>Text measured with other fonts overflows its box.</td><td>Wrapping, the theme's padding, and a README note.</td></tr>
+<tr><td>draw.io styles, the Excalidraw schema or the Obsidian note format differ from the design.</td><td>Each renderer task checks its format in the real application, at a pinned release, before recording digests.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<ul>
+<li>The change only adds API. Existing output is unchanged, so callers need no migration.</li>
+<li>The new package joins <code>LibraryPackages</code> after Morphir.Diagrams.</li>
+<li>To roll back, revert the change.</li>
+</ul>
+
+<h2 id="open-questions">Open questions</h2>
+<ul>
+<li>The exact draw.io style for each family role. Task 5.2 settles it, and it changes only style strings.</li>
+<li>Whether draw.io's <code>async</code> markers can draw the half heads. If task 5.2 finds that they can, draw.io can declare message heads later without other changes.</li>
+</ul>
+
+</main>
+</body>
+</html>

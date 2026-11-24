@@ -52,6 +52,8 @@
     <Project Path="src/Morphir.Bpmn/Morphir.Bpmn.fsproj" />
     <Project Path="src/Morphir.Diagrams.Query/Morphir.Diagrams.Query.fsproj" />
     <Project Path="src/Morphir.Diagrams.Raster/Morphir.Diagrams.Raster.fsproj" />
+    <Project Path="src/Morphir.Diagrams.Canvas/Morphir.Diagrams.Canvas.fsproj" />
+    <Project Path="src/Morphir.Diagrams.Slides/Morphir.Diagrams.Slides.fsproj" />
     <Project Path="src/Morphir.Compilation/Morphir.Compilation.fsproj" />
     <Project Path="src/Morphir.Frontend.FSharp/Morphir.Frontend.FSharp.fsproj" />
     <Project Path="src/Morphir.Frontend.FSharp.Extension/Morphir.Frontend.FSharp.Extension.fsproj" />
@@ -87,6 +89,8 @@
     <Project Path="tests/Morphir.Bpmn.Tests/Morphir.Bpmn.Tests.csproj" />
     <Project Path="tests/Morphir.Diagrams.Query.Tests/Morphir.Diagrams.Query.Tests.csproj" />
     <Project Path="tests/Morphir.Diagrams.Raster.Tests/Morphir.Diagrams.Raster.Tests.csproj" />
+    <Project Path="tests/Morphir.Diagrams.Canvas.Tests/Morphir.Diagrams.Canvas.Tests.csproj" />
+    <Project Path="tests/Morphir.Diagrams.Slides.Tests/Morphir.Diagrams.Slides.Tests.csproj" />
     <Project Path="tests/Morphir.Diagrams.Smoke/Morphir.Diagrams.Smoke.csproj" />
     <Project Path="tests/Morphir.Mck.Tests/Morphir.Mck.Tests.csproj" />
     <Project Path="tests/Morphir.Frontend.FSharp.Tests/Morphir.Frontend.FSharp.Tests.fsproj" />

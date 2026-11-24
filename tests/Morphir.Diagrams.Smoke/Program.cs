@@ -5,8 +5,11 @@ using System;
 using System.Text;
 using Morphir.Bpmn;
 using Morphir.Diagrams;
+using Morphir.Diagrams.Canvas;
+using Morphir.Diagrams.Export;
 using Morphir.Diagrams.Query;
 using Morphir.Diagrams.Raster;
+using Morphir.Diagrams.Slides;
 using Morphir.Knowledge;
 using Morphir.Knowledge.Rdf;
 
@@ -83,6 +86,51 @@ if (!png.Succeeded)
 }
 Console.WriteLine($"raster png {png.Width}x{png.Height} {Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(png.Bytes.AsSpan()))}");
 Console.WriteLine("raster: ok");
+
+// One export to each canvas target, through the registry: its digest is the same under JIT and Native AOT.
+if (!DiagramSource.TryParse("flowchart LR\n  subgraph Orders\n    A[Submit] --> B{Valid?}\n  end\n  B -->|yes| C[(Ledger)]", out var flowchart, out _)
+    || DiagramExport.Layout(flowchart.Diagram).Layout is not { } layout)
+    return 1;
+foreach (var file in new[] { "orders.drawio", "orders.excalidraw", "orders.excalidraw.md" })
+{
+    if (!CanvasRenderers.Registry.TryFind(file, out var canvas))
+        return 1;
+    using var exported = new System.IO.MemoryStream();
+    var export = await DiagramExport.RenderAsync([layout], canvas, exported, DegradationPolicy.AllowDegraded, System.Threading.CancellationToken.None);
+    if (!export.Written || export.HasErrors || exported.Length == 0)
+        return 1;
+    Console.WriteLine($"canvas {file} {Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(exported.ToArray()))}");
+}
+Console.WriteLine("canvas: ok");
+
+// One export to each slide target: PowerPoint (with a picture and its PNG fallback), OpenDocument, Google Slides
+// requests and a reveal.js deck. Each output's digest is the same under JIT and Native AOT.
+var slideTargets = new (string Name, DiagramRenderer Renderer, DegradationPolicy Policy)[]
+{
+    ("orders.pptx", new PowerPointRenderer(), DegradationPolicy.PictureFallback),
+    ("orders.odp", new OpenDocumentRenderer(), DegradationPolicy.AllowDegraded),
+    ("orders.gslides.json", new GoogleSlidesRenderer(GoogleSlidesOptions.Create(SlidePlacement.Widescreen, SlideObjectNamespace.Create("orders"))), DegradationPolicy.AllowDegraded),
+    ("orders.reveal.html", new RevealJsRenderer(), DegradationPolicy.AllowDegraded),
+};
+foreach (var (name, renderer, policy) in slideTargets)
+{
+    using var exported = new System.IO.MemoryStream();
+    var export = await DiagramExport.RenderAsync([layout], renderer, exported, policy, System.Threading.CancellationToken.None);
+    if (!export.Written || export.HasErrors || exported.Length == 0)
+    {
+        Console.Error.WriteLine($"slides {name}: FAIL {string.Join("; ", export.Diagnostics)}");
+        return 1;
+    }
+
+    // The subgraph degrades PowerPoint, so the page is a picture: its PNG fallback is drawn under Native AOT too.
+    if (policy == DegradationPolicy.PictureFallback && !System.Linq.Enumerable.Any(export.Diagnostics, diagnostic => diagnostic.Code == "layout/pictured"))
+    {
+        Console.Error.WriteLine($"slides {name}: FAIL the page was not drawn as a picture");
+        return 1;
+    }
+    Console.WriteLine($"slides {name} {Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(exported.ToArray()))}");
+}
+Console.WriteLine("slides: ok");
 
 var expected = Canonical(dataset);
 var actual = Canonical(extracted);

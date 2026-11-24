@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>add-diagram-slide-export: design</title>
+<meta name="color-scheme" content="light dark">
+<style>
+:root { color-scheme: light dark; --bg: #fafafa; --fg: #18212f; --muted: #526071;
+  --line: #cbd5e1; --panel: #eef2f6; --link: #075caa; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111827; --fg: #e5e7eb; --muted: #b0bdce;
+    --line: #475569; --panel: #1e293b; --link: #8cc8ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 1rem/1.6 system-ui, sans-serif; }
+main { max-width: 70rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+h1, h2, h3 { line-height: 1.25; overflow-wrap: anywhere; }
+h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .4rem; }
+a { color: var(--link); }
+a:focus-visible { outline: 3px solid var(--link); outline-offset: 3px; }
+.meta { color: var(--muted); }
+.toc, pre, details { background: var(--panel); border: 1px solid var(--line);
+  border-radius: .4rem; padding: 1rem; }
+code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+pre { overflow-x: auto; } pre code { overflow-wrap: normal; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border: 1px solid var(--line); padding: .6rem; text-align: left;
+  overflow-wrap: anywhere; }
+svg { max-width: 100%; height: auto; }
+@media print { main { max-width: none; padding: 0; } pre, tr { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>add-diagram-slide-export: design</h1>
+<p class="meta">OpenSpec change | 2026-11-21 | proposed, revised after two reviews | requires add-diagram-canvas-export</p>
+
+<nav class="toc" aria-label="Contents">
+<ul>
+<li><a href="#context">Context</a></li>
+<li><a href="#goals">Goals and non-goals</a></li>
+<li><a href="#decisions">Decisions</a></li>
+<li><a href="#risks">Risks and trade-offs</a></li>
+<li><a href="#migration">Migration plan</a></li>
+<li><a href="#open-questions">Open questions</a></li>
+</ul>
+</nav>
+
+<h2 id="context">Context</h2>
+<p>See <a href="proposal.md">proposal.md</a> for the motivation. This change builds only on what <code>add-diagram-canvas-export</code> provides:</p>
+<ul>
+<li>the drawable layout, with distances in quarter EMU and <code>ToEmu()</code>, normalised <code>PathData</code> with <code>WithoutArcs</code>, and <code>DiagramLayout.Svg</code></li>
+<li><code>RenderPlan</code> with <code>EnsureFor</code>, <code>DiagramRenderer</code> with its two modes, and the public <code>Diagnostic.Error</code> and <code>Diagnostic.Warning</code> factories, which this package uses for <code>slides/raster-failed</code></li>
+<li>lowering, the three policies, and <code>LayoutFeatures</code></li>
+</ul>
+<p><code>DiagramRaster</code> turns SVG into PNG. It is synchronous, refuses renders over its pixel and work limits, and caps scale at 16. Its pixels are deterministic, but its PNG bytes are compressed with the runtime's zlib (<code>Encoders.fs</code>), so they can change between .NET versions.</p>
+<p>BPMN layouts take their coordinates from the DI, which can be negative, while the SVG's view box starts at zero.</p>
+<p>Each SVG's ID prefix includes a fingerprint of its content, so the same diagram twice gives the same IDs.</p>
+
+<h2 id="goals">Goals and non-goals</h2>
+<p><strong>Goals:</strong></p>
+<ul>
+<li>Native, editable shapes in every slide format that allows them.</li>
+<li>One placement model, with exact containment.</li>
+<li>No third-party dependency and no network access in the library.</li>
+<li>Failures reported before any output is written.</li>
+</ul>
+<p><strong>Non-goals:</strong></p>
+<ul>
+<li>Inserting into an existing <code>.pptx</code> or <code>.odp</code>.</li>
+<li>Slide animations from playback steps.</li>
+<li>reveal.js fragments.</li>
+<li>Speaker notes.</li>
+<li>Laying diagrams out again at a larger base size.</li>
+</ul>
+
+<h2 id="decisions">Decisions</h2>
+<p>The worked example is the flowchart from the canvas design, laid out at 420 by 120 px and placed on a 16:9 slide.</p>
+
+<h3 id="plc-1">PLC-1. Placement is an exact rational fit on the target's grid</h3>
+<p>The content area of a 16:9 slide is 10,160,000 by 5,715,000 EMU. The example measures 4,000,500 by 1,143,000 EMU, so the width decides the fit.</p>
+<p>Placement works in four steps:</p>
+<ol>
+<li>It takes the <strong>fitted extent</strong>: the union of the layout's bounds and the geometry of every drawable. A BPMN task at x = -40 widens the extent to the left. Stroke widths and heads are left out, because they don't scale.</li>
+<li>It rounds the <strong>area inwards</strong> onto the renderer's grid: whole EMU for PowerPoint and Google Slides, and 36 EMU (0.001 mm) for OpenDocument, whose lengths are written in millimetres with three decimals. An area that is empty after rounding is refused.</li>
+<li>It takes the <strong>fit factor</strong> as the exact ratio <code>areaWidth / extentWidth</code> or <code>areaHeight / extentHeight</code>, whichever is smaller, as a numerator and denominator. A smaller maximum scale replaces it. The centring offset is half the spare space, rounded down onto the grid.</li>
+<li>It maps each <strong>absolute coordinate</strong> <code>x</code> to <code>areaLeft + offset + round((x − extentLeft) × numerator / denominator)</code>, rounding once onto the grid, half to even, with 128-bit intermediates. A size is the difference of its two mapped edges, never rounded separately.</li>
+</ol>
+<p>The mapping is monotonic, and it maps the extent's far edge exactly onto the area's far edge when that side decides the fit. So every mapped edge lies within the rounded area, at the output's own precision. Only strokes, joins and heads can reach past it, by at most half a stroke width times the miter limit plus a head's length, which the spec states.</p>
+<p>Positions, sizes, waypoints, path points, radii and font sizes scale. Stroke widths, dash lengths and arrowhead sizes don't.</p>
+<p>This trades exact equivalence with laying the diagram out again for simplicity. The writers use fixed paddings and an integer text-width estimate, so a real re-layout at a larger size would differ slightly. Scaling keeps the diagram exactly as drawn, only larger, with strokes kept light.</p>
+
+<h3 id="pkg-1">PKG-1. Hand-written packages, no SDKs</h3>
+<p>All four renderers live in <code>Morphir.Diagrams.Slides</code>.</p>
+<ul>
+<li><strong>ZIP formats:</strong> OOXML and ODF packages are built in a <code>MemoryStream</code>, with <code>ZipArchive</code>, a fixed entry order and the timestamp 1980-01-01. They are then copied to the output, so the bytes don't depend on whether the output can seek.</li>
+<li><strong>Determinism:</strong> whole bytes are equal within one .NET runtime on one operating system. The bundled zlib can change between runtime versions, and <code>ZipArchive</code> records the platform in each entry's version-made-by field. That affects the ZIP and the PNG images inside it. Across operating systems, the tests compare entry names, the uncompressed contents of every entry other than a PNG, and the decoded pixels of each PNG.</li>
+<li><strong>Images first:</strong> every PNG fallback is drawn before the first byte is written, so a raster failure writes nothing.</li>
+<li><strong>Test-only SDK:</strong> the tests use the Open XML SDK's <code>OpenXmlValidator</code>, as a test-only dependency.</li>
+</ul>
+
+<h3 id="ppt-1">PPT-1. The PowerPoint mapping</h3>
+<table>
+<thead><tr><th>Layout</th><th>PresentationML / DrawingML</th></tr></thead>
+<tbody>
+<tr><td>Shape kinds</td><td><code>a:prstGeom</code> <code>rect</code>, <code>roundRect</code> (adjust value from radius / min(width, height)), <code>ellipse</code>, <code>diamond</code>, <code>can</code> or <code>hexagon</code></td></tr>
+<tr><td>Path</td><td><code>a:custGeom</code> from <code>PathData.WithoutArcs(0.01 px)</code>: <code>M</code>, <code>L</code>, <code>C</code>, <code>Q</code> and <code>Z</code> become <code>moveTo</code>, <code>lnTo</code>, <code>cubicBezTo</code>, <code>quadBezTo</code> and <code>close</code></td></tr>
+<tr><td>Exact connector (default)</td><td><code>p:cxnSp</code> with an open <code>a:custGeom</code> of the line's exact path</td></tr>
+<tr><td>Glued connector (option)</td><td><code>p:cxnSp</code> with <code>straightConnector1</code>, <code>a:stCxn</code> and <code>a:endCxn</code> at the nearest connection site. Task 2.4 checks the site tables in PowerPoint.</td></tr>
+<tr><td>Arrowheads</td><td>Arrow becomes <code>triangle</code>, open arrow <code>arrow</code>, and circle <code>oval</code>, each with <code>w</code> and <code>len</code> nearest the theme's marker relative to the line width. With exact connectors only, the cross, async and four half heads become custom shapes from the same outlines as <code>SvgWriting</code>'s markers, rotated to the end's direction and grouped with the line. The line is not glued, so the group moves as one. Glued connectors don't declare these heads, and lowering turns them into arrows.</td></tr>
+<tr><td>Text</td><td><code>p:txBody</code> with <code>wrap</code>, insets from the text box, <code>vert</code> or <code>rot</code> for rotation, <code>sz</code> in hundredths of a point, and the typeface option</td></tr>
+<tr><td>Paint</td><td><code>a:srgbClr</code> with <code>a:alpha</code>, <code>a:noFill</code> where absent, <code>a:ln w</code> in EMU, and <code>a:custDash</code></td></tr>
+<tr><td>Link</td><td><code>a:hlinkClick</code> for the first web link</td></tr>
+<tr><td>Image</td><td><code>p:pic</code> with a PNG <code>a:blip</code>, and <code>asvg:svgBlip</code> inside the blip's <code>a:extLst</code> under its extension URI</td></tr>
+<tr><td>Order</td><td>Shapes are written in paint order. Layout elements and groups are flattened, so PowerPoint declares interleaved painting.</td></tr>
+</tbody>
+</table>
+<p><strong>PNG fidelity:</strong> the PNG comes from Morphir.Diagrams.Raster, which knows seven colour names and paints a gradient as its first stop. Before rasterising, the renderer checks the image's SVG with the painter's own supported-paint check, made visible to Morphir.Diagrams.Slides through <code>InternalsVisibleTo</code>, and warns <code>slides/png-approximated</code> for each image that it approximates. The raster painter's output does not change.</p>
+<p><strong>PNG size:</strong> the PNG is drawn at two pixels per placed CSS pixel. If that exceeds the raster limits, it is drawn at one. If that fails too, the render returns <code>slides/raster-failed</code> and writes nothing. The spec states the same rule. A test covers the pixel limit and the work limit separately. The token is checked before each image.</p>
+<p><strong>Validation:</strong> each package is validated as Microsoft 365 and as Office 2010. Extension lists are the ignorable part of DrawingML, so the Office 2010 validator and readers skip the SVG blip. If task 2.1 finds the validator rejects it, the package declares the SVG namespace in <code>mc:Ignorable</code>, and the spec changes with it. Task 2.3 also opens the package in a reader that shows only the PNG.</p>
+
+<h3 id="odp-1">ODP-1. The OpenDocument mapping</h3>
+<ul>
+<li><strong>Shapes:</strong> each is a <code>draw:custom-shape</code> whose <code>draw:enhanced-geometry</code> carries a <code>svg:viewBox</code> and a <code>draw:enhanced-path</code>.
+  <ul>
+  <li>A shape kind gets the outline that lowering gives it, which is the outline the SVG draws: the cylinder from two half-ellipses and two lines, the hexagon from six points, and so on. Its <code>draw:type</code> is <code>non-primitive</code>: task 3.3 found that Impress replaces the geometry and text area of a preset type it recognises (<code>round-rectangle</code>, <code>can</code> and so on) with its own.</li>
+  <li>A path converts its normalised data after <code>WithoutArcs</code>: <code>M</code>, <code>L</code>, <code>C</code>, <code>Q</code> and <code>Z</code> keep their letters, an open subpath ends with <code>N</code>, and an unfilled path adds <code>F</code>. The view box is the path's box in thousandths of a millimetre.</li>
+  </ul></li>
+<li><strong>Connectors:</strong> <code>draw:connector</code> with the start and end shape and the nearest glue point, and the exact path as <code>svg:d</code>.</li>
+<li><strong>Markers:</strong> each arrowhead is a <code>draw:marker</code> in the styles. Markers belong to the connector, so every head follows it, and ODP declares both head features. ODF fills markers and never strokes them, so filled heads keep the SVG marker's outline, and stroked heads (the open arrow, the cross, the async and open half heads) become the closed outline of their stroke at the marker's 1.4 px width. ODF draws a marker pointing along the line, so each outline is rotated from the SVG marker's frame. Each marker is centred (<code>draw:marker-end-center</code>), with a view box centred on the tip. Task 3.3 found that Impress centres the bounds of the path, not the view box, so a head that is not symmetric about its tip also gets two single-point subpaths at opposite corners of the view box, which fill nothing.</li>
+<li><strong>Opacity:</strong> <code>draw:opacity</code> for fills. Text has no standard opacity, so ODP doesn't declare stroke and text opacity.</li>
+<li><strong>Package:</strong> <code>mimetype</code> first and stored uncompressed. A test reads the raw local header to confirm the extra-field length is zero. If <code>ZipArchive</code> ever writes one, the renderer writes that one header itself.</li>
+</ul>
+
+<h3 id="gsl-1">GSL-1. Google Slides as a request body</h3>
+<p>The body starts like this (the numbers are illustrative):</p>
+<pre><code class="language-json">{ "requests": [
+  { "createSlide": { "objectId": "flow_0_s0", "slideLayoutReference": { "predefinedLayout": "BLANK" } } },
+  { "createShape": { "objectId": "flow_0_d1", "shapeType": "ROUND_RECTANGLE",
+      "elementProperties": { "pageObjectId": "flow_0_s0",
+        "size": { "width": { "magnitude": 2209800, "unit": "EMU" }, "height": { "magnitude": 1066800, "unit": "EMU" } },
+        "transform": { "scaleX": 1, "scaleY": 1, "translateX": 1016000, "translateY": 2324100, "unit": "EMU" } } } },
+  { "insertText": { "objectId": "flow_0_d1", "text": "Start" } }
+] }
+</code></pre>
+<ul>
+<li><strong>IDs</strong> are <code>{namespace}_{page}_{kind}{index}</code>, where the kind is <code>s</code> for a slide or <code>d</code> for a drawable. A namespace of 2 to 30 ASCII characters, up to 9,999 pages and up to 9,999,999 objects per page keeps every ID between 7 and 44 characters. The renderer checks both limits before writing and refuses a plan over them.</li>
+<li><strong>Options types:</strong> <code>SlideObjectNamespace</code> and <code>SlideObjectId</code> are parsed values with <code>Parse</code>, <code>TryParse</code> and <code>Create</code>, taking <code>string | null</code>. An existing slide ID can be as short as one character, since Google's own first slide is often <code>p</code>.</li>
+<li><strong>No groups:</strong> the renderer writes no <code>groupObjects</code>, so paint order stays page-wide and the renderer declares interleaved painting.</li>
+<li><strong>Page size:</strong> the caller supplies it, because a presentation has one page size and <code>createSlide</code> cannot set it.</li>
+<li><strong>Uniqueness:</strong> the caller chooses a namespace that the presentation doesn't use yet, which repeat submissions need too. The renderer can't check that.</li>
+<li><strong>Order:</strong> the body creates every slide and object first, in paint order, then inserts text and sets styles, and sets line connections last. Google runs the requests in order, and the flowchart paints links before nodes, so a connection set straight after its line would name shapes that don't exist yet.</li>
+<li><strong>Lines:</strong> <code>createLine</code> with the <code>STRAIGHT</code> category, then <code>updateLineProperties</code> connections at the nearest site and the <code>FILL_ARROW</code>, <code>OPEN_ARROW</code> or <code>FILL_CIRCLE</code> arrow styles. Google has no cross or half heads, so message heads arrive as arrows. Task 4.2 checks the site order through the API.</li>
+<li><strong>Text:</strong> <code>Roboto Mono</code> as the monospace font, sized in points.</li>
+<li><strong>Images:</strong> none, because <code>createImage</code> needs a public URL.</li>
+</ul>
+
+<h3 id="rev-1">REV-1. reveal.js shows the original SVG, with section-scoped IDs</h3>
+<p>For section <code>n</code>, the renderer copies the layout's <code>SvgDocument</code> and replaces the document's ID prefix (<code>kind-fingerprint</code>) with <code>sn-kind-fingerprint</code>. The prefix appears in every element ID, every <code>href</code> and <code>url(#…)</code> reference, and every ID selector of the style sheet. Because it is one distinct token, a single substitution in attribute values and style text makes every ID unique in the deck.</p>
+<p>Each SVG has the <code>r-stretch</code> class, so reveal.js fits it to the slide.</p>
+<p>The renderer uses the contract's original-SVG mode. It receives each page unlowered, declares no features, and its assessment is native for any diagram, without claiming editable connectors or links that the deck doesn't have. A newer Morphir.Diagrams with new features is still native, because the mode doesn't depend on the feature set. The default base address is <code>https://cdn.jsdelivr.net/npm/reveal.js@5.1.0/</code>. Task 5.1 confirms the release and its template.</p>
+
+<h2 id="risks">Risks and trade-offs</h2>
+<table>
+<thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr><td>A hand-written <code>.pptx</code> triggers a repair prompt.</td><td>The validator runs on every corpus package, and the files are opened by hand in PowerPoint and LibreOffice.</td></tr>
+<tr><td>ZIP and PNG bytes change with the .NET runtime.</td><td>Byte equality is scoped to one runtime. Across runtimes, the tests compare entry contents other than PNG, and PNG pixels.</td></tr>
+<tr><td>Raster limits refuse a large PNG.</td><td>Density is reduced first. Failure is reported before any output.</td></tr>
+<tr><td>Connection site and glue point indices differ from the design's assumptions.</td><td>Tasks 2.4, 3.3 and 4.2 check them before goldens are recorded.</td></tr>
+<tr><td>Impress drops <code>svg:d</code> or re-routes glued connectors when it opens or edits a file. This is unverified.</td><td>Task 3.3 checks both. If either happens, the renderer stops declaring polylines and exact routes, and the spec changes with it.</td></tr>
+<tr><td>Office and Google fonts measure text differently.</td><td>Text wraps within its box, the typeface is an option, and the README notes the difference.</td></tr>
+<tr><td>A CDN outage blocks reveal.js.</td><td>The base address is an option, and the README shows a local copy.</td></tr>
+</tbody>
+</table>
+
+<h2 id="migration">Migration plan</h2>
+<ul>
+<li>The change only adds API and one package. It lands after <code>add-diagram-canvas-export</code> has merged.</li>
+<li>The package joins <code>LibraryPackages</code> after Morphir.Diagrams.Raster.</li>
+<li>To roll back, revert the change.</li>
+</ul>
+
+<h2 id="open-questions">Open questions</h2>
+<ul>
+<li>The default PowerPoint typeface (<code>Consolas</code> or another font that Office ships). It is an option either way.</li>
+</ul>
+
+</main>
+</body>
+</html>

@@ -21,7 +21,7 @@ public class StateDiagramTests
 
     private static IEnumerable<JsonElement> Fixtures()
     {
-        using var reference = JsonDocument.Parse(PinnedCorpus.File(FixtureCatalog.DiagramsMbt.States, "/reference.json"));
+        using var reference = JsonDocument.Parse(DiagramCorpus.File(FixtureCatalog.DiagramsMbt.States, "/reference.json"));
         return reference.RootElement.GetProperty("fixtures").EnumerateArray().Select(fixture => fixture.Clone()).ToList();
     }
 
@@ -179,5 +179,14 @@ public class StateDiagramTests
         var svg = DiagramSource.RenderSvg("stateDiagram-v2\n  Idle --> Busy\n", SvgRenderOptions.Create(DiagramThemes.Monokai, ThemeMode.Dark)).Output!;
 
         svg.ShouldContain("var(--backend-stroke)");
+    }
+
+    [Test]
+    public void ATransitionFromTheReservedRootIsRefused()
+    {
+        var rendered = DiagramSource.RenderSvg("stateDiagram-v2\nroot --> A\n");
+
+        rendered.Output.ShouldBeNull();
+        rendered.Diagnostics.ShouldHaveSingleItem().Code.ShouldBe("state/reserved-id");
     }
 }

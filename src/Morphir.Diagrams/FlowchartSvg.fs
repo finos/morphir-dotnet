@@ -704,7 +704,32 @@ module internal FlowchartSvg =
                         for KeyValue(key, id) in icons do
                             writer.Add(Icons.symbol id key))
 
+                // Containment for the layout: each node belongs to its innermost group, and each group to its parent.
+                let depth (group: FlowGroup) =
+                    let rec walk (id: DiagramId | null) count =
+                        match id with
+                        | null -> count
+                        | parent -> walk (match groupsById.TryGetValue parent with | true, found -> found.ParentId | false, _ -> null) (count + 1)
+                    walk group.ParentId 0
+
+                let innermost = Dictionary<DiagramId, FlowGroup>()
+
+                for group, _ in groups do
+                    match group.ParentId with
+                    | null -> ()
+                    | parent -> writer.Own ((DiagramElementRef.Group group.Id).ToString()) ((DiagramElementRef.Group parent).ToString())
+
+                    for node in group.NodeIds do
+                        match innermost.TryGetValue node with
+                        | true, found when depth found >= depth group -> ()
+                        | _ -> innermost[node] <- group
+
+                for KeyValue(node, group) in innermost do
+                    writer.Own ((DiagramElementRef.Node node).ToString()) ((DiagramElementRef.Group group.Id).ToString())
+
                 for group, box in groups do
+                    writer.Hint LayoutHint.Container
+
                     SvgWriting.element
                         writer
                         "g"
@@ -941,6 +966,13 @@ module internal FlowchartSvg =
                         "g"
                         [ "class", "edge"; "data-ref", edgeRefs[index].ToString() ]
                         (fun () ->
+                        let style =
+                            if options.ConnectorStyle = ConnectorStyle.Curved then Layout.RouteStyle.Curved
+                            elif (Array.distinct points).Length <= 2 then Layout.RouteStyle.Straight
+                            else Layout.RouteStyle.Orthogonal
+
+                        writer.Hint(LayoutHint.Route(points |> Array.map (fun (x, y) -> float x, float y) |> List.ofArray, style))
+
                         SvgWriting.connector
                             writer
                             route

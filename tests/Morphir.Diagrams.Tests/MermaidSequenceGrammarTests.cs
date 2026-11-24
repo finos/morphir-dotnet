@@ -23,7 +23,7 @@ public class MermaidSequenceGrammarTests
     [Test]
     public void EveryPinnedExampleIsReadWithTheReferenceParticipantsAndMessages()
     {
-        var files = PinnedCorpus.Files(FixtureCatalog.DiagramsMbt.Sequence);
+        var files = DiagramCorpus.Files(FixtureCatalog.DiagramsMbt.Sequence);
         var mismatches = new List<string>();
 
         for (var number = 1; number <= 38; number++)

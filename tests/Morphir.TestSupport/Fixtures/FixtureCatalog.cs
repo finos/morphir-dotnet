@@ -873,6 +873,49 @@ public static class FixtureCatalog
             [Sequence, Flowcharts, States, Swimlanes, Architecture, ZenUml, PlantUmlActivity, PlantUmlState, PlantUml, Bpmn];
     }
 
+    /// <summary>Reference data of CSS Color Module Level 4.</summary>
+    public static class CssColor
+    {
+        private const string Provenance = "CssColor/PROVENANCE.md";
+
+        /// <summary>The 148 CSS named colours and their hex values.</summary>
+        public static FixtureEntry NamedColors { get; } = new(
+            "the CSS named colours", "CssColor/named-colors.json", "02c347487d439770060574ccabb2d7957ebc218599617753d11587569c6a1e8e", Provenance);
+    }
+
+    /// <summary>Digests of diagram output recorded before the diagram export refactor, which must not change.</summary>
+    public static class DiagramExport
+    {
+        private const string Provenance = "DiagramExport/PROVENANCE.md";
+
+        /// <summary>The SVG of every pinned corpus diagram under each baseline option set.</summary>
+        public static FixtureEntry SvgDigests { get; } = new(
+            "the SVG digests of every pinned corpus diagram", "DiagramExport/svg-digests.json", "b01892cf062c67f446a7c07563554010eb26205eb89bb1f5bbb88c4e184ea512", Provenance);
+
+        /// <summary>The offline player, the SVG and the connector bindings of one scene of each family.</summary>
+        public static FixtureEntry PlayerDigests { get; } = new(
+            "the player and scene digests of one diagram of each family", "DiagramExport/player-digests.json", "8186bd245c538d15fe18ca26de78ff0fd8084d3fc459c6b7e5e3215819a72cb8", Provenance);
+
+        /// <summary>The PNG pixels, JPEG and GIF bytes and raster player of one diagram of each family.</summary>
+        public static FixtureEntry RasterDigests { get; } = new(
+            "the raster digests of one diagram of each family", "DiagramExport/raster-digests.json", "7cd513eb35e4bddc0d6cc2f5db8fc67e44844ea46803499faf6588f5d1e15417", Provenance);
+
+        /// <summary>The approved public API of Morphir.Diagrams.</summary>
+        public static FixtureEntry PublicApi { get; } = new(
+            "the approved public API of Morphir.Diagrams", "DiagramExport/public-api.txt", "0f4c8270bd9ba0755ed48d461b8e16887f2e15cfb6a2105f25c3d40aa9989734", Provenance);
+
+        /// <summary>The draw.io, Excalidraw and Obsidian output of one diagram of each family.</summary>
+        public static FixtureEntry CanvasDigests { get; } = new(
+            "the canvas export digests of one diagram of each family", "DiagramExport/canvas-digests.json", "e26fade8faac55bc61491ed4b69c2e20df5f9420c6094da24e28c33690f8f89d", Provenance);
+
+        /// <summary>The entry contents of each slide renderer's package for one diagram of each family.</summary>
+        public static FixtureEntry SlideDigests { get; } = new(
+            "the slide export digests of one diagram of each family", "DiagramExport/slide-digests.json", "b64cb6c5c331e618723c1f93d22a5c7368b7317119e554fb2459854f8e62074f", Provenance);
+
+        /// <summary>Every digest fixture.</summary>
+        public static IReadOnlyList<FixtureEntry> Files { get; } = [SvgDigests, PlayerDigests, RasterDigests, PublicApi, CanvasDigests, SlideDigests];
+    }
+
     /// <summary>Every file that the catalog owns and serves.</summary>
     public static IReadOnlyCollection<FixtureEntry> All { get; } =
     [
@@ -880,7 +923,7 @@ public static class FixtureCatalog
         .. Models.All, .. BoundedOrders.Files, BoundedOrders.ExpandedV4, .. Trees.AcmeDemo, .. Trees.Written,
         .. UpstreamIr.Documents, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark,
         WasmHost.Corpus, WasmHost.UnknownNamespaceModule, .. Context.Files, .. Context.Policy.Files,
-        .. Context.Naming.Files, .. DiagramsMbt.Files
+        .. Context.Naming.Files, .. DiagramsMbt.Files, .. DiagramExport.Files, CssColor.NamedColors
     ];
 
     /// <summary>

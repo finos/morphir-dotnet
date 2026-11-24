@@ -122,4 +122,82 @@ internal static class DiagramMother
         DiagramSnapshot.TryFromSource(document, Document(source), out var snapshot, out var error)
             ? snapshot
             : throw new InvalidOperationException(error.ToString());
+
+    /// <summary>A BPMN Sales pool with a Clerk lane holding a task at fractional DI coordinates, an exclusive gateway and a user task, and a flow whose last waypoint lies two pixels outside the user task.</summary>
+    public const string SalesPoolWithGatewayAndUserTask = """
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="D" targetNamespace="urn:t">
+          <bpmn:collaboration id="C"><bpmn:participant id="Pool" name="Sales" processRef="P"/></bpmn:collaboration>
+          <bpmn:process id="P">
+            <bpmn:laneSet id="LS"><bpmn:lane id="Lane" name="Clerk"><bpmn:flowNodeRef>T</bpmn:flowNodeRef><bpmn:flowNodeRef>G</bpmn:flowNodeRef><bpmn:flowNodeRef>U</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet>
+            <bpmn:task id="T" name="Check"/>
+            <bpmn:exclusiveGateway id="G"/>
+            <bpmn:userTask id="U" name="Approve"/>
+            <bpmn:sequenceFlow id="F1" sourceRef="T" targetRef="G"/>
+            <bpmn:sequenceFlow id="F2" sourceRef="G" targetRef="U"/>
+          </bpmn:process>
+          <bpmndi:BPMNDiagram id="DI"><bpmndi:BPMNPlane id="PL" bpmnElement="C">
+            <bpmndi:BPMNShape id="S0" bpmnElement="Pool" isHorizontal="true"><dc:Bounds x="10" y="10" width="600" height="200"/></bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="S1" bpmnElement="Lane" isHorizontal="true"><dc:Bounds x="40" y="10" width="570" height="200"/></bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="S2" bpmnElement="T"><dc:Bounds x="100.02" y="70.5" width="100" height="80"/></bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="S3" bpmnElement="G" isMarkerVisible="true"><dc:Bounds x="250" y="85" width="50" height="50"/></bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="S4" bpmnElement="U"><dc:Bounds x="350" y="70" width="100" height="80"/></bpmndi:BPMNShape>
+            <bpmndi:BPMNEdge id="E1" bpmnElement="F1"><di:waypoint x="200.02" y="110"/><di:waypoint x="250" y="110"/></bpmndi:BPMNEdge>
+            <bpmndi:BPMNEdge id="E2" bpmnElement="F2"><di:waypoint x="300" y="110"/><di:waypoint x="348" y="110"/></bpmndi:BPMNEdge>
+          </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+        </bpmn:definitions>
+        """;
+
+    /// <summary>A BPMN Sales pool, with its rotated name, holding a task whose long name wraps.</summary>
+    public const string SalesPoolWithLongTask = """
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="D" targetNamespace="urn:t">
+          <bpmn:collaboration id="C"><bpmn:participant id="Pool" name="Sales" processRef="P"/></bpmn:collaboration>
+          <bpmn:process id="P"><bpmn:task id="T" name="Check the order before it ships"/></bpmn:process>
+          <bpmndi:BPMNDiagram id="DI"><bpmndi:BPMNPlane id="PL" bpmnElement="C">
+            <bpmndi:BPMNShape id="S0" bpmnElement="Pool" isHorizontal="true"><dc:Bounds x="10" y="10" width="400" height="160"/></bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="S1" bpmnElement="T"><dc:Bounds x="100" y="50" width="100" height="80"/></bpmndi:BPMNShape>
+          </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+        </bpmn:definitions>
+        """;
+
+    /// <summary>A BPMN Sales pool with a Clerk lane holding one task.</summary>
+    public const string SalesPoolWithClerkLane = """
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="D" targetNamespace="urn:t">
+          <bpmn:collaboration id="C"><bpmn:participant id="Pool" name="Sales" processRef="P"/></bpmn:collaboration>
+          <bpmn:process id="P">
+            <bpmn:laneSet id="LS"><bpmn:lane id="Lane" name="Clerk"><bpmn:flowNodeRef>T</bpmn:flowNodeRef></bpmn:lane></bpmn:laneSet>
+            <bpmn:task id="T" name="Check"/>
+          </bpmn:process>
+          <bpmndi:BPMNDiagram id="DI"><bpmndi:BPMNPlane id="PL" bpmnElement="C">
+            <bpmndi:BPMNShape id="S0" bpmnElement="Pool" isHorizontal="true"><dc:Bounds x="10" y="10" width="400" height="160"/></bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="S1" bpmnElement="Lane" isHorizontal="true"><dc:Bounds x="40" y="10" width="370" height="160"/></bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="S2" bpmnElement="T"><dc:Bounds x="100" y="50" width="100" height="80"/></bpmndi:BPMNShape>
+          </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+        </bpmn:definitions>
+        """;
+
+    /// <summary>A BPMN process with a task and a data object.</summary>
+    public const string TaskWithDataObject = """
+        <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" id="D" targetNamespace="urn:t">
+          <bpmn:process id="P">
+            <bpmn:task id="T" name="Check"/>
+            <bpmn:dataObjectReference id="Doc" name="Order"/>
+          </bpmn:process>
+          <bpmndi:BPMNDiagram id="DI"><bpmndi:BPMNPlane id="PL" bpmnElement="P">
+            <bpmndi:BPMNShape id="S2" bpmnElement="T"><dc:Bounds x="100" y="50" width="100" height="80"/></bpmndi:BPMNShape>
+            <bpmndi:BPMNShape id="S3" bpmnElement="Doc"><dc:Bounds x="250" y="60" width="36" height="50"/></bpmndi:BPMNShape>
+          </bpmndi:BPMNPlane></bpmndi:BPMNDiagram>
+        </bpmn:definitions>
+        """;
+
+    /// <summary>A sequence with a message, a dashed reply, a self-message and a message that creates its receiver.</summary>
+    public const string ExchangeWithSelfAndCreation = """
+        sequenceDiagram
+          participant A
+          participant B
+          A->>B: hi
+          B-->>A: ok
+          A->>A: self
+          create participant C
+          A->>C: new
+        """;
 }
