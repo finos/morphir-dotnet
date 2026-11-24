@@ -265,17 +265,26 @@ module private ActivationState =
                 "extension.host_incompatible"
                 "Installed claims require a different host version."
 
-        MepSupport
-            .Evaluate(Array.AsReadOnly(Array.ofList claims.ProtocolVersions))
-            .Match(
-                Func<ProtocolVersion, unit>(ignore),
-                Func<string, unit>(fun reason ->
-                    Operations.fail "extension.mep_not_implemented" reason
-                ),
-                Func<string, unit>(fun reason ->
-                    Operations.fail "extension.mep_not_supported" reason
+        let claimsModelAccess =
+            claims.ProtocolVersions |> List.contains ModelAccess.protocolVersion
+            && (SharedJson.members "claims" claims.Projection
+                |> SharedJson.required "claims" "capabilities"
+                |> SharedJson.members "claims.capabilities"
+                |> SharedJson.optional "modelAccess"
+                |> Option.isSome)
+
+        if not claimsModelAccess then
+            MepSupport
+                .Evaluate(Array.AsReadOnly(Array.ofList claims.ProtocolVersions))
+                .Match(
+                    Func<ProtocolVersion, unit>(ignore),
+                    Func<string, unit>(fun reason ->
+                        Operations.fail "extension.mep_not_implemented" reason
+                    ),
+                    Func<string, unit>(fun reason ->
+                        Operations.fail "extension.mep_not_supported" reason
+                    )
                 )
-            )
 
     let acquire (home: string) expectedHome (plan: PackagePlan) fullHash (ct: CancellationToken) =
         ActivationPlatforms.ensure plan.Artifact.Platform
@@ -473,9 +482,23 @@ module private ActivationState =
 
         Array.append (output.ToArray()) [| 10uy |]
 
+    let private targetSchemaVersion (plan: PackagePlan) =
+        let descriptorVersion = plan.Descriptor.SchemaVersion
+        let claimsVersion = plan.Artifact.Claims.SchemaVersion
+
+        if
+            descriptorVersion = ExtensionSchemaVersion.Preview4
+            || claimsVersion = ExtensionSchemaVersion.Preview4
+            || plan.Artifact.Claims.HasModelAccess
+        then
+            ExtensionSchemaVersion.Preview4
+        else
+            ExtensionSchemaVersion.Preview3
+
     let registerDocuments (plan: PackagePlan) args provenance source =
         let descriptor = plan.Descriptor
         let claims = plan.Artifact.Claims
+        let schemaVersion = targetSchemaVersion plan
         let extension = value "extension" claims.Json
         let capabilities = value "capabilities" claims.Json
 
@@ -553,7 +576,7 @@ module private ActivationState =
         let locked =
             Value.Object(
                 [
-                    "$schema", stringValue (StateDocuments.schemaUrl "lock")
+                    "$schema", stringValue (StateDocuments.schemaUrlFor schemaVersion "lock")
                     "selection",
                     Value.Object["kind", stringValue "exact"
                                  "value", stringValue descriptor.Version.Text]
@@ -627,7 +650,7 @@ module private ActivationState =
             let record =
                 Value.Object(
                     [
-                        "$schema", stringValue (StateDocuments.schemaUrl "index-record")
+                        "$schema", stringValue (StateDocuments.schemaUrlFor (targetSchemaVersion plan) "index-record")
                         "id", stringValue descriptor.ExtensionId.Value
                         "name", value "name" extension
                         "version", stringValue descriptor.Version.Text
@@ -776,7 +799,7 @@ module private ActivationState =
         =
         let current, _ = StateOwnership.readCurrent root
 
-        let entries =
+        let keptEntries =
             (current
              |> Option.map (fun catalog -> catalog.Entries)
              |> Option.defaultValue [])
@@ -784,11 +807,30 @@ module private ActivationState =
                 entry.Id
                 <> locked.Entry.Id
             )
-            |> List.map (fun entry -> entry.Json)
+
+        let entrySchemaVersion (entry: StateEntry) =
+            if entry.Claims.HasModelAccess then
+                ExtensionSchemaVersion.Preview4
+            else
+                entry.Claims.SchemaVersion
+
+        let catalogSchemaVersion =
+            let fromLocked =
+                ExtensionSchemas.combine locked.SchemaVersion (entrySchemaVersion locked.Entry)
+
+            let fromCurrent =
+                current
+                |> Option.map (fun catalog -> catalog.SchemaVersion)
+                |> Option.defaultValue ExtensionSchemaVersion.Preview3
+
+            keptEntries
+            |> List.fold
+                (fun acc item -> ExtensionSchemas.combine acc (entrySchemaVersion item))
+                (ExtensionSchemas.combine fromLocked fromCurrent)
 
         let entries =
             selected
-            :: entries
+            :: (keptEntries |> List.map (fun entry -> entry.Json))
             |> List.sortWith (fun a b ->
                 StringComparer.Ordinal.Compare(
                     value "extensionId" a
@@ -815,12 +857,13 @@ module private ActivationState =
 
                 withFields
                     [
+                        "$schema", Value.String(StateDocuments.schemaUrlFor catalogSchemaVersion "catalog")
                         "extensions", Value.Array entries
                         "critical", Value.Array(List.map Value.String critical)
                     ]
                     current.Json
             | None ->
-                Value.Object["$schema", Value.String(StateDocuments.schemaUrl "catalog")
+                Value.Object["$schema", Value.String(StateDocuments.schemaUrlFor catalogSchemaVersion "catalog")
 
                              "extensions", Value.Array entries
 

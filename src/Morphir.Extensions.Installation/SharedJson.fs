@@ -5,6 +5,11 @@ namespace Morphir.Extensions.Installation
 open System
 open Morphir.Toolchain
 
+[<RequireQualifiedAccess>]
+type internal ExtensionSchemaVersion =
+    | Preview3
+    | Preview4
+
 module internal SharedJson =
     exception private Refusal of InstallationFailure
 
@@ -157,3 +162,38 @@ module internal SharedJson =
             |> List.tryPick id
         | a, b when a = b -> None
         | _ -> Some path
+
+module internal ExtensionSchemas =
+    open SharedJson
+
+    let versionText =
+        function
+        | ExtensionSchemaVersion.Preview3 -> "0.1.0-preview.3"
+        | ExtensionSchemaVersion.Preview4 -> "0.1.0-preview.4"
+
+    let url (version: ExtensionSchemaVersion) (kind: string) =
+        $"https://morphir.finos.org/schemas/extensions/{versionText version}/{kind}.schema.json"
+
+    let supportsModelAccess =
+        function
+        | ExtensionSchemaVersion.Preview4 -> true
+        | ExtensionSchemaVersion.Preview3 -> false
+
+    let combine left right =
+        match left, right with
+        | ExtensionSchemaVersion.Preview4, _
+        | _, ExtensionSchemaVersion.Preview4 -> ExtensionSchemaVersion.Preview4
+        | _ -> ExtensionSchemaVersion.Preview3
+
+    let readVersion file kind items =
+        let preview3 = url ExtensionSchemaVersion.Preview3 kind
+        let preview4 = url ExtensionSchemaVersion.Preview4 kind
+
+        match optional "$schema" items with
+        | Some(Value.String actual) when actual = preview3 -> ExtensionSchemaVersion.Preview3
+        | Some(Value.String actual) when actual = preview4 -> ExtensionSchemaVersion.Preview4
+        | _ ->
+            fail
+                "extension.unsupported_contract_version"
+                file
+                $"Expected exact $schema '{preview3}' or '{preview4}'; no conversion is defined."

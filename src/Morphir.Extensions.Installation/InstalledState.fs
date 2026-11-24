@@ -32,11 +32,7 @@ module internal StateOwnership =
             let result =
                 SharedJson.protect (fun () ->
                     let items = SharedJson.members path value
-
-                    SharedJson.schema
-                        path
-                        $"https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/{kind}.schema.json"
-                        items
+                    ExtensionSchemas.readVersion path kind items |> ignore
                 )
 
             match result with
@@ -394,9 +390,35 @@ module internal StateTransactions =
                 Value.Array[for b: byte in bytes ->
                                 Value.Number(b.ToString(Globalization.CultureInfo.InvariantCulture))]
 
+        let lockVersion =
+            match nextLock with
+            | None -> ExtensionSchemaVersion.Preview3
+            | Some bytes ->
+                match StateDocuments.readLock bytes with
+                | Ok locked ->
+                    if locked.Entry.Claims.HasModelAccess then
+                        ExtensionSchemaVersion.Preview4
+                    else
+                        locked.SchemaVersion
+                | Error _ -> ExtensionSchemaVersion.Preview3
+
+        let catalogVersion =
+            match nextCatalog with
+            | None -> ExtensionSchemaVersion.Preview3
+            | Some bytes ->
+                match StateDocuments.readCatalog bytes with
+                | Ok catalog ->
+                    if catalog.Entries |> List.exists (fun e -> e.Claims.HasModelAccess) then
+                        ExtensionSchemaVersion.Preview4
+                    else
+                        catalog.SchemaVersion
+                | Error _ -> ExtensionSchemaVersion.Preview3
+
+        let journalVersion = ExtensionSchemas.combine lockVersion catalogVersion
+
         let journalBytes =
             JsonText.toBytes (
-                Value.Object["$schema", Value.String(StateDocuments.schemaUrl "journal")
+                Value.Object["$schema", Value.String(StateDocuments.schemaUrlFor journalVersion "journal")
                              "nextLock", encode nextLock
                              "nextCatalog", encode nextCatalog]
             )

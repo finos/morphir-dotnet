@@ -104,6 +104,31 @@ type TreeWriteError =
     /// </summary>
     | WriteFailed of outputDir: string * cause: exn
 
+    override this.ToString() : string =
+        let describeProblem (problem: TreeWriteProblem): string =
+            match problem with
+            | TreeWriteProblem.FileWithoutPath _ -> "a file has no path"
+            | TreeWriteProblem.PathOutsideOutputDirectory location ->
+                "path is outside the output directory: " + location
+            | TreeWriteProblem.DuplicateLocation location -> "more than one file has the path: " + location
+            | TreeWriteProblem.SymbolicLinkInPath location -> "a directory on the way to this path is a symbolic link: " + location
+            | TreeWriteProblem.TreeHasErrors errors ->
+                "the tree has errors: " + String.Join("; ", errors |> List.map VMessage.describe)
+            | TreeWriteProblem.DeclaredOrderMismatch (unexpected, missing) ->
+                "the declared order does not match the tree's files. Not in the tree: "
+                + String.Join(", ", unexpected)
+                + ". Not in the order: "
+                + String.Join(", ", missing)
+            | TreeWriteProblem.InvalidManifestEntry entry -> "the previous manifest has an unsafe entry: " + entry
+            | TreeWriteProblem.InvalidManifestName name -> "the manifest name must be a plain file name: " + name
+
+        match this with
+        | TreeWriteError.InvalidTree problems -> String.Join("; ", problems |> List.map describeProblem)
+        | TreeWriteError.WriteFailed (outputDir, cause) -> "could not write to " + outputDir + ": " + cause.Message
+
+    /// <summary>For C# callers: describes this error in text suitable for showing to a person.</summary>
+    member this.Describe(): string = this.ToString()
+
 /// <summary>
 /// Whether publishing tracks the files it owns in a manifest.
 /// </summary>
@@ -130,14 +155,30 @@ type PublishOptions = {
 /// <summary>
 /// What publishing a tree did, as locations relative to the output root.
 /// </summary>
-type PublishResult = {
-    /// <summary>Files created or replaced</summary>
-    Written: string list
-    /// <summary>Files already byte-identical, and left untouched</summary>
-    Unchanged: string list
-    /// <summary>Files deleted because the previous manifest listed them and the tree does not</summary>
-    Removed: string list
-}
+type PublishResult =
+    {
+        /// <summary>Files created or replaced</summary>
+        Written: string list
+        /// <summary>Files already byte-identical, and left untouched</summary>
+        Unchanged: string list
+        /// <summary>Files deleted because the previous manifest listed them and the tree does not</summary>
+        Removed: string list
+    }
+
+    /// <summary>For C# callers: files created or replaced, as a read-only list.</summary>
+    member this.WrittenPaths: System.Collections.Generic.IReadOnlyList<string> =
+        List.toArray this.Written :> System.Collections.Generic.IReadOnlyList<string>
+
+    /// <summary>For C# callers: files already byte-identical and left untouched, as a read-only list.</summary>
+    member this.UnchangedPaths: System.Collections.Generic.IReadOnlyList<string> =
+        List.toArray this.Unchanged :> System.Collections.Generic.IReadOnlyList<string>
+
+    /// <summary>For C# callers: files deleted because the previous manifest listed them and the tree does not, as a read-only list.</summary>
+    member this.RemovedPaths: System.Collections.Generic.IReadOnlyList<string> =
+        List.toArray this.Removed :> System.Collections.Generic.IReadOnlyList<string>
+
+    override this.ToString() : string =
+        $"PublishResult(Written={this.Written.Length}, Unchanged={this.Unchanged.Length}, Removed={this.Removed.Length})"
 
 /// <summary>
 /// The reason <c>VFileTree.loadFromDisk</c> failed.
@@ -158,27 +199,7 @@ module TreeWriteError =
     /// Describes an error in text suitable for showing to a person.
     /// </summary>
     /// <param name="error">The error to describe</param>
-    let describe (error: TreeWriteError): string =
-        let describeProblem (problem: TreeWriteProblem): string =
-            match problem with
-            | TreeWriteProblem.FileWithoutPath _ -> "a file has no path"
-            | TreeWriteProblem.PathOutsideOutputDirectory location ->
-                "path is outside the output directory: " + location
-            | TreeWriteProblem.DuplicateLocation location -> "more than one file has the path: " + location
-            | TreeWriteProblem.SymbolicLinkInPath location -> "a directory on the way to this path is a symbolic link: " + location
-            | TreeWriteProblem.TreeHasErrors errors ->
-                "the tree has errors: " + String.Join("; ", errors |> List.map VMessage.describe)
-            | TreeWriteProblem.DeclaredOrderMismatch (unexpected, missing) ->
-                "the declared order does not match the tree's files. Not in the tree: "
-                + String.Join(", ", unexpected)
-                + ". Not in the order: "
-                + String.Join(", ", missing)
-            | TreeWriteProblem.InvalidManifestEntry entry -> "the previous manifest has an unsafe entry: " + entry
-            | TreeWriteProblem.InvalidManifestName name -> "the manifest name must be a plain file name: " + name
-
-        match error with
-        | TreeWriteError.InvalidTree problems -> String.Join("; ", problems |> List.map describeProblem)
-        | TreeWriteError.WriteFailed (outputDir, cause) -> "could not write to " + outputDir + ": " + cause.Message
+    let describe (error: TreeWriteError): string = error.ToString()
 
 /// <summary>
 /// Functions for working with tree load errors.

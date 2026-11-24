@@ -147,7 +147,7 @@ public sealed class SessionStore : IDisposable
     /// <summary>The bounds of this session.</summary>
     public SessionLimits Limits { get; private set; }
 
-    internal string? ApplyModelAccessLimits(int frameBytes, int guestStateBytes)
+    internal string? ApplyModelAccessLimits(long frameBytes, int guestStateBytes)
     {
         var ceiling = Math.Min(Limits.MemoryCeilingBytes, guestStateBytes);
         var memory = Memory;

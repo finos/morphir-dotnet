@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using Morphir.Mep;
+using Morphir.TestSupport.Fixtures;
 
 namespace Morphir.Extensions.Wasm.Tests;
 
@@ -25,16 +26,23 @@ public class ChannelTests
     /// are busy, and still well under the call deadline at which a call that ignored its cancellation would end.</summary>
     private static readonly TimeSpan StopLimit = TimeSpan.FromSeconds(2);
 
-    private static ExtismModule Admit(string module) =>
-        WasmEngine.Shared.Load(CraftedCorpus.ModuleBytes(module)).Match(
+    private static ExtismModule AdmitBytes(byte[] moduleBytes) =>
+        WasmEngine.Shared.Load(moduleBytes).Match(
             compiled => WasmHost.Admit(compiled, WasmAbi.ExtismKernel).Match(
                 admitted => admitted,
                 refused => throw new InvalidOperationException(refused.Message)),
             refused => throw new InvalidOperationException(refused.Message),
             notWasm => throw new InvalidOperationException(notWasm));
 
+    private static ExtismModule Admit(string module) => AdmitBytes(CraftedCorpus.ModuleBytes(module));
+
     private static WasmChannel Open(string module, SessionLimits? limits = null) =>
         WasmChannel.Open(Admit(module), limits ?? SessionLimits.Default).Match(
+            channel => channel,
+            failure => throw new InvalidOperationException($"The channel did not open: {failure.Message}"));
+
+    private static WasmChannel OpenBytes(byte[] moduleBytes, SessionLimits? limits = null) =>
+        WasmChannel.Open(AdmitBytes(moduleBytes), limits ?? SessionLimits.Default).Match(
             channel => channel,
             failure => throw new InvalidOperationException($"The channel did not open: {failure.Message}"));
 
@@ -550,5 +558,56 @@ public class ChannelTests
 
         await Assert.That(failure).IsNotNull();
         await Assert.That(failure!.Code).IsEqualTo("extension.memory_limit");
+    }
+
+    [Test]
+    public async Task ApplyModelAccessLimits_admits_body_at_exact_maxFrameBytes_and_refuses_one_byte_over()
+    {
+        // OrdersScale opens WASM with WasmChannel.FrameBytes(65536) and 2 MiB per linear memory (16 pages of Extism
+        // kernel initial memory plus headroom for 64 KiB request and echo buffers), offering a 65,536-byte body ceiling.
+        // extism-echo echoes the exact request body bytes as the response body, testing both request and response
+        // framing through the real WASM adapter at the exact OrdersScale maxFrameBytes boundary.
+        const int OrdersScaleBodyBytes = 65536;
+        var ordersScaleWholeFrame = WasmChannel.FrameBytes(OrdersScaleBodyBytes);
+        const int OrdersScaleMemoryCeilingBytes = 2 * 1024 * 1024;
+        var ordersScaleSessionLimits = SessionLimits.Default with
+        {
+            MemoryCeilingBytes = OrdersScaleMemoryCeilingBytes,
+            RequestFrameBytes = ordersScaleWholeFrame,
+            ResponseFrameBytes = ordersScaleWholeFrame,
+        };
+        var modelAccessLimits = new Morphir.Mep.ModelAccessLimits(
+            OrdersScaleBodyBytes, OrdersScaleBodyBytes, OrdersScaleBodyBytes, 1, 128, 1_000_000, 64, 1,
+            OrdersScaleMemoryCeilingBytes, 64 * 1024 * 1024, 32 * 1024, 2L * 1024 * 1024, 3L * 1024 * 1024 * 1024,
+            8L * 1024 * 1024 * 1024, 100_000_000L, 200_000, 30_000, 7_200_000);
+
+        var echoModuleBytes = FixtureCatalog.ReadBytes(FixtureCatalog.WasmHost.ExtismEchoModule);
+
+        using (var channel = OpenBytes(echoModuleBytes, ordersScaleSessionLimits))
+        {
+            var refusal = channel.ApplyModelAccessLimits(modelAccessLimits);
+            await Assert.That(refusal).IsNull();
+
+            var exactBody = new byte[OrdersScaleBodyBytes];
+            Array.Fill(exactBody, (byte)'x');
+            var reply = await channel.RequestAsync(Shutdown, exactBody, CancellationToken.None);
+
+            await Assert.That(reply).IsNotNull();
+            await Assert.That(reply!.Length).IsEqualTo(OrdersScaleBodyBytes);
+        }
+
+        using (var overChannel = OpenBytes(echoModuleBytes, ordersScaleSessionLimits))
+        {
+            var refusal = overChannel.ApplyModelAccessLimits(modelAccessLimits);
+            await Assert.That(refusal).IsNull();
+
+            var oversizedBody = new byte[OrdersScaleBodyBytes + 1];
+            Array.Fill(oversizedBody, (byte)'x');
+            var thrown = await Assert.That(async () => await overChannel.RequestAsync(Shutdown, oversizedBody, CancellationToken.None))
+                .Throws<WasmChannelException>();
+
+            await Assert.That(thrown!.Failure).IsTypeOf<WasmChannelFailure.RequestOverLimit>();
+            await Assert.That(thrown.Message).Contains("maxFrameBytes");
+        }
     }
 }

@@ -306,12 +306,57 @@ module MorphirFile =
         readEnvelopeRootDetailed orderPolicy limits file root
         |> Result.mapError StoreErrors.toStoreErrors
 
-    let internal readEnvelopeWithOrderDetailed
-        orderPolicy
+    /// <summary>
+    /// Inspects a raw JSON/YAML root before context expansion and returns the first optional envelope or context
+    /// member (such as <c>context.prefixes</c>) that plain JSON IR cannot preserve.
+    /// </summary>
+    let internal findUnrepresentableEnvelopeMember (root: JsonElement) : string option =
+        let mutable schema = Unchecked.defaultof<JsonElement>
+
+        if root.ValueKind <> JsonValueKind.Object || not (root.TryGetProperty("$schema", &schema)) then
+            None
+        else
+            let envelopeUnknown =
+                root.EnumerateObject()
+                |> Seq.tryPick (fun prop ->
+                    match prop.Name with
+                    | "$schema"
+                    | "critical"
+                    | "context"
+                    | "document" -> None
+                    | other -> Some $"envelope.{other}"
+                )
+
+            match envelopeUnknown with
+            | Some found -> Some found
+            | None ->
+                let mutable ctx = Unchecked.defaultof<JsonElement>
+
+                if root.TryGetProperty("context", &ctx) && ctx.ValueKind = JsonValueKind.Object then
+                    ctx.EnumerateObject()
+                    |> Seq.tryPick (fun prop ->
+                        match prop.Name with
+                        | "names"
+                        | "packagePaths"
+                        | "modulePaths"
+                        | "fqNames" -> None
+                        | other -> Some $"context.{other}"
+                    )
+                else
+                    None
+
+    let internal readEnvelopeRootAndInspect orderPolicy limits file (root: JsonElement) =
+        let unrepresentable = findUnrepresentableEnvelopeMember root
+
+        readEnvelopeRoot orderPolicy limits file root
+        |> Result.map (fun parsed -> parsed, unrepresentable)
+
+    let private parseEnvelopeBytesDetailed
         (limits: ContextLimits)
         (file: string)
         (bytes: ReadOnlyMemory<byte>)
-        : Result<MorphirFile<JsonElement>, TreeDiagnostic list> =
+        (reader: JsonElement -> Result<'a, TreeDiagnostic list>)
+        : Result<'a, TreeDiagnostic list> =
         try
             use document =
                 JsonDocument.Parse(
@@ -319,7 +364,7 @@ module MorphirFile =
                     JsonDocumentOptions(MaxDepth = limits.MaxDepth)
                 )
 
-            readEnvelopeRootDetailed orderPolicy limits file document.RootElement
+            reader document.RootElement
         with :? JsonException as problem ->
             if isJsonAtAnyDepth (withoutByteOrderMark bytes) then
                 Error [
@@ -330,6 +375,27 @@ module MorphirFile =
                 ]
             else
                 Error [ diagnostic "invalid_json" file problem.Message ]
+
+    let internal readEnvelopeWithOrderDetailed
+        orderPolicy
+        (limits: ContextLimits)
+        (file: string)
+        (bytes: ReadOnlyMemory<byte>)
+        : Result<MorphirFile<JsonElement>, TreeDiagnostic list> =
+        parseEnvelopeBytesDetailed limits file bytes (readEnvelopeRootDetailed orderPolicy limits file)
+
+    let internal readEnvelopeWithOrderAndInspect
+        orderPolicy
+        (limits: ContextLimits)
+        (file: string)
+        (bytes: ReadOnlyMemory<byte>)
+        : Result<MorphirFile<JsonElement> * string option, StoreError list> =
+        parseEnvelopeBytesDetailed limits file bytes (fun root ->
+            let unrepresentable = findUnrepresentableEnvelopeMember root
+            readEnvelopeRootDetailed orderPolicy limits file root
+            |> Result.map (fun parsed -> parsed, unrepresentable)
+        )
+        |> Result.mapError StoreErrors.toStoreErrors
 
     let internal readEnvelopeDetailed limits file bytes =
         readEnvelopeWithOrderDetailed ContextOrder.WholeFile limits file bytes

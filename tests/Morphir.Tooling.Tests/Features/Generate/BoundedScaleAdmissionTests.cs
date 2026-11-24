@@ -66,11 +66,12 @@ public sealed class BoundedScaleAdmissionTests
         limits.MaxRounds.Should().Be(200_000).And.BeGreaterThan(157_825);
         limits.MaxSessionWorkUnits.Should().Be(100_000_000L);
         limits.MaxSessionMilliseconds.Should().Be(7_200_000);
-        limits.MaxGuestStateBytes.Should().Be(1024 * 1024);
+        limits.MaxGuestStateBytes.Should().Be(2 * 1024 * 1024);
         var wasm = RecordedGenerationAdmission.WasmLimits(profile, limits);
-        wasm.RequestFrameBytes.Should().Be(65536);
-        wasm.ResponseFrameBytes.Should().Be(65536);
-        wasm.MemoryCeilingBytes.Should().Be(1024 * 1024);
+        var expectedWholeFrame = 65536L + System.Text.Encoding.ASCII.GetByteCount("Content-Length: 65536\r\n\r\n");
+        wasm.RequestFrameBytes.Should().Be(expectedWholeFrame);
+        wasm.ResponseFrameBytes.Should().Be(expectedWholeFrame);
+        wasm.MemoryCeilingBytes.Should().Be(2 * 1024 * 1024);
         var ids = RecordedGenerationAdmission.RequestIdReservation(profile, limits.MaxHostCacheBytes);
         var discovery = limits.MaxHostCacheBytes / 4L;
         ids.Should().Be(32L * 1024 * 1024);
@@ -157,6 +158,47 @@ public sealed class BoundedScaleAdmissionTests
         var defaults = RecordedGenerationAdmission.Offer(BoundedGenerationProfile.Default, ModelReadLimits.Default, wasm: true);
         RecordedGenerationAdmission.DocumentByteLimit(ModelReadLimits.Default, defaults).Should().Be(defaults.MaxDecodedBytesPerExchange);
     }
+    [Test]
+    [Category("PlatformSpecific")]
+    public async Task ProductionOrdersScaleProfileAdmitsExactMaxFrameBytesAndRefusesOneByteOverThroughRealWasmAdapter()
+    {
+        var profile = BoundedGenerationProfile.OrdersScale;
+        var reader = RecordedGenerationAdmission.ReaderLimits(profile, ModelReadLimits.Default);
+        var offer = RecordedGenerationAdmission.Offer(profile, reader, wasm: true);
+        var wasmLimits = RecordedGenerationAdmission.WasmLimits(profile, offer);
+
+        var moduleBytes = Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes(
+            Morphir.TestSupport.Fixtures.FixtureCatalog.WasmHost.ExtismEchoModule);
+        var admitted = Morphir.Extensions.Wasm.WasmEngine.Shared.Load(moduleBytes).Match(
+            compiled => Morphir.Extensions.Wasm.WasmHost.Admit(compiled, Morphir.Extensions.Wasm.WasmAbi.ExtismKernel).Match(
+                static ok => ok,
+                static err => throw new InvalidOperationException(err.Message)),
+            static err => throw new InvalidOperationException(err.Message),
+            static notWasm => throw new InvalidOperationException(notWasm));
+
+        using (var channel = Morphir.Extensions.Wasm.WasmChannel.Open(admitted, wasmLimits).Match(
+            static ok => ok,
+            static err => throw new InvalidOperationException(err.Message)))
+        {
+            var exactBody = new byte[offer.MaxFrameBytes];
+            Array.Fill(exactBody, (byte)'x');
+            var reply = await channel.RequestAsync("morphir.shutdown", exactBody, CancellationToken.None);
+            reply.Should().NotBeNull();
+            reply!.Length.Should().Be(offer.MaxFrameBytes);
+        }
+
+        using (var overChannel = Morphir.Extensions.Wasm.WasmChannel.Open(admitted, wasmLimits).Match(
+            static ok => ok,
+            static err => throw new InvalidOperationException(err.Message)))
+        {
+            var oversizedBody = new byte[offer.MaxFrameBytes + 1];
+            Array.Fill(oversizedBody, (byte)'x');
+            var act = async () => await overChannel.RequestAsync("morphir.shutdown", oversizedBody, CancellationToken.None);
+            var thrown = (await act.Should().ThrowAsync<Morphir.Extensions.Wasm.WasmChannelException>()).Which;
+            thrown.Failure.Should().BeOfType<Morphir.Extensions.Wasm.WasmChannelFailure.RequestOverLimit>();
+        }
+    }
+
     private sealed class RejectingLoader : IModelLoader
     {
         public int Calls { get; private set; }

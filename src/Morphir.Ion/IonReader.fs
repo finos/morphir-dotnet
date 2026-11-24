@@ -227,8 +227,10 @@ module IonReader =
                 // The reader copies nothing it does not need, so a stream over the caller's memory is enough.
                 let stream =
                     match MemoryMarshal.TryGetArray bytes with
-                    | true, segment when not (isNull segment.Array) ->
-                        new MemoryStream(nonNull segment.Array, segment.Offset, segment.Count, false)
+                    | true, segment ->
+                        match segment.Array with
+                        | null -> new MemoryStream(bytes.ToArray(), false)
+                        | array -> new MemoryStream(array, segment.Offset, segment.Count, false)
                     | _ -> new MemoryStream(bytes.ToArray(), false)
 
                 use stream = stream
@@ -342,7 +344,9 @@ module IonReader =
                 let stream =
                     match MemoryMarshal.TryGetArray prefix with
                     | true, segment ->
-                        new MemoryStream(segment.Array, segment.Offset, segment.Count, false)
+                        match segment.Array with
+                        | null -> new MemoryStream(prefix.ToArray(), false)
+                        | array -> new MemoryStream(array, segment.Offset, segment.Count, false)
                     | _ -> new MemoryStream(prefix.ToArray(), false)
 
                 use stream = stream

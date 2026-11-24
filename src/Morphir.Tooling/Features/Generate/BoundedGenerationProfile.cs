@@ -42,35 +42,68 @@ internal static class RecordedGenerationAdmission
     internal static long? RequestIdReservation(BoundedGenerationProfile profile, long selectedHostCacheBytes) =>
         profile == BoundedGenerationProfile.OrdersScale ? selectedHostCacheBytes / 2L : null;
 
+    // The explicit-tree route always reserves half of the negotiated host cache for request-ID tracking so
+    // the operation ledger cannot retain request IDs across rounds without a byte cap.
+    internal static long ExplicitTreeRequestIdReservation(long selectedHostCacheBytes) =>
+        selectedHostCacheBytes / 2L;
+
     internal static SessionLimits WasmLimits(BoundedGenerationProfile profile, ModelAccessLimits offer)
     {
         var defaults = SessionLimits.Default;
+        var wholeFrameBytes = WasmChannel.FrameBytes(offer.MaxFrameBytes);
         return defaults with
         {
             MemoryCeilingBytes = Math.Min(defaults.MemoryCeilingBytes, offer.MaxGuestStateBytes),
             CallDeadline = TimeSpan.FromMilliseconds(offer.MaxCallMilliseconds),
             RequestFrameBytes = profile == BoundedGenerationProfile.OrdersScale
-                ? Math.Min(defaults.RequestFrameBytes, offer.MaxFrameBytes) : defaults.RequestFrameBytes,
+                ? Math.Min(defaults.RequestFrameBytes, wholeFrameBytes) : defaults.RequestFrameBytes,
             ResponseFrameBytes = profile == BoundedGenerationProfile.OrdersScale
-                ? Math.Min(defaults.ResponseFrameBytes, offer.MaxFrameBytes) : defaults.ResponseFrameBytes,
+                ? Math.Min(defaults.ResponseFrameBytes, wholeFrameBytes) : defaults.ResponseFrameBytes,
         };
     }
+    internal static int WasmFrameBodyBytes()
+    {
+        var adapter = SessionLimits.Default;
+        var frameBytes = Math.Min(adapter.RequestFrameBytes, adapter.ResponseFrameBytes);
+        return MaxBodyBytesForWholeFrame(frameBytes);
+    }
+
+    internal static int MaxBodyBytesForWholeFrame(long frameBytes)
+    {
+        var headerBytes = System.Text.Encoding.ASCII.GetByteCount($"Content-Length: {frameBytes}\r\n\r\n");
+        var body = Math.Max(0L, frameBytes - headerBytes);
+        while (body < frameBytes && WasmChannel.FrameBytes(body + 1) <= frameBytes)
+            body++;
+        return (int)Math.Min(ContentLengthFraming.MaxBodyBytes, body);
+    }
+
+    internal static ModelAccessSupport ClampForWasm(BoundedGenerationProfile profile, ModelAccessSupport offer)
+    {
+        if (profile == BoundedGenerationProfile.OrdersScale)
+            return offer;
+        var l = offer.Limits;
+        var clampedFrame = Math.Min(l.MaxFrameBytes, WasmFrameBodyBytes());
+        if (clampedFrame == l.MaxFrameBytes)
+            return offer;
+        var clamped = new ModelAccessLimits(clampedFrame, l.MaxEncodedBytesPerExchange, l.MaxDecodedBytesPerExchange,
+            l.MaxDocumentsPerBatch, l.MaxDepth, l.MaxNodes, l.MaxDiagnosticsPerExchange, l.MaxOutstandingRequests,
+            l.MaxGuestStateBytes, l.MaxHostCacheBytes, l.MaxArtifactChunkBytes, l.MaxArtifactBytes,
+            l.MaxTotalArtifactBytes, l.MaxSessionDiskBytes, l.MaxSessionWorkUnits, l.MaxRounds,
+            l.MaxCallMilliseconds, l.MaxSessionMilliseconds);
+        return new ModelAccessSupport(offer.Tuples, clamped);
+    }
+
     internal static ModelAccessLimits Offer(BoundedGenerationProfile profile, ModelReadLimits limits, bool wasm)
     {
         if (profile == BoundedGenerationProfile.OrdersScale)
+            // The Extism kernel starts with 16 pages (1 MiB) of linear memory, so 2 MiB per memory gives the kernel
+            // headroom to allocate a full 65,536-byte advertised frame and its response without failing allocation.
             return new(64 * 1024, 64 * 1024, 64 * 1024, 1, limits.MaxDepth, limits.MaxNodes,
-                64, 1, 1024 * 1024, 64 * 1024 * 1024, 32 * 1024,
+                64, 1, 2 * 1024 * 1024, 64 * 1024 * 1024, 32 * 1024,
                 2L * 1024 * 1024, 3L * 1024 * 1024 * 1024, 8L * 1024 * 1024 * 1024,
                 100_000_000L, 200_000, 30_000, 7_200_000);
 
-        var frameBodyBytes = ContentLengthFraming.MaxBodyBytes;
-        if (wasm)
-        {
-            var adapter = SessionLimits.Default;
-            var frameBytes = Math.Min(adapter.RequestFrameBytes, adapter.ResponseFrameBytes);
-            var headerBytes = System.Text.Encoding.ASCII.GetByteCount($"Content-Length: {frameBytes}\r\n\r\n");
-            frameBodyBytes = (int)Math.Min(frameBodyBytes, frameBytes - headerBytes);
-        }
+        var frameBodyBytes = wasm ? WasmFrameBodyBytes() : ContentLengthFraming.MaxBodyBytes;
         return new(frameBodyBytes, 4 * 1024 * 1024, (int)Math.Min(limits.MaxBytes, 3 * 1024 * 1024),
             64, limits.MaxDepth, limits.MaxNodes, 64, 64, 64 * 1024 * 1024, 16 * 1024 * 1024, 1024 * 1024,
             4L * 1024 * 1024 * 1024, 4L * 1024 * 1024 * 1024, 8L * 1024 * 1024 * 1024,

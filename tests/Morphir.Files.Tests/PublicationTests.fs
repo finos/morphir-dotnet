@@ -667,5 +667,47 @@ let csharpSurfaceTests =
 
                 Expect.isFalse (Directory.Exists root) "nothing is written")
         }
+
+        test "PublishResult C# collection properties, ToString, and TreeWriteError.Describe/ToString expose read-only lists and formatted text" {
+            use sandbox = Morphir.TestSupport.TestSandbox.Create("morphir-publish-")
+            let root = sandbox.PathOf("out")
+            let opts = tracked root
+
+            let firstResult =
+                VFileTree.matchPublish (
+                    opts,
+                    treeOf [ "a.fs", "A"; "b.fs", "B" ],
+                    Func<PublishResult, PublishResult>(id),
+                    Func<TreeWriteError, PublishResult>(fun err -> failtest (err.Describe()))
+                )
+
+            Expect.equal (Seq.toList firstResult.WrittenPaths) [ "a.fs"; "b.fs" ] "WrittenPaths exposes created files"
+            Expect.equal (firstResult.ToString()) "PublishResult(Written=2, Unchanged=0, Removed=0)" "PublishResult.ToString formats counts explicitly"
+
+            let second =
+                VFileTree.matchPublish (
+                    opts,
+                    treeOf [ "a.fs", "A"; "c.fs", "C" ],
+                    Func<PublishResult, _>(fun result ->
+                        Seq.toList result.WrittenPaths, Seq.toList result.UnchangedPaths, Seq.toList result.RemovedPaths, result.ToString()),
+                    Func<TreeWriteError, _>(fun err -> failtest (err.Describe()))
+                )
+
+            Expect.equal
+                second
+                ([ "c.fs" ], [ "a.fs" ], [ "b.fs" ], "PublishResult(Written=1, Unchanged=1, Removed=1)")
+                "WrittenPaths, UnchangedPaths, RemovedPaths, and ToString reflect update"
+
+            let described, asString =
+                VFileTree.matchPublish (
+                    plain root,
+                    treeOf [ "../evil.fs", "E" ],
+                    Func<PublishResult, string * string>(fun _ -> "", ""),
+                    Func<TreeWriteError, string * string>(fun err -> err.Describe(), err.ToString())
+                )
+
+            Expect.stringContains described "../evil.fs" "TreeWriteError.Describe() renders the failure text"
+            Expect.equal asString described "TreeWriteError.ToString() matches TreeWriteError.Describe()"
+        }
     ]
     |> testLabel "PlatformSpecific"

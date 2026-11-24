@@ -9,6 +9,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Morphir.Tooling" />
+    <InternalsVisibleTo Include="Morphir.Extensions.Wasm.Tests" />
     <PackageReference Include="Wasmtime" />
   </ItemGroup>
   <ItemGroup>

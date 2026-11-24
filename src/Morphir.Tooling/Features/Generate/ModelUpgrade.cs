@@ -1,7 +1,9 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
+using System.Buffers.Binary;
 using System.Collections.Immutable;
 using System.Security.Cryptography;
+using System.Text;
 using Morphir.Compilation;
 using Morphir.IR.Model;
 using Morphir.MiddleEnd;
@@ -14,21 +16,33 @@ namespace Morphir.Tooling.Features.Generate;
 /// </summary>
 internal static class ModelUpgrade
 {
-    /// <summary>The digest that pins the addresses of the input: the SHA-256 of its bytes, in order of path for a tree.</summary>
+    /// <summary>
+    /// The digest that pins the addresses of the input: the SHA-256 of its bytes for a file, or a canonical
+    /// length-framed SHA-256 over ordinal-sorted path/content pairs for a tree so entries cannot collide across boundaries.
+    /// </summary>
     internal static Sha256Digest SnapshotOf(RetainedInput input)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         switch (input)
         {
             case RetainedInput.File file:
-                hash.AppendData(file.Entry.CopyBytes());
+                hash.AppendData(file.Entry.Memory.Span);
                 break;
             case RetainedInput.Tree tree:
-                foreach (var entry in tree.Entries.OrderBy(entry => entry.RelativePath, StringComparer.Ordinal))
+                var ordered = tree.Entries.OrderBy(entry => entry.RelativePath, StringComparer.Ordinal).ToArray();
+                Span<byte> length4 = stackalloc byte[4];
+                Span<byte> length8 = stackalloc byte[8];
+                BinaryPrimitives.WriteInt32LittleEndian(length4, ordered.Length);
+                hash.AppendData(length4);
+                foreach (var entry in ordered)
                 {
-                    hash.AppendData(System.Text.Encoding.UTF8.GetBytes(entry.RelativePath));
-                    hash.AppendData([0]);
-                    hash.AppendData(entry.CopyBytes());
+                    var pathBytes = Encoding.UTF8.GetBytes(entry.RelativePath);
+                    BinaryPrimitives.WriteInt32LittleEndian(length4, pathBytes.Length);
+                    hash.AppendData(length4);
+                    hash.AppendData(pathBytes);
+                    BinaryPrimitives.WriteInt64LittleEndian(length8, entry.Length);
+                    hash.AppendData(length8);
+                    hash.AppendData(entry.Memory.Span);
                 }
 
                 break;

@@ -250,25 +250,42 @@ Rates.fs
 Totals.fs
 ```
 
-### Bounded generation from a compile record
+### Bounded generation from document trees
 
-Given a completed compile record with a document-tree descriptor, omit `--input`.
-Morphir opens the tree at the path in the record and holds the compile read lease
-until the guest has stopped. The guest pages the module inventory and
-requests definitions by logical identifier. It receives the selected documents
-through MEP without being given the tree's physical path.
+Given a completed compile record with a JSON or YAML document-tree descriptor (omit `--input`),
+or an explicit `--input <tree>` directory containing `manifest.json`, `manifest.yaml`, or
+`manifest.yml`, Morphir routes external MEP backends (`--extension`, `[codegen.<target>].extension`,
+or installed `--extension-id`) through bounded `0.2.0-draft.2` model access (`modelAccess`).
+For a recorded compile, Morphir holds the compile read lease until the guest has stopped.
+For an explicit `--input <tree>`, Morphir captures an owned, bounded immutable snapshot before
+dispatch so external edits on disk cannot mutate bytes mid-session. The guest pages the module
+inventory and requests definitions by logical identifier, receiving the selected documents through
+MEP without being given the tree's physical path.
 
 ```sh
 morphir generate --out-dir build-artifacts --target text --extension ./orders-generator --output generated
+morphir generate --input ./ir-tree --target text --extension-id org.example.generator --output generated
 ```
 
-Here `orders-generator` is a native guest that advertises the `text` target.
+Here `orders-generator` is a native guest (or installed extension selected by `--extension-id`)
+that advertises the `text` target. Installed `0.2.0-draft.2` extensions must declare matching
+`capabilities.modelAccess` tuples and bounds in their static claims, which are checked at
+activation and against the live negotiated session.
 The host offers MEP `0.2.0-draft.2` and access `0.1.0-draft.1` with operation
 `morphir.backend.generateModel`, profile `morphir-ir`, layout `document-tree`,
-and encoding `plain`. The offer uses the record's exact IR version (`3.1.0`
-or `4.0.0`) and the manifest's codec (`morphir-json` or `morphir-yaml`).
-The guest must agree to that tuple. It never receives an inline copy of the
-recorded tree. For process guests, the host checks the negotiated
+and encoding `plain` or `https://morphir.finos.org/schemas/ir-context/0.1.0-draft.1/document.schema.json`
+(negotiated as contextual whenever any admitted file in the tree carries the declared contextual
+envelope; `orders-scale` continues to require a plain JSON v4 recorded tree). The offer uses the
+tree's exact IR version (`3.1.0` or `4.0.0`) and codec (`morphir-json` or `morphir-yaml`).
+For non-`orders-scale` runs, if the selected extension speaks only MEP `0.2.0-draft.1` (does not
+agree to `0.2.0-draft.2` `modelAccess`), Morphir converts the model losslessly to single-document
+JSON (`4.0.0`, `3.1.0`, or `3.0.0`), preserves the original `modelId` with a deterministic
+`sha256:` `revision`, admits it against the agreed `modelTransport` limits, emits an `info`
+diagnostic `extension.model_converted`, and refuses with `data.lossy_conversion` (sending no
+request) if any unrepresentable metadata would be dropped. Recorded fallback runs commit and
+install through the same `generate/<target>.json` task ledger as `0.2.0-draft.2` runs; explicit
+tree runs stage artifacts privately and publish through the configured output ownership manifest.
+For process guests, the host checks the negotiated
 `maxFrameBytes` body ceiling from the header before reading the response. For
 configured WASM guests, the adapter applies the selected limit to the full
 frame, including its Content-Length header, and checks the reply size before
