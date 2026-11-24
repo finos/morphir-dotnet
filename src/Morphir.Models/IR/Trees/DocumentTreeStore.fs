@@ -329,6 +329,33 @@ module DocumentTreeStore =
         |> Result.mapError (fun errors -> List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>)
 
     /// <summary>
+    /// Open a cached snapshot with an explicit file-local name encoding from a host callback with C#-safe
+    /// admission errors, falling back to the metered uncached scan if long paths overflow <paramref name="cacheBytes"/>.
+    /// The host must reserve <paramref name="cacheBytes"/> alongside its other retained host-cache data.
+    /// For C# callers.
+    /// </summary>
+    [<CompiledName("OpenSnapshotWithDiscoveryCacheFallbackAndEncoding")>]
+    let openSnapshotWithDiscoveryCacheFallbackAndEncoding
+        (
+            options: ReadOptions,
+            encoding: BoundedTreeEncoding,
+            cacheBytes: int64,
+            revision: System.Func<string>,
+            provider: Microsoft.Extensions.FileProviders.IFileProvider
+        ) : Result<BoundedTreeSnapshot, System.Collections.Generic.IReadOnlyList<StoreError>> =
+        let opened =
+            if options.MaxFiles < 1 then
+                Error [ error "tree.invalid_limit" None "A module lookup limit must be positive." ]
+            elif cacheBytes < 0L then
+                Error [ error "tree.invalid_limit" None "A discovery reservation cannot be negative." ]
+            else
+                TreeFileSource.fromFileProviderWithDiscoveryCacheFallback options.MaxFiles cacheBytes (fun () -> revision.Invoke()) provider
+                |> BoundedTreeReader.openTreeWithEncoding encoding options.MaxFileBytes
+
+        opened
+        |> Result.mapError (fun errors -> List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>)
+
+    /// <summary>
     /// Open a cached snapshot from a host callback, detecting whether the manifest carries the declared
     /// contextual draft.1 envelope or is plain. For C# callers.
     /// </summary>

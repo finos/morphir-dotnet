@@ -667,5 +667,42 @@ let csharpSurfaceTests =
 
                 Expect.isFalse (Directory.Exists root) "nothing is written")
         }
+
+        test "PublishResult C# collection properties and TreeWriteError.Describe expose read-only lists and error text" {
+            withTempDir (fun temp ->
+                let root = Path.Combine(temp, "out")
+                let opts = tracked root
+
+                let firstWritten =
+                    VFileTree.matchPublish (
+                        opts,
+                        treeOf [ "a.fs", "A"; "b.fs", "B" ],
+                        Func<PublishResult, System.Collections.Generic.IReadOnlyList<string>>(fun result -> result.WrittenPaths),
+                        Func<TreeWriteError, System.Collections.Generic.IReadOnlyList<string>>(fun err -> failtest (err.Describe()))
+                    )
+
+                Expect.equal (Seq.toList firstWritten) [ "a.fs"; "b.fs" ] "WrittenPaths exposes created files"
+
+                let second =
+                    VFileTree.matchPublish (
+                        opts,
+                        treeOf [ "a.fs", "A"; "c.fs", "C" ],
+                        Func<PublishResult, _>(fun result ->
+                            Seq.toList result.WrittenPaths, Seq.toList result.UnchangedPaths, Seq.toList result.RemovedPaths),
+                        Func<TreeWriteError, _>(fun err -> failtest (err.Describe()))
+                    )
+
+                Expect.equal second ([ "c.fs" ], [ "a.fs" ], [ "b.fs" ]) "WrittenPaths, UnchangedPaths, and RemovedPaths reflect update"
+
+                let described =
+                    VFileTree.matchPublish (
+                        plain root,
+                        treeOf [ "../evil.fs", "E" ],
+                        Func<PublishResult, string>(fun _ -> ""),
+                        Func<TreeWriteError, string>(fun err -> err.Describe())
+                    )
+
+                Expect.stringContains described "../evil.fs" "TreeWriteError.Describe() renders the failure text")
+        }
     ]
     |> testLabel "PlatformSpecific"

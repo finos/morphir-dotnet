@@ -130,14 +130,27 @@ type PublishOptions = {
 /// <summary>
 /// What publishing a tree did, as locations relative to the output root.
 /// </summary>
-type PublishResult = {
-    /// <summary>Files created or replaced</summary>
-    Written: string list
-    /// <summary>Files already byte-identical, and left untouched</summary>
-    Unchanged: string list
-    /// <summary>Files deleted because the previous manifest listed them and the tree does not</summary>
-    Removed: string list
-}
+type PublishResult =
+    {
+        /// <summary>Files created or replaced</summary>
+        Written: string list
+        /// <summary>Files already byte-identical, and left untouched</summary>
+        Unchanged: string list
+        /// <summary>Files deleted because the previous manifest listed them and the tree does not</summary>
+        Removed: string list
+    }
+
+    /// <summary>For C# callers: files created or replaced, as a read-only list.</summary>
+    member this.WrittenPaths: System.Collections.Generic.IReadOnlyList<string> =
+        List.toArray this.Written :> System.Collections.Generic.IReadOnlyList<string>
+
+    /// <summary>For C# callers: files already byte-identical and left untouched, as a read-only list.</summary>
+    member this.UnchangedPaths: System.Collections.Generic.IReadOnlyList<string> =
+        List.toArray this.Unchanged :> System.Collections.Generic.IReadOnlyList<string>
+
+    /// <summary>For C# callers: files deleted because the previous manifest listed them and the tree does not, as a read-only list.</summary>
+    member this.RemovedPaths: System.Collections.Generic.IReadOnlyList<string> =
+        List.toArray this.Removed :> System.Collections.Generic.IReadOnlyList<string>
 
 /// <summary>
 /// The reason <c>VFileTree.loadFromDisk</c> failed.
@@ -179,6 +192,10 @@ module TreeWriteError =
         match error with
         | TreeWriteError.InvalidTree problems -> String.Join("; ", problems |> List.map describeProblem)
         | TreeWriteError.WriteFailed (outputDir, cause) -> "could not write to " + outputDir + ": " + cause.Message
+
+type TreeWriteError with
+    /// <summary>For C# callers: describes this error in text suitable for showing to a person.</summary>
+    member this.Describe(): string = TreeWriteError.describe this
 
 /// <summary>
 /// Functions for working with tree load errors.

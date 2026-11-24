@@ -159,6 +159,7 @@ public sealed class BoundedScaleAdmissionTests
         RecordedGenerationAdmission.DocumentByteLimit(ModelReadLimits.Default, defaults).Should().Be(defaults.MaxDecodedBytesPerExchange);
     }
     [Test]
+    [Category("PlatformSpecific")]
     public async Task ProductionOrdersScaleProfileAdmitsExactMaxFrameBytesAndRefusesOneByteOverThroughRealWasmAdapter()
     {
         var profile = BoundedGenerationProfile.OrdersScale;
@@ -166,7 +167,8 @@ public sealed class BoundedScaleAdmissionTests
         var offer = RecordedGenerationAdmission.Offer(profile, reader, wasm: true);
         var wasmLimits = RecordedGenerationAdmission.WasmLimits(profile, offer);
 
-        var moduleBytes = await File.ReadAllBytesAsync(Morphir.TestSupport.Drivers.WorkerCorpus.ModulePath("extism-echo"));
+        var moduleBytes = Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes(
+            Morphir.TestSupport.Fixtures.FixtureCatalog.WasmHost.ExtismEchoModule);
         var admitted = Morphir.Extensions.Wasm.WasmEngine.Shared.Load(moduleBytes).Match(
             compiled => Morphir.Extensions.Wasm.WasmHost.Admit(compiled, Morphir.Extensions.Wasm.WasmAbi.ExtismKernel).Match(
                 static ok => ok,

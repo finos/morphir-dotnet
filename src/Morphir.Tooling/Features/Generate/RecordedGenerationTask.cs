@@ -142,12 +142,13 @@ internal sealed class RecordedGenerationTask : IDisposable
             if (Path.Exists(stageDirectory)) throw new IOException("The private generation stage already exists.");
             Directory.CreateDirectory(stageDirectory);
 
-            var staged = VFileTreeModule.publish(new PublishOptions(stageDirectory, ManifestMode.NoManifest), tree)
-                .Match<PublishResult, TreeWriteError, PublishResult>(
-                    published => published,
-                    failed => throw new IOException(TreeWriteErrorModule.describe(failed)));
+            var written = VFileTreeModule.MatchPublish<IReadOnlyList<string>>(
+                new PublishOptions(stageDirectory, ManifestMode.NoManifest),
+                tree,
+                static published => published.WrittenPaths,
+                static failed => throw new IOException(failed.Describe()));
 
-            foreach (var relative in staged.Written)
+            foreach (var relative in written)
             {
                 ct.ThrowIfCancellationRequested();
                 var path = RecordPath.Parse(relative);

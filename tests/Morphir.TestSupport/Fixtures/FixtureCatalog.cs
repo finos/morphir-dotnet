@@ -822,6 +822,11 @@ public static class FixtureCatalog
             "the unknown-namespace WASM module", "MepWasm/fixtures/wasm/env-open-socket.wasm",
             "bebbfeda31c2703c2022bf4ba27206fc0fcf22a540dda195476569c973e7addd", Provenance);
 
+        /// <summary>The Extism echo WASM module that returns each request body verbatim.</summary>
+        public static FixtureEntry ExtismEchoModule { get; } = new(
+            "the Extism echo WASM module", "MepWasm/fixtures/wasm/extism-echo.wasm",
+            "c4cc77b47d1d3251713a12bcece9937afab58c73b29967c01f17d4102b877acc", Provenance);
+
         /// <summary>The provenance record read by the kit at startup.</summary>
         public static byte[] ReadProvenance() =>
             ReadResource("Morphir.TestSupport.Provenance/" + Provenance);
@@ -926,7 +931,7 @@ public static class FixtureCatalog
         .. Kit.Files, Mep.BoundedGenerationSession, .. BoundedWasmLimits.Files, OrdersScale.Guest, .. BoundedGenerationReceipts.Files,
         .. Models.All, .. BoundedOrders.Files, BoundedOrders.ExpandedV4, .. Trees.AcmeDemo, .. Trees.Written,
         .. UpstreamIr.Documents, UpstreamIr.V3DailyRateIon, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark,
-        WasmHost.Corpus, WasmHost.UnknownNamespaceModule, .. Context.Files, .. Context.Policy.Files,
+        WasmHost.Corpus, WasmHost.UnknownNamespaceModule, WasmHost.ExtismEchoModule, .. Context.Files, .. Context.Policy.Files,
         .. Context.Naming.Files, .. DiagramsMbt.Files, .. DiagramExport.Files, CssColor.NamedColors
     ];
 

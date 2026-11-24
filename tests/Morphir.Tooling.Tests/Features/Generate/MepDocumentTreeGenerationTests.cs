@@ -1556,6 +1556,46 @@ public sealed class MepDocumentTreeGenerationTests
     }
 
     [Test]
+    public async Task NegotiatedExplicitTreeRouteServesFirstInventoryPageForLongPathTreeWhenDiscoveryCacheOverflows()
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var treeRoot = GenerationInputFixtures.PlainV4LongPathMultiModuleTree(sandbox.PathOf("long-path-tree"), 100);
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("ext.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "acme/flat"
+
+            [codegen.text]
+            extension = "ext"
+
+            [extensions.ext]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        // Negotiated maxHostCacheBytes = 256 KiB reserves 64 KiB for discovery, which cannot hold 100 modules
+        // under four 100-character segments (~184 KiB). The negotiated route must fall back to the metered uncached
+        // scan and deliver the first guest inventory page cleanly instead of refusing with tree.discovery_cache_limit.
+        var guest = new TightRequestCacheGuest(maxHostCacheBytes: 256 * 1024, roundsToRequest: 1, pageSize: 10);
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest, "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: treeRoot, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new RejectingLoader(), new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        outcome.Should().BeOfType<Outcome<GenerationSuccess>.Success>(outcome.ToString());
+        guest.FirstInventoryPageCount.Should().Be(10);
+    }
+
+    [Test]
     public async Task BoundedGenerationSessionCancelsDuringFirstGuestRequestedInventoryPage()
     {
         using var sandbox = TestSandbox.Create();
@@ -1650,8 +1690,9 @@ public sealed class MepDocumentTreeGenerationTests
         private string? _sessionId;
 
         public int RoundsCompleted { get; private set; }
+        public int FirstInventoryPageCount { get; private set; }
 
-        public TightRequestCacheGuest(int maxHostCacheBytes, int roundsToRequest)
+        public TightRequestCacheGuest(int maxHostCacheBytes, int roundsToRequest, int pageSize = 1)
         {
             _roundsToRequest = roundsToRequest;
             var tuple = new ModelAccessTuple(ModelAccess.protocolVersion, ModelAccess.accessVersion, ModelOperation.GenerateModel,
@@ -1679,17 +1720,22 @@ public sealed class MepDocumentTreeGenerationTests
                     {
                         _sessionId = request.SessionId;
                         return Task.FromResult(ModelAccessStep.NewContinue(request.SessionId, 1,
-                            [ModelAccessRequest.NewInventory($"req-round-01-{new string('a', 52)}", "root", 1, null)], [], []));
+                            [ModelAccessRequest.NewInventory($"req-round-01-{new string('a', 52)}", "root", pageSize, null)], [], []));
                     }),
                 [Method.GenerateModelAdvance.WireValue] = MethodHandler.Request(MepJson.Default.ModelAccessAdvance, MepJson.Default.ModelAccessStep,
                     (advance, _) =>
                     {
                         RoundsCompleted = advance.Round;
+                        if (advance.Round == 1)
+                        {
+                            var delivery = JsonSerializer.SerializeToElement(advance.Deliveries.Single(), MepJson.Default.ModelAccessDelivery);
+                            FirstInventoryPageCount = delivery.GetProperty("entries").GetArrayLength();
+                        }
                         if (advance.Round >= _roundsToRequest)
                             return Task.FromResult(ModelAccessStep.NewComplete(_sessionId!, [], []));
                         var nextRound = advance.Round + 1;
                         return Task.FromResult(ModelAccessStep.NewContinue(_sessionId!, nextRound,
-                            [ModelAccessRequest.NewInventory($"req-round-{nextRound:D2}-{new string('a', 52)}", "root", 1, null)], [], []));
+                            [ModelAccessRequest.NewInventory($"req-round-{nextRound:D2}-{new string('a', 52)}", "root", pageSize, null)], [], []));
                     }),
                 [Method.GenerateModelCancel.WireValue] = MethodHandler.Request(MepJson.Default.ModelAccessCancel, MepJson.Default.ModelAccessCancel,
                     (cancel, _) => Task.FromResult(cancel)),

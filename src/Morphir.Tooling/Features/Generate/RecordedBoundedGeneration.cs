@@ -140,7 +140,7 @@ internal static class RecordedBoundedGeneration
                             access.Limits.MaxHostCacheBytes);
                         if (!guest.HostSession.TryReserveSingleGenerationRequestCache(requestIdReservation))
                             return Refuse("extension.bounded_cache_limit", "The request-ID reservation cannot be installed for this generation session.");
-                        var indexed = DocumentTreeStore.OpenSnapshotWithDiscoveryCacheAndEncoding(
+                        var indexed = DocumentTreeStore.OpenSnapshotWithDiscoveryCacheFallbackAndEncoding(
                                 new ReadOptions(readerLimits.MaxEntries, RecordedGenerationAdmission.DocumentByteLimit(readerLimits, access.Limits)),
                                 snapshot.NameEncoding, discoveryReservation, () => revision, files)
                             .Match<BoundedTreeSnapshot, IReadOnlyList<StoreError>, Outcome<BoundedTreeSnapshot>>(
@@ -362,7 +362,7 @@ internal static class RecordedBoundedGeneration
                             settings.BoundedProfile, access.Limits.MaxHostCacheBytes);
                         if (requestIdReservation is { } reservation && !guest.HostSession.TryReserveSingleGenerationRequestCache(reservation))
                             return Refuse("extension.bounded_cache_limit", "The request-ID reservation cannot be installed for this generation session.");
-                        var indexed = DocumentTreeStore.OpenSnapshotWithDiscoveryCacheAndEncoding(
+                        var indexed = DocumentTreeStore.OpenSnapshotWithDiscoveryCacheFallbackAndEncoding(
                                 new ReadOptions(readerLimits.MaxEntries, RecordedGenerationAdmission.DocumentByteLimit(readerLimits, access.Limits)),
                                 snapshot.NameEncoding, discoveryReservation, () => revision, files)
                             .Match<BoundedTreeSnapshot, IReadOnlyList<StoreError>, Outcome<BoundedTreeSnapshot>>(

@@ -145,38 +145,46 @@ module IonIrTree =
 
     /// Every file that has a location, in tree order, with the directories above it. A file with no path, or an
     /// empty one, has no location, and a directory whose path is empty or <c>.</c> adds no segment, as in
-    /// <c>VFileTree</c>, where a tree's own path is <c>.</c>.
-    let rec private collect (parent: string list) (content: TreeNode list) : TreeFile list =
-        content
-        |> List.collect (fun node ->
-            match node with
-            | TreeNode.File file ->
-                match file.Path with
-                | Some path when path <> "" ->
-                    let segments =
-                        parent
-                        @ segmentsOf path
+    /// <c>VFileTree</c>, where a tree's own path is <c>.</c>. Runs iteratively on the heap so deep directory trees
+    /// cannot overflow a small thread stack before <see cref="IonIr.withRoom"/> runs.
+    let private collect (parent: string list) (content: TreeNode list) : TreeFile list =
+        let collected = Collections.Generic.List<TreeFile>()
+        let stack = Collections.Generic.Stack<string list * TreeNode list>()
+        stack.Push(List.rev parent, content)
 
-                    [
-                        {
-                            Location = String.Join("/", segments)
-                            Segments = segments
-                            File = file
-                        }
-                    ]
-                | _ -> []
-            | TreeNode.Directory directory ->
-                collect
-                    (if
-                         directory.Path = ""
-                         || directory.Path = "."
-                     then
-                         parent
-                     else
-                         parent
-                         @ segmentsOf directory.Path)
-                    directory.Content
-        )
+        while stack.Count > 0 do
+            let revParent, nodes = stack.Pop()
+
+            match nodes with
+            | [] -> ()
+            | node :: rest ->
+                if not rest.IsEmpty then
+                    stack.Push(revParent, rest)
+
+                match node with
+                | TreeNode.File file ->
+                    match file.Path with
+                    | Some path when path <> "" ->
+                        let segments = List.rev revParent @ segmentsOf path
+
+                        collected.Add
+                            {
+                                Location = String.Join("/", segments)
+                                Segments = segments
+                                File = file
+                            }
+                    | _ -> ()
+                | TreeNode.Directory directory ->
+                    if not directory.Content.IsEmpty then
+                        let nextRevParent =
+                            if directory.Path = "" || directory.Path = "." then
+                                revParent
+                            else
+                                List.rev (segmentsOf directory.Path) @ revParent
+
+                        stack.Push(nextRevParent, directory.Content)
+
+        List.ofSeq collected
 
     let private fileKindOf (name: string) =
         if name = "module.ion" then

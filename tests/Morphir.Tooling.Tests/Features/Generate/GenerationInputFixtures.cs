@@ -332,6 +332,28 @@ internal static class GenerationInputFixtures
         return directory;
     }
 
+    public static string PlainV4LongPathMultiModuleTree(string directory, int moduleCount)
+    {
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(Path.Combine(directory, "manifest.json"),
+            """{"formatVersion":4,"distribution":"Library","package":"acme/flat","pathBudget":4000,"dependencies":[]}""");
+        var seg1 = new string('a', 100);
+        var seg2 = new string('b', 100);
+        var seg3 = new string('c', 100);
+        var seg4 = new string('d', 100);
+        var prefix = $"{seg1}/{seg2}/{seg3}/{seg4}";
+        for (var i = 0; i < moduleCount; i++)
+        {
+            var modName = $"mod-{i:D4}";
+            var modulePath = $"{prefix}/{modName}";
+            var modDir = Path.Combine(directory, "pkg", "acme", "flat", seg1, seg2, seg3, seg4, modName);
+            Directory.CreateDirectory(modDir);
+            File.WriteAllText(Path.Combine(modDir, "module.json"),
+                $$"""{"formatVersion":4,"path":"{{modulePath}}","access":"Public","types":[],"values":[]}""");
+        }
+        return directory;
+    }
+
     private static void CopyBoundedOrdersTree(string versionDir, string profile, string destination)
     {
         var prefix = Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Directory + versionDir + "/" + profile + "/";

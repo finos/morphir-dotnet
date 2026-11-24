@@ -526,8 +526,10 @@ module IonIr =
                         let bits = Decimal.GetBits number
                         let decimalScale = BigInteger((bits[3] >>> 16) &&& 0xFF)
                         let decimalNegative = (bits[3] &&& 0x80000000) <> 0
+                        let emitted = number.ToString(CultureInfo.InvariantCulture)
+                        let emittedNegative = emitted.StartsWith("-", StringComparison.Ordinal)
 
-                        if exactScale <> decimalScale || isNegative <> decimalNegative then
+                        if exactScale <> decimalScale || isNegative <> decimalNegative || isNegative <> emittedNegative then
                             lossyError
                                 $"Classic Ion decimal literal '{lexeme}' in {location} loses decimal scale or sign when converted to JSON IR."
                         else
