@@ -361,6 +361,10 @@ public static class FixtureCatalog
         public static FixtureEntry V3DailyRateIon { get; } =
             Document("pairs/v3-daily-rate.ion", "057ff48219c0280173e42ae9649907cf8c3e6a30586a007f5fd6c71e57d982e0");
 
+        /// <summary>The Ion text MEP rich-model wrapper fixture (<c>mep/fixtures/rich-model.ion</c>).</summary>
+        public static FixtureEntry RichModelIon { get; } =
+            Document("mep/fixtures/rich-model.ion", "3c314a4e29bb3e1477171aff632fecec35257d0835c2e18549c732c609dfa664");
+
         /// <summary>The Ion document-tree files of <c>trees/v3-daily-rate/</c>.</summary>
         public static IReadOnlyList<FixtureEntry> V3DailyRateIonTreeFiles { get; } =
         [
@@ -937,7 +941,7 @@ public static class FixtureCatalog
     [
         .. Kit.Files, Mep.BoundedGenerationSession, .. BoundedWasmLimits.Files, OrdersScale.Guest, .. BoundedGenerationReceipts.Files,
         .. Models.All, .. BoundedOrders.Files, BoundedOrders.ExpandedV4, .. Trees.AcmeDemo, .. Trees.Written,
-        .. UpstreamIr.Documents, UpstreamIr.V3DailyRateIon, .. UpstreamIr.V3DailyRateIonTreeFiles, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark,
+        .. UpstreamIr.Documents, UpstreamIr.V3DailyRateIon, UpstreamIr.RichModelIon, .. UpstreamIr.V3DailyRateIonTreeFiles, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark,
         WasmHost.Corpus, WasmHost.UnknownNamespaceModule, .. Context.Files, .. Context.Policy.Files,
         .. Context.Naming.Files, .. DiagramsMbt.Files, .. DiagramExport.Files, CssColor.NamedColors
     ];

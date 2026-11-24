@@ -615,17 +615,8 @@ let tests =
             }
 
             test "Enforces MaxDepth = 1 identically on JSON and YAML trees with scalar manifest members" {
-                let jsonManifestOnly =
-                    Driver.ofTexts [
-                        "manifest.json",
-                        """{"formatVersion":4,"distribution":"Library","package":"acme/orders","pathBudget":4000}"""
-                    ]
-
-                let yamlManifestOnly =
-                    Driver.ofTexts [
-                        "manifest.yaml",
-                        "formatVersion: 4\ndistribution: Library\npackage: acme/orders\npathBudget: 4000\n"
-                    ]
+                let jsonManifestOnly = YamlDocs.manifestOnlyV4JsonTree ()
+                let yamlManifestOnly = YamlDocs.manifestOnlyV4YamlTree ()
 
                 // At MaxDepth = 1, the root object is depth 1 and its scalar children are depth 2 -> both refuse.
                 let jsonErrors = tryReadModelErrors (TreeReadOptions.Defaults.WithMaxDepth 1) jsonManifestOnly
@@ -639,6 +630,37 @@ let tests =
                 let yamlLoaded = tryReadModelOk (TreeReadOptions.Defaults.WithMaxDepth 2) yamlManifestOnly
                 Expect.equal jsonLoaded.Model.SourceVersion.Text "4" "JSON manifest loads at MaxDepth = 2"
                 Expect.equal yamlLoaded.Model.SourceVersion.Text "4" "YAML manifest loads at MaxDepth = 2"
+            }
+
+            test "TryReadYamlDocument returns tree.invalid_limit instead of throwing for non-positive limits" {
+                let validBytes = ReadOnlyMemory(Encoding.UTF8.GetBytes YamlDocs.minimalV4PlainYaml)
+
+                for label, maxBytes, maxDepth, maxNodes in
+                    [
+                        "maxDepth = -1", 65536L, -1, 1000
+                        "maxDepth = 0", 65536L, 0, 1000
+                        "maxBytes = 0", 0L, 64, 1000
+                        "maxBytes = -1", -1L, 64, 1000
+                        "maxNodes = 0", 65536L, 64, 0
+                        "maxNodes = -1", 65536L, 64, -1
+                    ] do
+                    let mutable doc = Unchecked.defaultof<JsonElement>
+                    let mutable errors = Unchecked.defaultof<System.Collections.Generic.IReadOnlyList<TreeDiagnostic>>
+
+                    let ok =
+                        DocumentTreeStore.tryReadYamlDocument (
+                            "model.yaml",
+                            validBytes,
+                            maxBytes,
+                            maxDepth,
+                            maxNodes,
+                            CancellationToken.None,
+                            &doc,
+                            &errors
+                        )
+
+                    Expect.isFalse ok $"Expected TryReadYamlDocument to fail cleanly for {label}"
+                    Expect.equal (diagCodesAndFiles (List.ofSeq errors)) [ "tree.invalid_limit", Some "model.yaml" ] $"Expected tree.invalid_limit for {label}"
             }
 
             test "Preserves structured JSONPath location for nested context validation errors and keeps legacy StoreError message" {

@@ -1177,6 +1177,38 @@ module YamlDocuments =
     /// A YAML document starting with the <c>jsonrpc:</c> MEP marker key.
     let mepJsonRpcYaml = "jsonrpc: \"2.0\"\nmethod: \"morphir/model\"\n"
 
+    /// A MEP model-envelope YAML document preceded by a leading YAML comment.
+    let mepCommentedEnvelopeYaml = "# MEP envelope comment\nenvelopeVersion: \"0.1.0\"\npayload: {}\n"
+
+    /// A MEP model-envelope YAML document with a double-quoted <c>envelopeVersion</c> key.
+    let mepDoubleQuotedEnvelopeYaml = "\"envelopeVersion\": \"0.1.0\"\npayload: {}\n"
+
+    /// A MEP model-envelope YAML document with a single-quoted <c>envelopeVersion</c> key.
+    let mepSingleQuotedEnvelopeYaml = "'envelopeVersion': \"0.1.0\"\npayload: {}\n"
+
+    /// A MEP <c>morphir_model</c> YAML document with a leading comment and a double-quoted marker key.
+    let mepCommentedQuotedMorphirModelYaml = "# MEP model wrapper\n\"morphir_model\":\n  formatVersion: 4\n"
+
+    /// A MEP <c>jsonrpc</c> YAML document with a single-quoted marker key.
+    let mepSingleQuotedJsonRpcYaml = "'jsonrpc': \"2.0\"\nmethod: \"morphir/model\"\n"
+
+    /// A MEP model-envelope YAML document with a document-start marker, comment, and quoted key.
+    let mepDocumentStartCommentedYaml = "---\n# MEP envelope\n\"envelopeVersion\": \"0.1.0\"\npayload: {}\n"
+
+    /// A minimal v4 manifest-only JSON tree with scalar manifest members, used to test depth parity with YAML.
+    let manifestOnlyV4JsonTree () : VFileTree =
+        Driver.ofTexts [
+            "manifest.json",
+            """{"formatVersion":4,"distribution":"Library","package":"acme/orders","pathBudget":4000}"""
+        ]
+
+    /// A minimal v4 manifest-only YAML tree with scalar manifest members, used to test depth parity with JSON.
+    let manifestOnlyV4YamlTree () : VFileTree =
+        Driver.ofTexts [
+            "manifest.yaml",
+            "formatVersion: 4\ndistribution: Library\npackage: acme/orders\npathBudget: 4000\n"
+        ]
+
     /// A malformed Ion manifest payload used to test failed Ion tree decoding under cancellation.
     let malformedIonManifest = "morphir::{broken"
 

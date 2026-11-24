@@ -154,10 +154,11 @@ let rec private replaceReferences (id: string) (expansion: JsonNode) (compacted:
     | :? JsonObject as reference when
         reference.Count = 1
         && reference.ContainsKey "$name"
-        && reference["$name"].GetValueKind() = System.Text.Json.JsonValueKind.String
+        && not (isNull reference["$name"])
+        && (nonNull reference["$name"]).GetValueKind() = System.Text.Json.JsonValueKind.String
         ->
         // A reference to another entry stands for the twin's value there.
-        if reference["$name"].GetValue<string>() = id then
+        if (nonNull reference["$name"]).GetValue<string>() = id then
             expansion.DeepClone()
         else
             twin.DeepClone()

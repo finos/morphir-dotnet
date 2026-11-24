@@ -63,6 +63,7 @@
     <EmbeddedResource Include="../Fixtures/MorphirIon/records/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/records/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirIon/v4/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/v4/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirIon/mep/fixtures/plain-ir.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/mep/fixtures/plain-ir.json" />
+    <EmbeddedResource Include="../Fixtures/MorphirIon/mep/fixtures/rich-model.ion" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/mep/fixtures/rich-model.ion" />
   </ItemGroup>
 
   <!-- The child process of ChildProcess tests and of ConsoleInterrupt: see ProcessHelper. -->

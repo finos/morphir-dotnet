@@ -47,7 +47,7 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
             if (input.Format is not (InputFormat.Auto or InputFormat.Json or InputFormat.Ion))
                 return Failure("invalid-input-format", $"Unsupported input format '{input.Format}'.", original.SourcePath, kind: GenerationFailureKind.Invocation);
 
-            if (original is RetainedInput.File candidate && input.Format == InputFormat.Auto && !IsBinary(candidate.Entry.Memory.Span) && IsYaml(candidate))
+            if (original is RetainedInput.File candidate && input.Format == InputFormat.Auto && !IsIon(candidate) && IsYaml(candidate))
                 return Failure("unsupported-format", "YAML model input is unsupported; use JSON or Ion IR.", original.SourcePath);
 
             if (original is RetainedInput.Tree tree)
@@ -225,16 +225,77 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
 
     private static bool IsYaml(RetainedInput.File file)
     {
-        if (IsBinary(file.Entry.Memory.Span)) return false;
+        var bytes = file.Entry.Memory.Span;
+        if (IsBinary(bytes)) return false;
         if (Path.GetExtension(file.SourcePath).ToLowerInvariant() is ".yaml" or ".yml") return true;
-        var prefix = System.Text.Encoding.UTF8.GetString(file.Entry.Memory.Span[..Math.Min(256, file.Entry.Memory.Length)]).TrimStart('\uFEFF', ' ', '\t', '\r', '\n');
-        return prefix.StartsWith("---", StringComparison.Ordinal)
-            || prefix.StartsWith("formatVersion:", StringComparison.Ordinal)
-            || prefix.StartsWith("distribution:", StringComparison.Ordinal)
-            || prefix.StartsWith("$schema:", StringComparison.Ordinal)
-            || prefix.StartsWith("envelopeVersion:", StringComparison.Ordinal)
-            || prefix.StartsWith("morphir_model:", StringComparison.Ordinal)
-            || prefix.StartsWith("jsonrpc:", StringComparison.Ordinal);
+        if (bytes.StartsWith(new byte[] { 0xEF, 0xBB, 0xBF })) bytes = bytes[3..];
+
+        // Skip leading whitespace and YAML '#' comment lines within the already-bounded capture.
+        var sawComment = false;
+        while (!bytes.IsEmpty)
+        {
+            if (bytes[0] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
+            {
+                bytes = bytes[1..];
+                continue;
+            }
+            if (bytes[0] == (byte)'#')
+            {
+                sawComment = true;
+                var end = bytes.IndexOf((byte)'\n');
+                if (end < 0) return false;
+                bytes = bytes[(end + 1)..];
+                continue;
+            }
+            break;
+        }
+
+        if (bytes.IsEmpty) return false;
+        if (bytes.StartsWith("---"u8) && (bytes.Length == 3 || bytes[3] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n'))
+            return true;
+        if (sawComment && bytes[0] == (byte)'{')
+            return true;
+
+        return StartsWithYamlMappingKey(bytes, "formatVersion"u8)
+            || StartsWithYamlMappingKey(bytes, "distribution"u8)
+            || StartsWithYamlMappingKey(bytes, "$schema"u8)
+            || StartsWithYamlMappingKey(bytes, "envelopeVersion"u8)
+            || StartsWithYamlMappingKey(bytes, "morphir_model"u8)
+            || StartsWithYamlMappingKey(bytes, "jsonrpc"u8);
+    }
+
+    private static bool StartsWithYamlMappingKey(ReadOnlySpan<byte> bytes, ReadOnlySpan<byte> key)
+    {
+        var quoted = false;
+        if (bytes.Length > 0 && bytes[0] is (byte)'"' or (byte)'\'')
+        {
+            var quote = bytes[0];
+            if (bytes.Length < key.Length + 2 || !bytes.Slice(1, key.Length).SequenceEqual(key) || bytes[key.Length + 1] != quote)
+                return false;
+            bytes = bytes[(key.Length + 2)..];
+            quoted = true;
+        }
+        else
+        {
+            if (!bytes.StartsWith(key))
+                return false;
+            bytes = bytes[key.Length..];
+        }
+
+        while (!bytes.IsEmpty && bytes[0] is (byte)' ' or (byte)'\t')
+            bytes = bytes[1..];
+
+        if (bytes.IsEmpty || bytes[0] != (byte)':')
+            return false;
+
+        if (bytes.Length == 1)
+            return true;
+
+        // Never treat Ion annotation syntax (e.g. morphir_model:: or 'morphir'::) as a YAML key.
+        if (bytes[1] == (byte)':')
+            return false;
+
+        return quoted || bytes[1] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n';
     }
 
     private static Outcome<LoadedModel> DecodeIon(RetainedInput.File file, ModelReadLimits limits)

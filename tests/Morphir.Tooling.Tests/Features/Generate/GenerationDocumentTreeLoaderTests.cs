@@ -358,19 +358,28 @@ public sealed class GenerationDocumentTreeLoaderTests
             mepSchemaFailure.Diagnostics[0].Code.Should().Be("unsupported-profile");
         }
 
-        // Extensionless YAML starting with MEP marker keys (including envelopeVersion before $schema)
-        // must be classified as YAML and return unsupported-profile in Auto mode, not malformed-json.
+        // Extensionless YAML starting with MEP marker keys (unquoted, quoted, or preceded by comments/---)
+        // must be classified identically as YAML and return unsupported-profile in both Auto and explicit YAML modes.
         foreach (var (name, content) in new[]
         {
             ("mep-envelope-first", DocumentTreeMother.YamlDocuments.mepEnvelopeFirstWithSchemaYaml),
             ("mep-morphir-model", DocumentTreeMother.YamlDocuments.mepMorphirModelYaml),
             ("mep-jsonrpc", DocumentTreeMother.YamlDocuments.mepJsonRpcYaml),
+            ("mep-commented-envelope", DocumentTreeMother.YamlDocuments.mepCommentedEnvelopeYaml),
+            ("mep-double-quoted-envelope", DocumentTreeMother.YamlDocuments.mepDoubleQuotedEnvelopeYaml),
+            ("mep-single-quoted-envelope", DocumentTreeMother.YamlDocuments.mepSingleQuotedEnvelopeYaml),
+            ("mep-commented-quoted-morphir-model", DocumentTreeMother.YamlDocuments.mepCommentedQuotedMorphirModelYaml),
+            ("mep-single-quoted-jsonrpc", DocumentTreeMother.YamlDocuments.mepSingleQuotedJsonRpcYaml),
+            ("mep-document-start-commented", DocumentTreeMother.YamlDocuments.mepDocumentStartCommentedYaml),
         })
         {
             var extensionlessPath = Path.Combine(sandbox.Work, name);
             File.WriteAllText(extensionlessPath, content);
-            var autoFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(extensionlessPath, InputFormat.Auto)).Error;
-            autoFailure.Diagnostics[0].Code.Should().Be("unsupported-profile", $"{name} should classify as unsupported-profile in Auto mode");
+            foreach (var format in new[] { InputFormat.Auto, InputFormat.Yaml })
+            {
+                var failure = ((Outcome<LoadedModel>.Failure)await LoadAsync(extensionlessPath, format)).Error;
+                failure.Diagnostics[0].Code.Should().Be("unsupported-profile", $"{name} should classify as unsupported-profile in {format} mode");
+            }
         }
 
         // Compacted YAML that fits raw byte capture limits but exceeds MaxBytes on expansion is refused.

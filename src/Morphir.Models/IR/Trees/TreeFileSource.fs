@@ -642,7 +642,13 @@ module internal TreeFileSource =
         : Result<JsonElement, TreeDiagnostic list> =
         ct.ThrowIfCancellationRequested()
 
-        if int64 bytes.Length > maxBytes then
+        if maxBytes <= 0L then
+            Error [ StoreErrors.diagnostic "tree.invalid_limit" (Some file) "The YAML byte limit must be positive." ]
+        elif maxDepth <= 0 then
+            Error [ StoreErrors.diagnostic "tree.invalid_limit" (Some file) "The YAML depth limit must be positive." ]
+        elif maxNodes <= 0 then
+            Error [ StoreErrors.diagnostic "tree.invalid_limit" (Some file) "The YAML node limit must be positive." ]
+        elif int64 bytes.Length > maxBytes then
             Error [ StoreErrors.diagnostic "tree.file_too_large" (Some file) $"The file has more than {maxBytes} bytes." ]
         else
             let rawBytes = bytes.ToArray()

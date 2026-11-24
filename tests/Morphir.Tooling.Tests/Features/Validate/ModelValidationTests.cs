@@ -313,4 +313,23 @@ public sealed class ModelValidationTests
         var report = ValidationReport.Failed(Native, badIonTree.SourcePath, failure);
         report.ExitCode.Should().Be(130);
     }
+
+    [Test]
+    [Category("PlatformSpecific")]
+    [Arguments("rich-model.ion")]
+    [Arguments("rich-model")]
+    public async Task AutoModeClassifiesIonMepWrapperAsUnsupportedProfileRatherThanYaml(string fileName)
+    {
+        await using var sandbox = Morphir.TestSupport.TestSandbox.Create("morphir-validate-ion-mep-");
+        var analyzer = new FakeAnalyzer("acme.lint", () => []);
+        var registry = new AnalyzerRegistry([analyzer]);
+
+        var ionPath = Path.Combine(sandbox.Work, fileName);
+        await File.WriteAllBytesAsync(ionPath, Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes(Morphir.TestSupport.Fixtures.FixtureCatalog.UpstreamIr.RichModelIon));
+
+        var report = await Validation(registry).RunAsync(new ValidateOverrides(ionPath, "auto"), new InvocationContext(sandbox.Work), default);
+        report.ExitCode.Should().Be(2);
+        report.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-profile");
+        analyzer.Runs.Should().Be(0);
+    }
 }
