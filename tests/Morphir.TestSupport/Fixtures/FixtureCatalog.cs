@@ -357,6 +357,10 @@ public static class FixtureCatalog
             Document("mep/fixtures/plain-ir.json", "fd49ad8b0cab49216323beb969c08f91a888925dbb995838c57a05b48a80bb2f"),
         ];
 
+        /// <summary>The Ion text form of <c>pairs/v3-daily-rate</c>, shared by Ion and MEP generation tests.</summary>
+        public static FixtureEntry V3DailyRateIon { get; } =
+            Document("pairs/v3-daily-rate.ion", "057ff48219c0280173e42ae9649907cf8c3e6a30586a007f5fd6c71e57d982e0");
+
         /// <summary>The path of a document below <see cref="Directory"/>, such as <c>pairs/v3-specs.json</c>.</summary>
         public static string NameOf(FixtureEntry document) => document.RelativePath[Directory.Length..];
 
@@ -921,7 +925,7 @@ public static class FixtureCatalog
     [
         .. Kit.Files, Mep.BoundedGenerationSession, .. BoundedWasmLimits.Files, OrdersScale.Guest, .. BoundedGenerationReceipts.Files,
         .. Models.All, .. BoundedOrders.Files, BoundedOrders.ExpandedV4, .. Trees.AcmeDemo, .. Trees.Written,
-        .. UpstreamIr.Documents, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark,
+        .. UpstreamIr.Documents, UpstreamIr.V3DailyRateIon, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark,
         WasmHost.Corpus, WasmHost.UnknownNamespaceModule, .. Context.Files, .. Context.Policy.Files,
         .. Context.Naming.Files, .. DiagramsMbt.Files, .. DiagramExport.Files, CssColor.NamedColors
     ];

@@ -1359,7 +1359,7 @@ module IonIrTree =
         | Result.Error cause -> Result.Error $"Could not read Ion tree file '{location}': {cause.Message}"
 
     let private verifyNodeValue (location: string) (value: IonValue) : Result<unit, string> =
-        IonIr.verifyValueNoSymbolZero location value
+        IonIr.verifyValueLossless None false location value
         |> Result.bind (fun () ->
             match value.Data with
             | IonData.Struct fields ->
@@ -1443,13 +1443,27 @@ module IonIrTree =
                         | header :: rest ->
                             IonIr.verifyHeaderLossless true manifestFile.Location header
                             |> Result.bind (fun () ->
-                                rest
-                                |> List.fold
-                                    (fun state item ->
-                                        state
-                                        |> Result.bind (fun () -> IonIr.verifyValueNoSymbolZero manifestFile.Location item)
-                                    )
-                                    (Ok())
+                                match rest with
+                                | [] -> Ok()
+                                | _ ->
+                                    let trailing, hasFooter =
+                                        match List.last rest with
+                                        | { Annotations = [ IonSymbol.Text "morphir_footer" ]; Data = IonData.Struct [] } ->
+                                            List.take (rest.Length - 1) rest, true
+                                        | { Annotations = [ IonSymbol.Text "morphir_footer" ]; Data = _ } ->
+                                            rest, false
+                                        | _ -> rest, true
+
+                                    if not hasFooter then
+                                        Result.Error $"Ion tree manifest '{manifestFile.Location}' carries non-empty footer metadata that JSON IR cannot preserve."
+                                    else
+                                        trailing
+                                        |> List.fold
+                                            (fun state item ->
+                                                state
+                                                |> Result.bind (fun () -> IonIr.verifyValueLossless None false manifestFile.Location item)
+                                            )
+                                            (Ok())
                             )
                     )
                     |> Result.bind (fun () ->

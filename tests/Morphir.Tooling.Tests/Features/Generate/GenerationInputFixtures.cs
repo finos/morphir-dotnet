@@ -30,7 +30,8 @@ internal static class GenerationInputFixtures
             }
             return path;
         }
-        var text = File.ReadAllText(Path.Combine(fixtures, "pairs", "v3-daily-rate.ion")).Replace("3.0.0", version);
+        var text = Morphir.TestSupport.Fixtures.FixtureCatalog.ReadText(
+            Morphir.TestSupport.Fixtures.FixtureCatalog.UpstreamIr.V3DailyRateIon).Replace("3.0.0", version);
         return WriteIon(directory, format, text);
     }
 
@@ -70,8 +71,8 @@ internal static class GenerationInputFixtures
 
     public static string LossyDailyRateIonWithUnknownHeader(string directory, string version)
     {
-        var fixtures = Path.Combine(GenerateSteps.RepositoryRoot(), "tests", "Fixtures", "MorphirIon");
-        var text = File.ReadAllText(Path.Combine(fixtures, "pairs", "v3-daily-rate.ion")).Replace("3.0.0", version);
+        var text = Morphir.TestSupport.Fixtures.FixtureCatalog.ReadText(
+            Morphir.TestSupport.Fixtures.FixtureCatalog.UpstreamIr.V3DailyRateIon).Replace("3.0.0", version);
         var idx = text.IndexOf("morphir::{", StringComparison.Ordinal);
         if (idx < 0) throw new InvalidOperationException("Ion fixture did not begin with morphir::{.");
         var mutated = text.Insert(idx + "morphir::{".Length, "customMeta: \"dropped-by-json\", ");
@@ -80,12 +81,98 @@ internal static class GenerationInputFixtures
 
     public static string LossyDailyRateIonWithPathBudget(string directory, string version, bool annotated)
     {
-        var fixtures = Path.Combine(GenerateSteps.RepositoryRoot(), "tests", "Fixtures", "MorphirIon");
-        var text = File.ReadAllText(Path.Combine(fixtures, "pairs", "v3-daily-rate.ion")).Replace("3.0.0", version);
+        var text = Morphir.TestSupport.Fixtures.FixtureCatalog.ReadText(
+            Morphir.TestSupport.Fixtures.FixtureCatalog.UpstreamIr.V3DailyRateIon).Replace("3.0.0", version);
         var idx = text.IndexOf("morphir::{", StringComparison.Ordinal);
         if (idx < 0) throw new InvalidOperationException("Ion fixture did not begin with morphir::{.");
         var field = annotated ? "pathBudget: note::4000, " : "pathBudget: 4000, ";
         return WriteIon(directory, "text", text.Insert(idx + "morphir::{".Length, field));
+    }
+
+    public static string LossyDailyRateIonWithAnnotatedDependencyFragments(string directory, string version)
+    {
+        var datagram =
+            $$"""
+            morphir::{ionVersion: "0.1.0-draft.1", formatVersion: "{{version}}", kind: library, packageName: "car/rental"}
+            package::spec::{name: "acme/dep"}
+            module::spec::{package: "acme/dep", name: "util", doc: "same", types: [public::spec::opaque::type::{name: "t"}]}
+            module::spec::{package: "acme/dep", name: "util", doc: note::"same", values: [public::spec::value::{name: "v", output: "morphir/SDK:basics#int"}]}
+            public::def::module::{name: "inventory", values: [public::def::value::{name: "daily-rate", outputType: "morphir/SDK:basics#int", body: 5000}]}
+            morphir_footer::{}
+            """;
+        return WriteIon(directory, "text", datagram);
+    }
+
+    public static string LossyDailyRateIonTreeWithAnnotatedDependencyFragments(string directory, string version)
+    {
+        var treeRoot = Path.Combine(directory, "tree");
+        Directory.CreateDirectory(treeRoot);
+        File.WriteAllText(Path.Combine(treeRoot, "manifest.ion"),
+            $$"""
+            morphir::{ionVersion: "0.1.0-draft.1", formatVersion: "{{version}}", kind: library, packageName: "car/rental", pathBudget: 4000}
+            package::spec::{name: "acme/dep"}
+            """);
+        var depDir = Path.Combine(treeRoot, "deps", "acme", "dep", "@", "util");
+        Directory.CreateDirectory(depDir);
+        File.WriteAllText(Path.Combine(depDir, "module.ion"),
+            "module::spec::{doc: \"same\"}\nmodule::spec::{doc: note::\"same\"}");
+        File.WriteAllText(Path.Combine(depDir, "t.type.ion"), "public::spec::opaque::type::{}");
+        var modDir = Path.Combine(treeRoot, "pkg", "car", "rental", "inventory");
+        Directory.CreateDirectory(modDir);
+        File.WriteAllText(Path.Combine(modDir, "module.ion"), "public::def::module::{}");
+        File.WriteAllText(Path.Combine(modDir, "daily-rate.value.ion"),
+            "public::def::value::{outputType: \"morphir/SDK:basics#int\", body: 5000}");
+        return treeRoot;
+    }
+
+    public static string OrdersTreeWithContextPrefixes(string directory, string versionDir, string profile)
+    {
+        CopyBoundedOrdersTree(versionDir, profile, directory);
+        var isYaml = profile.Contains("yaml", StringComparison.Ordinal);
+        var ext = isYaml ? ".yaml" : ".json";
+        var targetPath = Path.Combine(directory, "pkg", "acme", "orders", "domain", "order.value" + ext);
+        var text = File.ReadAllText(targetPath);
+        if (isYaml)
+        {
+            var idx = text.IndexOf("context:", StringComparison.Ordinal);
+            if (idx < 0) throw new InvalidOperationException($"Expected contextual YAML envelope in {targetPath}.");
+            text = text.Insert(idx + "context:".Length, "\n  prefixes:\n    o: acme/orders");
+        }
+        else
+        {
+            var idx = text.IndexOf("\"context\":{", StringComparison.Ordinal);
+            if (idx < 0) idx = text.IndexOf("\"context\": {", StringComparison.Ordinal);
+            if (idx < 0) throw new InvalidOperationException($"Expected contextual JSON envelope in {targetPath}.");
+            var brace = text.IndexOf('{', idx);
+            text = text.Insert(brace + 1, "\"prefixes\":{\"o\":\"acme/orders\"},");
+        }
+        File.WriteAllText(targetPath, text);
+        return directory;
+    }
+
+    public static string PlainV4OrdersTreeWithJsonDepth(string directory, int targetJsonDepth)
+    {
+        CopyBoundedOrdersTree("v4", "plain-json", directory);
+        var orderPath = Path.Combine(directory, "pkg", "acme", "orders", "domain", "order.value.json");
+        var original = File.ReadAllText(orderPath);
+        var baseDepth = MeasureMaxJsonDepth(original);
+        var layers = Math.Max(1, (targetJsonDepth - baseDepth + 1) / 2);
+        var sb = new System.Text.StringBuilder();
+        for (var i = 0; i < layers; i++) sb.Append("{\"List\":[");
+        sb.Append("{\"Literal\":{\"IntegerLiteral\":73}}");
+        for (var i = 0; i < layers; i++) sb.Append("]}");
+        var updated = original.Replace("{ \"Literal\": { \"IntegerLiteral\": 73 } }", sb.ToString(), StringComparison.Ordinal);
+        File.WriteAllText(orderPath, updated);
+        return directory;
+    }
+
+    private static int MeasureMaxJsonDepth(string json)
+    {
+        var reader = new Utf8JsonReader(System.Text.Encoding.UTF8.GetBytes(json), new JsonReaderOptions { MaxDepth = int.MaxValue });
+        var max = 0;
+        while (reader.Read())
+            if (reader.CurrentDepth + 1 > max) max = reader.CurrentDepth + 1;
+        return max;
     }
 
     public static string LossyDailyRateIonTreeWithIgnoredFile(string directory, string version, string ignoredFileName = "README.md")

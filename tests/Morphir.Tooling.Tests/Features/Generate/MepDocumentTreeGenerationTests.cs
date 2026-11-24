@@ -1030,6 +1030,225 @@ public sealed class MepDocumentTreeGenerationTests
     }
 
     [Test]
+    [Arguments(80, 128, true)]
+    [Arguments(150, 128, false)]
+    [Arguments(150, 200, true)]
+    public async Task Draft1FallbackEnforcesModelReadLimitsMaxDepth(int targetDepth, int maxDepth, bool expectSuccess)
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var treeRoot = GenerationInputFixtures.PlainV4OrdersTreeWithJsonDepth(sandbox.PathOf("input-tree"), targetDepth);
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "acme/orders"
+
+            [codegen.text]
+            extension = "draft1"
+
+            [extensions.draft1]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var guest = new Draft1OnlyChannelGuest(maxDepth: 256);
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var innerResolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+        var resolver = new DepthOverrideSettingsResolver(innerResolver, maxDepth);
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: treeRoot, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        if (expectSuccess)
+        {
+            outcome.Should().BeOfType<Outcome<GenerationSuccess>.Success>(outcome.ToString());
+            guest.GenerateCalls.Should().Be(1);
+        }
+        else
+        {
+            var failure = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+            failure.Diagnostics.Should().Contain(d => d.Code == "depth_limit_exceeded");
+            guest.GenerateCalls.Should().Be(0);
+        }
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task Draft1HostConversionRefusesIonWithAnnotatedDependencyFragments(bool tree)
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var inputPath = tree
+            ? GenerationInputFixtures.LossyDailyRateIonTreeWithAnnotatedDependencyFragments(sandbox.PathOf("input"), "4.0.0")
+            : GenerationInputFixtures.LossyDailyRateIonWithAnnotatedDependencyFragments(sandbox.PathOf("input"), "4.0.0");
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "car/rental"
+
+            [codegen.text]
+            extension = "draft1"
+
+            [extensions.draft1]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var guest = new Draft1OnlyChannelGuest();
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: inputPath, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var failure = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+        failure.Kind.Should().Be(GenerationFailureKind.Semantic);
+        failure.Diagnostics.Should().Contain(d => d.Code == "data.lossy_conversion");
+        guest.GenerateCalls.Should().Be(0);
+    }
+
+    [Test]
+    [Arguments("contextual-json")]
+    [Arguments("contextual-yaml")]
+    public async Task Draft1FallbackRefusesContextualTreeWithContextPrefixesWithoutCallingGuest(string profile)
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var treeRoot = GenerationInputFixtures.OrdersTreeWithContextPrefixes(sandbox.PathOf("input-tree"), "v4", profile);
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "acme/orders"
+
+            [codegen.text]
+            extension = "draft1"
+
+            [extensions.draft1]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var guest = new Draft1OnlyChannelGuest();
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: treeRoot, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var failure = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+        failure.Kind.Should().Be(GenerationFailureKind.Semantic);
+        failure.Diagnostics.Should().Contain(d => d.Code == "data.lossy_conversion" && d.Message.Contains("context.prefixes"));
+        guest.GenerateCalls.Should().Be(0);
+    }
+
+    [Test]
+    [Arguments("v4", "plain-yaml", "compile.record_format_mismatch")]
+    [Arguments("v3.1", "plain-json", "compile.record_version_mismatch")]
+    public async Task RecordedFallbackRefusesFormatOrVersionMismatchWhenDiskTreeChangesDuringInit(
+        string replacementVersionDir, string replacementProfile, string expectedCode)
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var outDir = sandbox.PathOf("out");
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "acme/orders"
+
+            [frontend]
+            language = "fsharp"
+
+            [codegen.text]
+            extension = "draft1"
+
+            [extensions.draft1]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var taskOptions = new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) };
+        var outRoot = OutRoot.Resolve(new OutRootRequest(projectRoot, projectRoot) { OutDirFlag = outDir }).ShouldSucceed();
+        var store = new CompileTaskStore(outRoot, MemberPath.Root, taskOptions);
+        string recordedTreeRoot;
+        using (var run = (await store.BeginAsync(default)).ShouldSucceed())
+        {
+            var descriptor = IrDescriptor.Create(RecordPath.Parse("recorded/orders-model"), IrLayout.DocumentTree,
+                IrStorageFormat.Json, Versioning.parse("4").ResultValue);
+            recordedTreeRoot = descriptor.Path.Under(run.Dest);
+            CopyOrdersFixture("v4", "plain-json", recordedTreeRoot);
+            run.Complete(new CompileProduct("fsharp", descriptor, null)).ShouldSucceed();
+        }
+
+        // Replace the recorded JSON v4 tree on disk during draft.2 initialization so fallback captures the mismatched tree.
+        var replaced = false;
+        var guest = new Draft1OnlyChannelGuest();
+        var connector = new MepBackendExtensionConnector(null, (_, _) =>
+        {
+            if (!replaced)
+            {
+                replaced = true;
+                Directory.Delete(recordedTreeRoot, recursive: true);
+                CopyOrdersFixture(replacementVersionDir, replacementProfile, recordedTreeRoot);
+            }
+            return (guest.OpenChannel(), "", "");
+        });
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(), taskOptions);
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Target: "text", Output: outputDir) { OutDir = outDir },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var failure = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+        failure.Diagnostics.Should().Contain(d => d.Code == expectedCode);
+        guest.GenerateCalls.Should().Be(0);
+    }
+
+    private sealed class DepthOverrideSettingsResolver(IGenerationSettingsResolver inner, int maxDepth) : IGenerationSettingsResolver
+    {
+        public async ValueTask<Outcome<GenerationSettings>> ResolveAsync(GenerateOverrides overrides, InvocationContext invocation, CancellationToken ct)
+        {
+            var resolved = await inner.ResolveAsync(overrides, invocation, ct);
+            return resolved is Outcome<GenerationSettings>.Success success
+                ? new Outcome<GenerationSettings>.Success(success.Value with
+                {
+                    Limits = success.Value.Limits with { MaxDepth = maxDepth },
+                })
+                : resolved;
+        }
+    }
+
+    [Test]
     [Arguments(true)]
     [Arguments(false)]
     public async Task InstalledWasmExtensionClampsInitializeModelAccessOfferToWasmFrameCeiling(bool recorded)
@@ -1486,7 +1705,7 @@ public sealed class MepDocumentTreeGenerationTests
         public void Dispose() => Disposed = true;
     }
 
-    private sealed class Draft1OnlyChannelGuest(int maxDecodedBytes = 1024 * 1024, bool failGenerate = false)
+    private sealed class Draft1OnlyChannelGuest(int maxDecodedBytes = 1024 * 1024, bool failGenerate = false, int maxDepth = 128)
     {
         public string? ReceivedPayloadLayout { get; private set; }
         public string? ReceivedPayloadCodec { get; private set; }
@@ -1499,7 +1718,7 @@ public sealed class MepDocumentTreeGenerationTests
 
         public ISingleMessageChannel OpenChannel()
         {
-            var limits = new ModelTransportLimits(maxDecodedBytes * 2, maxDecodedBytes, 128, 100_000);
+            var limits = new ModelTransportLimits(maxDecodedBytes * 2, maxDecodedBytes, maxDepth, 100_000);
             var support = new ModelTransportSupport(
                 [MepGenerationTransport.V4Tuple, MepGenerationTransport.Classic31Tuple, MepGenerationTransport.ClassicTuple],
                 limits, []);

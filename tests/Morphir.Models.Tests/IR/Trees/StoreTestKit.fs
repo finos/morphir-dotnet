@@ -151,6 +151,38 @@ let undeclaredManifestSchemaProvider (fileName: string) =
     |> Morphir.Files.VFileTree.fromFileMap
     |> Morphir.Files.VFileProviders.asFileProvider
 
+/// A frozen bounded orders tree as an IFileProvider.
+let ordersTreeProvider (version: string) (profile: string) =
+    let prefix = Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Directory + version + "/" + profile + "/"
+
+    Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Files
+    |> Seq.filter (fun entry -> entry.RelativePath.StartsWith(prefix, System.StringComparison.Ordinal))
+    |> Seq.map (fun entry ->
+        let location = entry.RelativePath.Substring(prefix.Length)
+
+        location,
+        Morphir.Files.VFile.ofBytes
+            location
+            (System.ReadOnlyMemory(Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes entry))
+    )
+    |> Map.ofSeq
+    |> Morphir.Files.VFileTree.fromFileMap
+    |> Morphir.Files.VFileProviders.asFileProvider
+
+/// An IFileProvider wrapper that invokes a callback on each GetDirectoryContents call (for mid-page cancellation tests).
+let interceptingDirectoryProvider
+    (onGetDirectoryContents: string -> unit)
+    (inner: Microsoft.Extensions.FileProviders.IFileProvider)
+    : Microsoft.Extensions.FileProviders.IFileProvider =
+    { new Microsoft.Extensions.FileProviders.IFileProvider with
+        member _.GetDirectoryContents(subpath) =
+            onGetDirectoryContents subpath
+            inner.GetDirectoryContents(subpath)
+
+        member _.GetFileInfo(subpath) = inner.GetFileInfo(subpath)
+        member _.Watch(filter) = inner.Watch(filter)
+    }
+
 /// A frozen bounded orders tree with one named file replaced by an undeclared contextual envelope $schema.
 let ordersTreeWithUndeclaredSchema (version: string) (profile: string) (targetFile: string) =
     let prefix = Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Directory + version + "/" + profile + "/"

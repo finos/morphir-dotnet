@@ -59,8 +59,19 @@ internal static class RecordedGenerationAdmission
     {
         var adapter = SessionLimits.Default;
         var frameBytes = Math.Min(adapter.RequestFrameBytes, adapter.ResponseFrameBytes);
+        return MaxBodyBytesForWholeFrame(frameBytes);
+    }
+
+    internal static int MaxBodyBytesForWholeFrame(long frameBytes)
+    {
+        static long WholeFrame(long bodyBytes) =>
+            bodyBytes + System.Text.Encoding.ASCII.GetByteCount($"Content-Length: {bodyBytes}\r\n\r\n");
+
         var headerBytes = System.Text.Encoding.ASCII.GetByteCount($"Content-Length: {frameBytes}\r\n\r\n");
-        return (int)Math.Min(ContentLengthFraming.MaxBodyBytes, frameBytes - headerBytes);
+        var body = Math.Max(0L, frameBytes - headerBytes);
+        while (body < frameBytes && WholeFrame(body + 1) <= frameBytes)
+            body++;
+        return (int)Math.Min(ContentLengthFraming.MaxBodyBytes, body);
     }
 
     internal static ModelAccessSupport ClampForWasm(BoundedGenerationProfile profile, ModelAccessSupport offer)

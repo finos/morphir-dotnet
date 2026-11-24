@@ -30,7 +30,7 @@ let private ordersSource files =
         Revision = fun () -> revision
         DiscoveryIndexPeakBytes = fun () -> 0L
         ContainsFile = fun location -> Map.containsKey location files
-        NextModule = fun _ _ _ _ -> failtest "Member reads do not enumerate modules"
+        NextModule = fun _ _ _ _ _ -> failtest "Member reads do not enumerate modules"
         FindFile =
             fun location ->
                 lookedUp.Add location
@@ -259,7 +259,7 @@ let private moduleSource version =
     let recording =
         { source with
             NextModule =
-                fun _ _ prefix after ->
+                fun _ _ _ prefix after ->
                     enumerated.Add(prefix, after)
 
                     [ audit; orders; sdk ]
@@ -398,7 +398,7 @@ let modulePages =
 
                 let unsafe =
                     { source with
-                        NextModule = fun _ _ _ _ -> Ok(Some path)
+                        NextModule = fun _ _ _ _ _ -> Ok(Some path)
                     }
 
                 let snapshot = read (BoundedTreeReader.openTree 1024L unsafe)
@@ -416,7 +416,7 @@ let modulePages =
 
             let unordered =
                 { source with
-                    NextModule = fun _ _ _ _ -> Ok(Some repeated)
+                    NextModule = fun _ _ _ _ _ -> Ok(Some repeated)
                 }
 
             let snapshot = read (BoundedTreeReader.openTree 1024L unordered)
@@ -556,7 +556,7 @@ let private frozenOrdersFiles version profile =
         DiscoveryIndexPeakBytes = fun () -> 0L
         ContainsFile = fun location -> Set.contains location files
         NextModule =
-            fun _ _ prefix after ->
+            fun _ _ _ prefix after ->
                 modules
                 |> List.tryFind (fun path ->
                     path.StartsWith(prefix, System.StringComparison.Ordinal)
@@ -1573,7 +1573,7 @@ let providerTests =
                 DiscoveryIndexPeakBytes = fun () -> 0L
                 ContainsFile = fun path -> path = manifestLocation
                 FindFile = fun _ -> Some file
-                NextModule = fun _ _ _ _ -> Ok None
+                NextModule = fun _ _ _ _ _ -> Ok None
             }
 
             BoundedTreeReader.openTree limits.MaxFileBytes direct
@@ -2104,18 +2104,18 @@ let discoveryCacheTests =
             let ownCharge = 128L + (ownPaths |> List.sumBy (fun path -> 160L + 4L * int64 path.Length))
             Expect.equal (source.DiscoveryIndexPeakBytes ()) 0L "No index has been constructed"
             Expect.equal (counts ()) (0, 0) "Reading the counter is lazy"
-            source.NextModule None 240 "deps/morphir/_sdk/@/" None |> Result.mapError List.singleton |> read |> ignore
+            source.NextModule None System.Threading.CancellationToken.None 240 "deps/morphir/_sdk/@/" None |> Result.mapError List.singleton |> read |> ignore
             let dependencyCharge = 128L + 160L + 4L * int64 "deps/morphir/_sdk/@/basics/module".Length
             Expect.equal (source.DiscoveryIndexPeakBytes ()) dependencyCharge "The first smaller package charges only its own index"
-            let first = source.NextModule None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read
+            let first = source.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read
             Expect.equal (source.DiscoveryIndexPeakBytes ()) ownCharge "Charge uses actual distinct paths, not the reservation"
             let scanned = counts ()
-            source.NextModule None 240 "pkg/acme/orders/" first |> Result.mapError List.singleton |> read |> ignore
+            source.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" first |> Result.mapError List.singleton |> read |> ignore
             Expect.equal (source.DiscoveryIndexPeakBytes ()) ownCharge "Reuse does not charge the same index twice"
             Expect.equal (counts ()) scanned "Reuse does not walk again"
-            source.NextModule None 240 "deps/morphir/_sdk/@/" None |> Result.mapError List.singleton |> read |> ignore
+            source.NextModule None System.Threading.CancellationToken.None 240 "deps/morphir/_sdk/@/" None |> Result.mapError List.singleton |> read |> ignore
             Expect.equal (source.DiscoveryIndexPeakBytes ()) ownCharge "A smaller replacement preserves the high water mark"
-            source.NextModule None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read |> ignore
+            source.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read |> ignore
             Expect.equal (source.DiscoveryIndexPeakBytes ()) ownCharge "Rebuilding an evicted package is not cumulative"
             Expect.isEmpty opened "The counter and index open no content"
         }
@@ -2125,7 +2125,7 @@ let discoveryCacheTests =
                           |> List.map (fun path -> 128L + 160L + 4L * int64 path.Length)
             let source = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 (List.max charges) (fun () -> "stable") provider
             let attempt after =
-                source.NextModule None 240 "pkg/acme/orders/" after |> Result.mapError List.singleton
+                source.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" after |> Result.mapError List.singleton
                 |> expectReadError "tree.discovery_cache_limit" "pkg/acme/orders/"
             attempt None
             let peak = source.DiscoveryIndexPeakBytes ()
@@ -2140,7 +2140,7 @@ let discoveryCacheTests =
             for budget in [ 127L; 128L ] do
                 let provider, opened, counts = countedProvider ()
                 let source = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 budget (fun () -> "stable") provider
-                let result = source.NextModule None 240 "pkg/absent/" None |> Result.mapError List.singleton
+                let result = source.NextModule None System.Threading.CancellationToken.None 240 "pkg/absent/" None |> Result.mapError List.singleton
                 if budget = 128L then
                     Expect.isNone (read result) "An empty index fits exactly"
                 else
@@ -2175,7 +2175,7 @@ let discoveryCacheTests =
             for budget in [ cap; cap - 1L ] do
                 let provider, opened, _ = countedProvider ()
                 let source = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 budget (fun () -> "stable") provider
-                let result = source.NextModule None 240 "pkg/acme/orders/" None
+                let result = source.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None
                 if budget = cap then
                     Expect.equal (read (result |> Result.mapError List.singleton)) (Some paths.Head) "Exact cap"
                 else
@@ -2186,18 +2186,18 @@ let discoveryCacheTests =
         test "Exact entry cap and uncached fallback preserve admission" {
             let provider, _, counts = countedProvider ()
             let baseline = TreeFileSource.fromFileProvider 1000 (fun () -> "stable") provider
-            baseline.NextModule None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read |> ignore
+            baseline.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read |> ignore
             Expect.equal (baseline.DiscoveryIndexPeakBytes ()) 0L "The ordinary scan has no index"
             let total, _ = counts ()
             for cap in [ total; total - 1 ] do
                 let cached = TreeFileSource.fromFileProviderWithDiscoveryCache cap 65536L (fun () -> "stable") provider
-                let result = cached.NextModule None 240 "pkg/acme/orders/" None
+                let result = cached.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None
                 if cap = total then Expect.isOk result "Exact entry cap"
                 else result |> Result.mapError List.singleton |> expectReadError "tree.too_many_files" "pkg/acme/orders/"
             let fallback = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 0L (fun () -> "stable") provider
-            let first = fallback.NextModule None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read
+            let first = fallback.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read
             let before = counts ()
-            fallback.NextModule None 240 "pkg/acme/orders/" first |> Result.mapError List.singleton |> read |> ignore
+            fallback.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" first |> Result.mapError List.singleton |> read |> ignore
             Expect.isGreaterThan (fst (counts ())) (fst before) "Zero reservation uses the public streaming fallback"
             Expect.equal (fallback.DiscoveryIndexPeakBytes ()) 0L "A disabled index reports zero after repeated scans"
         }
@@ -2205,7 +2205,7 @@ let discoveryCacheTests =
             let provider, _, counts = countedProvider ()
             let mutable revision = "one"
             let source = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 65536L (fun () -> revision) provider
-            let next prefix = source.NextModule None 240 prefix None |> Result.mapError List.singleton |> read
+            let next prefix = source.NextModule None System.Threading.CancellationToken.None 240 prefix None |> Result.mapError List.singleton |> read
             next "pkg/acme/orders/" |> ignore
             let ownCount = counts ()
             next "deps/morphir/_sdk/@/" |> ignore
@@ -2218,11 +2218,11 @@ let discoveryCacheTests =
                 calls <- calls + 1
                 if calls < 3 then "one" else "two"
             let unstable = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 65536L changing provider
-            unstable.NextModule None 240 "pkg/acme/orders/" None
+            unstable.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None
             |> Result.mapError List.singleton |> StoreTestKit.refusal |> StoreTestKit.codesAndFiles
             |> fun errors -> Expect.equal errors [ "tree.revision_changed", None ] "Revision changed during walk"
             let scanned = counts ()
-            unstable.NextModule None 240 "pkg/acme/orders/" None |> ignore
+            unstable.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None |> ignore
             Expect.equal (counts ()) scanned "Rejected revision never reuses partial paths"
         }
         test "Cached metadata preserves physical profile ambiguity" {
@@ -2262,10 +2262,10 @@ let discoveryCacheTests =
         test "Cache lookup remains metered on reuse" {
             let provider, _, _ = countedProvider ()
             let source = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 65536L (fun () -> "stable") provider
-            source.NextModule None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read |> ignore
+            source.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read |> ignore
             let work = BoundedTreeWorkBudget(1L)
             work.TryCharge 1L |> ignore
-            source.NextModule (Some work) 240 "pkg/acme/orders/" None
+            source.NextModule (Some work) System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None
             |> Result.mapError List.singleton |> expectReadError "extension.bounded_work_limit" "pkg/acme/orders/"
         }
         test "OpenDetectedSnapshot detects plain and contextual encodings across JSON and YAML versions" {
@@ -2361,29 +2361,43 @@ let discoveryCacheTests =
                 | Result.Error errors ->
                     Expect.equal (errors |> Seq.map _.Code |> Seq.toList) [ "context.undeclared_schema" ] $"code for {profile}/{targetFile}"
         }
-        test "OpenDetectedSnapshotBounded enforces work budget and cancellation" {
-            let prefix = FixtureCatalog.BoundedOrders.Directory + "v4/contextual-json/"
-            let provider =
-                FixtureCatalog.BoundedOrders.Files
-                |> Seq.filter (fun entry -> entry.RelativePath.StartsWith(prefix, System.StringComparison.Ordinal))
-                |> Seq.map (fun entry ->
-                    let location = entry.RelativePath.Substring(prefix.Length)
-                    location, VFile.ofBytes location (System.ReadOnlyMemory(FixtureCatalog.ReadBytes entry)))
-                |> Map.ofSeq
-                |> VFileTree.fromFileMap
-                |> VFileProviders.asFileProvider
+        test "OpenDetectedSnapshotBounded enforces work budget, positive work requirement, depth limit, and mid-page discovery cancellation" {
+            let provider = StoreTestKit.ordersTreeProvider "v4" "contextual-json"
+
             match DocumentTreeStore.openDetectedSnapshotBounded(
-                ReadOptions.defaults, 0, 2L, System.Func<string>(fun () -> "r1"), provider, System.Threading.CancellationToken.None) with
+                ReadOptions.defaults, 128, 0, 0L, System.Func<string>(fun () -> "r1"), provider, System.Threading.CancellationToken.None) with
+            | Ok _ -> failtest "Expected zero work budget to be refused"
+            | Result.Error errors ->
+                Expect.contains (errors |> Seq.map _.Code |> Seq.toList) "tree.invalid_limit" "Zero work budget is refused"
+
+            match DocumentTreeStore.openDetectedSnapshotBounded(
+                ReadOptions.defaults, 128, 0, 2L, System.Func<string>(fun () -> "r1"), provider, System.Threading.CancellationToken.None) with
             | Ok _ -> failtest "Expected tight work budget to stop detection"
             | Result.Error errors ->
                 Expect.contains (errors |> Seq.map _.Code |> Seq.toList) "extension.bounded_work_limit" "Work limit refusal"
+
+            match DocumentTreeStore.openDetectedSnapshotBounded(
+                ReadOptions.defaults, 3, 0, 10000L, System.Func<string>(fun () -> "r1"), provider, System.Threading.CancellationToken.None) with
+            | Ok _ -> failtest "Expected tight depth limit to stop detection"
+            | Result.Error errors ->
+                Expect.contains (errors |> Seq.map _.Code |> Seq.toList) "depth_limit_exceeded" "Depth limit refusal"
+
             use cts = new System.Threading.CancellationTokenSource()
-            cts.Cancel()
+            let mutable dirCalls = 0
+            let cancellingProvider =
+                StoreTestKit.interceptingDirectoryProvider
+                    (fun _ ->
+                        dirCalls <- dirCalls + 1
+                        if dirCalls >= 2 then cts.Cancel())
+                    provider
+
             Expect.throwsT<System.OperationCanceledException>
                 (fun () ->
                     DocumentTreeStore.openDetectedSnapshotBounded(
-                        ReadOptions.defaults, 0, 10000L, System.Func<string>(fun () -> "r1"), provider, cts.Token)
+                        ReadOptions.defaults, 128, 0, 10000L, System.Func<string>(fun () -> "r1"), cancellingProvider, cts.Token)
                     |> ignore)
-                "Cancelled token aborts detection"
+                "Cancellation during mid-page directory discovery aborts immediately"
+
+            Expect.isGreaterThanOrEqual dirCalls 2 "Cancellation triggered mid-discovery rather than before starting"
         }
     ]

@@ -118,28 +118,117 @@ module IonIr =
                         }
             )
 
-    let rec internal verifyValueNoSymbolZero (location: string) (value: IonValue) : Result<unit, string> =
-        match value.Data with
-        | IonData.Struct fields ->
-            fields
-            |> List.fold
-                (fun state (symbol, item) ->
-                    state
-                    |> Result.bind (fun () ->
-                        match symbol with
-                        | IonSymbol.Zero ->
-                            Error $"Ion value in {location} carries an unnamed symbol-zero field that JSON IR cannot preserve."
-                        | IonSymbol.Text _ -> verifyValueNoSymbolZero location item
-                    )
+    let private tryAnnotationTexts (location: string) (annotations: IonSymbol list) : Result<string list, string> =
+        annotations
+        |> List.fold
+            (fun state symbol ->
+                state
+                |> Result.bind (fun acc ->
+                    match symbol with
+                    | IonSymbol.Text text -> Ok(text :: acc)
+                    | IonSymbol.Zero ->
+                        Error $"Ion value in {location} carries an unnamed symbol-zero annotation that JSON IR cannot preserve."
                 )
-                (Ok())
-        | IonData.List items
-        | IonData.Sexp items ->
-            items
-            |> List.fold
-                (fun state item -> state |> Result.bind (fun () -> verifyValueNoSymbolZero location item))
-                (Ok())
-        | _ -> Ok()
+            )
+            (Ok [])
+        |> Result.map List.rev
+
+    let private isStructuralAnnotation (fieldName: string option) (names: string list) (data: IonData) : bool =
+        match names with
+        | [] -> true
+        | _ ->
+            match fieldName with
+            | Some("doc"
+            | "name"
+            | "module"
+            | "package"
+            | "packageName"
+            | "annotations"
+            | "typeParams"
+            | "target"
+            | "txId"
+            | "expected"
+            | "found"
+            | "platform"
+            | "formatVersion"
+            | "ionVersion"
+            | "kind"
+            | "pathBudget"
+            | "critical") -> false
+            | _ ->
+                match names, data with
+                | ([ "package"; "spec" ]
+                | [ "package"; "def" ]
+                | [ "module"; "spec" ]
+                | [ ("public" | "private"); "def"; "module" ]
+                | [ ("public" | "private"); "def"; ("alias" | "custom" | "incomplete"); "type" ]
+                | [ ("public" | "private"); "def"; "value" ]
+                | [ ("public" | "private"); "def"; ("native" | "external" | "incomplete"); "value" ]
+                | [ "public"; "spec"; ("opaque" | "alias" | "custom" | "derived"); "type" ]
+                | [ "public"; "spec"; "value" ]
+                | [ "tuple" ]
+                | [ "variable" ]
+                | [ "reference" ]
+                | [ "record" ]
+                | [ "extensibleRecord" ]
+                | [ "function" ]
+                | [ "unit" ]
+                | [ "unresolvedReference" ]
+                | [ "deletedDuringRefactor" ]
+                | [ "typeMismatch" ]
+                | [ "hole" ]
+                | [ "platformSpecific" ]),
+                  IonData.Struct _ -> true
+                | [ "tuple" ], IonData.List _ -> true
+                | [ "number" ], IonData.String _ -> true
+                | _ -> false
+
+    let rec internal verifyValueLossless
+        (fieldName: string option)
+        (requirePlainItem: bool)
+        (location: string)
+        (value: IonValue)
+        : Result<unit, string> =
+        tryAnnotationTexts location value.Annotations
+        |> Result.bind (fun names ->
+            if requirePlainItem && not names.IsEmpty then
+                let joined = String.concat "::" names
+                Error $"Ion value in {location} carries annotation '{joined}' that JSON IR cannot preserve."
+            elif not (isStructuralAnnotation fieldName names value.Data) then
+                let joined = String.concat "::" names
+                Error $"Ion value in {location} carries annotation '{joined}' that JSON IR cannot preserve."
+            else
+                match value.Data with
+                | IonData.Struct fields ->
+                    fields
+                    |> List.fold
+                        (fun state (symbol, item) ->
+                            state
+                            |> Result.bind (fun () ->
+                                match symbol with
+                                | IonSymbol.Zero ->
+                                    Error $"Ion value in {location} carries an unnamed symbol-zero field that JSON IR cannot preserve."
+                                | IonSymbol.Text name -> verifyValueLossless (Some name) false location item
+                            )
+                        )
+                        (Ok())
+                | IonData.List items ->
+                    let plainItems = fieldName = Some "annotations"
+
+                    items
+                    |> List.fold
+                        (fun state item ->
+                            state
+                            |> Result.bind (fun () -> verifyValueLossless None plainItems location item)
+                        )
+                        (Ok())
+                | IonData.Sexp items ->
+                    items
+                    |> List.fold
+                        (fun state item -> state |> Result.bind (fun () -> verifyValueLossless None false location item))
+                        (Ok())
+                | _ -> Ok()
+        )
 
     let internal verifyHeaderLossless (allowPathBudget: bool) (location: string) (header: IonValue) : Result<unit, string> =
         match header.Annotations, header.Data with
@@ -175,7 +264,7 @@ module IonIr =
                             if not value.Annotations.IsEmpty then
                                 Error $"Ion header member '{name}' in {location} carries annotations that JSON IR cannot preserve."
                             else
-                                verifyValueNoSymbolZero location value
+                                verifyValueLossless (Some name) false location value
                         | IonSymbol.Text unknown ->
                             Error $"Ion header in {location} carries unknown noncritical member '{unknown}' that JSON IR cannot preserve."
                     )
@@ -201,7 +290,10 @@ module IonIr =
                         rest
                         |> List.take (rest.Length - 1)
                         |> List.fold
-                            (fun state item -> state |> Result.bind (fun () -> verifyValueNoSymbolZero "input" item))
+                            (fun state item ->
+                                state
+                                |> Result.bind (fun () -> verifyValueLossless None false "input" item)
+                            )
                             (Ok())
                     | _ ->
                         Error "Ion datagram carries trailing values or non-empty footer metadata that JSON IR cannot preserve."

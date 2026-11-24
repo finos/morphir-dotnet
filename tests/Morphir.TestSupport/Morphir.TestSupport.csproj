@@ -58,6 +58,7 @@
     <EmbeddedResource Include="../Fixtures/MorphirTrees/written-*/**/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirTrees/$([System.String]::Copy('%(RecursiveDir)').Replace('\','/'))%(Filename)%(Extension)" />
     <!-- The upstream IR documents of MorphirIon that the readers and writers are checked against (FixtureCatalog.UpstreamIr). -->
     <EmbeddedResource Include="../Fixtures/MorphirIon/pairs/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/pairs/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirIon/pairs/v3-daily-rate.ion" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/pairs/v3-daily-rate.ion" />
     <EmbeddedResource Include="../Fixtures/MorphirIon/records/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/records/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirIon/v4/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/v4/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirIon/mep/fixtures/plain-ir.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/mep/fixtures/plain-ir.json" />

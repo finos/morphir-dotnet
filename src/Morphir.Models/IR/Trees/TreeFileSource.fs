@@ -35,7 +35,7 @@ module internal TreeFileSource =
         FindFile: string -> Morphir.Files.VFile option
         /// The first logical module path in a package after the optional cursor, in ordinal order.
         /// This callback only examines storage metadata.
-        NextModule: BoundedTreeWorkBudget option -> int -> string -> string option -> Result<string option, StoreError>
+        NextModule: BoundedTreeWorkBudget option -> System.Threading.CancellationToken -> int -> string -> string option -> Result<string option, StoreError>
     }
 
 
@@ -52,7 +52,7 @@ module internal TreeFileSource =
             else
                 None
 
-        let scanModule retain work pathBudget (prefix: string) after =
+        let scanModule retain work (cancellationToken: System.Threading.CancellationToken) pathBudget (prefix: string) after =
             let root = prefix.TrimEnd('/')
             let directories = Stack<string * IEnumerator<IFileInfo>>()
             let mutable remaining = maxEntries
@@ -60,6 +60,8 @@ module internal TreeFileSource =
             let mutable refusal = None
 
             let push directory =
+                cancellationToken.ThrowIfCancellationRequested()
+
                 if charge work 1L then
                     directories.Push(
                         directory,
@@ -73,6 +75,7 @@ module internal TreeFileSource =
 
                 while directories.Count > 0
                       && Option.isNone refusal do
+                    cancellationToken.ThrowIfCancellationRequested()
                     let directory, entries = directories.Peek()
 
                     if not (charge work 1L) then
@@ -168,64 +171,91 @@ module internal TreeFileSource =
         let mutable peakIndexBytes = 0L
         let originalRevision = if cacheBytes = 0L then "" else revision ()
         let cacheGate = obj ()
-        let nextModule work pathBudget (prefix: string) after =
-            if cacheBytes = 0L then scanModule (fun _ -> true) work pathBudget prefix after
-            else lock cacheGate (fun () ->
-                let changed () =
-                    cached <- None
-                    Error(error "tree.revision_changed" None "The tree source changed during discovery.")
-                if revision () <> originalRevision then changed ()
-                else
-                    let lookup (paths: string array) =
-                        let cost = 1L + int64 (Math.Ceiling(Math.Log(float (paths.Length + 1), 2.0)))
-                        if not (charge work cost) then Error(StoreErrors.workLimit (Some prefix))
-                        else
-                            let index =
-                                match after with
-                                | None -> 0
-                                | Some previous ->
-                                    let found = Array.BinarySearch(paths, previous, StringComparer.Ordinal)
-                                    if found < 0 then ~~~found else found + 1
-                            if index < paths.Length then Ok(Some paths[index]) else Ok None
-                    match cached with
-                    | Some(package, budget, paths) when package = prefix && budget = pathBudget -> lookup paths
-                    | _ ->
+        let nextModule work (cancellationToken: System.Threading.CancellationToken) pathBudget (prefix: string) after =
+            cancellationToken.ThrowIfCancellationRequested()
+
+            if cacheBytes = 0L then
+                scanModule (fun _ -> true) work cancellationToken pathBudget prefix after
+            else
+                lock cacheGate (fun () ->
+                    let changed () =
                         cached <- None
-                        let paths = SortedSet<string>(StringComparer.Ordinal)
-                        let mutable retained = 128L
-                        // The builder exists even if its fixed overhead is refused.
-                        peakIndexBytes <- max peakIndexBytes retained
-                        let mutable workRefused = false
-                        let retain (path: string) =
-                            let cost = 1L + int64 (Math.Ceiling(Math.Log(float (paths.Count + 2), 2.0)))
+                        Error(error "tree.revision_changed" None "The tree source changed during discovery.")
+
+                    if revision () <> originalRevision then
+                        changed ()
+                    else
+                        let lookup (paths: string array) =
+                            let cost = 1L + int64 (Math.Ceiling(Math.Log(float (paths.Length + 1), 2.0)))
+
                             if not (charge work cost) then
-                                workRefused <- true
-                                false
-                            elif paths.Contains path then true
+                                Error(StoreErrors.workLimit (Some prefix))
                             else
-                                let bytes = 160L + 4L * int64 path.Length
-                                if retained > cacheBytes || bytes > cacheBytes - retained then false
-                                else
-                                    retained <- retained + bytes
-                                    paths.Add path |> ignore
-                                    peakIndexBytes <- max peakIndexBytes retained
+                                let index =
+                                    match after with
+                                    | None -> 0
+                                    | Some previous ->
+                                        let found = Array.BinarySearch(paths, previous, StringComparer.Ordinal)
+                                        if found < 0 then ~~~found else found + 1
+
+                                if index < paths.Length then Ok(Some paths[index]) else Ok None
+
+                        match cached with
+                        | Some(package, budget, paths) when package = prefix && budget = pathBudget -> lookup paths
+                        | _ ->
+                            cached <- None
+                            let paths = SortedSet<string>(StringComparer.Ordinal)
+                            let mutable retained = 128L
+                            // The builder exists even if its fixed overhead is refused.
+                            peakIndexBytes <- max peakIndexBytes retained
+                            let mutable workRefused = false
+
+                            let retain (path: string) =
+                                cancellationToken.ThrowIfCancellationRequested()
+                                let cost = 1L + int64 (Math.Ceiling(Math.Log(float (paths.Count + 2), 2.0)))
+
+                                if not (charge work cost) then
+                                    workRefused <- true
+                                    false
+                                elif paths.Contains path then
                                     true
-                        let result =
-                            if cacheBytes < retained then
-                                Error(error "tree.discovery_cache_limit" (Some prefix) "The discovery reservation is below its fixed overhead.")
-                            else scanModule retain work pathBudget prefix None
-                        if revision () <> originalRevision then changed ()
-                        elif workRefused then Error(StoreErrors.workLimit (Some prefix))
-                        else
-                            match result with
-                            | Error problem -> Error problem
-                            | Ok _ ->
-                                // Copy directly into the charged final array. Do not
-                                // introduce an intermediate sequence conversion buffer.
-                                let ordered = Array.zeroCreate<string> paths.Count
-                                paths.CopyTo ordered
-                                cached <- Some(prefix, pathBudget, ordered)
-                                lookup ordered)
+                                else
+                                    let bytes = 160L + 4L * int64 path.Length
+
+                                    if retained > cacheBytes || bytes > cacheBytes - retained then
+                                        false
+                                    else
+                                        retained <- retained + bytes
+                                        paths.Add path |> ignore
+                                        peakIndexBytes <- max peakIndexBytes retained
+                                        true
+
+                            let result =
+                                if cacheBytes < retained then
+                                    Error(
+                                        error
+                                            "tree.discovery_cache_limit"
+                                            (Some prefix)
+                                            "The discovery reservation is below its fixed overhead."
+                                    )
+                                else
+                                    scanModule retain work cancellationToken pathBudget prefix None
+
+                            if revision () <> originalRevision then
+                                changed ()
+                            elif workRefused then
+                                Error(StoreErrors.workLimit (Some prefix))
+                            else
+                                match result with
+                                | Error problem -> Error problem
+                                | Ok _ ->
+                                    // Copy directly into the charged final array. Do not
+                                    // introduce an intermediate sequence conversion buffer.
+                                    let ordered = Array.zeroCreate<string> paths.Count
+                                    paths.CopyTo ordered
+                                    cached <- Some(prefix, pathBudget, ordered)
+                                    lookup ordered
+                )
 
         {
             Revision = revision

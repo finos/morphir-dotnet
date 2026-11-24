@@ -551,4 +551,42 @@ public class ChannelTests
         await Assert.That(failure).IsNotNull();
         await Assert.That(failure!.Code).IsEqualTo("extension.memory_limit");
     }
+
+    [Test]
+    public async Task ApplyModelAccessLimits_admits_body_at_exact_maxFrameBytes_and_refuses_one_byte_over()
+    {
+        // extism-echo echoes the exact request body bytes as the response body, testing both request and response
+        // framing through the real WASM adapter at the exact negotiated maxFrameBytes boundary.
+        const int NegotiatedBodyBytes = 1024;
+        var modelAccessLimits = new Morphir.Mep.ModelAccessLimits(
+            NegotiatedBodyBytes, 4096, 4096, 1, 64, 1024, 16, 1,
+            16 * 1024 * 1024, 1024 * 1024, 512, 4096, 4096, 4096, 1000, 10, 5000, 10000);
+
+        using (var channel = Open("extism-echo", SessionLimits.Default))
+        {
+            var refusal = channel.ApplyModelAccessLimits(modelAccessLimits);
+            await Assert.That(refusal).IsNull();
+
+            var exactBody = new byte[NegotiatedBodyBytes];
+            Array.Fill(exactBody, (byte)'x');
+            var reply = await channel.RequestAsync(Shutdown, exactBody, CancellationToken.None);
+
+            await Assert.That(reply).IsNotNull();
+            await Assert.That(reply!.Length).IsEqualTo(NegotiatedBodyBytes);
+        }
+
+        using (var overChannel = Open("extism-echo", SessionLimits.Default))
+        {
+            var refusal = overChannel.ApplyModelAccessLimits(modelAccessLimits);
+            await Assert.That(refusal).IsNull();
+
+            var oversizedBody = new byte[NegotiatedBodyBytes + 1];
+            Array.Fill(oversizedBody, (byte)'x');
+            var thrown = await Assert.That(async () => await overChannel.RequestAsync(Shutdown, oversizedBody, CancellationToken.None))
+                .Throws<WasmChannelException>();
+
+            await Assert.That(thrown!.Failure).IsTypeOf<WasmChannelFailure.RequestOverLimit>();
+            await Assert.That(thrown.Message).Contains("maxFrameBytes");
+        }
+    }
 }

@@ -1471,5 +1471,53 @@ let tests =
                 let mutable budgetReason = ""
                 let okBudget = IonIrTree.tryVerifyLosslessJsonConversion (limits, withAnnotatedBudget, &budgetReason)
                 Expect.isFalse okBudget "Ion tree with annotated pathBudget must be refused"
+
+            testCase "Lossless JSON conversion verifier refuses annotated doc across duplicate dependency fragments in single-doc and tree Ion"
+            <| fun () ->
+                let depHeader =
+                    "morphir::{ionVersion: \"0.1.0-draft.1\", formatVersion: \"4.0.0\", kind: library, packageName: \"my/pkg\"}"
+
+                let singleWithAnnotatedFragment =
+                    ReadOnlyMemory(
+                        Text.Encoding.UTF8.GetBytes(
+                            datagram [
+                                depHeader
+                                "package::spec::{name: \"acme/dep\"}"
+                                "module::spec::{package: \"acme/dep\", name: \"util\", doc: \"same\", types: [public::spec::opaque::type::{name: \"t\"}]}"
+                                "module::spec::{package: \"acme/dep\", name: \"util\", doc: note::\"same\", values: [public::spec::value::{name: \"v\", output: \"morphir/SDK:basics#int\"}]}"
+                                $"public::def::module::{{name: \"m\", values: [public::def::value::{{name: \"x\", outputType: {int}, body: 1}}]}}"
+                            ]
+                        )
+                    )
+
+                Expect.isOk (IonIr.read limits singleWithAnnotatedFragment) "Single-doc Ion reader merges the two dependency fragments"
+                let mutable singleReason = ""
+
+                let okSingle =
+                    IonIr.tryVerifyLosslessJsonConversion (limits, singleWithAnnotatedFragment, &singleReason)
+
+                Expect.isFalse okSingle "Single-doc Ion with annotated duplicate dependency doc must be refused"
+                Expect.stringContains singleReason "note" "Names the discarded annotation"
+
+                let treeWithAnnotatedFragment =
+                    treeOf [
+                        manifest,
+                        "morphir::{ionVersion: \"0.1.0-draft.1\", formatVersion: \"4.0.0\", kind: library, packageName: \"my/pkg\", pathBudget: 4000}\npackage::spec::{name: \"acme/dep\"}"
+                        "deps/acme/dep/@/util/module.ion",
+                        "module::spec::{doc: \"same\"}\nmodule::spec::{doc: note::\"same\"}"
+                        "deps/acme/dep/@/util/t.type.ion", "public::spec::opaque::type::{}"
+                        "pkg/my/pkg/m/module.ion", "public::def::module::{}"
+                        "pkg/my/pkg/m/x.value.ion",
+                        $"public::def::value::{{outputType: {int}, body: 1}}"
+                    ]
+
+                Expect.isOk (IonIrTree.read limits treeWithAnnotatedFragment) "Ion tree reader merges the two dependency fragments"
+                let mutable treeReason = ""
+
+                let okTree =
+                    IonIrTree.tryVerifyLosslessJsonConversion (limits, treeWithAnnotatedFragment, &treeReason)
+
+                Expect.isFalse okTree "Ion tree with annotated duplicate dependency doc must be refused"
+                Expect.stringContains treeReason "note" "Names the discarded annotation in tree"
         ]
     ]

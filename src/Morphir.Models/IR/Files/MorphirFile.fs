@@ -289,12 +289,57 @@ module MorphirFile =
                     Document = root.Clone()
                 }
 
-    let internal readEnvelopeWithOrder
+    /// <summary>
+    /// Inspects a raw JSON/YAML root before context expansion and returns the first optional envelope or context
+    /// member (such as <c>context.prefixes</c>) that plain JSON IR cannot preserve.
+    /// </summary>
+    let internal findUnrepresentableEnvelopeMember (root: JsonElement) : string option =
+        let mutable schema = Unchecked.defaultof<JsonElement>
+
+        if root.ValueKind <> JsonValueKind.Object || not (root.TryGetProperty("$schema", &schema)) then
+            None
+        else
+            let envelopeUnknown =
+                root.EnumerateObject()
+                |> Seq.tryPick (fun prop ->
+                    match prop.Name with
+                    | "$schema"
+                    | "critical"
+                    | "context"
+                    | "document" -> None
+                    | other -> Some $"envelope.{other}"
+                )
+
+            match envelopeUnknown with
+            | Some found -> Some found
+            | None ->
+                let mutable ctx = Unchecked.defaultof<JsonElement>
+
+                if root.TryGetProperty("context", &ctx) && ctx.ValueKind = JsonValueKind.Object then
+                    ctx.EnumerateObject()
+                    |> Seq.tryPick (fun prop ->
+                        match prop.Name with
+                        | "names"
+                        | "packagePaths"
+                        | "modulePaths"
+                        | "fqNames" -> None
+                        | other -> Some $"context.{other}"
+                    )
+                else
+                    None
+
+    let internal readEnvelopeRootAndInspect orderPolicy limits file (root: JsonElement) =
+        let unrepresentable = findUnrepresentableEnvelopeMember root
+
+        readEnvelopeRoot orderPolicy limits file root
+        |> Result.map (fun parsed -> parsed, unrepresentable)
+
+    let internal readEnvelopeWithOrderAndInspect
         orderPolicy
         (limits: ContextLimits)
         (file: string)
         (bytes: ReadOnlyMemory<byte>)
-        : Result<MorphirFile<JsonElement>, StoreError list> =
+        : Result<MorphirFile<JsonElement> * string option, StoreError list> =
         try
             use document =
                 JsonDocument.Parse(
@@ -302,7 +347,7 @@ module MorphirFile =
                     JsonDocumentOptions(MaxDepth = limits.MaxDepth)
                 )
 
-            readEnvelopeRoot orderPolicy limits file document.RootElement
+            readEnvelopeRootAndInspect orderPolicy limits file document.RootElement
         with :? JsonException as problem ->
             if isJsonAtAnyDepth (withoutByteOrderMark bytes) then
                 Error [
@@ -313,6 +358,15 @@ module MorphirFile =
                 ]
             else
                 Error [ error "invalid_json" file problem.Message ]
+
+    let internal readEnvelopeWithOrder
+        orderPolicy
+        (limits: ContextLimits)
+        (file: string)
+        (bytes: ReadOnlyMemory<byte>)
+        : Result<MorphirFile<JsonElement>, StoreError list> =
+        readEnvelopeWithOrderAndInspect orderPolicy limits file bytes
+        |> Result.map fst
 
     /// <summary>
     /// Reads a Morphir file's bytes, named <paramref name="file"/> in every diagnostic: a plain file has no schema and

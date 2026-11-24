@@ -75,7 +75,7 @@ internal static class RecordedBoundedGeneration
             // tree with a larger member is not refused before discovering a draft.1-only guest that can admit it.
             var opened = DocumentTreeStore.OpenDetectedSnapshotBounded(
                     new ReadOptions(readerLimits.MaxEntries, readerLimits.MaxBytes),
-                    readerLimits.MaxNodes, limits.MaxSessionWorkUnits, () => revision, files, ct)
+                    readerLimits.MaxDepth, readerLimits.MaxNodes, limits.MaxSessionWorkUnits, () => revision, files, ct)
                 .Match<BoundedTreeSnapshot, IReadOnlyList<StoreError>, Outcome<BoundedTreeSnapshot>>(
                     value => new Outcome<BoundedTreeSnapshot>.Success(value),
                     problems => new Outcome<BoundedTreeSnapshot>.Failure(new(GenerationFailureKind.Operational,
@@ -94,7 +94,8 @@ internal static class RecordedBoundedGeneration
             {
                 if (fallbackToDraft1 is not null && settings.BoundedProfile != BoundedGenerationProfile.OrdersScale
                     && IsModelAccessNotAgreed(refusedGuest.Error))
-                    return await FallbackToDraft1Async(snapshot, inputPath, null, capturedTree, readerLimits, ct, fallbackToDraft1);
+                    return await FallbackToDraft1Async(inputPath, null, null, null, capturedTree, readerLimits,
+                        limits.MaxSessionWorkUnits, ct, fallbackToDraft1);
                 return new Outcome<GenerationSuccess>.Failure(refusedGuest.Error);
             }
             var connection = ((Outcome<ModelAccessConnection>.Success)connected).Value;
@@ -187,7 +188,8 @@ internal static class RecordedBoundedGeneration
                 }
 
                 if (fallbackRequested)
-                    return await FallbackToDraft1Async(snapshot, inputPath, null, capturedTree, readerLimits, ct, fallbackToDraft1!);
+                    return await FallbackToDraft1Async(inputPath, null, null, null, capturedTree, readerLimits,
+                        limits.MaxSessionWorkUnits, ct, fallbackToDraft1!);
 
                 if (result is Outcome<StagedGenerationOutput>.Failure failure)
                     return Failed(failure.Error);
@@ -272,7 +274,7 @@ internal static class RecordedBoundedGeneration
                         () => revision, files)
                     : DocumentTreeStore.OpenDetectedSnapshotBounded(
                         new ReadOptions(readerLimits.MaxEntries, readerLimits.MaxBytes),
-                        readerLimits.MaxNodes, limits.MaxSessionWorkUnits, () => revision, files, ct))
+                        readerLimits.MaxDepth, readerLimits.MaxNodes, limits.MaxSessionWorkUnits, () => revision, files, ct))
                 .Match<BoundedTreeSnapshot, IReadOnlyList<StoreError>, Outcome<BoundedTreeSnapshot>>(
                     value => new Outcome<BoundedTreeSnapshot>.Success(value),
                     problems => settings.BoundedProfile == BoundedGenerationProfile.OrdersScale
@@ -310,7 +312,8 @@ internal static class RecordedBoundedGeneration
                     && IsModelAccessNotAgreed(refusedGuest.Error))
                 {
                     var taskPublisher = new RecordedTaskGenerationPublisher(taskRun, producer.IrPath);
-                    return await FallbackToDraft1Async(snapshot, producer.IrPath, producer.Ir.Version, null, readerLimits, ct,
+                    return await FallbackToDraft1Async(producer.IrPath, producer.Location.Record, producer.Ir.Version,
+                        producer.Ir.Format, null, readerLimits, limits.MaxSessionWorkUnits, ct,
                         model => fallbackToDraft1(model, taskPublisher));
                 }
                 return new Outcome<GenerationSuccess>.Failure(refusedGuest.Error);
@@ -407,7 +410,8 @@ internal static class RecordedBoundedGeneration
                 if (fallbackRequested)
                 {
                     var taskPublisher = new RecordedTaskGenerationPublisher(taskRun, producer.IrPath);
-                    return await FallbackToDraft1Async(snapshot, producer.IrPath, producer.Ir.Version, null, readerLimits, ct,
+                    return await FallbackToDraft1Async(producer.IrPath, producer.Location.Record, producer.Ir.Version,
+                        producer.Ir.Format, null, readerLimits, limits.MaxSessionWorkUnits, ct,
                         model => fallbackToDraft1!(model, taskPublisher));
                 }
 
@@ -497,8 +501,9 @@ internal static class RecordedBoundedGeneration
         failure.Diagnostics.Any(diagnostic => diagnostic.Code == "extension.unavailable"
             && string.Equals(diagnostic.Message, MepChannelGuest.ModelAccessNotAgreedMessage, StringComparison.Ordinal));
 
-    private static async Task<Outcome<GenerationSuccess>> FallbackToDraft1Async(BoundedTreeSnapshot snapshot, string sourcePath,
-        SourceFormatVersion? declaredVersion, RetainedInput.Tree? capturedOriginal, ModelReadLimits limits, CancellationToken ct,
+    private static async Task<Outcome<GenerationSuccess>> FallbackToDraft1Async(string sourcePath,
+        string? recordPath, SourceFormatVersion? declaredVersion, IrStorageFormat? declaredFormat,
+        RetainedInput.Tree? capturedOriginal, ModelReadLimits limits, long maxWorkUnits, CancellationToken ct,
         Func<LoadedModel, Task<Outcome<GenerationSuccess>>> fallbackToDraft1)
     {
         ct.ThrowIfCancellationRequested();
@@ -525,7 +530,8 @@ internal static class RecordedBoundedGeneration
         var capturedRevision = "sha256:" + originalSha256;
         var capturedFiles = new CapturedTreeFiles(originalTree);
         var reopened = DocumentTreeStore.OpenDetectedSnapshotBounded(
-                new ReadOptions(limits.MaxEntries, limits.MaxBytes), limits.MaxNodes, 0L, () => capturedRevision, capturedFiles, ct)
+                new ReadOptions(limits.MaxEntries, limits.MaxBytes), limits.MaxDepth, limits.MaxNodes, maxWorkUnits,
+                () => capturedRevision, capturedFiles, ct)
             .Match<BoundedTreeSnapshot, IReadOnlyList<StoreError>, Outcome<BoundedTreeSnapshot>>(
                 value => new Outcome<BoundedTreeSnapshot>.Success(value),
                 problems => new Outcome<BoundedTreeSnapshot>.Failure(new(GenerationFailureKind.Operational,
@@ -534,9 +540,33 @@ internal static class RecordedBoundedGeneration
             return new Outcome<GenerationSuccess>.Failure(reopenFailure.Error);
         var capturedSnapshot = ((Outcome<BoundedTreeSnapshot>.Success)reopened).Value;
 
+        // Re-verify the captured snapshot's IR version and storage format against the compile record rather than
+        // trusting the earlier pre-negotiation probe or overwriting the captured source version.
+        if (declaredVersion is not null
+            && !FormatVersion.SameVersion(declaredVersion.Version, SourceFormatVersion.Create(capturedSnapshot.IrVersion).Version))
+        {
+            var recordLabel = recordPath ?? sourcePath;
+            return new Outcome<GenerationSuccess>.Failure(GenerationFailure.One(GenerationFailureKind.Operational,
+                "compile.record_version_mismatch",
+                $"The compile record at {recordLabel} names IR {declaredVersion.Text}, but {sourcePath} declares {capturedSnapshot.IrVersion}.",
+                sourcePath));
+        }
+
+        if (declaredFormat is { } expectedFormat)
+        {
+            var capturedFormat = capturedSnapshot.Syntax.Equals(BoundedTreeSyntax.Json)
+                ? IrStorageFormat.Json
+                : IrStorageFormat.Yaml;
+            if (capturedFormat != expectedFormat)
+                return new Outcome<GenerationSuccess>.Failure(GenerationFailure.One(GenerationFailureKind.Operational,
+                    "compile.record_format_mismatch",
+                    $"The manifest at {sourcePath} does not match its recorded {IrStorageNames.Name(expectedFormat)} format.",
+                    sourcePath));
+        }
+
         var originalFilePaths = originalTree.Entries.Select(entry => entry.RelativePath).ToArray();
-        if (!DocumentTreeStore.TryJoinSnapshot(capturedSnapshot, originalFilePaths, limits.MaxEntries, limits.MaxBytes, limits.MaxBytes, ct,
-            out var versioned, out _, out var problems))
+        if (!DocumentTreeStore.TryJoinSnapshot(capturedSnapshot, originalFilePaths, limits.MaxEntries, limits.MaxDepth,
+            limits.MaxBytes, limits.MaxBytes, ct, out var versioned, out _, out var problems))
         {
             var kind = problems.Any(problem => problem.Code == "data.lossy_conversion")
                 ? GenerationFailureKind.Semantic
@@ -546,9 +576,6 @@ internal static class RecordedBoundedGeneration
         }
 
         ct.ThrowIfCancellationRequested();
-        if (declaredVersion is not null)
-            versioned = new VersionedModel(declaredVersion, versioned.Distribution);
-
         var fromCodec = capturedSnapshot.Syntax.Equals(BoundedTreeSyntax.Json) ? "morphir-json" : "morphir-yaml";
         var origin = new ModelConversionOrigin(capturedSnapshot.PackageId, "morphir-ir", fromCodec,
             capturedSnapshot.IrVersion, capturedRevision, originalSha256);

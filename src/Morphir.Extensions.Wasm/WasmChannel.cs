@@ -105,7 +105,11 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable, IAsyncDisp
             if (state != ChannelState.Open || calling)
                 return "The WASM adapter cannot apply model-access limits outside an idle session.";
 
-            var refusal = store.ApplyModelAccessLimits(limits.MaxFrameBytes, limits.MaxGuestStateBytes);
+            // ModelAccessLimits.MaxFrameBytes bounds the JSON-RPC body, while SessionLimits bounds the whole
+            // Content-Length frame. Convert the negotiated body ceiling to its exact whole-frame size so a body
+            // at maxFrameBytes is admitted and maxFrameBytes + 1 is refused.
+            var wholeFrameBytes = FrameBytes(limits.MaxFrameBytes);
+            var refusal = store.ApplyModelAccessLimits(wholeFrameBytes, limits.MaxGuestStateBytes);
             modelAccessLimitsApplied = refusal is null;
             return refusal;
         }
