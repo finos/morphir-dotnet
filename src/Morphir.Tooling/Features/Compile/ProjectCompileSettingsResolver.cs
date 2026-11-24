@@ -35,8 +35,10 @@ public sealed record LoadedCompileConfiguration(ConfigValue Effective, FSharpMap
 
     /// <summary>
     /// The resolution that gave <see cref="Effective"/> and <see cref="Origins"/>, which F# reads for C#
-    /// (<c>ConfigValueProjections.TryFindConfiguredOrigin</c>). Null when no configuration was loaded, which has no
-    /// configured origin.
+    /// (<c>ConfigValueProjections.TryFindConfiguredOrigin</c>). Null in two cases: no configuration was loaded, which has
+    /// no configured origin; or a caller used the positional constructor, which gives <see cref="Effective"/> and
+    /// <see cref="Origins"/> only. The settings then take each key's own origin from <see cref="Origins"/>, so a
+    /// nonempty table, whose origins are on the keys below it, is not seen as configured.
     /// </summary>
     public DocumentResolution? Resolution { get; init; }
 }

@@ -142,8 +142,12 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
             var removal = hooks.Removal ?? PathRemoval.Default;
             // The IR is staged only into an absent root: a root that a crashed run left and that cannot be cleared refuses it.
             if (!removal.TryRemove(staging, out var notCleared, ct))
+            {
+                // The run still holds compile.lock, so the warning reads compile.json as this run left it.
+                CleanupWarnings.Write(warnings, [new CleanupRefusal(staging, notCleared)], run.Location.Record, "before the publication");
                 return Checked<PublishedCompile>.Fail([Diagnostic.Create(Severity.Error, CompileCodes.PublishFailed,
-                    $"The IR could not be written to '{target}': the staging path '{staging}' could not be cleared: {notCleared!.Message}", null)]);
+                    $"The IR could not be written to '{target}': the staging path '{staging}' could not be cleared: {notCleared.Message}", null)]);
+            }
             // Only what this attempt moved into place is rolled back: a target that was there before stays.
             var moved = false;
             var recorded = false;

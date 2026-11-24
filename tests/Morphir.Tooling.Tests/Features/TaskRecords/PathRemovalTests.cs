@@ -26,7 +26,6 @@ public sealed class PathRemovalTests
         var parent = sandbox.PathOf("dest");
         var staged = Path.Combine(parent, ".morphir-ir.staging");
         Directory.CreateDirectory(staged);
-        File.WriteAllBytes(Path.Combine(staged, "manifest.json"), []);
         var searchable = File.GetUnixFileMode(parent);
         File.SetUnixFileMode(parent, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         bool removed;

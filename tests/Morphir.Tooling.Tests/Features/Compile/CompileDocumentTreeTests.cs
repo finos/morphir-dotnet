@@ -331,7 +331,7 @@ public sealed class CompileDocumentTreeTests
 
     /// <summary>A started publication of a tree compile and its request, with a stale staging root left in <c>compile.dest</c>.</summary>
     private static async Task<(ICompilePublication Publication, CompilePublishRequest Request, string Staging)> StalePublicationAsync(
-        CompileWorkspace workspace, CompilePublicationHooks hooks)
+        CompileWorkspace workspace, CompilePublicationHooks hooks, TaskStoreOptions? options = null)
     {
         var crashed = workspace.PathOf("crashed-run");
         Succeeded(await Run(workspace, Inputs()));
@@ -340,7 +340,7 @@ public sealed class CompileDocumentTreeTests
         var request = CompilePublishRequest.ForDocumentTree("fsharp", Morphir.IR.Model.SourceFormatVersion.Create("4").Version, null, written,
             Passed(CompileDocumentTree.Write(written)));
         var settings = Passed(new ProjectCompileSettingsResolver().Resolve(Inputs(), workspace.Context()));
-        var publication = Passed(await new TaskRecordCompilePublisher(Quiet, hooks).BeginAsync(settings, default));
+        var publication = Passed(await new TaskRecordCompilePublisher(options ?? Quiet, hooks).BeginAsync(settings, default));
         // The run's own begin cleared compile.dest; the stale root appears after it, as another tool would leave it.
         var staging = Path.Combine(Dest(workspace), ".morphir-ir.staging");
         Directory.Move(crashed, staging);
@@ -627,6 +627,7 @@ public sealed class CompileDocumentTreeTests
         var staged = Directory.EnumerateFiles(OutRoot(workspace), ".compile.json.*").Should().ContainSingle().Subject;
         warnings.ToString().Should().Contain(staged).And.Contain("Access to the path is denied.")
             .And.Contain("compile.json is a tombstone");
+        warnings.ToString().Split(staged).Length.Should().Be(2, "the rollback reports the staged record and the run does not report it again");
         treeAtFirstWarning.Should().BeFalse("the rollback of the moved tree runs before the first warning");
     }
 
@@ -834,10 +835,19 @@ public sealed class CompileDocumentTreeTests
     {
         using var workspace = Project();
         var scanner = new ScannedRemoval(failures: int.MaxValue);
-        var (publication, request, staging) = await StalePublicationAsync(workspace, new CompilePublicationHooks { Removal = scanner.Removal });
+        var warnings = new StringWriter();
+        bool? lockHeldAtWarning = null;
+        var stderr = new RecordingWriter(warnings, () => lockHeldAtWarning ??= !LockIsFree(workspace));
+        var (publication, request, staging) = await StalePublicationAsync(workspace, new CompilePublicationHooks { Removal = scanner.Removal },
+            Quiet with { Diagnostics = stderr });
         Checked<PublishedCompile> refused;
-        using (publication) refused = await publication.PublishAsync(request, default);
+        using (publication)
+        {
+            refused = await publication.PublishAsync(request, default);
+            lockHeldAtWarning.Should().BeTrue("compile.json is read for the warning while the run holds compile.lock");
+        }
 
+        warnings.ToString().Should().Contain(staging).And.Contain("being used by another process").And.Contain("compile.json is a tombstone");
         refused.IsPassed.Should().BeFalse("the tree is never written into a root that still holds other files");
         refused.Diagnostics.Select(d => d.CodeOrNull?.Value).Should().Equal("compile.publish_failed");
         refused.Diagnostics[0].Message.Should().Contain(staging);
