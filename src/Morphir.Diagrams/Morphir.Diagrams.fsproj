@@ -36,8 +36,11 @@
         <Compile Include="DiagramAnnotations.fs" />
         <Compile Include="Themes.fs" />
         <Compile Include="CssColors.fs" />
+        <Compile Include="Layout.fs" />
+        <Compile Include="LayoutFeatures.fs" />
         <Compile Include="Carriage.fs" />
         <Compile Include="Exploration.fs" />
+        <Compile Include="LayoutHints.fs" />
         <Compile Include="DiagramScene.fs" />
         <Compile Include="Reading.fs" />
         <Compile Include="Icons.fs" />
@@ -54,6 +57,7 @@
         <Compile Include="BpmnSource.fs" />
         <Compile Include="Theme.fs" />
         <Compile Include="SvgWriting.fs" />
+        <Compile Include="LayoutSink.fs" />
         <Compile Include="Connectors.fs" />
         <Compile Include="FlowchartSvg.fs" />
         <Compile Include="SequenceLayout.fs" />
@@ -62,6 +66,7 @@
         <Compile Include="DataTreeSvg.fs" />
         <Compile Include="BpmnSvg.fs" />
         <Compile Include="SvgRenderer.fs" />
+        <Compile Include="DiagramExport.fs" />
         <Compile Include="AnimatedRenderer.fs" />
         <Compile Include="MermaidPrinter.fs" />
         <Compile Include="SourceReading.fs" />

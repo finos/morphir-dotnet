@@ -417,6 +417,10 @@ module internal SequenceSvg =
                         let fill =
                             match Option.ofObj box.Color with
                             | Some color when literalColor.IsMatch color && color <> "transparent" -> color
+                            | Some color when color <> "transparent" ->
+                                let name = if box.Label = "" then "a box" else $"the box {box.Label}"
+                                writer.Hint(LayoutHint.Unresolved(color, name))
+                                "none"
                             | _ -> "none"
 
                         SvgWriting.empty

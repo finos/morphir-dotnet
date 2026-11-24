@@ -58,7 +58,7 @@ The primitives that the SVG of a page paints, in document order, SHALL equal the
 - **THEN** each shape's formatted box equals the SVG's formatted rectangle
 
 ### Requirement: References agree with the SVG
-Each reference in the SVG's `data-ref` attributes SHALL be the reference of exactly one drawable, and the layout SHALL have no other references. Each primitive SHALL belong to the innermost referenced drawable whose SVG group holds it, except where its writer documents another owner. A sequence lifeline, drawn outside its participant's group, belongs to that participant.
+Each `data-ref` attribute of the SVG SHALL give its reference to exactly one drawable, and the layout SHALL have no other references. A data-tree object drawn as a row of its parent and as its own table names a drawable for each. Each primitive SHALL belong to the innermost referenced drawable whose SVG group holds it, except where its writer documents another owner. A sequence lifeline, drawn outside its participant's group, belongs to that participant.
 
 #### Scenario: A lifeline belongs to its participant
 - **WHEN** a sequence diagram is laid out

@@ -4,6 +4,7 @@
 namespace Morphir.Diagrams
 
 open System
+open System.Collections.Generic
 open System.Collections.Immutable
 open System.Globalization
 open System.Text
@@ -46,10 +47,13 @@ module internal SvgWriting =
     let private attributes (pairs: (string * string) list) =
         pairs |> List.map (fun (name, value) -> SvgAttribute.Create(name, legible value)) |> List.toArray
 
-    type SceneBuilder(prefix: string, options: SvgRenderOptions) =
+    type SceneBuilder(prefix: string, options: SvgRenderOptions, onFills: bool) =
         let root = ResizeArray<SvgNode>()
         let connectors = ResizeArray<DiagramConnector>()
         let mutable current = root
+        let hints = Dictionary<SvgNode, LayoutHint list>(HashIdentity.Reference)
+        let owners = ResizeArray<string * string>()
+        let mutable pending: LayoutHint list = []
 
         /// Namespace of the generated identifiers of this diagram.
         member _.Prefix = prefix
@@ -61,12 +65,24 @@ module internal SvgWriting =
             let children = ResizeArray<SvgNode>()
             current <- children
 
+            // Hints describe the element that follows them, not its children.
+            let described = pending
+            pending <- []
+
             try
                 body ()
             finally
                 current <- enclosing
 
-            enclosing.Add(SvgNode.CreateElement(name, attributes pairs, children))
+            let node = SvgNode.CreateElement(name, attributes pairs, children)
+            if not described.IsEmpty then hints[node] <- described
+            enclosing.Add node
+
+        /// Tells the layout sink something about the next element, which the SVG does not say.
+        member _.Hint(hint: LayoutHint) = pending <- pending @ [ hint ]
+
+        /// Records that the drawable with the child reference belongs to the drawable with the owner reference.
+        member _.Own (child: string) (owner: string) = owners.Add((child, owner))
 
         member _.BindConnector source target data reversed =
             connectors.Add(DiagramConnector(connectors.Count, source, target, data, reversed))
@@ -80,6 +96,7 @@ module internal SvgWriting =
                 | None -> document
 
             DiagramScene(document, Reading.immutable connectors, options, ImmutableArray.Empty, [])
+                .WithCapture({ Root = document.Root; Hints = hints; Owners = List.ofSeq owners; OnFills = onFills })
 
     let element (writer: SceneBuilder) name pairs body = writer.Element name pairs body
 
@@ -255,7 +272,7 @@ module internal SvgWriting =
             |> Seq.toArray
 
         let draw prefix =
-            let writer = SceneBuilder(prefix, options)
+            let writer = SceneBuilder(prefix, options, onFills)
             let id = prefix + "-diagram"
             let style = Theme.styleSheet id onFills options
             element writer "title" [] (fun () -> writer.Add(text title))
