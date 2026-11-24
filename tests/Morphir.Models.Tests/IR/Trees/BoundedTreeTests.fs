@@ -2326,15 +2326,8 @@ let discoveryCacheTests =
                 Expect.stringContains text "ir-context/0.1.0-draft.1/document.schema.json" $"{profile} retains contextual envelope"
         }
         test "OpenDetectedSnapshot refuses an undeclared manifest schema in JSON and YAML" {
-            for file, content in
-                [
-                    "manifest.json", """{"$schema":"https://example.org/unknown.schema.json","context":{},"document":{"formatVersion":4}}"""
-                    "manifest.yaml", "$schema: https://example.org/unknown.schema.json\ncontext: {}\ndocument:\n  formatVersion: 4\n"
-                ] do
-                let provider =
-                    Map.ofList [ file, VFile.ofText file content ]
-                    |> VFileTree.fromFileMap
-                    |> VFileProviders.asFileProvider
+            for file in [ "manifest.json"; "manifest.yaml" ] do
+                let provider = StoreTestKit.undeclaredManifestSchemaProvider file
                 match DocumentTreeStore.openDetectedSnapshot(ReadOptions.defaults, System.Func<string>(fun () -> "r1"), provider) with
                 | Ok _ -> failtest $"Expected refusal for undeclared schema in {file}"
                 | Result.Error errors ->
@@ -2354,24 +2347,43 @@ let discoveryCacheTests =
             Expect.equal snapshot.Syntax BoundedTreeSyntax.Json "JSON syntax"
             Expect.equal snapshot.IrVersion "4.0.0" "v4 IR"
         }
-        test "OpenDetectedSnapshot refuses an undeclared schema on a member file beneath a plain manifest" {
-            let prefix = FixtureCatalog.BoundedOrders.Directory + "v4/plain-json/"
-            let badMember = """{"$schema":"https://example.org/unknown.schema.json","context":{},"document":{"formatVersion":4}}"""
-            let files =
+        test "OpenDetectedSnapshot refuses an undeclared schema on a later own or dependency file even after contextual manifest or members" {
+            for profile, targetFile in
+                [
+                    "plain-json", "pkg/acme/orders/domain/order.value.json"
+                    "contextual-json", "pkg/acme/orders/domain/total-in-_usd.value.json"
+                    "contextual-json", "deps/morphir/_sdk/@/basics/add.value.json"
+                    "contextual-yaml", "deps/morphir/_sdk/@/basics/add.value.yaml"
+                ] do
+                let provider = StoreTestKit.ordersTreeWithUndeclaredSchema "v4" profile targetFile
+                match DocumentTreeStore.openDetectedSnapshot(ReadOptions.defaults, System.Func<string>(fun () -> "r1"), provider) with
+                | Ok _ -> failtest $"Expected context.undeclared_schema refusal for {profile}/{targetFile}"
+                | Result.Error errors ->
+                    Expect.equal (errors |> Seq.map _.Code |> Seq.toList) [ "context.undeclared_schema" ] $"code for {profile}/{targetFile}"
+        }
+        test "OpenDetectedSnapshotBounded enforces work budget and cancellation" {
+            let prefix = FixtureCatalog.BoundedOrders.Directory + "v4/contextual-json/"
+            let provider =
                 FixtureCatalog.BoundedOrders.Files
                 |> Seq.filter (fun entry -> entry.RelativePath.StartsWith(prefix, System.StringComparison.Ordinal))
                 |> Seq.map (fun entry ->
                     let location = entry.RelativePath.Substring(prefix.Length)
-                    if location = "pkg/acme/orders/domain/order.value.json" then
-                        location, VFile.ofText location badMember
-                    else
-                        location, VFile.ofBytes location (System.ReadOnlyMemory(FixtureCatalog.ReadBytes entry)))
+                    location, VFile.ofBytes location (System.ReadOnlyMemory(FixtureCatalog.ReadBytes entry)))
                 |> Map.ofSeq
                 |> VFileTree.fromFileMap
                 |> VFileProviders.asFileProvider
-            match DocumentTreeStore.openDetectedSnapshot(ReadOptions.defaults, System.Func<string>(fun () -> "r1"), files) with
-            | Ok _ -> failtest "Expected context.undeclared_schema refusal for member file"
+            match DocumentTreeStore.openDetectedSnapshotBounded(
+                ReadOptions.defaults, 0, 2L, System.Func<string>(fun () -> "r1"), provider, System.Threading.CancellationToken.None) with
+            | Ok _ -> failtest "Expected tight work budget to stop detection"
             | Result.Error errors ->
-                Expect.equal (errors |> Seq.map _.Code |> Seq.toList) [ "context.undeclared_schema" ] "Member undeclared schema refused"
+                Expect.contains (errors |> Seq.map _.Code |> Seq.toList) "extension.bounded_work_limit" "Work limit refusal"
+            use cts = new System.Threading.CancellationTokenSource()
+            cts.Cancel()
+            Expect.throwsT<System.OperationCanceledException>
+                (fun () ->
+                    DocumentTreeStore.openDetectedSnapshotBounded(
+                        ReadOptions.defaults, 0, 10000L, System.Func<string>(fun () -> "r1"), provider, cts.Token)
+                    |> ignore)
+                "Cancelled token aborts detection"
         }
     ]

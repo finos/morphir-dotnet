@@ -1477,7 +1477,7 @@ module internal BoundedTreeReader =
             InventoryByteLimit = max requested snapshot.InventoryByteLimit
         }
 
-    let readExpandedDocument documentId outputBytes snapshot =
+    let internal readExpandedDocumentWithSource documentId outputBytes snapshot =
         if
             outputBytes
             <= 0L
@@ -1503,11 +1503,13 @@ module internal BoundedTreeReader =
                             (Some location)
                             "Expanded names exceed the document byte limit."
                     else
-                        Ok
+                        Ok(
+                            location,
                             {
                                 File = output
                                 Bytes = ReadOnlyMemory(Encoding.UTF8.GetBytes text)
                             }
+                        )
 
             let expand location file =
                 expandRoot
@@ -1578,7 +1580,11 @@ module internal BoundedTreeReader =
 
             withScopedDocument documentId snapshot.ByteLimit snapshot.DocumentNodeLimit (withInventoryBudget outputBytes snapshot) root moduleFile split
 
-    let writeExpandedTree limits stageFile snapshot =
+    let readExpandedDocument documentId outputBytes snapshot =
+        readExpandedDocumentWithSource documentId outputBytes snapshot
+        |> Result.map snd
+
+    let internal writeExpandedTreeWithSources limits (stageFile: string -> BoundedTreeExportDocument -> Result<unit, StoreError list>) snapshot =
         if
             limits.MaxDocumentBytes
             <= 0L
@@ -1601,16 +1607,16 @@ module internal BoundedTreeReader =
                     let mutable remaining = limits.MaxTotalBytes
 
                     let stage documentId =
-                        readExpandedDocument
+                        readExpandedDocumentWithSource
                             documentId
                             (min remaining limits.MaxDocumentBytes)
                             snapshot
-                        |> Result.bind (fun file ->
+                        |> Result.bind (fun (sourceLocation, file) ->
                             remaining <-
                                 remaining
                                 - int64 file.Bytes.Length
 
-                            stageFile file
+                            stageFile sourceLocation file
                         )
 
                     let writePages selection stageEntry =
@@ -1668,13 +1674,20 @@ module internal BoundedTreeReader =
                     )
                 )
 
-    let openTreeDetected
-        byteLimit
+    let writeExpandedTree limits stageFile snapshot =
+        writeExpandedTreeWithSources limits (fun _ doc -> stageFile doc) snapshot
+
+    let openTreeDetectedBounded
+        (byteLimit: int64)
+        (nodeLimit: int option)
+        (workBudget: BoundedTreeWorkBudget option)
+        (cancellationToken: System.Threading.CancellationToken)
         (source: TreeFileSource.SnapshotSource)
         : Result<BoundedTreeSnapshot, StoreError list> =
         if byteLimit <= 0L then
             refuse "tree.invalid_limit" None "A document byte limit must be positive."
         else
+            cancellationToken.ThrowIfCancellationRequested()
             let revision = source.Revision()
 
             atRevision
@@ -1684,15 +1697,15 @@ module internal BoundedTreeReader =
                     readRoot
                         BoundedTreeEncoding.ContextualDraft1
                         ContextLimits.draft1.MaxDepth
-                        None
+                        nodeLimit
                         byteLimit
-                        None
+                        workBudget
                         source
                         None
                         Int32.MaxValue
                         "manifest"
                     |> Result.bind (fun (profile, location, file) ->
-                        let manifestHasContext = file.Input.Context.IsSome
+                        let mutable foundContextual = file.Input.Context.IsSome
 
                         let decode document =
                             if TreeFileSource.isClassicManifest document then
@@ -1719,96 +1732,98 @@ module internal BoundedTreeReader =
                                 ByteLimit = byteLimit
                                 InventoryByteLimit = byteLimit
                                 DocumentDepthLimit = ContextLimits.draft1.MaxDepth
-                                DocumentNodeLimit = None
-                                Work = None
+                                DocumentNodeLimit = nodeLimit
+                                Work = workBudget
                                 Encoding = BoundedTreeEncoding.ContextualDraft1
                                 Profile = profile
                                 Manifest = manifest
                             }
 
-                            if manifestHasContext then
-                                Ok candidate
-                            else
-                                let mutable foundContextual = false
+                            let checkDocument documentId =
+                                cancellationToken.ThrowIfCancellationRequested()
 
-                                let checkDocument documentId =
-                                    if foundContextual then
-                                        Ok()
-                                    else
-                                        let inspectFile (doc: BoundedTreeFile) =
-                                            if doc.Input.Context.IsSome then
-                                                foundContextual <- true
+                                let inspectFile (doc: BoundedTreeFile) =
+                                    if doc.Input.Context.IsSome then
+                                        foundContextual <- true
 
+                                    Ok()
+
+                                withScopedDocument
+                                    documentId
+                                    candidate.ByteLimit
+                                    candidate.DocumentNodeLimit
+                                    candidate
+                                    (fun _ doc -> inspectFile doc)
+                                    (fun _ _ _ _ _ doc -> inspectFile doc)
+                                    (fun _ _ _ _ doc -> inspectFile doc)
+
+                            let scanPages selection handleEntry =
+                                let mutable continuation = None
+                                let mutable pending = true
+                                let mutable result = Ok()
+
+                                while pending && Result.isOk result do
+                                    cancellationToken.ThrowIfCancellationRequested()
+
+                                    match pageInventory selection 64 continuation candidate with
+                                    | Error errors -> result <- Error errors
+                                    | Ok page ->
+                                        result <-
+                                            page.Entries
+                                            |> List.fold
+                                                (fun prior entry ->
+                                                    prior
+                                                    |> Result.bind (fun () -> handleEntry entry)
+                                                )
+                                                (Ok())
+
+                                        continuation <- page.Continuation
+                                        pending <- continuation.IsSome
+
+                                result
+
+                            let scanModule (item: BoundedTreeModule) =
+                                let moduleId = item.DocumentId
+
+                                checkDocument moduleId
+                                |> Result.bind (fun () ->
+                                    scanPages
+                                        moduleId
+                                        (function
+                                        | BoundedTreeInventoryEntry.MemberEntry(memberInfo, _) when
+                                            memberInfo.DocumentId = moduleId
+                                            ->
                                             Ok()
-
-                                        withScopedDocument
-                                            documentId
-                                            candidate.ByteLimit
-                                            candidate.DocumentNodeLimit
-                                            candidate
-                                            (fun _ doc -> inspectFile doc)
-                                            (fun _ _ _ _ _ doc -> inspectFile doc)
-                                            (fun _ _ _ _ doc -> inspectFile doc)
-
-                                let scanPages selection handleEntry =
-                                    let mutable continuation = None
-                                    let mutable pending = true
-                                    let mutable result = Ok()
-
-                                    while pending && not foundContextual && Result.isOk result do
-                                        match pageInventory selection 64 continuation candidate with
-                                        | Error errors -> result <- Error errors
-                                        | Ok page ->
-                                            result <-
-                                                page.Entries
-                                                |> List.fold
-                                                    (fun prior entry ->
-                                                        prior
-                                                        |> Result.bind (fun () ->
-                                                            if foundContextual then Ok() else handleEntry entry
-                                                        )
-                                                    )
-                                                    (Ok())
-
-                                            continuation <- page.Continuation
-                                            pending <- continuation.IsSome
-
-                                    result
-
-                                let scanModule (item: BoundedTreeModule) =
-                                    let moduleId = item.DocumentId
-
-                                    checkDocument moduleId
-                                    |> Result.bind (fun () ->
-                                        if foundContextual then
-                                            Ok()
-                                        else
-                                            scanPages
-                                                moduleId
-                                                (function
-                                                | BoundedTreeInventoryEntry.MemberEntry(memberInfo, _) when
-                                                    memberInfo.DocumentId = moduleId
-                                                    ->
-                                                    Ok()
-                                                | BoundedTreeInventoryEntry.MemberEntry(memberInfo, _) ->
-                                                    checkDocument memberInfo.DocumentId
-                                                | _ -> invalidDocumentSelection ())
-                                    )
-
-                                scanPages
-                                    "root"
-                                    (function
-                                    | BoundedTreeInventoryEntry.ModuleEntry item -> scanModule item
-                                    | _ -> invalidDocumentSelection ())
-                                |> Result.map (fun () ->
-                                    if foundContextual then
-                                        candidate
-                                    else
-                                        { candidate with Encoding = BoundedTreeEncoding.Plain }
+                                        | BoundedTreeInventoryEntry.MemberEntry(memberInfo, _) ->
+                                            checkDocument memberInfo.DocumentId
+                                        | _ -> invalidDocumentSelection ())
                                 )
+
+                            scanPages
+                                "root"
+                                (function
+                                | BoundedTreeInventoryEntry.ModuleEntry item -> scanModule item
+                                | _ -> invalidDocumentSelection ())
+                            |> Result.map (fun () ->
+                                { candidate with
+                                    Encoding =
+                                        if foundContextual then
+                                            BoundedTreeEncoding.ContextualDraft1
+                                        else
+                                            BoundedTreeEncoding.Plain
+                                    DocumentNodeLimit = None
+                                    Work = None
+                                }
+                            )
                         )
                     )
                 )
+
+    let openTreeDetected
+        byteLimit
+        (source: TreeFileSource.SnapshotSource)
+        : Result<BoundedTreeSnapshot, StoreError list> =
+        openTreeDetectedBounded byteLimit None None System.Threading.CancellationToken.None source
 
     let readMember address snapshot =
         readMemberWithArtifact address snapshot

@@ -117,3 +117,122 @@ module IonIr =
                             Location = None
                         }
             )
+
+    let rec internal verifyValueNoSymbolZero (location: string) (value: IonValue) : Result<unit, string> =
+        match value.Data with
+        | IonData.Struct fields ->
+            fields
+            |> List.fold
+                (fun state (symbol, item) ->
+                    state
+                    |> Result.bind (fun () ->
+                        match symbol with
+                        | IonSymbol.Zero ->
+                            Error $"Ion value in {location} carries an unnamed symbol-zero field that JSON IR cannot preserve."
+                        | IonSymbol.Text _ -> verifyValueNoSymbolZero location item
+                    )
+                )
+                (Ok())
+        | IonData.List items
+        | IonData.Sexp items ->
+            items
+            |> List.fold
+                (fun state item -> state |> Result.bind (fun () -> verifyValueNoSymbolZero location item))
+                (Ok())
+        | _ -> Ok()
+
+    let internal verifyHeaderLossless (allowPathBudget: bool) (location: string) (header: IonValue) : Result<unit, string> =
+        match header.Annotations, header.Data with
+        | [ IonSymbol.Text "morphir" ], IonData.Struct fields ->
+            fields
+            |> List.fold
+                (fun state (symbol, value) ->
+                    state
+                    |> Result.bind (fun () ->
+                        match symbol with
+                        | IonSymbol.Zero ->
+                            Error $"Ion header in {location} carries an unnamed symbol-zero member that JSON IR cannot preserve."
+                        | IonSymbol.Text "pathBudget" ->
+                            if not allowPathBudget then
+                                Error $"Single-document Ion header in {location} carries 'pathBudget', which single-document JSON IR does not preserve."
+                            else
+                                match value.Annotations, value.Data with
+                                | [], IonData.Int n when n >= 64I -> Ok()
+                                | _ ->
+                                    Error $"Ion tree manifest 'pathBudget' in {location} carries annotations or non-integer data that JSON IR cannot preserve."
+                        | IonSymbol.Text "critical" ->
+                            match value.Annotations, value.Data with
+                            | [], IonData.List [] -> Ok()
+                            | _ ->
+                                Error $"Ion header in {location} carries a non-empty or annotated 'critical' list that JSON IR cannot preserve."
+                        | IonSymbol.Text("formatVersion"
+                        | "ionVersion"
+                        | "kind"
+                        | "packageName"
+                        | "entryPoints"
+                        | "dependencies"
+                        | "modules" as name) ->
+                            if not value.Annotations.IsEmpty then
+                                Error $"Ion header member '{name}' in {location} carries annotations that JSON IR cannot preserve."
+                            else
+                                verifyValueNoSymbolZero location value
+                        | IonSymbol.Text unknown ->
+                            Error $"Ion header in {location} carries unknown noncritical member '{unknown}' that JSON IR cannot preserve."
+                    )
+                )
+                (Ok())
+        | _, IonData.Struct _ ->
+            Error $"Ion header in {location} carries extra annotations that JSON IR cannot preserve."
+        | _ -> Error $"Ion header in {location} is not a morphir:: struct."
+
+    let internal verifySingleDocumentLossless (values: IonValue list) : Result<unit, string> =
+        match values with
+        | [] -> Error "Retained Ion document has no top-level header value."
+        | header :: rest ->
+            verifyHeaderLossless false "input" header
+            |> Result.bind (fun () ->
+                match rest with
+                | [] -> Ok()
+                | _ ->
+                    let last = List.last rest
+
+                    match last.Annotations, last.Data with
+                    | [ IonSymbol.Text "morphir_footer" ], IonData.Struct [] ->
+                        rest
+                        |> List.take (rest.Length - 1)
+                        |> List.fold
+                            (fun state item -> state |> Result.bind (fun () -> verifyValueNoSymbolZero "input" item))
+                            (Ok())
+                    | _ ->
+                        Error "Ion datagram carries trailing values or non-empty footer metadata that JSON IR cannot preserve."
+            )
+
+    /// <summary>
+    /// Verifies that a retained single-document Ion IR input contains no header members (including <c>pathBudget</c>),
+    /// annotations, symbol-zero fields, or trailing values that would be silently dropped when converting to
+    /// single-document JSON IR. For C# callers: returns <c>true</c> when lossless, or <c>false</c> with
+    /// <paramref name="reason"/>.
+    /// </summary>
+    [<CompiledName("TryVerifyLosslessJsonConversion")>]
+    let tryVerifyLosslessJsonConversion
+        (
+            limits: IonReadLimits,
+            bytes: ReadOnlyMemory<byte>,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] reason: byref<string>
+        ) : bool =
+        let check =
+            withRoom
+                (fun err -> Error err.Message)
+                (fun () ->
+                    match IonReader.readOrThrowOnShortStack limits bytes with
+                    | Ok values -> verifySingleDocumentLossless values
+                    | Error err -> Error(IonReadError.describe err)
+                )
+
+        match check with
+        | Ok() ->
+            reason <- Unchecked.defaultof<_>
+            true
+        | Error message ->
+            reason <- message
+            false

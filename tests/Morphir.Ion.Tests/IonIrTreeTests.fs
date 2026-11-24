@@ -1396,5 +1396,80 @@ let tests =
                 match IonIrTree.read limits tree with
                 | Ok _ -> failtest "An empty manifest has no header"
                 | Result.Error error -> expectCode "invalid_document" (Some manifest) error
+
+            testCase "Lossless JSON conversion verifier checks single-document Ion headers and trailing values"
+            <| fun () ->
+                let singleHeader =
+                    "morphir::{ionVersion: \"0.1.0-draft.1\", formatVersion: \"4.0.0\", kind: library, packageName: \"my/pkg\"}"
+
+                let clean =
+                    ReadOnlyMemory(
+                        Text.Encoding.UTF8.GetBytes(
+                            datagram [
+                                singleHeader
+                                $"public::def::module::{{name: \"m\", values: [public::def::value::{{name: \"x\", outputType: {int}, body: 1}}]}}"
+                            ]
+                        )
+                    )
+
+                let mutable cleanReason = ""
+                let okClean = IonIr.tryVerifyLosslessJsonConversion (limits, clean, &cleanReason)
+                Expect.isTrue okClean $"Clean single-document Ion is lossless (reason: {cleanReason})"
+
+                for label, extraField in
+                    [
+                        "plain pathBudget", "pathBudget: 4000, "
+                        "annotated pathBudget", "pathBudget: note::4000, "
+                        "unknown header member", "customMeta: \"x\", "
+                        "non-empty critical", "critical: [\"missing\"], "
+                    ] do
+                    let text =
+                        datagram [
+                            singleHeader.Replace("morphir::{", "morphir::{" + extraField)
+                            $"public::def::module::{{name: \"m\", values: [public::def::value::{{name: \"x\", outputType: {int}, body: 1}}]}}"
+                        ]
+
+                    let mutable reason = ""
+
+                    let ok =
+                        IonIr.tryVerifyLosslessJsonConversion (
+                            limits,
+                            ReadOnlyMemory(Text.Encoding.UTF8.GetBytes text),
+                            &reason
+                        )
+
+                    Expect.isFalse ok $"Single-document Ion with {label} must be refused"
+                    Expect.isNonEmpty reason $"Reason provided for {label}"
+
+            testCase "Lossless JSON conversion verifier refuses Ion trees with ignored files or unconsumed metadata"
+            <| fun () ->
+                let makeTree pairs =
+                    pairs
+                    |> List.map (fun (path, text) -> path, VFile.ofText path text)
+                    |> Map.ofList
+                    |> VFileTree.fromFileMap
+
+                let mutable baseReason = ""
+                let okBase = IonIrTree.tryVerifyLosslessJsonConversion (limits, makeTree baseFiles, &baseReason)
+                Expect.isTrue okBase "Clean Ion tree is lossless"
+
+                let withIgnored = makeTree (("README.md", "ignored sidecar") :: baseFiles)
+                let mutable ignoredReason = ""
+                let okIgnored = IonIrTree.tryVerifyLosslessJsonConversion (limits, withIgnored, &ignoredReason)
+                Expect.isFalse okIgnored "Ion tree with ignored file must be refused"
+                Expect.stringContains ignoredReason "README.md" "Names the ignored file"
+
+                let withAnnotatedBudget =
+                    baseFiles
+                    |> List.map (fun (path, text) ->
+                        if path = manifest then
+                            path, text.Replace("morphir::{", "morphir::{pathBudget: note::4000, ")
+                        else
+                            path, text)
+                    |> makeTree
+
+                let mutable budgetReason = ""
+                let okBudget = IonIrTree.tryVerifyLosslessJsonConversion (limits, withAnnotatedBudget, &budgetReason)
+                Expect.isFalse okBudget "Ion tree with annotated pathBudget must be refused"
         ]
     ]

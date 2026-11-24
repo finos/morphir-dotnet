@@ -1352,3 +1352,133 @@ module IonIrTree =
                     Path = Some path
                     Location = None
                 }
+
+    let private verifyTreeFileBytes (limits: IonReadLimits) (location: string) (file: Morphir.Files.VFile) : Result<ReadOnlyMemory<byte>, string> =
+        match IonSources.readContent limits file.Content with
+        | Ok bytes -> Ok bytes
+        | Result.Error cause -> Result.Error $"Could not read Ion tree file '{location}': {cause.Message}"
+
+    let private verifyNodeValue (location: string) (value: IonValue) : Result<unit, string> =
+        IonIr.verifyValueNoSymbolZero location value
+        |> Result.bind (fun () ->
+            match value.Data with
+            | IonData.Struct fields ->
+                let forbidden =
+                    fields
+                    |> List.tryPick (fun (symbol, _) ->
+                        match symbol with
+                        | IonSymbol.Text("pathBudget" | "version" | "created" | "$meta" | "critical" | "ionVersion" | "formatVersion" as name) ->
+                            Some name
+                        | _ -> None
+                    )
+
+                match forbidden with
+                | Some name ->
+                    Result.Error $"Ion tree file '{location}' carries unconsumed metadata member '{name}' that JSON IR cannot preserve."
+                | None -> Ok()
+            | _ -> Ok()
+        )
+
+    /// <summary>
+    /// Verifies that a retained Ion IR document tree contains no ignored files, unconsumed manifest/header members,
+    /// annotations, symbol-zero fields, or dropped metadata that would be silently lost when converting to
+    /// single-document JSON IR. For C# callers: returns <c>true</c> when lossless, or <c>false</c> with
+    /// <paramref name="reason"/>.
+    /// </summary>
+    [<CompiledName("TryVerifyLosslessJsonConversion")>]
+    let tryVerifyLosslessJsonConversion
+        (
+            limits: IonReadLimits,
+            source: VFileTree,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] reason: byref<string>
+        ) : bool =
+        let check =
+            let files =
+                collect [] source.Content
+                |> List.sortWith (fun a b -> String.CompareOrdinal(a.Location, b.Location))
+
+            let classified = files |> List.map (fun file -> file, classify file)
+
+            let ignoredOrInvalid =
+                classified
+                |> List.tryPick (fun (file, result) ->
+                    match result with
+                    | Ok IgnoredFile ->
+                        Some $"Ion tree contains ignored file '{file.Location}' that single-document JSON IR cannot preserve."
+                    | Result.Error message -> Some $"{file.Location}: {message}"
+                    | Ok ManifestFile
+                    | Ok(NodeFileEntry _) -> None
+                )
+
+            match ignoredOrInvalid with
+            | Some problem -> Result.Error problem
+            | None ->
+                let manifestOpt =
+                    classified
+                    |> List.tryPick (fun (file, result) ->
+                        match result with
+                        | Ok ManifestFile -> Some file
+                        | _ -> None
+                    )
+
+                match manifestOpt with
+                | None -> Result.Error "The Ion tree has no manifest.ion at its root."
+                | Some manifestFile ->
+                    let readValues (file: TreeFile) =
+                        verifyTreeFileBytes limits file.Location file.File
+                        |> Result.bind (fun bytes ->
+                            IonIr.withRoom
+                                (fun err -> Result.Error err.Message)
+                                (fun () ->
+                                    match IonReader.readOrThrowOnShortStack limits bytes with
+                                    | Ok values -> Ok values
+                                    | Result.Error err -> Result.Error(IonReadError.describe err)
+                                )
+                        )
+
+                    readValues manifestFile
+                    |> Result.bind (fun values ->
+                        match values with
+                        | [] -> Result.Error "manifest.ion has no morphir:: header."
+                        | header :: rest ->
+                            IonIr.verifyHeaderLossless true manifestFile.Location header
+                            |> Result.bind (fun () ->
+                                rest
+                                |> List.fold
+                                    (fun state item ->
+                                        state
+                                        |> Result.bind (fun () -> IonIr.verifyValueNoSymbolZero manifestFile.Location item)
+                                    )
+                                    (Ok())
+                            )
+                    )
+                    |> Result.bind (fun () ->
+                        classified
+                        |> List.choose (fun (_, result) ->
+                            match result with
+                            | Ok(NodeFileEntry node) -> Some node.Source
+                            | _ -> None
+                        )
+                        |> List.fold
+                            (fun state file ->
+                                state
+                                |> Result.bind (fun () ->
+                                    readValues file
+                                    |> Result.bind (fun values ->
+                                        values
+                                        |> List.fold
+                                            (fun inner item -> inner |> Result.bind (fun () -> verifyNodeValue file.Location item))
+                                            (Ok())
+                                    )
+                                )
+                            )
+                            (Ok())
+                    )
+
+        match check with
+        | Ok() ->
+            reason <- Unchecked.defaultof<_>
+            true
+        | Result.Error message ->
+            reason <- message
+            false

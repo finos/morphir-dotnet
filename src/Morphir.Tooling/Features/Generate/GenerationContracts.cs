@@ -239,7 +239,7 @@ public sealed record ModelDescriptor(SourceFormatVersion Version, ModelFamily Fa
 /// envelopes keep the original <c>modelId</c> and <c>extension.model_converted</c> reports the true source codec
 /// and digest rather than an intermediate representation.
 /// </summary>
-public sealed record ModelConversionOrigin(string ModelId, string Profile, string Codec, string Revision, string PayloadSha256);
+public sealed record ModelConversionOrigin(string ModelId, string Profile, string Codec, string IrVersion, string Revision, string PayloadSha256);
 
 public sealed record LoadedModel(VersionedModel Model, ModelDescriptor Descriptor, ModelRepresentation Representation, RetainedInput Original)
 {

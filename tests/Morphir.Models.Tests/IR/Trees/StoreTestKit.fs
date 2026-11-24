@@ -138,3 +138,42 @@ let expectOneStemForEachSharedName (case: DocumentTreeMother.SharedNameCase) (fi
             (moduleText.Replace(" ", "").Split([| quoted |], System.StringSplitOptions.None).Length - 1)
             1
             $"The module file names {key} once in fileNames"
+
+/// A minimal tree carrying an undeclared contextual envelope $schema on its manifest.
+let undeclaredManifestSchemaProvider (fileName: string) =
+    let content =
+        if fileName.EndsWith(".yaml", System.StringComparison.Ordinal) then
+            "$schema: https://example.org/unknown.schema.json\ncontext: {}\ndocument:\n  formatVersion: 4\n"
+        else
+            """{"$schema":"https://example.org/unknown.schema.json","context":{},"document":{"formatVersion":4}}"""
+
+    Map.ofList [ fileName, Morphir.Files.VFile.ofText fileName content ]
+    |> Morphir.Files.VFileTree.fromFileMap
+    |> Morphir.Files.VFileProviders.asFileProvider
+
+/// A frozen bounded orders tree with one named file replaced by an undeclared contextual envelope $schema.
+let ordersTreeWithUndeclaredSchema (version: string) (profile: string) (targetFile: string) =
+    let prefix = Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Directory + version + "/" + profile + "/"
+
+    let undeclared =
+        if targetFile.EndsWith(".yaml", System.StringComparison.Ordinal) then
+            "$schema: https://example.org/unknown.schema.json\ncontext: {}\ndocument:\n  formatVersion: 4\n"
+        else
+            """{"$schema":"https://example.org/unknown.schema.json","context":{},"document":{"formatVersion":4}}"""
+
+    Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Files
+    |> Seq.filter (fun entry -> entry.RelativePath.StartsWith(prefix, System.StringComparison.Ordinal))
+    |> Seq.map (fun entry ->
+        let location = entry.RelativePath.Substring(prefix.Length)
+
+        if location = targetFile then
+            location, Morphir.Files.VFile.ofText location undeclared
+        else
+            location,
+            Morphir.Files.VFile.ofBytes
+                location
+                (System.ReadOnlyMemory(Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes entry))
+    )
+    |> Map.ofSeq
+    |> Morphir.Files.VFileTree.fromFileMap
+    |> Morphir.Files.VFileProviders.asFileProvider

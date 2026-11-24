@@ -224,8 +224,41 @@ module DocumentTreeStore =
         |> Result.mapError (fun errors -> List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>)
 
     /// <summary>
-    /// Open a revision-bound tree from a host callback, detecting whether the manifest carries the declared
-    /// contextual draft.1 envelope (<c>ir-context/0.1.0-draft.1</c>) or is plain. For C# callers.
+    /// Open a revision-bound tree from a host callback, detecting whether any admitted file in the tree carries
+    /// the declared contextual draft.1 envelope (<c>ir-context/0.1.0-draft.1</c>) or whether all files are plain,
+    /// while refusing undeclared <c>$schema</c> values across own and dependency files under explicit node, work,
+    /// and cancellation bounds. For C# callers.
+    /// </summary>
+    [<CompiledName("OpenDetectedSnapshotBounded")>]
+    let openDetectedSnapshotBounded
+        (
+            options: ReadOptions,
+            maxNodes: int,
+            maxWorkUnits: int64,
+            revision: System.Func<string>,
+            provider: Microsoft.Extensions.FileProviders.IFileProvider,
+            cancellationToken: System.Threading.CancellationToken
+        ) : Result<BoundedTreeSnapshot, System.Collections.Generic.IReadOnlyList<StoreError>> =
+        let opened =
+            if options.MaxFiles < 1 then
+                Error [ error "tree.invalid_limit" None "A module lookup limit must be positive." ]
+            elif maxNodes < 0 then
+                Error [ error "tree.invalid_limit" None "A node limit cannot be negative." ]
+            elif maxWorkUnits < 0L then
+                Error [ error "tree.invalid_limit" None "A work budget cannot be negative." ]
+            else
+                let nodeLimit = if maxNodes > 0 then Some maxNodes else None
+                let workBudget = if maxWorkUnits > 0L then Some(BoundedTreeWorkBudget maxWorkUnits) else None
+
+                TreeFileSource.fromFileProvider options.MaxFiles (fun () -> revision.Invoke()) provider
+                |> BoundedTreeReader.openTreeDetectedBounded options.MaxFileBytes nodeLimit workBudget cancellationToken
+
+        opened
+        |> Result.mapError (fun errors -> List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>)
+
+    /// <summary>
+    /// Open a revision-bound tree from a host callback, detecting whether any admitted file carries the declared
+    /// contextual draft.1 envelope (<c>ir-context/0.1.0-draft.1</c>) or whether all files are plain. For C# callers.
     /// </summary>
     [<CompiledName("OpenDetectedSnapshot")>]
     let openDetectedSnapshot
@@ -234,15 +267,7 @@ module DocumentTreeStore =
             revision: System.Func<string>,
             provider: Microsoft.Extensions.FileProviders.IFileProvider
         ) : Result<BoundedTreeSnapshot, System.Collections.Generic.IReadOnlyList<StoreError>> =
-        let opened =
-            if options.MaxFiles < 1 then
-                Error [ error "tree.invalid_limit" None "A module lookup limit must be positive." ]
-            else
-                TreeFileSource.fromFileProvider options.MaxFiles (fun () -> revision.Invoke()) provider
-                |> BoundedTreeReader.openTreeDetected options.MaxFileBytes
-
-        opened
-        |> Result.mapError (fun errors -> List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>)
+        openDetectedSnapshotBounded (options, 0, 0L, revision, provider, System.Threading.CancellationToken.None)
 
     /// <summary>
     /// Open a cached snapshot with an explicit file-local name encoding from a host callback with C#-safe
@@ -363,14 +388,15 @@ module DocumentTreeStore =
     /// <summary>
     /// Exports an admitted snapshot as expanded JSON documents within <paramref name="maxDocumentBytes"/>,
     /// <paramref name="maxTotalBytes"/> and <paramref name="maxFiles"/>, verifies that no tree metadata
-    /// (<c>$meta</c>, manifest <c>version</c>/<c>created</c>, or ignored files) would be silently dropped,
-    /// then joins it losslessly into a typed <see cref="Morphir.IR.Model.VersionedModel"/> alongside the staged
-    /// expanded file bytes. For C# callers.
+    /// (<c>$meta</c>, manifest <c>version</c>/<c>created</c>, or unconsumed/ignored files from
+    /// <paramref name="originalFiles"/>) would be silently dropped, then joins it losslessly into a typed
+    /// <see cref="Morphir.IR.Model.VersionedModel"/> alongside the staged expanded file bytes. For C# callers.
     /// </summary>
     [<CompiledName("TryJoinSnapshot")>]
     let tryJoinSnapshot
         (
             snapshot: BoundedTreeSnapshot,
+            originalFiles: System.Collections.Generic.IReadOnlyList<string>,
             maxFiles: int,
             maxDocumentBytes: int64,
             maxTotalBytes: int64,
@@ -382,15 +408,19 @@ module DocumentTreeStore =
         cancellationToken.ThrowIfCancellationRequested()
         let staged = ResizeArray<string * Morphir.Files.VFile>()
         let retained = ResizeArray<System.Collections.Generic.KeyValuePair<string, byte array>>()
+        let consumedSources = System.Collections.Generic.HashSet<string>(System.StringComparer.Ordinal)
 
-        let stageFile (doc: BoundedTreeExportDocument) =
+        let normalizePath (path: string) = path.Replace('\\', '/').Trim('/')
+
+        let stageFile (sourceLocation: string) (doc: BoundedTreeExportDocument) =
             cancellationToken.ThrowIfCancellationRequested()
 
             if staged.Count >= maxFiles then
                 Error [ error "tree.too_many_files" (Some doc.File) $"The tree exceeds its limit of {maxFiles} files." ]
             else
                 let bytes = doc.Bytes.ToArray()
-                use parsed = System.Text.Json.JsonDocument.Parse(bytes)
+                let jsonOptions = System.Text.Json.JsonDocumentOptions(MaxDepth = Morphir.Json.V4.V4JsonDecoding.MaxDepth)
+                use parsed = System.Text.Json.JsonDocument.Parse(bytes, jsonOptions)
                 let mutable meta = Unchecked.defaultof<System.Text.Json.JsonElement>
 
                 if
@@ -400,10 +430,11 @@ module DocumentTreeStore =
                     Error [
                         error
                             "data.lossy_conversion"
-                            (Some doc.File)
-                            $"Converting document tree to single-document JSON would drop '$meta' in {doc.File}; lossy conversion is refused by default."
+                            (Some sourceLocation)
+                            $"Converting document tree to single-document JSON would drop '$meta' in {sourceLocation}; lossy conversion is refused by default."
                     ]
                 else
+                    consumedSources.Add(normalizePath sourceLocation) |> ignore
                     staged.Add(doc.File, Morphir.Files.VFile.ofBytes doc.File (System.ReadOnlyMemory bytes))
                     retained.Add(System.Collections.Generic.KeyValuePair(doc.File, bytes))
                     Ok()
@@ -415,12 +446,29 @@ module DocumentTreeStore =
         }
 
         let joined =
-            BoundedTreeReader.writeExpandedTree exportLimits stageFile snapshot
+            BoundedTreeReader.writeExpandedTreeWithSources exportLimits stageFile snapshot
             |> Result.bind (fun () ->
                 cancellationToken.ThrowIfCancellationRequested()
-                let tree = Morphir.Files.VFileTree.fromFileMap (Map.ofSeq staged)
-                let readOptions: ReadOptions = { MaxFiles = maxFiles; MaxFileBytes = maxDocumentBytes }
-                read readOptions tree
+
+                let unconsumed =
+                    originalFiles
+                    |> Seq.map normalizePath
+                    |> Seq.filter (fun path -> not (System.String.IsNullOrEmpty path) && not (consumedSources.Contains path))
+                    |> Seq.sortWith (fun a b -> System.String.CompareOrdinal(a, b))
+                    |> Seq.tryHead
+
+                match unconsumed with
+                | Some droppedFile ->
+                    Error [
+                        error
+                            "data.lossy_conversion"
+                            (Some droppedFile)
+                            $"Converting document tree to single-document JSON would drop unconsumed file '{droppedFile}'; lossy conversion is refused by default."
+                    ]
+                | None ->
+                    let tree = Morphir.Files.VFileTree.fromFileMap (Map.ofSeq staged)
+                    let readOptions: ReadOptions = { MaxFiles = maxFiles; MaxFileBytes = maxDocumentBytes }
+                    read readOptions tree
             )
             |> Result.bind (fun (stored, report) ->
                 cancellationToken.ThrowIfCancellationRequested()

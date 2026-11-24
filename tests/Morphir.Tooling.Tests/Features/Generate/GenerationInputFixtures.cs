@@ -68,6 +68,98 @@ internal static class GenerationInputFixtures
         return WriteIon(directory, format, header + $" public::def::module::{{name:\"literals\"}} public::def::value::{{module:\"literals\",name:\"value\",{value}}} morphir_footer::{{}}");
     }
 
+    public static string LossyDailyRateIonWithUnknownHeader(string directory, string version)
+    {
+        var fixtures = Path.Combine(GenerateSteps.RepositoryRoot(), "tests", "Fixtures", "MorphirIon");
+        var text = File.ReadAllText(Path.Combine(fixtures, "pairs", "v3-daily-rate.ion")).Replace("3.0.0", version);
+        var idx = text.IndexOf("morphir::{", StringComparison.Ordinal);
+        if (idx < 0) throw new InvalidOperationException("Ion fixture did not begin with morphir::{.");
+        var mutated = text.Insert(idx + "morphir::{".Length, "customMeta: \"dropped-by-json\", ");
+        return WriteIon(directory, "text", mutated);
+    }
+
+    public static string LossyDailyRateIonWithPathBudget(string directory, string version, bool annotated)
+    {
+        var fixtures = Path.Combine(GenerateSteps.RepositoryRoot(), "tests", "Fixtures", "MorphirIon");
+        var text = File.ReadAllText(Path.Combine(fixtures, "pairs", "v3-daily-rate.ion")).Replace("3.0.0", version);
+        var idx = text.IndexOf("morphir::{", StringComparison.Ordinal);
+        if (idx < 0) throw new InvalidOperationException("Ion fixture did not begin with morphir::{.");
+        var field = annotated ? "pathBudget: note::4000, " : "pathBudget: 4000, ";
+        return WriteIon(directory, "text", text.Insert(idx + "morphir::{".Length, field));
+    }
+
+    public static string LossyDailyRateIonTreeWithIgnoredFile(string directory, string version, string ignoredFileName = "README.md")
+    {
+        var treeRoot = DailyRate(directory, version, "tree");
+        var sidecar = Path.Combine(treeRoot, ignoredFileName);
+        Directory.CreateDirectory(Path.GetDirectoryName(sidecar)!);
+        File.WriteAllText(sidecar, "ignored sidecar content\n");
+        return treeRoot;
+    }
+
+    public static string LossyDailyRateIonTreeWithAnnotatedManifestPathBudget(string directory, string version)
+    {
+        var treeRoot = DailyRate(directory, version, "tree");
+        var manifest = Path.Combine(treeRoot, "manifest.ion");
+        var text = File.ReadAllText(manifest).Replace("pathBudget: 4000", "pathBudget: note::4000", StringComparison.Ordinal);
+        File.WriteAllText(manifest, text);
+        return treeRoot;
+    }
+
+    public static string OrdersTreeWithDroppedManifestVersion(string directory, string versionDir, string profile)
+    {
+        CopyBoundedOrdersTree(versionDir, profile, directory);
+        var manifestPath = Path.Combine(directory, "manifest.json");
+        var manifestJson = File.ReadAllText(manifestPath);
+        File.WriteAllText(manifestPath, manifestJson.Replace("\"formatVersion\": 4,", "\"formatVersion\": 4, \"version\": \"1.2.3\",", StringComparison.Ordinal));
+        return directory;
+    }
+
+    public static string OrdersTreeWithPackageMetadata(string directory, string versionDir, string profile)
+    {
+        CopyBoundedOrdersTree(versionDir, profile, directory);
+        var pkgMeta = Path.Combine(directory, "pkg", "acme", "orders", "package.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(pkgMeta)!);
+        File.WriteAllText(pkgMeta, """{"owner":"acme","notes":"package metadata dropped by single-document JSON"}""");
+        return directory;
+    }
+
+    public static string PlainV4OrdersTreeWithLargeMember(string directory, int paddingBytes)
+    {
+        CopyBoundedOrdersTree("v4", "plain-json", directory);
+        var orderPath = Path.Combine(directory, "pkg", "acme", "orders", "domain", "order.value.json");
+        var padding = new string('a', paddingBytes);
+        var original = File.ReadAllText(orderPath);
+        File.WriteAllText(orderPath, original.Replace("{ \"IntegerLiteral\": 73 }", $"{{ \"StringLiteral\": \"{padding}\" }}", StringComparison.Ordinal));
+        return directory;
+    }
+
+    public static string PlainV4OrdersTreeWithDeepNesting(string directory, int listDepth)
+    {
+        CopyBoundedOrdersTree("v4", "plain-json", directory);
+        var orderPath = Path.Combine(directory, "pkg", "acme", "orders", "domain", "order.value.json");
+        var original = File.ReadAllText(orderPath);
+        var sb = new System.Text.StringBuilder();
+        for (var i = 0; i < listDepth; i++) sb.Append("{\"List\":[");
+        sb.Append("{\"Literal\":{\"IntegerLiteral\":73}}");
+        for (var i = 0; i < listDepth; i++) sb.Append("]}");
+        File.WriteAllText(orderPath, original.Replace("{ \"Literal\": { \"IntegerLiteral\": 73 } }", sb.ToString(), StringComparison.Ordinal));
+        return directory;
+    }
+
+    private static void CopyBoundedOrdersTree(string versionDir, string profile, string destination)
+    {
+        var prefix = Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Directory + versionDir + "/" + profile + "/";
+        foreach (var entry in Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Files
+            .Where(f => f.RelativePath.StartsWith(prefix, StringComparison.Ordinal)))
+        {
+            var relative = entry.RelativePath[prefix.Length..];
+            var path = Path.Combine(destination, relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllBytes(path, Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes(entry));
+        }
+    }
+
     private static string WriteIon(string directory, string format, string text)
     {
         var input = Path.Combine(directory, "model.unusual");

@@ -71,8 +71,11 @@ internal static class RecordedBoundedGeneration
             var originalSha256 = ModelUpgrade.SnapshotOf(capturedTree).Hex;
             var revision = "sha256:" + originalSha256;
             var limits = RecordedGenerationAdmission.Offer(settings.BoundedProfile, readerLimits, request.WasmModule is not null);
-            var opened = DocumentTreeStore.OpenDetectedSnapshot(
-                    new ReadOptions(readerLimits.MaxEntries, RecordedGenerationAdmission.DocumentByteLimit(readerLimits, limits)), () => revision, files)
+            // Pre-negotiation detection uses readerLimits.MaxBytes (not draft.2's 3 MiB document ceiling) so a plain
+            // tree with a larger member is not refused before discovering a draft.1-only guest that can admit it.
+            var opened = DocumentTreeStore.OpenDetectedSnapshotBounded(
+                    new ReadOptions(readerLimits.MaxEntries, readerLimits.MaxBytes),
+                    readerLimits.MaxNodes, limits.MaxSessionWorkUnits, () => revision, files, ct)
                 .Match<BoundedTreeSnapshot, IReadOnlyList<StoreError>, Outcome<BoundedTreeSnapshot>>(
                     value => new Outcome<BoundedTreeSnapshot>.Success(value),
                     problems => new Outcome<BoundedTreeSnapshot>.Failure(new(GenerationFailureKind.Operational,
@@ -261,10 +264,15 @@ internal static class RecordedBoundedGeneration
             var revision = Guid.NewGuid().ToString("N");
             var readerLimits = RecordedGenerationAdmission.ReaderLimits(settings.BoundedProfile, settings.Limits);
             var limits = RecordedGenerationAdmission.Offer(settings.BoundedProfile, readerLimits, request.WasmModule is not null);
-            var readOptions = new ReadOptions(readerLimits.MaxEntries, RecordedGenerationAdmission.DocumentByteLimit(readerLimits, limits));
+            // Pre-negotiation detection on normal runs uses readerLimits.MaxBytes so a larger member does not block
+            // fallback to a draft.1-only guest; draft.2 re-opens with its negotiated document ceiling below.
             var opened = (settings.BoundedProfile == BoundedGenerationProfile.OrdersScale
-                    ? DocumentTreeStore.OpenPlainSnapshot(readOptions, () => revision, files)
-                    : DocumentTreeStore.OpenDetectedSnapshot(readOptions, () => revision, files))
+                    ? DocumentTreeStore.OpenPlainSnapshot(
+                        new ReadOptions(readerLimits.MaxEntries, RecordedGenerationAdmission.DocumentByteLimit(readerLimits, limits)),
+                        () => revision, files)
+                    : DocumentTreeStore.OpenDetectedSnapshotBounded(
+                        new ReadOptions(readerLimits.MaxEntries, readerLimits.MaxBytes),
+                        readerLimits.MaxNodes, limits.MaxSessionWorkUnits, () => revision, files, ct))
                 .Match<BoundedTreeSnapshot, IReadOnlyList<StoreError>, Outcome<BoundedTreeSnapshot>>(
                     value => new Outcome<BoundedTreeSnapshot>.Success(value),
                     problems => settings.BoundedProfile == BoundedGenerationProfile.OrdersScale
@@ -511,7 +519,23 @@ internal static class RecordedBoundedGeneration
         }
 
         ct.ThrowIfCancellationRequested();
-        if (!DocumentTreeStore.TryJoinSnapshot(snapshot, limits.MaxEntries, limits.MaxBytes, limits.MaxBytes, ct,
+        // Hash, check losslessness, and join strictly from the single immutable captured originalTree so disk edits
+        // cannot split the reported digest from the converted bytes and no sidecar file can bypass loss checks.
+        var originalSha256 = ModelUpgrade.SnapshotOf(originalTree).Hex;
+        var capturedRevision = "sha256:" + originalSha256;
+        var capturedFiles = new CapturedTreeFiles(originalTree);
+        var reopened = DocumentTreeStore.OpenDetectedSnapshotBounded(
+                new ReadOptions(limits.MaxEntries, limits.MaxBytes), limits.MaxNodes, 0L, () => capturedRevision, capturedFiles, ct)
+            .Match<BoundedTreeSnapshot, IReadOnlyList<StoreError>, Outcome<BoundedTreeSnapshot>>(
+                value => new Outcome<BoundedTreeSnapshot>.Success(value),
+                problems => new Outcome<BoundedTreeSnapshot>.Failure(new(GenerationFailureKind.Operational,
+                    problems.Select(problem => new GenerationDiagnostic(problem.Code, problem.Message, problem.FileOrNull)).ToImmutableArray())));
+        if (reopened is Outcome<BoundedTreeSnapshot>.Failure reopenFailure)
+            return new Outcome<GenerationSuccess>.Failure(reopenFailure.Error);
+        var capturedSnapshot = ((Outcome<BoundedTreeSnapshot>.Success)reopened).Value;
+
+        var originalFilePaths = originalTree.Entries.Select(entry => entry.RelativePath).ToArray();
+        if (!DocumentTreeStore.TryJoinSnapshot(capturedSnapshot, originalFilePaths, limits.MaxEntries, limits.MaxBytes, limits.MaxBytes, ct,
             out var versioned, out _, out var problems))
         {
             var kind = problems.Any(problem => problem.Code == "data.lossy_conversion")
@@ -525,9 +549,9 @@ internal static class RecordedBoundedGeneration
         if (declaredVersion is not null)
             versioned = new VersionedModel(declaredVersion, versioned.Distribution);
 
-        var originalSha256 = ModelUpgrade.SnapshotOf(originalTree).Hex;
-        var fromCodec = snapshot.Syntax.Equals(BoundedTreeSyntax.Json) ? "morphir-json" : "morphir-yaml";
-        var origin = new ModelConversionOrigin(snapshot.PackageId, "morphir-ir", fromCodec, "sha256:" + originalSha256, originalSha256);
+        var fromCodec = capturedSnapshot.Syntax.Equals(BoundedTreeSyntax.Json) ? "morphir-json" : "morphir-yaml";
+        var origin = new ModelConversionOrigin(capturedSnapshot.PackageId, "morphir-ir", fromCodec,
+            capturedSnapshot.IrVersion, capturedRevision, originalSha256);
         var loaded = new LoadedModel(versioned, ModelDescriptor.From(versioned), ModelRepresentation.Json, originalTree)
         {
             ConversionOrigin = origin,

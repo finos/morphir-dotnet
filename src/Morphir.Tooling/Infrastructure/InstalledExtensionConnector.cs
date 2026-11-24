@@ -179,10 +179,11 @@ internal static class InstalledExtensionConnector
             Outcome<IModelAccessGuest> started;
             if (captured.IsWasm)
             {
-                var wasmLimits = RecordedGenerationAdmission.WasmLimits(request.BoundedProfile, offer.Limits);
+                var wasmOffer = RecordedGenerationAdmission.ClampForWasm(request.BoundedProfile, offer);
+                var wasmLimits = RecordedGenerationAdmission.WasmLimits(request.BoundedProfile, wasmOffer.Limits);
                 wasmChannel = OpenModule(captured, wasmLoader, wasmLimits, openChannel);
                 var host = new PeerInfo(PeerKind.Cli, MepExtensionCommand.HostName, MepExtensionCommand.HostVersion);
-                started = (await MepChannelGuest.StartModelAccessAsync(wasmChannel, host, offer, deadline, ct))
+                started = (await MepChannelGuest.StartModelAccessAsync(wasmChannel, host, wasmOffer, deadline, ct))
                     .Match<MepChannelGuest, MepGuestFailure, Outcome<IModelAccessGuest>>(
                         value => new Outcome<IModelAccessGuest>.Success(value),
                         error => new Outcome<IModelAccessGuest>.Failure(
