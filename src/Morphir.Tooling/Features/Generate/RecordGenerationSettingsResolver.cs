@@ -113,11 +113,16 @@ public sealed class RecordGenerationSettingsResolver(
         return withExtension;
     }
 
-    /// <summary>Loads the configuration of the project that <c>--project</c> and <c>--config</c> select, as compile does.</summary>
+    /// <summary>
+    /// Loads the configuration of the project that <c>--project</c> and <c>--config</c> select, as compile does. An error of
+    /// <c>ir.layout</c> or <c>ir.mode</c> does not refuse the run: generate takes the layout from the compile record, and
+    /// compile reports those keys itself (an overridden value that is not valid is only a warning of the compile).
+    /// </summary>
     private Outcome<LoadedCompileConfiguration> Load(GenerateOverrides overrides, CompileContext compileContext)
     {
         var loaded = loader.Load(new CompileOverrides { Project = overrides.Project, Config = overrides.Config }, compileContext);
-        var errors = loaded.Diagnostics.Where(diagnostic => diagnostic.Severity == ConfigSeverity.Error).ToArray();
+        var errors = loaded.Diagnostics.Where(diagnostic => diagnostic.Severity == ConfigSeverity.Error
+            && !ProjectCompileSettingsResolver.IsLayoutKey(string.Join('.', diagnostic.KeyPath))).ToArray();
         return errors.Length > 0
             ? new Outcome<LoadedCompileConfiguration>.Failure(new GenerationFailure(GenerationFailureKind.Invocation,
                 [.. errors.Select(error => new GenerationDiagnostic(CompileCodes.Configuration.Value,

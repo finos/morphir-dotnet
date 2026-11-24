@@ -201,12 +201,19 @@ public sealed class CompileSettingsResolverTests
             .Should().Equal("compile.invalid_setting");
     }
 
+    private static Checked<CompileSettings> ResolveWith(ProjectToml toml, CompileOverrides? overrides = null)
+    {
+        using var workspace = new CompileWorkspace();
+        workspace.Write("morphir.toml", toml.Build());
+        return Resolver.Resolve(overrides ?? new CompileOverrides(), workspace.Context());
+    }
+
+    private static string Listed(Checked<CompileSettings> result) => string.Join("\n", result.Diagnostics);
+
     [Test]
     public void TheDefaultLayoutIsASingleFile()
     {
-        using var workspace = new CompileWorkspace();
-        workspace.Write("morphir.toml", "[project]\nname = \"acme/demo\"\n");
-        var settings = Passed(Resolver.Resolve(new CompileOverrides(), workspace.Context()));
+        var settings = Passed(ResolveWith(ProjectToml.AProject()));
         settings.IrLayout.Value.Should().Be(IrLayout.SingleFile);
         settings.IrLayout.Origin.Should().Be(SettingOrigin.Default.Instance);
         settings.Origins().Should().Contain(("irLayout", SettingOrigin.Default.Instance));
@@ -215,9 +222,7 @@ public sealed class CompileSettingsResolverTests
     [Test]
     public void TheConfiguredDocumentTreeLayoutResolvesWithItsKey()
     {
-        using var workspace = new CompileWorkspace();
-        var file = workspace.Write("morphir.toml", "[project]\nname = \"acme/demo\"\n\n[ir]\nlayout = \"document-tree\"\n");
-        var result = Resolver.Resolve(new CompileOverrides(), workspace.Context());
+        var result = ResolveWith(ProjectToml.AProject().WithLayout("document-tree"));
         var settings = Passed(result);
         result.Diagnostics.Should().BeEmpty();
         settings.IrLayout.Value.Should().Be(IrLayout.DocumentTree);
@@ -227,9 +232,7 @@ public sealed class CompileSettingsResolverTests
     [Test]
     public void TheCommandLineLayoutOverridesTheConfiguredLayout()
     {
-        using var workspace = new CompileWorkspace();
-        workspace.Write("morphir.toml", "[project]\nname = \"acme/demo\"\n\n[ir]\nlayout = \"document-tree\"\n");
-        var settings = Passed(Resolver.Resolve(new CompileOverrides { IrLayout = "single-file" }, workspace.Context()));
+        var settings = Passed(ResolveWith(ProjectToml.AProject().WithLayout("document-tree"), new CompileOverrides { IrLayout = "single-file" }));
         settings.IrLayout.Value.Should().Be(IrLayout.SingleFile);
         settings.IrLayout.Origin.Should().Be(new SettingOrigin.CommandLine("--ir-layout"));
     }
@@ -239,9 +242,7 @@ public sealed class CompileSettingsResolverTests
     [Arguments("vfs", IrLayout.DocumentTree)]
     public void TheDeprecatedModeGivesTheLayoutWithAWarning(string mode, IrLayout layout)
     {
-        using var workspace = new CompileWorkspace();
-        workspace.Write("morphir.toml", $"[project]\nname = \"acme/demo\"\n\n[ir]\nmode = \"{mode}\"\n");
-        var result = Resolver.Resolve(new CompileOverrides(), workspace.Context());
+        var result = ResolveWith(ProjectToml.AProject().WithMode(mode));
         var settings = Passed(result);
         settings.IrLayout.Value.Should().Be(layout);
         settings.IrLayout.Origin.Should().BeOfType<SettingOrigin.Configuration>().Which.Key.Should().Be("ir.mode");
@@ -254,9 +255,7 @@ public sealed class CompileSettingsResolverTests
     [Test]
     public void AnExplicitLayoutWinsOverTheDeprecatedModeAndTheModeStillWarns()
     {
-        using var workspace = new CompileWorkspace();
-        workspace.Write("morphir.toml", "[project]\nname = \"acme/demo\"\n\n[ir]\nlayout = \"single-file\"\nmode = \"vfs\"\n");
-        var result = Resolver.Resolve(new CompileOverrides(), workspace.Context());
+        var result = ResolveWith(ProjectToml.AProject().WithLayout("single-file").WithMode("vfs"));
         var settings = Passed(result);
         settings.IrLayout.Value.Should().Be(IrLayout.SingleFile);
         settings.IrLayout.Origin.Should().BeOfType<SettingOrigin.Configuration>().Which.Key.Should().Be("ir.layout");
@@ -274,59 +273,60 @@ public sealed class CompileSettingsResolverTests
     }
 
     [Test]
-    [Arguments("layout", "folder")]
-    [Arguments("mode", "folder")]
-    public void AnInvalidConfiguredLayoutGivesOneDiagnostic(string key, string value)
+    [Arguments("layout")]
+    [Arguments("mode")]
+    public void AnInvalidConfiguredLayoutGivesOneDiagnostic(string key)
     {
-        using var workspace = new CompileWorkspace();
-        workspace.Write("morphir.toml", $"[project]\nname = \"acme/demo\"\n\n[ir]\n{key} = \"{value}\"\n");
-        var result = Resolver.Resolve(new CompileOverrides(), workspace.Context());
+        var result = ResolveWith(ProjectToml.AProject().WithIr(key, TomlValue.String("folder")));
         result.TryGetValue(out _).Should().BeFalse();
         var errors = result.Diagnostics.Where(d => d.IsError).ToArray();
-        errors.Select(d => d.CodeOrNull?.Value).Should().Equal(["compile.invalid_setting"], string.Join("\n", result.Diagnostics));
-        errors[0].Message.Should().Contain($"ir.{key}").And.Contain("morphir.toml").And.Contain(value)
+        errors.Select(d => d.CodeOrNull?.Value).Should().Equal(["compile.invalid_setting"], Listed(result));
+        errors[0].Message.Should().Contain($"ir.{key}").And.Contain("morphir.toml").And.Contain("folder")
             .And.Contain("single-file").And.Contain("document-tree");
         result.Diagnostics.Where(d => !d.IsError).Select(d => d.CodeOrNull?.Value).Should()
             .Equal(key == "mode" ? ["compile.deprecated_setting"] : []);
     }
 
     [Test]
-    [Arguments("layout", "true")]
-    [Arguments("mode", "42")]
-    public void AConfiguredLayoutOfTheWrongTypeGivesOneDiagnostic(string key, string value)
+    [Arguments("layout", "boolean")]
+    [Arguments("layout", "table")]
+    [Arguments("mode", "integer")]
+    [Arguments("mode", "table")]
+    public void ASelectedLayoutThatIsNotAStringGivesOneDiagnostic(string key, string type)
     {
-        using var workspace = new CompileWorkspace();
-        workspace.Write("morphir.toml", $"[project]\nname = \"acme/demo\"\n\n[ir]\n{key} = {value}\n");
-        var result = Resolver.Resolve(new CompileOverrides(), workspace.Context());
-        result.TryGetValue(out _).Should().BeFalse();
+        var result = ResolveWith(ProjectToml.AProject().WithIr(key, TomlValue.NotAString(type)));
+        result.TryGetValue(out _).Should().BeFalse("a value that is not a string never falls back to another layout");
         var errors = result.Diagnostics.Where(d => d.IsError).ToArray();
-        errors.Select(d => d.CodeOrNull?.Value).Should().Equal(["compile.invalid_setting"], string.Join("\n", result.Diagnostics));
-        errors[0].Message.Should().Contain($"ir.{key}").And.Contain("morphir.toml").And.Contain("single-file").And.Contain("document-tree");
+        errors.Select(d => d.CodeOrNull?.Value).Should().Equal(["compile.invalid_setting"], Listed(result));
+        errors[0].Message.Should().Contain($"ir.{key}").And.Contain("morphir.toml").And.Contain("not a string")
+            .And.Contain("single-file").And.Contain("document-tree");
     }
 
     [Test]
-    public void AnInvalidModeThatTheLayoutOverridesIsIgnoredWithAWarning()
+    [Arguments("folder")]
+    [Arguments("integer")]
+    [Arguments("table")]
+    public void AnInvalidModeThatTheLayoutOverridesIsIgnoredWithAWarning(string value)
     {
-        using var workspace = new CompileWorkspace();
-        workspace.Write("morphir.toml", "[project]\nname = \"acme/demo\"\n\n[ir]\nlayout = \"document-tree\"\nmode = \"folder\"\n");
-        var result = Resolver.Resolve(new CompileOverrides(), workspace.Context());
+        var mode = value == "folder" ? TomlValue.String(value) : TomlValue.NotAString(value);
+        var result = ResolveWith(ProjectToml.AProject().WithLayout("document-tree").WithIr("mode", mode));
         Passed(result).IrLayout.Value.Should().Be(IrLayout.DocumentTree);
-        result.Diagnostics.Should().OnlyContain(d => !d.IsError, string.Join("\n", result.Diagnostics));
+        result.Diagnostics.Should().OnlyContain(d => !d.IsError, Listed(result));
         result.Diagnostics.Select(d => d.CodeOrNull?.Value).Should().BeEquivalentTo(["compile.deprecated_setting", "compile.invalid_setting"]);
         result.Diagnostics.Single(d => d.CodeOrNull?.Value == "compile.invalid_setting").Message.Should()
-            .Contain("ir.mode").And.Contain("folder").And.Contain("ignored").And.Contain("ir.layout");
+            .Contain("ir.mode").And.Contain("ignored").And.Contain("ir.layout");
     }
 
     [Test]
-    [Arguments("\"folder\"")]
-    [Arguments("true")]
+    [Arguments("folder")]
+    [Arguments("boolean")]
+    [Arguments("table")]
     public void AnInvalidConfiguredLayoutThatTheCommandLineOverridesIsIgnoredWithAWarning(string value)
     {
-        using var workspace = new CompileWorkspace();
-        workspace.Write("morphir.toml", $"[project]\nname = \"acme/demo\"\n\n[ir]\nlayout = {value}\n");
-        var result = Resolver.Resolve(new CompileOverrides { IrLayout = "document-tree" }, workspace.Context());
+        var layout = value == "folder" ? TomlValue.String(value) : TomlValue.NotAString(value);
+        var result = ResolveWith(ProjectToml.AProject().WithIr("layout", layout), new CompileOverrides { IrLayout = "document-tree" });
         Passed(result).IrLayout.Value.Should().Be(IrLayout.DocumentTree);
-        var warning = result.Diagnostics.Should().ContainSingle(string.Join("\n", result.Diagnostics)).Subject;
+        var warning = result.Diagnostics.Should().ContainSingle(Listed(result)).Subject;
         warning.IsError.Should().BeFalse();
         warning.CodeOrNull!.Value.Should().Be("compile.invalid_setting");
         warning.Message.Should().Contain("ir.layout").And.Contain("ignored").And.Contain("--ir-layout");

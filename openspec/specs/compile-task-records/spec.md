@@ -20,15 +20,15 @@ The member path SHALL be the member's declared path relative to the workspace ro
 - **THEN** the IR is at `<workspace>/.morphir/out/packages/orders/compile.dest/morphir-ir.json`, and the record is at `<workspace>/.morphir/out/packages/orders/compile.json`
 
 ### Requirement: Compile output is published whole
-The IR SHALL be staged beside its place in `compile.dest` and moved into place whole before the record is written. A write failure, a cancellation or a record failure before the record is complete SHALL leave no staged or partial IR in `compile.dest`, and the tombstone of the run SHALL stay.
+The IR SHALL be staged beside its place in `compile.dest` and moved into place whole before the record is written. A write failure, a cancellation or a record failure before the record is complete SHALL leave no staged or partial IR in `compile.dest`. After an earlier successful compile the tombstone of the run SHALL stay; a first compile SHALL leave no `compile.json`.
 
 #### Scenario: Second move onto an existing IR
 - **WHEN** a publication cannot move its staged IR because an IR is already at the target
 - **THEN** it fails with `compile.publish_failed` and removes only its staged IR, and the IR at the target stays
 
 #### Scenario: Write failure of a document tree
-- **WHEN** writing the staged tree fails
-- **THEN** the compile fails with `compile.publish_failed` and exit code 2, `compile.dest` is empty, and `compile.json` is the tombstone of the run
+- **WHEN** an earlier compile of the project succeeded, and writing the staged tree of a later compile fails
+- **THEN** the later compile fails with `compile.publish_failed` and exit code 2, `compile.dest` is empty, and `compile.json` is the tombstone of the later run
 
 ### Requirement: Records follow the ecosystem schema
 A successful compile SHALL write a schema-1 record with these fields: `task` `compile`, `module`, `language`, `inputs`, `value`, `ir {path, layout, format, version}`, `installed` and `completedAt`. `value` SHALL list product paths relative to `.dest`. Unknown fields in an existing record SHALL be preserved on rewrite, except where a tombstone clears them.
@@ -45,8 +45,8 @@ A successful compile SHALL write a schema-1 record with these fields: `task` `co
 Starting a compile SHALL clear `compile.dest` and replace a readable earlier record with a tombstone. The tombstone sets `tombstone: true`, empties `value` and `inputs`, removes `language`, `ir` and unknown fields, and keeps `installed` and `completedAt`. A successful compile SHALL replace the tombstone with a full record.
 
 #### Scenario: Cancellation during publication
-- **WHEN** a compile is cancelled after its IR is staged and before its record is complete
-- **THEN** `compile.dest` is empty, `compile.json` is the tombstone of the run, and the exit code is 130
+- **WHEN** an earlier compile of the project succeeded, and a later compile is cancelled after its IR is staged and before its record is complete
+- **THEN** `compile.dest` is empty, `compile.json` is the tombstone of the later run, and the exit code is 130
 
 #### Scenario: Failure after success
 - **WHEN** a compile succeeds, and a later compile of the same project fails with a source error

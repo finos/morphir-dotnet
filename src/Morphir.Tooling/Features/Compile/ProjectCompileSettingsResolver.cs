@@ -143,7 +143,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             var key = string.Join('.', diagnostic.KeyPath);
             var text = $"{diagnostic.Source.Path}: {key}: {diagnostic.Message} ({diagnostic.Code})".Replace(": : ", ": ");
             // The resolver checks every value of ir.layout and ir.mode itself, in the order of their precedence (ResolveLayout).
-            if (diagnostic.Severity == ConfigSeverity.Error && key is LayoutKey or ModeKey) continue;
+            if (diagnostic.Severity == ConfigSeverity.Error && IsLayoutKey(key)) continue;
             if (diagnostic.Severity == ConfigSeverity.Error) Error(CompileCodes.Configuration, text);
             else warnings.Add(Diagnostic.Create(Severity.Warning, CompileCodes.Configuration, text, null));
         }
@@ -358,6 +358,12 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
     }
 
     private const string CliLayout = "--ir-layout";
+    /// <summary>
+    /// Whether <paramref name="key"/> (a dotted key path) is <c>ir.layout</c> or <c>ir.mode</c>, whose values the resolver
+    /// checks itself in the order of their precedence, in place of the configuration's validation.
+    /// </summary>
+    internal static bool IsLayoutKey(string key) => key is LayoutKey or ModeKey;
+
     private const string LayoutKey = "ir.layout";
     private const string ModeKey = "ir.mode";
 
@@ -399,12 +405,23 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
 
         /// <summary>
         /// The value at the path when a configuration file sets it: its text, or a null text when the value is not a string.
-        /// A default is not a configured value.
+        /// A default is not a configured value. A nonempty table has its origins on the keys below it, so the first of them
+        /// that a configuration file sets is the origin of the table.
         /// </summary>
         public Setting<string?>? Configured(params string[] path) =>
-            Find(path) is { } value && Origin(path) is SettingOrigin.Configuration origin
+            Find(path) is { } value && ConfiguredOrigin(path) is { } origin
                 ? new(ConfigValueProjections.TryText(value, out var text) ? text : null, origin)
                 : null;
+
+        private SettingOrigin.Configuration? ConfiguredOrigin(string[] path)
+        {
+            if (Origin(path) is SettingOrigin.Configuration own) return own;
+            foreach (var (key, origin) in loaded.Origins)
+                if (key.Length > path.Length && key.Take(path.Length).SequenceEqual(path, StringComparer.Ordinal)
+                    && !origin.Source.Role.Equals(SourceRole.Defaults))
+                    return new SettingOrigin.Configuration(origin.Source.Path, ConfigValueProjections.KeyText(path));
+            return null;
+        }
 
         public Setting<string>? String(params string[] path) =>
             Find(path) is { } value && ConfigValueProjections.TryText(value, out var text) ? new(text, Origin(path)) : null;

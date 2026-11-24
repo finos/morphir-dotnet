@@ -136,7 +136,10 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
             var tree = request.DocumentTree;
             var name = tree is null ? IrFile : IrDirectory;
             var target = Path.Combine(run.Dest, name);
-            var staging = Path.Combine(run.Dest, $".{name}.staging-{Guid.NewGuid():N}");
+            // One staging root for every run: the run holds compile.lock, so no other run stages here, and the tree
+            // publication of Morphir.Files keeps one lock file for this root instead of one for each run.
+            var staging = Path.Combine(run.Dest, $".{name}.staging");
+            Remove(staging);
             // Only what this attempt moved into place is rolled back: a target that was there before stays.
             var moved = false;
             var recorded = false;

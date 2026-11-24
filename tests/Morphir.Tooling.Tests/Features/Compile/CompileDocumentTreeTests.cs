@@ -176,6 +176,18 @@ public sealed class CompileDocumentTreeTests
     }
 
     [Test]
+    public async Task AFirstCompileThatFailsDuringStagingLeavesNoRecord()
+    {
+        using var workspace = Project();
+
+        var failed = await RunWith(workspace, Inputs(), FailingStage("document-tree"));
+
+        failed.ExitCode.Should().Be(2);
+        NothingIsLeft(workspace);
+        File.Exists(workspace.PathOf(".morphir/out/compile.json")).Should().BeFalse("no earlier record, so no tombstone");
+    }
+
+    [Test]
     [Arguments("document-tree")]
     [Arguments("single-file")]
     public async Task ACancellationBeforeTheMoveLeavesNoPartialIrAndKeepsTheTombstone(string layout)
@@ -247,6 +259,32 @@ public sealed class CompileDocumentTreeTests
         CompileRunners.ErrorCodes(failed).Should().Equal("compile.record_write_failed");
         NothingIsLeft(workspace);
         IsTombstone(workspace).Should().BeTrue("the tombstone of the run stays when its record cannot replace it");
+    }
+
+    /// <summary>
+    /// The lock file that the tree publication of Morphir.Files takes for an output root: the SHA-256 of the full root
+    /// (upper case on Windows) in the per-user temp directory <c>morphir-publish-locks</c>.
+    /// </summary>
+    private static string PublishLockOf(string root)
+    {
+        var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
+        var identity = OperatingSystem.IsWindows() ? full.ToUpperInvariant() : full;
+        var name = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(identity)));
+        return Path.Combine(Path.GetTempPath(), "morphir-publish-locks", name + ".lock");
+    }
+
+    [Test]
+    public async Task RepeatedTreeCompilesStageInOneRootAndShareOnePublishLock()
+    {
+        using var workspace = Project();
+        var staged = new List<string>();
+        var hooks = new CompilePublicationHooks { AfterStaged = staged.Add };
+
+        for (var run = 0; run < 3; run++) Succeeded(await RunWith(workspace, Inputs(), hooks));
+
+        staged.Should().HaveCount(3).And.OnlyContain(path => path == staged[0], "a run holds compile.lock, so one staging root serves every run");
+        Path.GetDirectoryName(staged[0]).Should().Be(Dest(workspace));
+        File.Exists(PublishLockOf(staged[0])).Should().BeTrue("the publication of the tree takes the lock of its one staging root");
     }
 
     [Test]
@@ -404,14 +442,19 @@ public sealed class CompileDocumentTreeTests
     }
 
     [Test]
-    public async Task BoundedGenerationReadsTheRecordOfARealDocumentTreeCompile()
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task BoundedGenerationReadsTheRecordOfARealDocumentTreeCompile(bool overriddenLayout)
     {
         using var workspace = new CompileWorkspace();
-        workspace.Write("morphir.toml", Morphir.TestSupport.Drivers.BoundedOrdersRecordMother.DocumentTreeConfiguration);
+        // An invalid ir.layout that --ir-layout overrides is a warning of the compile, and generate takes the layout from the record.
+        workspace.Write("morphir.toml", overriddenLayout
+            ? Morphir.TestSupport.Drivers.BoundedOrdersRecordMother.ProjectConfiguration + "\n[ir]\nlayout = \"folder\"\n"
+            : Morphir.TestSupport.Drivers.BoundedOrdersRecordMother.DocumentTreeConfiguration);
         workspace.Write("src/Domain.fs", Morphir.TestSupport.Drivers.BoundedOrdersRecordMother.DomainSource);
         workspace.Write("bounded-orders.mode", "compiled-orders");
 
-        var compiled = await Command(workspace, "--json=document");
+        var compiled = await Command(workspace, overriddenLayout ? "--json=document --ir-layout document-tree" : "--json=document");
         compiled.Exit.Should().Be(0, compiled.Output.Text);
 
         using var app = MorphirCli.CreateBuilder([]).AddScenario<GenerationScenario>().Build();
