@@ -102,7 +102,7 @@ internal sealed class BoundedOrdersGuest(string mode)
         try
         {
             var mode = File.ReadAllText(ModeFile).Trim();
-            Require(mode is "orders" or "pause" or "mark-initialize" or "large-reply" or "small-frame" or "root-exits" or "stall-exit" or "stage-before-read",
+            Require(mode is "orders" or "compiled-orders" or "pause" or "mark-initialize" or "large-reply" or "small-frame" or "root-exits" or "stall-exit" or "stage-before-read",
                 "Unknown orders mode.");
             return new BoundedOrdersGuest(mode).Serve();
         }
@@ -250,7 +250,7 @@ internal sealed class BoundedOrdersGuest(string mode)
                 return Continue(run, Document("final", final));
             case 4:
                 var order = run.Order!;
-                var reference = Text(ReadBody(delivery, "final", run.Final!), "Reference");
+                var reference = ReferenceName(ReadBody(delivery, "final", run.Final!), Attributed);
                 Require(reference == $"{Package}:{Module}#{order.Name}", "The final value must reference the earlier value.");
                 if (mode == "stage-before-read")
                 {
@@ -263,7 +263,7 @@ internal sealed class BoundedOrdersGuest(string mode)
                 }
                 return Continue(run, Document("order", order));
             case 5:
-                var text = RenderLiteral(ReadBody(delivery, "order", run.Order!));
+                var text = RenderLiteral(ReadBody(delivery, "order", run.Order!), Attributed);
                 if (mode == "pause") WaitAt("bounded-orders.paused", "bounded-orders.resume");
                 if (mode == "root-exits") ExitWithPipeDescendant();
                 if (mode == "stall-exit")
@@ -314,7 +314,7 @@ internal sealed class BoundedOrdersGuest(string mode)
         var reference = Text(DefinitionBody(values.GetProperty(FinalMember)), "Reference");
         var modulePrefix = $"{Package}:{Module}#";
         Require(reference.StartsWith(modulePrefix, StringComparison.Ordinal), "The final value must reference the orders domain.");
-        var content = RenderLiteral(DefinitionBody(values.GetProperty(reference[modulePrefix.Length..])));
+        var content = RenderLiteral(DefinitionBody(values.GetProperty(reference[modulePrefix.Length..])), attributed: false);
         return new { success = true, artifacts = new[] { new { path = Artifact, content } }, diagnostics = Array.Empty<object>() };
     }
 
@@ -341,8 +341,23 @@ internal sealed class BoundedOrdersGuest(string mode)
     private static JsonElement DefinitionBody(JsonElement definition) =>
         definition.GetProperty("Public").GetProperty("ExpressionBody").GetProperty("body");
 
-    private static string RenderLiteral(JsonElement body) =>
-        body.GetProperty("Literal").GetProperty("IntegerLiteral").GetInt64().ToString(CultureInfo.InvariantCulture) + "\n";
+    // The pinned Orders case spells each v4 body in its short form, and every mode but compiled-orders reads only that
+    // form. compiled-orders reads the tree of a real compile, which writes each body with its attributes:
+    // "Reference": { "attributes": ..., "fqname": ... } and "Literal": { "attributes": ..., "literal": ... }.
+    private bool Attributed => mode == "compiled-orders";
+
+    private static string ReferenceName(JsonElement body, bool attributed)
+    {
+        var reference = body.GetProperty("Reference");
+        return attributed ? Text(reference, "fqname") : reference.GetString() ?? throw new InvalidOperationException("Expected a short reference.");
+    }
+
+    private static string RenderLiteral(JsonElement body, bool attributed)
+    {
+        var literal = body.GetProperty("Literal");
+        if (attributed) literal = literal.GetProperty("literal");
+        return literal.GetProperty("IntegerLiteral").GetInt64().ToString(CultureInfo.InvariantCulture) + "\n";
+    }
 
     private static string Digest(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
 

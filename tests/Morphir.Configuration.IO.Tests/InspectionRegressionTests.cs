@@ -19,7 +19,7 @@ public sealed class InspectionRegressionTests
         var selected = discovery.Selection.Projects.Single();
         var result = ProjectSystem.LoadDetailed(tree, discovery.Discovery, selected);
         result.Resolution.Diagnostics.ToArray().Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
-        var value = ConfigTree.tryFind(ListModule.OfSeq(new[] { "custom", "nan" }), result.Resolution.Effective).Value;
+        var value = ConfigTree.tryFind(ListModule.OfSeq(new[] { "custom", "nan" }), result.Resolution.Effective)!.Value;
         double.IsNaN(((ConfigValue.Number)value).Item).Should().BeTrue();
     }
 }

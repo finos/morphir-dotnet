@@ -49,6 +49,20 @@ public sealed class BoundedGenerationDriverTests
     }
 
     [Test]
+    public async Task TheCompiledOrdersProjectIsADocumentTreeProjectWithTheDomainSource()
+    {
+        await using var workspace = ScenarioWorkspace.Create("");
+        Driver(workspace, new RecordingCli()).PrepareCompiledOrders();
+        workspace.ReadText(workspace.File("morphir.toml")).Should().Be(BoundedOrdersRecordMother.DocumentTreeConfiguration)
+            .And.Contain("layout = \"document-tree\"");
+        workspace.ReadText(workspace.File("src/Domain.fs")).Should().Be(BoundedOrdersRecordMother.DomainSource);
+        workspace.ReadText(workspace.File("bounded-orders.mode")).Should().Be("compiled-orders");
+        // The journey compiles with the default out root, so its record is .morphir/out/compile.json.
+        workspace.Exists(workspace.File(".morphir/out/compile.json")).Should().BeFalse("the compile writes the record");
+        workspace.Exists(workspace.File("build-artifacts/compile.json")).Should().BeFalse("no recorded tree is prepared");
+    }
+
+    [Test]
     public async Task NativeGenerationPreservesPathsAndBackendOptionsAsSingleArguments()
     {
         await using var workspace = ScenarioWorkspace.Create("");
@@ -56,6 +70,16 @@ public sealed class BoundedGenerationDriverTests
         await Driver(workspace, cli).GenerateAsync("output folder", "--option", "padding=two words");
         cli.Arguments.Should().Equal("generate", "--target", "text", "--output", workspace.Directory("output folder").Path,
             "--json=document", "--extension", "guest folder/orders.dll", "--out-dir", "build-artifacts", "--option", "padding=two words");
+    }
+
+    [Test]
+    public async Task GenerationFromTheLastCompileReadsTheOutRootOfTheCompile()
+    {
+        await using var workspace = ScenarioWorkspace.Create("");
+        var cli = new RecordingCli();
+        await Driver(workspace, cli).GenerateFromLastCompileAsync("generated");
+        cli.Arguments.Should().Equal("generate", "--target", "text", "--output", workspace.Directory("generated").Path,
+            "--json=document", "--extension", "guest folder/orders.dll");
     }
 
     [Test]

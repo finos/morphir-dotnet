@@ -14,7 +14,7 @@ public sealed class ResolutionContractSteps
     private bool _called;
 
     private static FSharpList<T> List<T>(IEnumerable<T> items) => ListModule.OfSeq(items);
-    private static ConfigValue At(ConfigValue tree, params string[] path) => ConfigTree.tryFind(List(path), tree).Value;
+    private static ConfigValue At(ConfigValue tree, params string[] path) => ConfigTree.tryFind(List(path), tree)!.Value;
     private ResolutionInput Input => new(List(_sources), _environment, DocumentDefaults.emptyValue,
         _profiles, ProjectScope.Root, FSharpOption<OwningWorkspace>.None, FSharpList<string>.Empty);
 

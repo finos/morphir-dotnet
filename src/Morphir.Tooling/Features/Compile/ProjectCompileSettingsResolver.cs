@@ -9,6 +9,7 @@ using Morphir.Configuration;
 using Morphir.Configuration.IO;
 using Morphir.IR.Model;
 using Morphir.Tooling.Features.Generate;
+using Morphir.Tooling.Features.TaskRecords;
 using Morphir.Tooling.Infrastructure;
 using ConfigSeverity = Morphir.Configuration.DiagnosticSeverity;
 using Severity = Morphir.Compilation.DiagnosticSeverity;
@@ -31,6 +32,15 @@ public sealed record LoadedCompileConfiguration(ConfigValue Effective, FSharpMap
 
     /// <summary>The Morphir home (<c>MORPHIR_HOME</c>, else <c>~/.morphir</c>), or null when it is not known.</summary>
     public string? MorphirHome { get; init; }
+
+    /// <summary>
+    /// The resolution that gave <see cref="Effective"/> and <see cref="Origins"/>, which F# reads for C#
+    /// (<c>ConfigValueProjections.TryFindConfiguredOrigin</c>). Null in two cases: no configuration was loaded, which has
+    /// no configured origin; or a caller used the positional constructor, which gives <see cref="Effective"/> and
+    /// <see cref="Origins"/> only. The settings then take each key's own origin from <see cref="Origins"/>, so a
+    /// nonempty table, whose origins are on the keys below it, is not seen as configured.
+    /// </summary>
+    public DocumentResolution? Resolution { get; init; }
 }
 
 /// <summary>Loads the configuration of the project that <c>--project</c> and <c>--config</c> select.</summary>
@@ -104,6 +114,7 @@ public sealed class FileSystemCompileConfigurationLoader : ICompileConfiguration
         {
             WorkspaceRoot = workspaceRoot,
             MorphirHome = Path.GetFullPath(home, working),
+            Resolution = resolution,
         };
     }
 
@@ -137,19 +148,22 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             Error(CompileCodes.UnsupportedSetting, "The option --types-only is not implemented. This build compiles complete modules only.");
 
         var loaded = loader.Load(overrides, context);
+        var config = new ConfigurationView(loaded);
         foreach (var diagnostic in loaded.Diagnostics)
         {
-            var text = $"{diagnostic.Source.Path}: {string.Join('.', diagnostic.KeyPath)}: {diagnostic.Message} ({diagnostic.Code})".Replace(": : ", ": ");
+            var key = string.Join('.', diagnostic.KeyPath);
+            var text = $"{diagnostic.Source.Path}: {key}: {diagnostic.Message} ({diagnostic.Code})".Replace(": : ", ": ");
+            // The resolver checks each value of ir.layout and ir.mode that it sees itself, in the order of their precedence
+            // (ResolveLayout); the schema error of a value that it does not see stands.
+            if (diagnostic.Severity == ConfigSeverity.Error && IsLayoutValidation(diagnostic) && config.ChecksAgain(diagnostic)) continue;
             if (diagnostic.Severity == ConfigSeverity.Error) Error(CompileCodes.Configuration, text);
             else warnings.Add(Diagnostic.Create(Severity.Warning, CompileCodes.Configuration, text, null));
         }
-        var config = new ConfigurationView(loaded);
         var working = CompilePaths.RealPath(context.WorkingDirectory);
         var baseDirectory = loaded.ProjectRoot ?? working;
 
         foreach (var (key, value, reason) in new[]
                  {
-                     (new[] { "ir", "layout" }, "document-tree", "The document-tree layout is not implemented. Use \"single-file\"."),
                      (new[] { "ir", "format" }, "yaml", "YAML IR is not implemented. Use \"json\"."),
                      (new[] { "ir", "format" }, "ion", "Ion IR output is not implemented. Use \"json\"."),
                  })
@@ -188,6 +202,13 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             version = new(parsedVersion, versionText.Origin);
         else
             Error(CompileCodes.InvalidSetting, $"The IR version from {Describe(versionText.Origin)} is not valid. {versionFailure}");
+
+        // IR layout: --ir-layout, else ir.layout, else the deprecated ir.mode, else single-file.
+        var layout = ResolveLayout(overrides, config, warnings, Error);
+        if (layout is { Value: IrLayout.DocumentTree } tree && version is { } requested && !HasDocumentTrees(requested.Value.Version))
+            Error(CompileCodes.UnsupportedSetting,
+                $"The layout document-tree from {Describe(tree.Origin)} is not supported for IR version {requested.Value.Text} from {Describe(requested.Origin)}. "
+                + "Document trees exist only for IR 3 (3.1.0) and IR 4. Use \"single-file\", or IR version 3 or 4.");
 
         // Exposed modules.
         Setting<ImmutableArray<string>>? exposed = config.Strings("project", "exposed_modules");
@@ -268,7 +289,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             else output = new(Path.GetFullPath(outputText, working), new SettingOrigin.CommandLine("--output"));
         }
 
-        if (errors.Count > 0 || package is null || version is null || sources is null || place is null)
+        if (errors.Count > 0 || package is null || version is null || layout is null || sources is null || place is null)
             return Checked<CompileSettings>.Fail(warnings.Concat(errors));
 
         return Checked<CompileSettings>.Of(new CompileSettings
@@ -276,6 +297,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             Language = language,
             Package = package,
             IrVersion = version,
+            IrLayout = layout,
             ExposedModules = exposed,
             Extension = extension,
             InstalledExtensionId = installedId,
@@ -293,6 +315,83 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             WorkingDirectory = working,
         }, warnings);
     }
+
+    /// <summary>
+    /// The layout of the IR (CLI-1): <c>--ir-layout</c>, else <c>ir.layout</c>, else the deprecated <c>ir.mode</c>
+    /// (<c>classic</c> is <c>single-file</c>, <c>vfs</c> is <c>document-tree</c>), else <c>single-file</c>. Each value that
+    /// is set is checked once: the selected value that is not valid (not one of the words, or not a string) is one
+    /// <see cref="CompileCodes.InvalidSetting"/> error, and an overridden value that is not valid is one warning with the
+    /// same code that says it is ignored. A configured <c>ir.mode</c> always gives a warning, as the <c>morphir.toml</c>
+    /// specification says. Null when the selected value is not valid.
+    /// </summary>
+    private static Setting<IrLayout>? ResolveLayout(CompileOverrides overrides, ConfigurationView config, List<Diagnostic> warnings,
+        Action<DiagnosticCode, string> error)
+    {
+        var candidates = new List<LayoutCandidate>();
+        if (overrides.IrLayout is { } cli) candidates.Add(new(CliLayout, new(cli, new SettingOrigin.CommandLine(CliLayout)), IsMode: false));
+        if (config.Configured("ir", "layout") is { } layout) candidates.Add(new(LayoutKey, layout, IsMode: false));
+        if (config.Configured("ir", "mode") is { } mode)
+        {
+            candidates.Add(new(ModeKey, mode, IsMode: true));
+            var spelled = mode.Value is { } text ? $" = \"{text}\"" : "";
+            warnings.Add(Diagnostic.Create(Severity.Warning, CompileCodes.DeprecatedSetting,
+                $"The setting {ModeKey}{spelled} in {Describe(mode.Origin)} is deprecated. Use {LayoutKey} = \"single-file\" or \"document-tree\"."
+                + (candidates[0].IsMode ? "" : $" The layout {candidates[0].Name} is used, and {ModeKey} is ignored."), null));
+        }
+        if (candidates.Count == 0) return new(IrLayout.SingleFile, SettingOrigin.Default.Instance);
+
+        var selected = candidates[0];
+        foreach (var overridden in candidates.Skip(1))
+            if (overridden.Parse() is null)
+                warnings.Add(Diagnostic.Create(Severity.Warning, CompileCodes.InvalidSetting,
+                    $"{overridden.Refusal()} It is ignored: the layout {selected.Name} is used.", null));
+        if (selected.Parse() is { } parsed) return new(parsed, selected.Value.Origin);
+        error(CompileCodes.InvalidSetting, selected.Refusal());
+        return null;
+    }
+
+    /// <summary>A layout value that is set: the option or key that sets it, its text (null when it is not a string) and its origin.</summary>
+    private sealed record LayoutCandidate(string Name, Setting<string?> Value, bool IsMode)
+    {
+        /// <summary>The layout of the value, or null when it is not one of the words of its key.</summary>
+        public IrLayout? Parse() => IsMode
+            ? Value.Value switch { "classic" => IrLayout.SingleFile, "vfs" => IrLayout.DocumentTree, _ => null }
+            : IrStorageNames.TryParseLayout(Value.Value, out var layout) ? layout : null;
+
+        /// <summary>Why the value is refused, with the option or key, its file and the accepted values.</summary>
+        public string Refusal()
+        {
+            var place = Value.Origin is SettingOrigin.Configuration ? $" in {Describe(Value.Origin)}" : "";
+            var what = Value.Value is { } text ? $"{Name} = '{text}'{place} is not valid" : $"{Name}{place} is not a string";
+            var accepted = IsMode ? $"Use {LayoutKey} = \"single-file\" or \"document-tree\"." : "Use \"single-file\" or \"document-tree\".";
+            return $"The IR {(IsMode ? "mode" : "layout")} {what}. {accepted}";
+        }
+    }
+
+    private const string CliLayout = "--ir-layout";
+
+    /// <summary>The code of a schema check of a value; a parse or reader error of a file has another code.</summary>
+    private const string SchemaValidation = "config.validation";
+
+    /// <summary>
+    /// Whether <paramref name="diagnostic"/> is the schema check of the value of exactly <c>ir.layout</c> or <c>ir.mode</c>,
+    /// which the resolver checks itself in the order of their precedence. Any other diagnostic of those keys, such as
+    /// a duplicate key that makes the whole file invalid, stays an error of the configuration.
+    /// </summary>
+    internal static bool IsLayoutValidation(ConfigDiagnostic diagnostic) =>
+        diagnostic.Code == SchemaValidation
+        && (ConfigValueProjections.IsAt(diagnostic, ["ir", "layout"]) || ConfigValueProjections.IsAt(diagnostic, ["ir", "mode"]));
+
+    private const string LayoutKey = "ir.layout";
+    private const string ModeKey = "ir.mode";
+
+    /// <summary>
+    /// Whether the document-tree specifications define a tree for a version: not for classic IR 1 or 2. A version that no
+    /// writer declares is refused by the writer registry.
+    /// </summary>
+    private static bool HasDocumentTrees(Morphir.IR.Versioning.FormatVersion version) =>
+        !Morphir.Compilation.FormatVersion.SameVersion(version, Morphir.IR.Versioning.FormatVersion.NewClassic(1))
+        && !Morphir.Compilation.FormatVersion.SameVersion(version, Morphir.IR.Versioning.FormatVersion.NewClassic(2));
 
     /// <summary>
     /// The key <c>[codegen.&lt;target&gt;].extension</c> of a target, for messages, as TOML writes it: a dotted target id
@@ -321,6 +420,39 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             ConfigValueProjections.TryFindOrigin(loaded.Origins, path, out var origin) && !origin.Source.Role.Equals(SourceRole.Defaults)
                 ? new SettingOrigin.Configuration(origin.Source.Path, ConfigValueProjections.KeyText(path))
                 : SettingOrigin.Default.Instance;
+
+        /// <summary>
+        /// The value at the path when a configuration file sets it: its text, or a null text when the value is not a string.
+        /// A default is not a configured value. A nonempty table has its origins on the keys below it, so the first of them
+        /// that a configuration file sets is the origin of the table.
+        /// </summary>
+        public Setting<string?>? Configured(params string[] path) =>
+            Find(path) is { } value && ConfiguredOrigin(path) is { } origin
+                ? new(ConfigValueProjections.TryText(value, out var text) ? text : null, origin)
+                : null;
+
+        /// <summary>
+        /// The origin of a value that a configuration file sets. With the resolution, a nonempty table takes the origin of a
+        /// key below it; a loader that gives no resolution (the released positional constructor) has the key's own origins only.
+        /// </summary>
+        private SettingOrigin.Configuration? ConfiguredOrigin(string[] path)
+        {
+            if (loaded.Resolution is { } resolution)
+                return ConfigValueProjections.TryFindConfiguredOrigin(resolution, path, out var origin)
+                    ? new SettingOrigin.Configuration(origin.Source.Path, ConfigValueProjections.KeyText(path))
+                    : null;
+            return ConfigValueProjections.TryFindOrigin(loaded.Origins, path, out var own) && !own.Source.Role.Equals(SourceRole.Defaults)
+                ? new SettingOrigin.Configuration(own.Source.Path, ConfigValueProjections.KeyText(path))
+                : null;
+        }
+
+        /// <summary>
+        /// Whether the resolver checks again the value that a schema error of <c>ir.layout</c> or <c>ir.mode</c> concerns:
+        /// only a value that it sees as configured (<see cref="Configured"/>).
+        /// </summary>
+        public bool ChecksAgain(ConfigDiagnostic diagnostic) =>
+            ConfigValueProjections.IsAt(diagnostic, ["ir", "layout"]) ? Configured("ir", "layout") is not null
+            : ConfigValueProjections.IsAt(diagnostic, ["ir", "mode"]) && Configured("ir", "mode") is not null;
 
         public Setting<string>? String(params string[] path) =>
             Find(path) is { } value && ConfigValueProjections.TryText(value, out var text) ? new(text, Origin(path)) : null;

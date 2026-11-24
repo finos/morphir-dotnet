@@ -6,7 +6,7 @@ namespace Morphir.Configuration.IO.Tests;
 public sealed class YamlDefaultTests
 {
     private static ConfigurationDocument Read(string text) => ((SourceContent.Available)ConfigurationReader.ReadText("default.yaml", text).Content).Item;
-    private static ConfigValue At(ConfigurationDocument document, params string[] path) => ConfigTree.tryFind(ListModule.OfSeq(path), document.Values).Value;
+    private static ConfigValue At(ConfigurationDocument document, params string[] path) => ConfigTree.tryFind(ListModule.OfSeq(path), document.Values)!.Value;
 
     [Test]
     public void DefaultProfileExpandsAliasesAndPreservesUsePositions()

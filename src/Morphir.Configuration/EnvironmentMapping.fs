@@ -40,7 +40,7 @@ module EnvironmentMapping =
         | JsonValueKind.Null -> ConfigValue.Null
         | JsonValueKind.True -> ConfigValue.Boolean true
         | JsonValueKind.False -> ConfigValue.Boolean false
-        | JsonValueKind.String -> ConfigValue.String(element.GetString())
+        | JsonValueKind.String -> ConfigValue.String(nonNull (element.GetString()))
         | JsonValueKind.Number -> number (element.GetRawText())
         | JsonValueKind.Array ->
             element.EnumerateArray()

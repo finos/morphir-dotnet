@@ -8,9 +8,45 @@ using Morphir.TestSupport.Fixtures;
 namespace Morphir.BlackBox.Tests.Steps;
 
 [Binding]
-public sealed class BoundedGenerationSteps(IBoundedGenerationDriver bounded, IScenarioWorkspace workspace, IUnitTestRuntimeProvider runtime)
+public sealed class BoundedGenerationSteps(IBoundedGenerationDriver bounded, IScenarioWorkspace workspace, ScenarioRun run,
+    IUnitTestRuntimeProvider runtime)
 {
     private const string OutDir = "build-artifacts";
+
+    /// <summary>The out root that <c>When I compile the project</c> and generation from the last compile share: the default.</summary>
+    private WorkspaceDirectory CompileOutRoot => workspace.Work.Directory(".morphir", "out");
+
+    [Given("the Orders domain source in a document-tree project")]
+    public void GivenTheOrdersDomainSourceInADocumentTreeProject() => bounded.PrepareCompiledOrders();
+
+    [Then("the compile records the Orders document tree")]
+    public void TheCompileRecordsTheOrdersDocumentTree()
+    {
+        run.Result.ShouldExitWith(0);
+        var tree = CompileOutRoot.Directory("compile.dest", "morphir-ir");
+        CompilationReport.Of(run.Result).ShouldSucceed().Output.Should().Be(tree.Path);
+        workspace.Exists(tree.File("manifest.json")).Should().BeTrue();
+        workspace.Exists(tree.File("pkg/acme/orders/domain/module.json")).Should().BeTrue();
+        using var record = System.Text.Json.JsonDocument.Parse(workspace.ReadText(CompileOutRoot.File("compile.json")));
+        record.RootElement.GetProperty("value").EnumerateArray().Select(item => item.GetString()).Should().Equal("morphir-ir");
+        var ir = record.RootElement.GetProperty("ir");
+        (ir.GetProperty("path").GetString(), ir.GetProperty("layout").GetString(), ir.GetProperty("format").GetString(),
+            ir.GetProperty("version").GetString()).Should().Be(("morphir-ir", "document-tree", "json", "v4"));
+    }
+
+    [Then("bounded generation renders order {int} from the compile record")]
+    public async Task BoundedGenerationRendersTheOrderFromTheCompileRecord(int order)
+    {
+        var result = await bounded.GenerateFromLastCompileAsync("generated");
+        result.ShouldExitWith(0);
+        var report = GenerationReport.Of(result).Document;
+        report.GetProperty("input").GetString().Should().Be(CompileOutRoot.Directory("compile.dest", "morphir-ir").Path);
+        report.GetProperty("representation").GetString().Should().Be("DocumentTree");
+        report.GetProperty("artifacts").EnumerateArray().Select(item => item.GetString()).Should().Equal("order.txt");
+        workspace.ReadBytes(workspace.File("generated/order.txt"))
+            .Should().Equal(System.Text.Encoding.UTF8.GetBytes(order.ToString(CultureInfo.InvariantCulture) + "\n"));
+        workspace.ReadText(workspace.File("bounded-orders.methods")).Should().Contain("morphir.backend.generateModel.start");
+    }
 
     [Then("bounded generation reads order {int} from its recorded descriptor")]
     public async Task GeneratesFromTheRecordedTreeAtItsDescriptorPath(int order)

@@ -48,7 +48,7 @@ public sealed class RecordGenerationSettingsResolver(
             // Installed identity is exclusive. A legacy --extension may name a configured WASM alias.
             if (explicitSettings is not Outcome<GenerationSettings>.Success { Value: var settings } || settings.InstalledExtensionId is not null)
                 return explicitSettings;
-            var configuration = Load(overrides, compileContext);
+            var configuration = Load(overrides, compileContext, readsRecord: false);
             if (configuration is Outcome<LoadedCompileConfiguration>.Failure loadFailure)
             {
                 // An explicit process extension previously needed no project configuration.
@@ -67,7 +67,7 @@ public sealed class RecordGenerationSettingsResolver(
             return WithConfiguredExtension(settings, ((Outcome<LoadedCompileConfiguration>.Success)configuration).Value, compileContext.WorkingDirectory);
         }
 
-        var loadedOutcome = Load(overrides, compileContext);
+        var loadedOutcome = Load(overrides, compileContext, readsRecord: true);
         if (loadedOutcome is Outcome<LoadedCompileConfiguration>.Failure configurationFailure) return Fail(configurationFailure.Error);
         var loaded = ((Outcome<LoadedCompileConfiguration>.Success)loadedOutcome).Value;
         var located = CompileTaskLocator.Locate(loaded, compileContext, overrides.OutDir);
@@ -113,11 +113,17 @@ public sealed class RecordGenerationSettingsResolver(
         return withExtension;
     }
 
-    /// <summary>Loads the configuration of the project that <c>--project</c> and <c>--config</c> select, as compile does.</summary>
-    private Outcome<LoadedCompileConfiguration> Load(GenerateOverrides overrides, CompileContext compileContext)
+    /// <summary>
+    /// Loads the configuration of the project that <c>--project</c> and <c>--config</c> select, as compile does. When the run
+    /// reads the compile record (<paramref name="readsRecord"/>), a schema error of <c>ir.layout</c> or <c>ir.mode</c> does not
+    /// refuse it: it takes the layout from the record, and compile reports those keys itself (an overridden value that is
+    /// not valid is only a warning of the compile). A run with <c>--input</c> keeps every error of the configuration.
+    /// </summary>
+    private Outcome<LoadedCompileConfiguration> Load(GenerateOverrides overrides, CompileContext compileContext, bool readsRecord)
     {
         var loaded = loader.Load(new CompileOverrides { Project = overrides.Project, Config = overrides.Config }, compileContext);
-        var errors = loaded.Diagnostics.Where(diagnostic => diagnostic.Severity == ConfigSeverity.Error).ToArray();
+        var errors = loaded.Diagnostics.Where(diagnostic => diagnostic.Severity == ConfigSeverity.Error
+            && !(readsRecord && ProjectCompileSettingsResolver.IsLayoutValidation(diagnostic))).ToArray();
         return errors.Length > 0
             ? new Outcome<LoadedCompileConfiguration>.Failure(new GenerationFailure(GenerationFailureKind.Invocation,
                 [.. errors.Select(error => new GenerationDiagnostic(CompileCodes.Configuration.Value,

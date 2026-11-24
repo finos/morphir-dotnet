@@ -11,7 +11,7 @@ public sealed class FixtureReaderTests
 {
     private static string Fixture(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", "Configuration", name);
     private static string Hash(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
-    private static ConfigValue At(ConfigValue tree, params string[] path) => ConfigTree.tryFind(ListModule.OfSeq(path), tree).Value;
+    private static ConfigValue At(ConfigValue tree, params string[] path) => ConfigTree.tryFind(ListModule.OfSeq(path), tree)!.Value;
 
     [Test]
     [Arguments("json-corpus.json", "caff9243c0afa55d19aa7f2f8f22b1e4392f89ce431f7574a01a8661237daece")]

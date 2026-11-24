@@ -14,7 +14,7 @@ void Check(bool condition, string message)
     checks++;
     if (!condition) throw new InvalidOperationException(message);
 }
-ConfigValue At(DocumentResolution result, params string[] path) => ConfigTree.tryFind(ListModule.OfSeq(path), result.Effective).Value;
+ConfigValue At(DocumentResolution result, params string[] path) => ConfigTree.tryFind(ListModule.OfSeq(path), result.Effective)!.Value;
 try
 {
     foreach (var targetLiteral in new[] { "['winner']", "[]" })

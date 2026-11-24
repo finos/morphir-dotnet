@@ -7,6 +7,7 @@ using Morphir.Compilation;
 using Morphir.IR.Model;
 using Morphir.MiddleEnd;
 using Morphir.Tooling.Features.Compile.Sources;
+using Morphir.Tooling.Features.TaskRecords;
 using Morphir.Tooling.Features.Transform;
 using Severity = Morphir.Compilation.DiagnosticSeverity;
 
@@ -117,18 +118,20 @@ public sealed class CompileRunner(
             }
 
             yield return new CompileEvent.StageStarted(CompileStage.Write);
-            var writeRun = await Guard(CompileStage.Write,
-                () => Task.FromResult(writer.Writer.Write(writer.Target, PublishedLayout, compiled.Package.Model)), ct);
+            var writeRun = await Guard(CompileStage.Write, () => WriteAsync(writer, settings, compiled.Package, ct), ct);
             foreach (var e in Report(CompileStage.Write, writeRun)) yield return e;
-            if (!writeRun.Passed(out var bytes))
+            if (!writeRun.Passed(out var written))
             {
                 yield return Failed(writeRun, CompileFailureKind.Source, settings, sources, compiled.Frontend.Label);
                 yield break;
             }
 
             yield return new CompileEvent.StageStarted(CompileStage.Publish);
-            var publishRun = await Guard(CompileStage.Publish, () => publication.PublishAsync(new CompilePublishRequest(
-                compiled.Frontend.Language.Value, writer.Target.Version, sources.Selection.ProjectFileOrNull, bytes), ct), ct);
+            var publishRun = await Guard(CompileStage.Publish, () => publication.PublishAsync(written.Tree is { } tree
+                ? CompilePublishRequest.ForDocumentTree(compiled.Frontend.Language.Value, writer.Target.Version,
+                    sources.Selection.ProjectFileOrNull, written.Bytes, tree)
+                : new CompilePublishRequest(compiled.Frontend.Language.Value, writer.Target.Version,
+                    sources.Selection.ProjectFileOrNull, written.Bytes), ct), ct);
             foreach (var e in Report(CompileStage.Publish, publishRun)) yield return e;
             if (!publishRun.Passed(out var published))
             {
@@ -144,7 +147,8 @@ public sealed class CompileRunner(
                 yield return new CompileEvent.Completed(new CompileConclusion.Succeeded(success), settings);
                 yield break;
             }
-            // CLI-2: the generation stages run after publication, on the exact bytes that were written.
+            // CLI-2: the generation stages run after publication, on the exact bytes that the writer wrote. A document tree
+            // holds the same model: it is the split of those bytes.
             if (generation is null)
             {
                 yield return new CompileEvent.StageStarted(CompileStage.Generate);
@@ -156,7 +160,7 @@ public sealed class CompileRunner(
                 { Sources = sources, Frontend = success.Frontend, Compiled = success }), settings);
                 yield break;
             }
-            await foreach (var e in generation.RunAsync(target, success, settings, bytes, _passes, ct)) yield return e;
+            await foreach (var e in generation.RunAsync(target, success, settings, written.Bytes, _passes, ct)) yield return e;
         }
         finally
         {
@@ -229,6 +233,29 @@ public sealed class CompileRunner(
     }
 
     private sealed record Compiled(ResolvedFrontend Frontend, CompiledPackage Package);
+
+    /// <summary>The bytes that the writer wrote, and the document tree of their model for <see cref="IrLayout.DocumentTree"/>.</summary>
+    private sealed record WrittenIr(ReadOnlyMemory<byte> Bytes, Morphir.IR.Trees.DocumentTreeStore.WrittenTree? Tree);
+
+    /// <summary>
+    /// Writes the model with the writer of the requested version and, for <see cref="IrLayout.DocumentTree"/>, splits the
+    /// written bytes into the document tree of the same model. The split runs with a large stack, as the codecs recurse
+    /// for each level of nesting.
+    /// </summary>
+    private static async Task<Checked<WrittenIr>> WriteAsync(ResolvedWriter writer, CompileSettings settings, CompiledPackage package,
+        CancellationToken ct)
+    {
+        var written = writer.Writer.Write(writer.Target, PublishedLayout, package.Model);
+        if (!written.TryGetValue(out var bytes)) return Checked<WrittenIr>.Fail(written.Diagnostics);
+        if (settings.IrLayout.Value == IrLayout.SingleFile)
+            return Checked<WrittenIr>.Of(new WrittenIr(bytes, null), written.Diagnostics);
+        var tree = await Morphir.Tooling.Infrastructure.LargeStack.RunAsync(() => CompileDocumentTree.Write(bytes),
+            "morphir compile document tree", ct);
+        var diagnostics = written.Diagnostics.Concat(tree.Diagnostics);
+        return tree.TryGetValue(out var output)
+            ? Checked<WrittenIr>.Of(new WrittenIr(bytes, output), diagnostics)
+            : Checked<WrittenIr>.Fail(diagnostics);
+    }
 
     private sealed record PassedCompiled(Compiled Compiled, PassesReport? Report, ModelLineage? Lineage);
 

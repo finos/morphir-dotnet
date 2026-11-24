@@ -309,7 +309,7 @@ module Editing =
                 let rec read (element: System.Text.Json.JsonElement) =
                     match element.ValueKind with
                     | System.Text.Json.JsonValueKind.String ->
-                        Some(ConfigValue.String(element.GetString()))
+                        Some(ConfigValue.String(nonNull (element.GetString())))
                     | System.Text.Json.JsonValueKind.True -> Some(ConfigValue.Boolean true)
                     | System.Text.Json.JsonValueKind.False -> Some(ConfigValue.Boolean false)
                     | System.Text.Json.JsonValueKind.Number ->

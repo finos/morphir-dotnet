@@ -32,9 +32,13 @@ public sealed class RecordGenerationSettingsTests
 
     private static readonly CompileOverrides Ordered = new() { Inputs = ["src/Rates.fs", "src/Pricing.fs"] };
 
-    private static async Task<CompileResult> Compile(CompileWorkspace workspace, IFrontend? frontend = null, string version = "4") =>
+    private static async Task<CompileResult> Compile(CompileWorkspace workspace, IFrontend? frontend = null, string version = "4",
+        string? layout = null) =>
         CompileHandler.Fold(await CompileRunners.Events(CompileRunners.Create([frontend ?? FSharpFrontend.Registration]),
-            Ordered with { IrVersion = version }, workspace.Context()));
+            Ordered with { IrVersion = version, IrLayout = layout }, workspace.Context()));
+
+    /// <summary>The car-rental project of these tests with <c>ir.layout = "folder"</c>, which is not a layout.</summary>
+    private static ProjectToml CarRentalWithAnInvalidLayout => ProjectToml.AProject("acme/car-rental").WithFrontend("fsharp").WithLayout("folder");
 
     private static InvocationContext Invocation(CompileWorkspace workspace) =>
         new(workspace.Root) { Environment = workspace.Context().Environment };
@@ -52,6 +56,56 @@ public sealed class RecordGenerationSettingsTests
             new RegisteredBackendResolver([new FSharpGenerationBackend()]), new GenerationPublisher(), default);
 
     private static string RecordIr(CompileWorkspace workspace) => workspace.PathOf(".morphir/out/compile.dest/morphir-ir.json");
+
+    [Test]
+    public async Task RecordedGenerationTakesTheLayoutThatCompileOverrodeFromTheRecord()
+    {
+        using var workspace = Project();
+        workspace.Write("morphir.toml", CarRentalWithAnInvalidLayout.Build());
+        (await Compile(workspace, layout: "document-tree")).ExitCode.Should().Be(0, "--ir-layout overrides ir.layout, with a warning");
+
+        var resolved = await Resolver().ResolveAsync(FromRecord(), Invocation(workspace), default);
+
+        var settings = resolved.Should().BeOfType<Outcome<GenerationSettings>.Success>("the record decides the layout").Subject.Value;
+        using (settings.InputLease)
+        {
+            settings.Input.Path.Should().Be(workspace.PathOf(".morphir/out/compile.dest/morphir-ir"));
+            settings.InputLease.Should().BeOfType<RecordGenerationSettingsResolver.RecordLease>()
+                .Which.Output.Ir.Layout.Should().Be(IrLayout.DocumentTree);
+        }
+    }
+
+    [Test]
+    public async Task RecordedGenerationStillRefusesADuplicateLayoutKey()
+    {
+        using var workspace = Project();
+        (await Compile(workspace)).ExitCode.Should().Be(0);
+        var file = workspace.Write(MalformedConfiguration.DuplicateLayoutJson5File, MalformedConfiguration.DuplicateLayoutJson5);
+
+        var resolved = await Resolver().ResolveAsync(FromRecord() with { Config = file }, Invocation(workspace), default);
+
+        var failure = resolved.Should().BeOfType<Outcome<GenerationSettings>.Failure>("a duplicate key makes the whole file invalid").Subject;
+        failure.Error.Diagnostics.Should().Contain(diagnostic => diagnostic.Code == "compile.configuration"
+            && diagnostic.Message.Contains("config.duplicate_key"));
+    }
+
+    [Test]
+    public async Task AnExplicitInputWithItsConfigurationStillRefusesAnInvalidLayout()
+    {
+        using var workspace = Project();
+        (await Compile(workspace)).ExitCode.Should().Be(0);
+        var configuration = workspace.Write("morphir.toml", ProjectToml.OrdersWithAnInvalidLayout.Build());
+
+        var resolved = await Resolver().ResolveAsync(
+            new GenerateOverrides(Input: RecordIr(workspace), Target: "fsharp", Output: workspace.PathOf("gen")) { Config = configuration },
+            Invocation(workspace), default);
+
+        var failure = resolved.Should().BeOfType<Outcome<GenerationSettings>.Failure>(
+            "only a run that reads the compile record takes its layout from the record").Subject;
+        // The run with --input reports the configuration's own errors of the key, as it does for every other key.
+        failure.Error.Diagnostics.Should().Contain(diagnostic => diagnostic.Code == "compile.configuration"
+            && diagnostic.Message.Contains("ir.layout"));
+    }
 
     [Test]
     public async Task GenerateWithoutAnInputUsesTheIrAndVersionOfTheCompileRecord()

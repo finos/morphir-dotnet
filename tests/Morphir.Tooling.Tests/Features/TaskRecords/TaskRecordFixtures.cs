@@ -46,6 +46,21 @@ internal sealed class RecordWorkspace : IDisposable
     public void Dispose() => TolerantDirectory.TryDelete(Root);
 }
 
+/// <summary>The task records of the record file tests.</summary>
+internal static class TaskRecordMother
+{
+    /// <summary>The record of a successful compile of the root member, whose IR is <c>morphir-ir.json</c> at IR 4.</summary>
+    public static TaskRecord CompletedCompile() => new()
+    {
+        Task = TaskId.Compile,
+        Module = MemberPath.Root,
+        Language = "fsharp",
+        Value = [RecordPath.Parse("morphir-ir.json")],
+        Ir = RecordWorkspace.SingleFileIr(),
+        CompletedAt = RecordTimestamp.At(RecordWorkspace.FirstTime),
+    };
+}
+
 /// <summary>A clock that always answers one time.</summary>
 internal sealed class FixedTime(DateTimeOffset now) : TimeProvider
 {

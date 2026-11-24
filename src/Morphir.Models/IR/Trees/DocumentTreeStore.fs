@@ -101,6 +101,48 @@ module DocumentTreeStore =
         | ClassicTree classic -> ClassicTreeWriter.writeClassic options classic
 
     /// <summary>
+    /// The files of a written tree and the format version that every one of them declares: <c>4</c> for a v4 tree,
+    /// <c>3.1.0</c> for a classic v3 tree. Only <see cref="writeTree"/> builds one, so the version always agrees with
+    /// the files. C# callers read <c>Files</c> and <c>FormatVersion</c>.
+    /// </summary>
+    [<Sealed>]
+    type WrittenTree internal (files: Morphir.Files.VFileTree, formatVersion: Versioning.FormatVersion) =
+        /// <summary>The files, as <see cref="write"/> gives them.</summary>
+        member _.Files = files
+
+        /// <summary>The format version that every file of the tree declares.</summary>
+        member _.FormatVersion = formatVersion
+
+        /// <summary>The layout and the format version.</summary>
+        override _.ToString() =
+            $"document tree, format version {Versioning.version formatVersion}"
+
+    /// The version that every file of a classic v3 tree declares, as the parent's v3 tree specification requires.
+    let private classicTreeVersion =
+        Versioning.SemVer {
+            Major = 3
+            Minor = 1
+            Patch = 0
+            PreRelease = None
+            BuildMetadata = None
+        }
+
+    /// <summary>
+    /// Writes a tree as <see cref="write"/> does, and gives its files with the format version that they declare:
+    /// <c>4</c> for a v4 tree and <c>3.1.0</c> for a classic v3 tree. For F# callers; C# calls
+    /// <c>StoredModel.TryWriteTree</c>, which gives problems in place of the store's error list.
+    /// </summary>
+    [<CompiledName("WriteTree")>]
+    let writeTree (options: WriteOptions) (tree: StoredTree) : Result<WrittenTree, StoreError list> =
+        let version =
+            match tree with
+            | V4Tree _ -> Versioning.Classic 4
+            | ClassicTree _ -> classicTreeVersion
+
+        write options tree
+        |> Result.map (fun files -> WrittenTree(files, version))
+
+    /// <summary>
     /// Reads a tree from files. The manifest's <c>formatVersion</c> chooses the version: a manifest of major 3 is
     /// read as a classic v3 tree, which says <c>"3.1.0"</c> in every file, and any other as a v4 tree. The files are
     /// taken by their location in the tree, whatever order the tree lists them in. A JSON file is part of the tree, a
@@ -145,6 +187,31 @@ module DocumentTreeStore =
                     )
             )
         )
+
+    /// <summary>
+    /// The result of a whole-tree read (<see cref="read"/>) for C# callers, which hold it without seeing the store's
+    /// result or error list and give it to <c>StoredModel.TryOfTreeRead</c> for the model or its problems.
+    /// </summary>
+    [<Sealed>]
+    type TreeRead internal (result: Result<StoredTree * ReadReport, StoreError list>) =
+        /// <summary>The read, for <c>StoredModel</c>.</summary>
+        member internal _.Result = result
+
+        /// <summary>Whether the tree was read.</summary>
+        member _.Succeeded = Result.isOk result
+
+        /// <summary>Whether the tree was read, and how many errors refused it otherwise.</summary>
+        override _.ToString() =
+            match result with
+            | Ok _ -> "tree read"
+            | Error errors -> $"tree refused with {List.length errors} error(s)"
+
+    /// <summary>
+    /// Reads a tree from files as <see cref="read"/> does, for C# callers. C# calls this <c>ReadTree</c> and takes the model
+    /// or its problems with <c>StoredModel.TryOfTreeRead</c>.
+    /// </summary>
+    [<CompiledName("ReadTree")>]
+    let readTree (options: ReadOptions) (files: Morphir.Files.VFileTree) : TreeRead = TreeRead(read options files)
 
     /// <summary>
     /// For C# callers that check a tree and need no model: each error of <see cref="read"/>, in the order the read
