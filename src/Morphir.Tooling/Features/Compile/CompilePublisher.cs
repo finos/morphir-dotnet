@@ -122,13 +122,14 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
         var place = new CompileTaskPlace(settings.OutRoot, settings.Member, settings.MorphirHome);
         return await place.Store(_options).BeginAsync(ct) switch
         {
-            Outcome<CompileTaskRun>.Success started => Checked<ICompilePublication>.Pass(new Publication(started.Value, settings, _hooks)),
+            Outcome<CompileTaskRun>.Success started => Checked<ICompilePublication>.Pass(new Publication(started.Value, settings, _hooks, _options.Diagnostics)),
             Outcome<CompileTaskRun>.Failure failed => Checked<ICompilePublication>.Fail(TaskDiagnostics.Of(failed.Error, ct)),
             _ => throw new System.Diagnostics.UnreachableException(),
         };
     }
 
-    private sealed class Publication(CompileTaskRun run, CompileSettings settings, CompilePublicationHooks hooks) : ICompilePublication
+    private sealed class Publication(CompileTaskRun run, CompileSettings settings, CompilePublicationHooks hooks, TextWriter warnings)
+        : ICompilePublication
     {
         public async Task<Checked<PublishedCompile>> PublishAsync(CompilePublishRequest request, CancellationToken ct)
         {
@@ -186,9 +187,13 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
             finally
             {
                 // The run holds compile.lock: no reader sees the IR of a run whose record is not complete. The removals retry
-                // while another handle holds a file and never throw, so the failure or the cancellation of the run stands.
-                removal.TryRemove(staging);
-                if (moved && !recorded) removal.TryRemove(target);
+                // while another handle holds a file and never throw, so the failure or the cancellation of the run stands. A
+                // path that the file system still refuses to remove is named in a warning; the record stays the tombstone,
+                // and the next compile clears compile.dest.
+                var rolledBack = moved && !recorded ? new[] { staging, target } : [staging];
+                foreach (var left in rolledBack)
+                    if (!removal.TryRemove(left))
+                        warnings.WriteLine($"warning: {left} could not be removed after the publication failed; another handle still holds a file below it. The record is a tombstone, and the next compile clears {run.Dest}.");
             }
 
             if (settings.Output is not { } output) return Checked<PublishedCompile>.Pass(new PublishedCompile(target, []));

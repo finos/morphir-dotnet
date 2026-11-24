@@ -139,14 +139,41 @@ public sealed class CompileDocumentTreeTests
         Directory.EnumerateFiles(OutRoot(workspace), ".compile.json.*").Should().BeEmpty("no staged record stays");
     }
 
+    /// <summary>
+    /// Writes the files of the tree that the writer gave to <paramref name="staging"/>, then cuts its manifest to half of its
+    /// bytes, as a disk that fills up during the stage leaves it.
+    /// </summary>
+    private static void StagePartly(string staging, VFileTree files)
+    {
+        VFileTreeModule.MatchPublish<string?>(new PublishOptions(staging, ManifestMode.NoManifest), files, _ => null, TreeWriteErrorModule.describe)
+            .Should().BeNull();
+        var manifest = Path.Combine(staging, "manifest.json");
+        var bytes = File.ReadAllBytes(manifest);
+        File.WriteAllBytes(manifest, bytes[..(bytes.Length / 2)]);
+    }
+
+    /// <summary>
+    /// Copies the tree that the last compile published to <paramref name="staging"/>, as a run that crashed after its stage
+    /// leaves it: the files of a real tree, by the writer.
+    /// </summary>
+    private static void LeaveTheTreeAsAStaleStage(CompileWorkspace workspace, string staging)
+    {
+        var tree = Path.Combine(Dest(workspace), "morphir-ir");
+        foreach (var file in Files(tree))
+        {
+            var copy = Path.Combine(staging, file);
+            Directory.CreateDirectory(Path.GetDirectoryName(copy)!);
+            File.Copy(Path.Combine(tree, file), copy);
+        }
+    }
+
     /// <summary>A stage that writes part of the IR and then fails, as a full disk does.</summary>
     private static CompilePublicationHooks FailingStage(string layout) => layout == "document-tree"
         ? new CompilePublicationHooks
         {
-            StageTree = (staging, _) =>
+            StageTree = (staging, files) =>
             {
-                Directory.CreateDirectory(Path.Combine(staging, "pkg", "acme"));
-                File.WriteAllText(Path.Combine(staging, "manifest.json"), "{\"formatVersion\": 4");
+                StagePartly(staging, files);
                 throw new IOException("The disk is full.");
             },
         }
@@ -309,14 +336,17 @@ public sealed class CompileDocumentTreeTests
     private static async Task<(ICompilePublication Publication, CompilePublishRequest Request, string Staging)> StalePublicationAsync(
         CompileWorkspace workspace, CompilePublicationHooks hooks)
     {
+        var crashed = workspace.PathOf("crashed-run");
+        Succeeded(await Run(workspace, Inputs()));
+        LeaveTheTreeAsAStaleStage(workspace, crashed);
         var written = File.ReadAllBytes(Succeeded(await Run(workspace, Inputs(layout: "single-file"))).Publication.IrPath);
         var request = CompilePublishRequest.ForDocumentTree("fsharp", Morphir.IR.Versioning.parse("4").ResultValue, null, written,
             Passed(CompileDocumentTree.Write(written)));
         var settings = Passed(new ProjectCompileSettingsResolver().Resolve(Inputs(), workspace.Context()));
         var publication = Passed(await new TaskRecordCompilePublisher(Quiet, hooks).BeginAsync(settings, default));
+        // The run's own begin cleared compile.dest; the stale root appears after it, as another tool would leave it.
         var staging = Path.Combine(Dest(workspace), ".morphir-ir.staging");
-        Directory.CreateDirectory(Path.Combine(staging, "pkg"));
-        File.WriteAllText(Path.Combine(staging, "manifest.json"), "{ \"left\": \"by a crashed run\" }");
+        Directory.Move(crashed, staging);
         return (publication, request, staging);
     }
 
@@ -333,8 +363,42 @@ public sealed class CompileDocumentTreeTests
         }
 
         scanner.DeletesOf(staging).Should().Be(3, "two deletes met the handle and the third cleared the stale root");
-        Files(Path.Combine(Dest(workspace), "morphir-ir")).Should().NotContain(file => file.Contains("crashed"));
         Directory.Exists(staging).Should().BeFalse();
+    }
+
+    [Test]
+    public async Task ACompileClearsAStaleStageOfACrashedRunWithRetriesBeforeItStarts()
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs()));
+        var staging = Path.Combine(Dest(workspace), ".morphir-ir.staging");
+        LeaveTheTreeAsAStaleStage(workspace, staging);
+        var scanner = new ScannedRemoval(failures: 2);
+
+        var compiled = Succeeded(await RunWith(workspace, Inputs(), new CompilePublicationHooks(), Quiet with { Removal = scanner.Removal }));
+
+        scanner.DeletesOf(Dest(workspace)).Should().Be(3, "two deletes met the handle and the third cleared compile.dest");
+        Directory.Exists(staging).Should().BeFalse();
+        ReadTree(compiled.Publication.IrPath).IrVersion.Should().Be("4");
+        IsTombstone(workspace).Should().BeFalse();
+    }
+
+    [Test]
+    public async Task ACompileThatCannotClearTheStaleStageOfACrashedRunFailsBeforeItStarts()
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs()));
+        var staging = Path.Combine(Dest(workspace), ".morphir-ir.staging");
+        LeaveTheTreeAsAStaleStage(workspace, staging);
+        var scanner = new ScannedRemoval(failures: int.MaxValue);
+
+        var failed = await RunWith(workspace, Inputs(), new CompilePublicationHooks(), Quiet with { Removal = scanner.Removal });
+
+        failed.ExitCode.Should().Be(2);
+        CompileRunners.ErrorCodes(failed).Should().Equal("compile.prepare_failed");
+        failed.Diagnostics.Single(d => d.Diagnostic.IsError).Diagnostic.Message.Should().Contain(Dest(workspace));
+        scanner.DeletesOf(Dest(workspace)).Should().Be(Morphir.Files.FileReplacement.Attempts, "the begin tries a bounded number of times");
+        IsTombstone(workspace).Should().BeTrue("the begin wrote the tombstone before it cleared compile.dest");
     }
 
     [Test]
@@ -364,12 +428,13 @@ public sealed class CompileDocumentTreeTests
         using var cancellation = new CancellationTokenSource();
         var scanner = new ScannedRemoval(failures);
         var target = Path.Combine(Dest(workspace), "morphir-ir");
+        var warnings = new StringWriter();
 
         var cancelled = await RunWith(workspace, Inputs(), new CompilePublicationHooks
         {
             Removal = scanner.Removal,
             AfterMoved = _ => cancellation.Cancel(),
-        }, ct: cancellation.Token);
+        }, Quiet with { Diagnostics = warnings }, cancellation.Token);
 
         cancelled.ExitCode.Should().Be(130, "a cleanup that fails never hides the cancellation");
         IsTombstone(workspace).Should().BeTrue();
@@ -377,8 +442,14 @@ public sealed class CompileDocumentTreeTests
         {
             scanner.DeletesOf(target).Should().Be(3);
             NothingIsLeft(workspace);
+            warnings.ToString().Should().BeEmpty("nothing remains to report");
         }
-        else scanner.DeletesOf(target).Should().Be(Morphir.Files.FileReplacement.Attempts, "the rollback tries a bounded number of times");
+        else
+        {
+            scanner.DeletesOf(target).Should().Be(Morphir.Files.FileReplacement.Attempts, "the rollback tries a bounded number of times");
+            Directory.Exists(target).Should().BeTrue("the file system refused every delete");
+            warnings.ToString().Should().Contain("warning:").And.Contain(target).And.Contain("could not be removed");
+        }
     }
 
     [Test]

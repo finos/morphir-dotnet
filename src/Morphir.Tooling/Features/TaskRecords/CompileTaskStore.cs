@@ -25,6 +25,9 @@ public sealed record TaskStoreOptions
 
     /// <summary>For tests: runs before each attempt to replace the record of a completed compile with its staged record.</summary>
     internal Action? BeforeRecordReplace { get; init; }
+
+    /// <summary>For tests: clears <c>.dest</c> when a run begins, in place of <see cref="PathRemoval.Default"/>.</summary>
+    internal PathRemoval? Removal { get; init; }
 }
 
 /// <summary>What a successful compile produced.</summary>
@@ -90,7 +93,13 @@ public sealed class CompileTaskStore
                     File.Delete(Location.Record);
                     break;
             }
-            if (Directory.Exists(Location.Dest)) Directory.Delete(Location.Dest, recursive: true);
+            // A run that crashed can leave a staged IR that a scanner still holds: the removal retries a bounded time.
+            if (!(_options.Removal ?? PathRemoval.Default).TryRemove(Location.Dest))
+            {
+                taskLock.Dispose();
+                return TaskFailures.Io<CompileTaskRun>("compile.prepare_failed", "clear", Location.Dest, new IOException(
+                    $"another handle still holds a file below it after {Morphir.Files.FileReplacement.Attempts} attempts. Close the program that holds it and compile again"));
+            }
             Directory.CreateDirectory(Location.Dest);
             return new Outcome<CompileTaskRun>.Success(new CompileTaskRun(Location, previous, taskLock, _options));
         }

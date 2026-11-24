@@ -20,7 +20,7 @@ The member path SHALL be the member's declared path relative to the workspace ro
 - **THEN** the IR is at `<workspace>/.morphir/out/packages/orders/compile.dest/morphir-ir.json`, and the record is at `<workspace>/.morphir/out/packages/orders/compile.json`
 
 ### Requirement: Compile output is published whole
-The IR SHALL be staged beside its place in `compile.dest` and moved into place whole before the record is written. A write failure, a cancellation or a record failure before the record is complete SHALL leave no staged or partial IR in `compile.dest`. After an earlier successful compile the tombstone of the run SHALL stay; a first compile SHALL leave no `compile.json`.
+The IR SHALL be staged beside its place in `compile.dest` and moved into place whole before the record is written. A write failure, a cancellation or a record failure before the record is complete SHALL remove the staged and moved IR from `compile.dest`, retrying a bounded number of times while another handle holds a file. After an earlier successful compile the tombstone of the run SHALL stay; a first compile SHALL leave no `compile.json`.
 
 #### Scenario: Second move onto an existing IR
 - **WHEN** a publication cannot move its staged IR because an IR is already at the target
@@ -29,6 +29,17 @@ The IR SHALL be staged beside its place in `compile.dest` and moved into place w
 #### Scenario: Write failure of a document tree
 - **WHEN** an earlier compile of the project succeeded, and writing the staged tree of a later compile fails
 - **THEN** the later compile fails with `compile.publish_failed` and exit code 2, `compile.dest` is empty, and `compile.json` is the tombstone of the later run
+
+### Requirement: Cleanup refusals keep the outcome and are reported
+When the file system still refuses to remove a path after the bounded retries, the run SHALL keep its outcome (exit code 130 for a cancellation, its failure otherwise), SHALL write a warning on stderr that names each path that remains, and its record SHALL stay the tombstone. A compile SHALL clear `compile.dest` with the same bounded retries when it starts, and SHALL fail with `compile.prepare_failed` and exit code 2, naming `compile.dest`, when it cannot.
+
+#### Scenario: Rollback refused after a cancellation
+- **WHEN** a compile is cancelled after its IR moved into place, and every attempt to remove that IR is refused
+- **THEN** the exit code is 130, `compile.json` is the tombstone of the run, and stderr has a warning that names the IR that remains
+
+#### Scenario: Stale stage of a crashed run
+- **WHEN** a staged IR that a crashed run left is in `compile.dest`, and another handle holds a file below it for longer than the retries
+- **THEN** the compile fails before it compiles with `compile.prepare_failed` and exit code 2, naming `compile.dest`
 
 ### Requirement: Records follow the ecosystem schema
 A successful compile SHALL write a schema-1 record with these fields: `task` `compile`, `module`, `language`, `inputs`, `value`, `ir {path, layout, format, version}`, `installed` and `completedAt`. `value` SHALL list product paths relative to `.dest`. Unknown fields in an existing record SHALL be preserved on rewrite, except where a tombstone clears them.
