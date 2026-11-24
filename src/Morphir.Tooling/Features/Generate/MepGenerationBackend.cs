@@ -298,9 +298,14 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
                 return Fail(GenerationFailureKind.Operational, verifyFailure.Code,
                     $"Extension {Identity}: could not verify lossless conversion of {label} to {tuple} ({verifyFailure.Code}): {verifyFailure.Reason}");
             }
-            if (!MepGenerationTransport.TryWriteSingleDocumentJson(model.Model, out var convertedBytes, out var writeError))
+            if (!MepGenerationTransport.TryWriteSingleDocumentJson(model.Model, out var convertedBytes, out var writeCode, out var writeError))
+            {
+                if (IsWriterResourceLimitCode(writeCode))
+                    return Fail(GenerationFailureKind.Operational, writeCode,
+                        $"Extension {Identity}: could not write {label} to {tuple} ({writeCode}): {writeError}");
                 return Fail(GenerationFailureKind.Semantic, "data.lossy_conversion",
-                    $"Extension {Identity}: the model ({label}) could not be converted losslessly to {tuple}: {writeError}");
+                    $"Extension {Identity}: the model ({label}) could not be converted losslessly to {tuple} ({writeCode}): {writeError}");
+            }
             bytes = convertedBytes;
             var originalSha256 = model.ConversionOrigin?.PayloadSha256
                 ?? (model.Original is RetainedInput.File origFile
@@ -370,6 +375,10 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
             LastModelTuple = tuple;
         return WithConversion(outcome);
     }
+
+    private static bool IsWriterResourceLimitCode(string code) =>
+        code is "depth_limit_exceeded" or "node_limit_exceeded" or "decoded_limit_exceeded"
+        || code.EndsWith("_limit_exceeded", StringComparison.Ordinal);
 
     private static (string Code, string Reason)? VerifyLosslessConversion(LoadedModel model, ModelReadLimits readLimits)
     {

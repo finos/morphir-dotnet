@@ -1362,8 +1362,8 @@ module IonIrTree =
         | Ok bytes -> Ok bytes
         | Result.Error cause -> Result.Error("file_read_failed", $"Could not read Ion tree file '{location}': {cause.Message}")
 
-    let private verifyNodeValue (location: string) (value: IonValue) : Result<unit, string * string> =
-        IonIr.verifyTopLevelElementLossless location value
+    let private verifyNodeValue (isClassic: bool) (location: string) (value: IonValue) : Result<unit, string * string> =
+        IonIr.verifyTopLevelElementLossless isClassic location value
         |> Result.bind (fun () ->
             match value.Data with
             | IonData.Struct fields ->
@@ -1435,73 +1435,85 @@ module IonIrTree =
                 match manifestOpt with
                 | None -> Result.Error("missing_manifest", "The Ion tree has no manifest.ion at its root.")
                 | Some manifestFile ->
-                    let readValues (file: TreeFile) =
-                        verifyTreeFileBytes limits file.Location file.File
-                        |> Result.bind (fun bytes ->
-                            IonIr.withRoom
-                                (fun err -> Result.Error(err.Code, err.Message))
-                                (fun () ->
-                                    match IonReader.readOrThrowOnShortStack limits bytes with
-                                    | Ok values -> Ok values
-                                    | Result.Error err -> Result.Error(IonReadError.code err, IonReadError.describe err)
-                                )
-                        )
-
-                    readValues manifestFile
-                    |> Result.bind (fun values ->
-                        match values with
-                        | [] -> Result.Error("invalid_document", "manifest.ion has no morphir:: header.")
-                        | header :: rest ->
-                            IonIr.verifyHeaderLossless true manifestFile.Location header
-                            |> Result.bind (fun () ->
-                                match rest with
-                                | [] -> Ok()
-                                | _ ->
-                                    let trailing, hasFooter =
-                                        match List.last rest with
-                                        | { Annotations = [ IonSymbol.Text "morphir_footer" ]; Data = IonData.Struct [] } ->
-                                            List.take (rest.Length - 1) rest, true
-                                        | { Annotations = [ IonSymbol.Text "morphir_footer" ]; Data = _ } ->
-                                            rest, false
-                                        | _ -> rest, true
-
-                                    if not hasFooter then
-                                        Result.Error(
-                                            "data.lossy_conversion",
-                                            $"Ion tree manifest '{manifestFile.Location}' carries non-empty footer metadata that JSON IR cannot preserve."
-                                        )
-                                    else
-                                        trailing
-                                        |> List.fold
-                                            (fun state item ->
-                                                state
-                                                |> Result.bind (fun () -> IonIr.verifyTopLevelElementLossless manifestFile.Location item)
-                                            )
-                                            (Ok())
-                            )
-                    )
-                    |> Result.bind (fun () ->
+                    let nodeFiles =
                         classified
                         |> List.choose (fun (_, result) ->
                             match result with
                             | Ok(NodeFileEntry node) -> Some node.Source
                             | _ -> None
                         )
-                        |> List.fold
-                            (fun state file ->
-                                state
-                                |> Result.bind (fun () ->
-                                    readValues file
-                                    |> Result.bind (fun values ->
-                                        values
-                                        |> List.fold
-                                            (fun inner item -> inner |> Result.bind (fun () -> verifyNodeValue file.Location item))
-                                            (Ok())
-                                    )
+
+                    // One tree-wide budget covers every file, and the entire parse + recursive verification pass
+                    // runs inside withRoom so a short caller stack retries cleanly on a deep stack with a fresh budget.
+                    IonIr.withRoom
+                        (fun err -> Result.Error(err.Code, err.Message))
+                        (fun () ->
+                            let budget = IonReadBudget limits
+
+                            let readValues (file: TreeFile) =
+                                verifyTreeFileBytes budget.Limits file.Location file.File
+                                |> Result.bind (fun bytes ->
+                                    match IonReader.readWithBudgetOrThrowOnShortStack budget bytes with
+                                    | Ok values -> Ok values
+                                    | Result.Error err -> Result.Error(IonReadError.code err, IonReadError.describe err)
                                 )
+
+                            readValues manifestFile
+                            |> Result.bind (fun values ->
+                                match values with
+                                | [] -> Result.Error("invalid_document", "manifest.ion has no morphir:: header.")
+                                | header :: rest ->
+                                    IonIr.verifyHeaderLossless true manifestFile.Location header
+                                    |> Result.bind (fun isClassic ->
+                                        let trailingCheck =
+                                            match rest with
+                                            | [] -> Ok()
+                                            | _ ->
+                                                let trailing, hasFooter =
+                                                    match List.last rest with
+                                                    | { Annotations = [ IonSymbol.Text "morphir_footer" ]; Data = IonData.Struct [] } ->
+                                                        List.take (rest.Length - 1) rest, true
+                                                    | { Annotations = [ IonSymbol.Text "morphir_footer" ]; Data = _ } ->
+                                                        rest, false
+                                                    | _ -> rest, true
+
+                                                if not hasFooter then
+                                                    Result.Error(
+                                                        "data.lossy_conversion",
+                                                        $"Ion tree manifest '{manifestFile.Location}' carries non-empty footer metadata that JSON IR cannot preserve."
+                                                    )
+                                                else
+                                                    trailing
+                                                    |> List.fold
+                                                        (fun state item ->
+                                                            state
+                                                            |> Result.bind (fun () ->
+                                                                IonIr.verifyTopLevelElementLossless isClassic manifestFile.Location item
+                                                            )
+                                                        )
+                                                        (Ok())
+
+                                        trailingCheck |> Result.map (fun () -> isClassic)
+                                    )
                             )
-                            (Ok())
-                    )
+                            |> Result.bind (fun isClassic ->
+                                nodeFiles
+                                |> List.fold
+                                    (fun state file ->
+                                        state
+                                        |> Result.bind (fun () ->
+                                            readValues file
+                                            |> Result.bind (fun values ->
+                                                values
+                                                |> List.fold
+                                                    (fun inner item -> inner |> Result.bind (fun () -> verifyNodeValue isClassic file.Location item))
+                                                    (Ok())
+                                            )
+                                        )
+                                    )
+                                    (Ok())
+                            )
+                        )
 
         match check with
         | Ok() ->

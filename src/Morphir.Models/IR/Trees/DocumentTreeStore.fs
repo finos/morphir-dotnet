@@ -223,6 +223,9 @@ module DocumentTreeStore =
         openSnapshotWithDiscoveryCache options cacheBytes revision provider
         |> Result.mapError (fun errors -> List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>)
 
+    let private clampInt64 (low: int64) (high: int64) (value: int64) =
+        max low (min high value)
+
     /// <summary>
     /// Open a revision-bound tree from a host callback, detecting whether any admitted file in the tree carries
     /// the declared contextual draft.1 envelope (<c>ir-context/0.1.0-draft.1</c>) or whether all files are plain,
@@ -254,9 +257,9 @@ module DocumentTreeStore =
                 let nodeLimit = if maxNodes > 0 then Some maxNodes else None
                 let workBudget = Some(BoundedTreeWorkBudget maxWorkUnits)
                 let discoveryCacheBytes =
-                    System.Math.Clamp(int64 options.MaxFiles * 512L, 64L * 1024L, 16L * 1024L * 1024L)
+                    clampInt64 (64L * 1024L) (16L * 1024L * 1024L) (int64 options.MaxFiles * 512L)
 
-                TreeFileSource.fromFileProviderWithDiscoveryCache
+                TreeFileSource.fromFileProviderWithDiscoveryCacheFallback
                     options.MaxFiles
                     discoveryCacheBytes
                     (fun () -> revision.Invoke())
@@ -287,9 +290,9 @@ module DocumentTreeStore =
                 Error [ error "tree.invalid_limit" None "A module lookup limit must be positive." ]
             else
                 let discoveryCacheBytes =
-                    System.Math.Clamp(int64 options.MaxFiles * 512L, 64L * 1024L, 16L * 1024L * 1024L)
+                    clampInt64 (64L * 1024L) (16L * 1024L * 1024L) (int64 options.MaxFiles * 512L)
 
-                TreeFileSource.fromFileProviderWithDiscoveryCache
+                TreeFileSource.fromFileProviderWithDiscoveryCacheFallback
                     options.MaxFiles
                     discoveryCacheBytes
                     (fun () -> revision.Invoke())

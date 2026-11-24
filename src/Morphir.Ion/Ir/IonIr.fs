@@ -1,6 +1,8 @@
 namespace Morphir.Ion
 
 open System
+open System.Globalization
+open System.Numerics
 open System.Threading
 
 /// <summary>Reads a single-file Morphir distribution written in the Ion IR format.</summary>
@@ -481,7 +483,59 @@ module IonIr =
             | _ -> lossyError $"Expected a two-element pair for {context} in {location}."
         )
 
-    let rec private verifyPattern (location: string) (value: IonValue) : Result<unit, string * string> =
+    let private verifyClassicDecimalLossless (location: string) (value: IonValue) : Result<unit, string * string> =
+        verifyPlainScalar location "decimal literal" value
+        |> Result.bind (fun () ->
+            match value.Data with
+            | IonData.String lexeme ->
+                match Morphir.IR.V4.DecimalLexeme.create lexeme with
+                | Error _ -> Ok()
+                | Ok _ ->
+                    let mutable number = 0m
+
+                    let parsed =
+                        Decimal.TryParse(
+                            lexeme,
+                            NumberStyles.Number ||| NumberStyles.AllowExponent,
+                            CultureInfo.InvariantCulture,
+                            &number
+                        )
+
+                    if not parsed || not (Morphir.IR.V4.DecimalLexeme.holdsExactly lexeme number) then
+                        lossyError
+                            $"Classic Ion decimal literal '{lexeme}' in {location} cannot be represented without losing precision in JSON IR."
+                    else
+                        let isNegative = lexeme.StartsWith("-", StringComparison.Ordinal)
+                        let unsigned = lexeme.TrimStart('+', '-')
+                        let exponentAt = unsigned.IndexOfAny [| 'e'; 'E' |]
+
+                        let mantissa, exponent =
+                            if exponentAt < 0 then
+                                unsigned, 0I
+                            else
+                                unsigned.Substring(0, exponentAt),
+                                BigInteger.Parse(
+                                    unsigned.Substring(exponentAt + 1),
+                                    NumberStyles.AllowLeadingSign,
+                                    CultureInfo.InvariantCulture
+                                )
+
+                        let pointAt = mantissa.IndexOf '.'
+                        let fractionLength = if pointAt < 0 then 0 else mantissa.Length - pointAt - 1
+                        let exactScale = BigInteger fractionLength - exponent
+                        let bits = Decimal.GetBits number
+                        let decimalScale = BigInteger((bits[3] >>> 16) &&& 0xFF)
+                        let decimalNegative = (bits[3] &&& 0x80000000) <> 0
+
+                        if exactScale <> decimalScale || isNegative <> decimalNegative then
+                            lossyError
+                                $"Classic Ion decimal literal '{lexeme}' in {location} loses decimal scale or sign when converted to JSON IR."
+                        else
+                            Ok()
+            | _ -> Ok()
+        )
+
+    let rec private verifyPattern (isClassic: bool) (location: string) (value: IonValue) : Result<unit, string * string> =
         IonNodes.enterNode ()
 
         requireUnannotated location "pattern" value
@@ -514,21 +568,23 @@ module IonIr =
                         |> Result.bind (fun () ->
                             match name, rest with
                             | "as", [ inner; binding ] ->
-                                verifyPattern location inner
+                                verifyPattern isClassic location inner
                                 |> Result.bind (fun () -> verifyPlainScalar location "as pattern name" binding)
                             | "constructor", ctorName :: items ->
                                 verifyPlainScalar location "constructor pattern name" ctorName
-                                |> Result.bind (fun () -> foldResults (verifyPattern location) items)
+                                |> Result.bind (fun () -> foldResults (verifyPattern isClassic location) items)
+                            | "decimal", [ lit ] when isClassic ->
+                                verifyClassicDecimalLossless location lit
                             | ("int" | "float" | "bool" | "string" | "char" | "decimal"), [ lit ] ->
                                 verifyPlainScalar location $"{name} literal" lit
-                            | _, items -> foldResults (verifyPattern location) items
+                            | _, items -> foldResults (verifyPattern isClassic location) items
                         )
                     )
                 )
             | _ -> Ok()
         )
 
-    let rec private verifyValueExpr (location: string) (value: IonValue) : Result<unit, string * string> =
+    let rec private verifyValueExpr (isClassic: bool) (location: string) (value: IonValue) : Result<unit, string * string> =
         IonNodes.enterNode ()
 
         requireUnannotated location "value expression" value
@@ -570,16 +626,16 @@ module IonIr =
                                     requireUnannotated location "lambda pattern" pat
                                     |> Result.bind (fun () ->
                                         match pat.Data with
-                                        | IonData.List(_ :: _ as items) -> foldResults (verifyPattern location) items
-                                        | _ -> verifyPattern location pat
+                                        | IonData.List(_ :: _ as items) -> foldResults (verifyPattern isClassic location) items
+                                        | _ -> verifyPattern isClassic location pat
                                     )
 
                                 patCheck
-                                |> Result.bind (fun () -> verifyValueExpr location body)
+                                |> Result.bind (fun () -> verifyValueExpr isClassic location body)
                             | "let", [ bindingName; definition; body ] ->
                                 verifyPlainScalar location "let name" bindingName
-                                |> Result.bind (fun () -> verifyLetBinding location definition)
-                                |> Result.bind (fun () -> verifyValueExpr location body)
+                                |> Result.bind (fun () -> verifyLetBinding isClassic location definition)
+                                |> Result.bind (fun () -> verifyValueExpr isClassic location body)
                             | "letrec", [ bindings; body ] ->
                                 requireUnannotated location "letrec bindings" bindings
                                 |> Result.bind (fun () ->
@@ -591,31 +647,33 @@ module IonIr =
                                                 location
                                                 "letrec binding"
                                                 (verifyPlainScalar location "letrec binding name")
-                                                (verifyLetBinding location))
+                                                (verifyLetBinding isClassic location))
                                             items
                                     | _ -> lossyError $"Expected a list or s-expression for letrec bindings in {location}."
                                 )
-                                |> Result.bind (fun () -> verifyValueExpr location body)
+                                |> Result.bind (fun () -> verifyValueExpr isClassic location body)
                             | "match", scrutinee :: cases ->
-                                verifyValueExpr location scrutinee
+                                verifyValueExpr isClassic location scrutinee
                                 |> Result.bind (fun () ->
                                     foldResults
                                         (verifyPair
                                             location
                                             "match case"
-                                            (verifyPattern location)
-                                            (verifyValueExpr location))
+                                            (verifyPattern isClassic location)
+                                            (verifyValueExpr isClassic location))
                                         cases
                                 )
                             | "destructure", [ pat; bound; body ] ->
-                                verifyPattern location pat
-                                |> Result.bind (fun () -> verifyValueExpr location bound)
-                                |> Result.bind (fun () -> verifyValueExpr location body)
+                                verifyPattern isClassic location pat
+                                |> Result.bind (fun () -> verifyValueExpr isClassic location bound)
+                                |> Result.bind (fun () -> verifyValueExpr isClassic location body)
                             | "field", [ target; fieldName ] ->
-                                verifyValueExpr location target
+                                verifyValueExpr isClassic location target
                                 |> Result.bind (fun () -> verifyPlainScalar location "field name" fieldName)
                             | ("variable" | "ref" | "constructor" | "fieldFunction"), [ operand ] ->
                                 verifyPlainScalar location $"{name} operand" operand
+                            | "decimal", [ lit ] when isClassic ->
+                                verifyClassicDecimalLossless location lit
                             | ("int" | "float" | "bool" | "string" | "char" | "decimal"), [ lit ] ->
                                 verifyPlainScalar location $"{name} literal" lit
                             | "record", entries ->
@@ -624,40 +682,40 @@ module IonIr =
                                         location
                                         "record field"
                                         (verifyPlainScalar location "record field name")
-                                        (verifyValueExpr location))
+                                        (verifyValueExpr isClassic location))
                                     entries
                             | "update", target :: entries ->
-                                verifyValueExpr location target
+                                verifyValueExpr isClassic location target
                                 |> Result.bind (fun () ->
                                     foldResults
                                         (verifyPair
                                             location
                                             "record update field"
                                             (verifyPlainScalar location "record update field name")
-                                            (verifyValueExpr location))
+                                            (verifyValueExpr isClassic location))
                                         entries
                                 )
-                            | _, items -> foldResults (verifyValueExpr location) items
+                            | _, items -> foldResults (verifyValueExpr isClassic location) items
                         )
                     )
                 )
             | _ -> Ok()
         )
 
-    and private verifyLetBinding (location: string) (value: IonValue) : Result<unit, string * string> =
+    and private verifyLetBinding (isClassic: bool) (location: string) (value: IonValue) : Result<unit, string * string> =
         plainStructFieldsOf location "let binding" value
         |> Result.bind (
             foldResults (fun (k, v) ->
                 match k with
                 | "inputTypes" -> verifyInputs location "let.inputTypes" v
                 | "outputType" -> verifyTypeExpr location v
-                | "body" -> verifyValueExpr location v
+                | "body" -> verifyValueExpr isClassic location v
                 | other ->
                     lossyError $"Ion let binding in {location} carries unknown member '{other}' that JSON IR cannot preserve."
             )
         )
 
-    let private verifyMorphirAnnotation (location: string) (value: IonValue) : Result<unit, string * string> =
+    let private verifyMorphirAnnotation (isClassic: bool) (location: string) (value: IonValue) : Result<unit, string * string> =
         requireUnannotated location "annotation" value
         |> Result.bind (fun () ->
             match value.Data with
@@ -678,14 +736,14 @@ module IonIr =
                                             foldResults (fun (ak, av) ->
                                                 match ak with
                                                 | "name" -> verifyPlainScalar location "annotation argument name" av
-                                                | "value" -> verifyValueExpr location av
+                                                | "value" -> verifyValueExpr isClassic location av
                                                 | other ->
                                                     lossyError
                                                         $"Ion annotation argument in {location} carries unknown member '{other}'."
                                             )
                                         )
                                     else
-                                        verifyValueExpr location arg
+                                        verifyValueExpr isClassic location arg
                                 )
                             )
                         | other ->
@@ -760,7 +818,7 @@ module IonIr =
             )
         )
 
-    let rec internal verifyTopLevelElementLossless (location: string) (value: IonValue) : Result<unit, string * string> =
+    let rec internal verifyTopLevelElementLossless (isClassic: bool) (location: string) (value: IonValue) : Result<unit, string * string> =
         IonNodes.enterNode ()
 
         let checkMemberField (k, v) =
@@ -778,7 +836,7 @@ module IonIr =
                 |> Result.bind (foldResults (verifyPlainScalar location "typeParam"))
             | "annotations" ->
                 plainListOf location "annotations" v
-                |> Result.bind (foldResults (verifyMorphirAnnotation location))
+                |> Result.bind (foldResults (verifyMorphirAnnotation isClassic location))
             | "typeExp"
             | "partialTypeExp"
             | "baseType"
@@ -787,7 +845,7 @@ module IonIr =
             | "inputTypes"
             | "inputs" -> verifyInputs location k v
             | "constructors" -> verifyConstructors location v
-            | "body" -> verifyValueExpr location v
+            | "body" -> verifyValueExpr isClassic location v
             | "hint" -> verifyNativeHint location v
             | "externals" -> verifyExternals location v
             | "incompleteness" -> verifyIncompleteness location v
@@ -805,7 +863,7 @@ module IonIr =
                         | "name" -> verifyPlainScalar location "package.name" v
                         | "modules" ->
                             plainListOf location "package.modules" v
-                            |> Result.bind (foldResults (verifyTopLevelElementLossless location))
+                            |> Result.bind (foldResults (verifyTopLevelElementLossless isClassic location))
                         | other ->
                             lossyError
                                 $"Ion package element in {location} carries unknown member '{other}' that JSON IR cannot preserve."
@@ -821,11 +879,11 @@ module IonIr =
                         | "doc" -> verifyPlainScalar location $"module.{k}" v
                         | "annotations" ->
                             plainListOf location "module.annotations" v
-                            |> Result.bind (foldResults (verifyMorphirAnnotation location))
+                            |> Result.bind (foldResults (verifyMorphirAnnotation isClassic location))
                         | "types"
                         | "values" ->
                             plainListOf location $"module.{k}" v
-                            |> Result.bind (foldResults (verifyTopLevelElementLossless location))
+                            |> Result.bind (foldResults (verifyTopLevelElementLossless isClassic location))
                         | other ->
                             lossyError
                                 $"Ion module element in {location} carries unknown member '{other}' that JSON IR cannot preserve."
@@ -844,9 +902,29 @@ module IonIr =
                 lossyError $"Ion element in {location} carries annotation '{joined}' that JSON IR cannot preserve."
         )
 
-    let internal verifyHeaderLossless (allowPathBudget: bool) (location: string) (header: IonValue) : Result<unit, string * string> =
+    let private isClassicHeader (fields: (IonSymbol * IonValue) list) : bool =
+        fields
+        |> List.tryPick (fun (symbol, value) ->
+            match symbol, value.Data with
+            | IonSymbol.Text "formatVersion", IonData.Int n -> Some(n < 4I)
+            | IonSymbol.Text "formatVersion", IonData.String s ->
+                Some(
+                    s = "3"
+                    || s.StartsWith("3.", StringComparison.Ordinal)
+                    || s = "2"
+                    || s.StartsWith("2.", StringComparison.Ordinal)
+                    || s = "1"
+                    || s.StartsWith("1.", StringComparison.Ordinal)
+                )
+            | _ -> None
+        )
+        |> Option.defaultValue false
+
+    let internal verifyHeaderLossless (allowPathBudget: bool) (location: string) (header: IonValue) : Result<bool, string * string> =
         match header.Annotations, header.Data with
         | [ IonSymbol.Text "morphir" ], IonData.Struct fields ->
+            let isClassic = isClassicHeader fields
+
             fields
             |> foldResults (fun (symbol, value) ->
                 match symbol with
@@ -874,11 +952,12 @@ module IonIr =
                 | IonSymbol.Text "entryPoints" -> verifyEntryPoints location value
                 | IonSymbol.Text("dependencies" | "modules" as name) ->
                     plainListOf location $"header.{name}" value
-                    |> Result.bind (foldResults (verifyTopLevelElementLossless location))
+                    |> Result.bind (foldResults (verifyTopLevelElementLossless isClassic location))
                 | IonSymbol.Text unknown ->
                     lossyError
                         $"Ion header in {location} carries unknown noncritical member '{unknown}' that JSON IR cannot preserve."
             )
+            |> Result.map (fun () -> isClassic)
         | _, IonData.Struct _ ->
             lossyError $"Ion header in {location} carries extra annotations that JSON IR cannot preserve."
         | _ -> lossyError $"Ion header in {location} is not a morphir:: struct."
@@ -888,7 +967,7 @@ module IonIr =
         | [] -> lossyError "Retained Ion document has no top-level header value."
         | header :: rest ->
             verifyHeaderLossless false "input" header
-            |> Result.bind (fun () ->
+            |> Result.bind (fun isClassic ->
                 match rest with
                 | [] -> Ok()
                 | _ ->
@@ -898,7 +977,7 @@ module IonIr =
                     | [ IonSymbol.Text "morphir_footer" ], IonData.Struct [] ->
                         rest
                         |> List.take (rest.Length - 1)
-                        |> foldResults (verifyTopLevelElementLossless "input")
+                        |> foldResults (verifyTopLevelElementLossless isClassic "input")
                     | _ ->
                         lossyError
                             "Ion datagram carries trailing values or non-empty footer metadata that JSON IR cannot preserve."

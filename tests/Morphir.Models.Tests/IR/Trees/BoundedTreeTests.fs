@@ -2391,4 +2391,25 @@ let discoveryCacheTests =
             Expect.equal snapshot.NameEncoding BoundedTreeEncoding.Plain "Plain encoding"
             Expect.equal snapshot.Syntax BoundedTreeSyntax.Json "JSON syntax"
         }
+        test "OpenDetectedSnapshotBounded and OpenDetectedSnapshot fall back to uncached scan on valid long-path trees when discovery cache overflows" {
+            let provider = StoreTestKit.longPathFlatPackageTreeProvider 100
+            let options = { ReadOptions.defaults with MaxFiles = 220 }
+
+            let bounded =
+                DocumentTreeStore.openDetectedSnapshotBounded(
+                    options, 128, 0, 1_000_000L, System.Func<string>(fun () -> "r1"), provider, System.Threading.CancellationToken.None)
+                |> read
+
+            Expect.equal bounded.IrVersion "4.0.0" "bounded long-path v4 IR"
+            Expect.equal bounded.Syntax BoundedTreeSyntax.Json "bounded long-path JSON syntax"
+            Expect.equal bounded.NameEncoding BoundedTreeEncoding.Plain "bounded long-path plain encoding"
+
+            let detected =
+                DocumentTreeStore.openDetectedSnapshot(options, System.Func<string>(fun () -> "r1"), provider)
+                |> read
+
+            Expect.equal detected.IrVersion "4.0.0" "detected long-path v4 IR"
+            Expect.equal detected.Syntax BoundedTreeSyntax.Json "detected long-path JSON syntax"
+            Expect.equal detected.NameEncoding BoundedTreeEncoding.Plain "detected long-path plain encoding"
+        }
     ]

@@ -1412,22 +1412,179 @@ public sealed class MepDocumentTreeGenerationTests
     }
 
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task Draft1HostConversionRefusesClassicIonWithLossyDecimalScale(bool inPattern)
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var inputPath = GenerationInputFixtures.ClassicIonWithLossyDecimalScale(sandbox.PathOf("input"), inPattern);
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "car/rental"
+
+            [codegen.text]
+            extension = "draft1"
+
+            [extensions.draft1]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var guest = new Draft1OnlyChannelGuest();
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: inputPath, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var failure = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+        failure.Kind.Should().Be(GenerationFailureKind.Semantic);
+        failure.Diagnostics.Should().Contain(d => d.Code == "data.lossy_conversion");
+        guest.GenerateCalls.Should().Be(0);
+    }
+
+    [Test]
+    public async Task Draft1HostConversionReportsJsonWriterDepthLimitSeparatelyFromLossyConversion()
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        // 600 nested (list ...) layers pass Ion reading & verification with raised MaxDepth = 1024,
+        // then hit V4JsonWriter's 512 write depth ceiling and must report depth_limit_exceeded, not data.lossy_conversion.
+        var inputPath = GenerationInputFixtures.DeepIonSingleDocument(sandbox.PathOf("input"), "4.0.0", 600);
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "car/rental"
+
+            [codegen.text]
+            extension = "draft1"
+
+            [extensions.draft1]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var guest = new Draft1OnlyChannelGuest(maxDepth: 1024);
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var innerResolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+        var resolver = new DepthOverrideSettingsResolver(innerResolver, 1024);
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: inputPath, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var failure = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+        failure.Kind.Should().Be(GenerationFailureKind.Operational);
+        failure.Diagnostics.Should().Contain(d => d.Code == "depth_limit_exceeded");
+        failure.Diagnostics.Should().NotContain(d => d.Code == "data.lossy_conversion");
+        guest.GenerateCalls.Should().Be(0);
+    }
+
+    [Test]
+    public async Task ExplicitTreeRouteEnforcesRequestIdReservationFromNegotiatedMaxHostCacheBytes()
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var treeRoot = sandbox.PathOf("orders-tree");
+        CopyOrdersFixture("v4", "plain-json", treeRoot);
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("ext.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "acme/orders"
+
+            [codegen.text]
+            extension = "ext"
+
+            [extensions.ext]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        // 1. Negotiated maxHostCacheBytes = 4096 reserves 1024 bytes for discovery (enough for the orders tree)
+        // and 2048 bytes for request IDs (256 fixed + ~256 per 64-char ID), so issuing distinct request IDs across
+        // rounds must be refused by the bounded request-ID ledger well before 20 rounds complete.
+        var overflowingGuest = new TightRequestCacheGuest(maxHostCacheBytes: 4096, roundsToRequest: 20);
+        var overflowingConnector = new MepBackendExtensionConnector(null, (_, _) => (overflowingGuest, "", ""));
+        var overflowOutcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: treeRoot, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new RejectingLoader(), new RegisteredBackendResolver([]), new GenerationPublisher(), overflowingConnector, [], default);
+
+        var overflowFailure = overflowOutcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+        overflowFailure.Kind.Should().Be(GenerationFailureKind.Operational);
+        overflowFailure.Diagnostics.Should().Contain(d =>
+            d.Code == "extension.bounded_exchange"
+            && d.Message.Contains("maxHostCacheBytes", StringComparison.Ordinal));
+        overflowingGuest.RoundsCompleted.Should().BeLessThan(20, "request-ID budget must stop the session before all rounds complete");
+
+        // 2. Negotiated maxHostCacheBytes = 256 yields a 128-byte request-ID share (< 256-byte fixed charge),
+        // which must be refused immediately as extension.bounded_cache_limit before starting generation.
+        var tooSmallGuest = new TightRequestCacheGuest(maxHostCacheBytes: 256, roundsToRequest: 1);
+        var tooSmallConnector = new MepBackendExtensionConnector(null, (_, _) => (tooSmallGuest, "", ""));
+        var tooSmallOutcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: treeRoot, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new RejectingLoader(), new RegisteredBackendResolver([]), new GenerationPublisher(), tooSmallConnector, [], default);
+
+        var tooSmallFailure = tooSmallOutcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+        tooSmallFailure.Kind.Should().Be(GenerationFailureKind.Operational);
+        tooSmallFailure.Diagnostics.Should().Contain(d => d.Code == "extension.bounded_cache_limit");
+    }
+
+    [Test]
     public async Task BoundedGenerationSessionCancelsDuringFirstGuestRequestedInventoryPage()
     {
         using var sandbox = TestSandbox.Create();
-        var treeRoot = sandbox.PathOf("orders-tree");
-        CopyOrdersFixture("v4", "plain-json", treeRoot);
+        var treeRoot = GenerationInputFixtures.PlainV4MultiModuleTree(sandbox.PathOf("multi-module-tree"), 20);
         var stageDir = sandbox.PathOf("stage");
         Directory.CreateDirectory(stageDir);
 
         using var cts = new CancellationTokenSource();
-        var dirCalls = 0;
+        var measureDiscovery = false;
+        var discoveryDirCalls = 0;
+        var callsAfterCancel = 0;
         using var innerProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(treeRoot);
-        var cancellingProvider = new InterceptingFileProvider(innerProvider, _ =>
-        {
-            dirCalls++;
-            if (dirCalls >= 2) cts.Cancel();
-        });
+        var cancellingProvider = new InterceptingFileProvider(
+            innerProvider,
+            _ =>
+            {
+                if (!measureDiscovery) return;
+                if (cts.IsCancellationRequested)
+                {
+                    callsAfterCancel++;
+                    return;
+                }
+                discoveryDirCalls++;
+                if (discoveryDirCalls == 2) cts.Cancel();
+            },
+            _ =>
+            {
+                if (measureDiscovery && cts.IsCancellationRequested) callsAfterCancel++;
+            });
 
         var snapshotResult = DocumentTreeStore.OpenSnapshotWithDiscoveryCacheAndEncoding(
             new ReadOptions(ModelReadLimits.Default.MaxEntries, ModelReadLimits.Default.MaxBytes),
@@ -1454,16 +1611,21 @@ public sealed class MepDocumentTreeGenerationTests
         using var stage = new BoundedArtifactStage(stageDir, limits,
             new GenerationSessionDiskBudget(limits.MaxSessionDiskBytes), 65536L, 0L);
 
+        measureDiscovery = true;
         var outcome = await BoundedGenerationSession.RunAsync(channelGuest.HostSession, snapshot, start, stage,
             () => Task.CompletedTask, cts.Token);
 
         var failure = outcome.Should().BeOfType<Outcome<StagedGenerationOutput>.Failure>().Which.Error;
         failure.Kind.Should().Be(GenerationFailureKind.Cancelled);
         failure.Diagnostics.Should().Contain(d => d.Code == "cancelled");
-        dirCalls.Should().BeGreaterThanOrEqualTo(2, "cancellation must trigger inside the first guest-requested inventory discovery");
+        discoveryDirCalls.Should().Be(2, "discovery must stop immediately on the 2nd directory call instead of walking all 20 sibling modules");
+        callsAfterCancel.Should().Be(0, "no further provider calls may execute after cancellation is triggered");
     }
 
-    private sealed class InterceptingFileProvider(Microsoft.Extensions.FileProviders.IFileProvider inner, Action<string> onDirectory)
+    private sealed class InterceptingFileProvider(
+        Microsoft.Extensions.FileProviders.IFileProvider inner,
+        Action<string> onDirectory,
+        Action<string>? onFile = null)
         : Microsoft.Extensions.FileProviders.IFileProvider
     {
         public Microsoft.Extensions.FileProviders.IDirectoryContents GetDirectoryContents(string subpath)
@@ -1472,9 +1634,76 @@ public sealed class MepDocumentTreeGenerationTests
             return inner.GetDirectoryContents(subpath);
         }
 
-        public Microsoft.Extensions.FileProviders.IFileInfo GetFileInfo(string subpath) => inner.GetFileInfo(subpath);
+        public Microsoft.Extensions.FileProviders.IFileInfo GetFileInfo(string subpath)
+        {
+            onFile?.Invoke(subpath);
+            return inner.GetFileInfo(subpath);
+        }
 
         public Microsoft.Extensions.Primitives.IChangeToken Watch(string filter) => inner.Watch(filter);
+    }
+
+    private sealed class TightRequestCacheGuest : ISingleMessageChannel, IDisposable
+    {
+        private readonly Guest _guest;
+        private readonly int _roundsToRequest;
+        private string? _sessionId;
+
+        public int RoundsCompleted { get; private set; }
+
+        public TightRequestCacheGuest(int maxHostCacheBytes, int roundsToRequest)
+        {
+            _roundsToRequest = roundsToRequest;
+            var tuple = new ModelAccessTuple(ModelAccess.protocolVersion, ModelAccess.accessVersion, ModelOperation.GenerateModel,
+                SemanticVersion.Create("4.0.0"), "morphir-ir", ModelAccessCodec.MorphirJson, "document-tree", ModelAccessEncoding.Plain);
+            var baseLimits = RecordedGenerationAdmission.Offer(BoundedGenerationProfile.Default, ModelReadLimits.Default, wasm: true);
+            var limits = new ModelAccessLimits(
+                baseLimits.MaxFrameBytes, baseLimits.MaxEncodedBytesPerExchange, baseLimits.MaxDecodedBytesPerExchange,
+                baseLimits.MaxDocumentsPerBatch, baseLimits.MaxDepth, baseLimits.MaxNodes,
+                baseLimits.MaxDiagnosticsPerExchange, baseLimits.MaxOutstandingRequests, baseLimits.MaxGuestStateBytes,
+                maxHostCacheBytes, baseLimits.MaxArtifactChunkBytes, baseLimits.MaxArtifactBytes,
+                baseLimits.MaxTotalArtifactBytes, baseLimits.MaxSessionDiskBytes, baseLimits.MaxSessionWorkUnits,
+                baseLimits.MaxRounds, baseLimits.MaxCallMilliseconds, baseLimits.MaxSessionMilliseconds);
+            var support = new ModelAccessSupport([tuple], limits);
+            const string claimsJson = """{"claimsVersion":"0.1.0-draft.2","protocolVersions":["0.2.0-draft.2"],"extension":{"id":"org.finos.morphir.tight-cache","name":"Tight cache guest","version":"0.1.0","types":["backend"]},"capabilities":{}}""";
+            var claims = JsonSerializer.Deserialize(claimsJson, MepJson.Default.CapabilityClaimSet)!;
+            var supportJson = JsonSerializer.Serialize(support, MepJson.Default.ModelAccessSupport);
+            var capabilities = JsonSerializer.Deserialize(
+                $$"""{"backend":{"targets":["text"],"irVersions":["4.0.0"],"generate":false},"modelAccess":{{supportJson}}}""",
+                MepJson.Default.ExtensionCapabilities)!;
+
+            var handlers = new Dictionary<string, MethodHandler>
+            {
+                [Method.GenerateModelStart.WireValue] = MethodHandler.Request(MepJson.Default.ModelAccessStart, MepJson.Default.ModelAccessStep,
+                    (request, _) =>
+                    {
+                        _sessionId = request.SessionId;
+                        return Task.FromResult(ModelAccessStep.NewContinue(request.SessionId, 1,
+                            [ModelAccessRequest.NewInventory($"req-round-01-{new string('a', 52)}", "root", 1, null)], [], []));
+                    }),
+                [Method.GenerateModelAdvance.WireValue] = MethodHandler.Request(MepJson.Default.ModelAccessAdvance, MepJson.Default.ModelAccessStep,
+                    (advance, _) =>
+                    {
+                        RoundsCompleted = advance.Round;
+                        if (advance.Round >= _roundsToRequest)
+                            return Task.FromResult(ModelAccessStep.NewComplete(_sessionId!, [], []));
+                        var nextRound = advance.Round + 1;
+                        return Task.FromResult(ModelAccessStep.NewContinue(_sessionId!, nextRound,
+                            [ModelAccessRequest.NewInventory($"req-round-{nextRound:D2}-{new string('a', 52)}", "root", 1, null)], [], []));
+                    }),
+                [Method.GenerateModelCancel.WireValue] = MethodHandler.Request(MepJson.Default.ModelAccessCancel, MepJson.Default.ModelAccessCancel,
+                    (cancel, _) => Task.FromResult(cancel)),
+            };
+            _guest = new Guest(new GuestDefinition(claims, capabilities, handlers));
+        }
+
+        public Task<byte[]?> RequestAsync(string method, ReadOnlyMemory<byte> message, CancellationToken cancellation) =>
+            _guest.Dispatcher.DispatchAsync(message, cancellation);
+
+        public Task<byte[]?> NotifyAsync(string method, ReadOnlyMemory<byte> message, CancellationToken cancellation) =>
+            _guest.Dispatcher.DispatchAsync(message, cancellation);
+
+        public void Dispose() { }
     }
 
     [Test]

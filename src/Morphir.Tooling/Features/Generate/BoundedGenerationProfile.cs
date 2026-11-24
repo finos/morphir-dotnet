@@ -42,6 +42,11 @@ internal static class RecordedGenerationAdmission
     internal static long? RequestIdReservation(BoundedGenerationProfile profile, long selectedHostCacheBytes) =>
         profile == BoundedGenerationProfile.OrdersScale ? selectedHostCacheBytes / 2L : null;
 
+    // The explicit-tree route always reserves half of the negotiated host cache for request-ID tracking so
+    // the operation ledger cannot retain request IDs across rounds without a byte cap.
+    internal static long ExplicitTreeRequestIdReservation(long selectedHostCacheBytes) =>
+        selectedHostCacheBytes / 2L;
+
     internal static SessionLimits WasmLimits(BoundedGenerationProfile profile, ModelAccessLimits offer)
     {
         var defaults = SessionLimits.Default;
@@ -91,8 +96,10 @@ internal static class RecordedGenerationAdmission
     internal static ModelAccessLimits Offer(BoundedGenerationProfile profile, ModelReadLimits limits, bool wasm)
     {
         if (profile == BoundedGenerationProfile.OrdersScale)
+            // The Extism kernel starts with 16 pages (1 MiB) of linear memory, so 2 MiB per memory gives the kernel
+            // headroom to allocate a full 65,536-byte advertised frame and its response without failing allocation.
             return new(64 * 1024, 64 * 1024, 64 * 1024, 1, limits.MaxDepth, limits.MaxNodes,
-                64, 1, 1024 * 1024, 64 * 1024 * 1024, 32 * 1024,
+                64, 1, 2 * 1024 * 1024, 64 * 1024 * 1024, 32 * 1024,
                 2L * 1024 * 1024, 3L * 1024 * 1024 * 1024, 8L * 1024 * 1024 * 1024,
                 100_000_000L, 200_000, 30_000, 7_200_000);
 

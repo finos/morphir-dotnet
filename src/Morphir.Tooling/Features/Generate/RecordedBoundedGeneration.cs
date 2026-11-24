@@ -136,9 +136,9 @@ internal static class RecordedBoundedGeneration
                     else
                     {
                         var discoveryReservation = access.Limits.MaxHostCacheBytes / 4L;
-                        var requestIdReservation = RecordedGenerationAdmission.RequestIdReservation(
-                            settings.BoundedProfile, access.Limits.MaxHostCacheBytes);
-                        if (requestIdReservation is { } reservation && !guest.HostSession.TryReserveSingleGenerationRequestCache(reservation))
+                        var requestIdReservation = RecordedGenerationAdmission.ExplicitTreeRequestIdReservation(
+                            access.Limits.MaxHostCacheBytes);
+                        if (!guest.HostSession.TryReserveSingleGenerationRequestCache(requestIdReservation))
                             return Refuse("extension.bounded_cache_limit", "The request-ID reservation cannot be installed for this generation session.");
                         var indexed = DocumentTreeStore.OpenSnapshotWithDiscoveryCacheAndEncoding(
                                 new ReadOptions(readerLimits.MaxEntries, RecordedGenerationAdmission.DocumentByteLimit(readerLimits, access.Limits)),
@@ -157,7 +157,7 @@ internal static class RecordedBoundedGeneration
                             "morphir-bounded-stage-" + Guid.NewGuid().ToString("N"));
                         Directory.CreateDirectory(stagingParent);
                         stage = new BoundedArtifactStage(stagingParent, access.Limits,
-                            new GenerationSessionDiskBudget(access.Limits.MaxSessionDiskBytes), discoveryReservation, requestIdReservation.GetValueOrDefault());
+                            new GenerationSessionDiskBudget(access.Limits.MaxSessionDiskBytes), discoveryReservation, requestIdReservation);
                         var start = Start(snapshot, tuple, target, settings.Options, access.Limits);
                         using var sessionDeadline = new CancellationTokenSource(access.Limits.MaxSessionMilliseconds);
                         result = await BoundedGenerationSession.RunAsync(guest.HostSession, snapshot, start, stage,

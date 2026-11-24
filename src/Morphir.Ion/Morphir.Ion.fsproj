@@ -6,8 +6,11 @@
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <Description>Reads Morphir's Amazon Ion formats: the Ion IR format and the MEP morphir_model document</Description>
         <PackageTags>$(PackageTags);morphir;ion;ir;mep</PackageTags>
+        <Nullable>enable</Nullable>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
         <IsTrimmable>true</IsTrimmable>
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>

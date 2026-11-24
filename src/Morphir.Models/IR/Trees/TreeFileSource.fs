@@ -40,7 +40,15 @@ module internal TreeFileSource =
 
 
     /// Use the provider's directory metadata and open only the file requested by the reader.
-    let private fromFileProviderCore maxEntries cacheBytes revision (provider: IFileProvider) : SnapshotSource =
+    /// When <paramref name="fallbackOnCacheLimit"/> is true, an index that cannot fit inside
+    /// <paramref name="cacheBytes"/> falls back to the metered uncached scan instead of refusing the tree.
+    let private fromFileProviderCore
+        (fallbackOnCacheLimit: bool)
+        maxEntries
+        cacheBytes
+        revision
+        (provider: IFileProvider)
+        : SnapshotSource =
         let fileAt path =
             let info = provider.GetFileInfo path
 
@@ -168,6 +176,7 @@ module internal TreeFileSource =
         // source. It does not account for objects awaiting garbage collection.
         // Never publish a partial walk.
         let mutable cached: (string * int * string array) option = None
+        let mutable uncached: (string * int) option = None
         let mutable peakIndexBytes = 0L
         let originalRevision = if cacheBytes = 0L then "" else revision ()
         let cacheGate = obj ()
@@ -180,81 +189,96 @@ module internal TreeFileSource =
                 lock cacheGate (fun () ->
                     let changed () =
                         cached <- None
+                        uncached <- None
                         Error(error "tree.revision_changed" None "The tree source changed during discovery.")
 
                     if revision () <> originalRevision then
                         changed ()
                     else
-                        let lookup (paths: string array) =
-                            let cost = 1L + int64 (Math.Ceiling(Math.Log(float (paths.Length + 1), 2.0)))
+                        let scanUncached () =
+                            let scanned = scanModule (fun _ -> true) work cancellationToken pathBudget prefix after
+                            if revision () <> originalRevision then changed () else scanned
 
-                            if not (charge work cost) then
-                                Error(StoreErrors.workLimit (Some prefix))
-                            else
-                                let index =
-                                    match after with
-                                    | None -> 0
-                                    | Some previous ->
-                                        let found = Array.BinarySearch(paths, previous, StringComparer.Ordinal)
-                                        if found < 0 then ~~~found else found + 1
-
-                                if index < paths.Length then Ok(Some paths[index]) else Ok None
-
-                        match cached with
-                        | Some(package, budget, paths) when package = prefix && budget = pathBudget -> lookup paths
+                        match uncached with
+                        | Some(package, budget) when package = prefix && budget = pathBudget -> scanUncached ()
                         | _ ->
-                            cached <- None
-                            let paths = SortedSet<string>(StringComparer.Ordinal)
-                            let mutable retained = 128L
-                            // The builder exists even if its fixed overhead is refused.
-                            peakIndexBytes <- max peakIndexBytes retained
-                            let mutable workRefused = false
-
-                            let retain (path: string) =
-                                cancellationToken.ThrowIfCancellationRequested()
-                                let cost = 1L + int64 (Math.Ceiling(Math.Log(float (paths.Count + 2), 2.0)))
+                            let lookup (paths: string array) =
+                                let cost = 1L + int64 (Math.Ceiling(Math.Log(float (paths.Length + 1), 2.0)))
 
                                 if not (charge work cost) then
-                                    workRefused <- true
-                                    false
-                                elif paths.Contains path then
-                                    true
+                                    Error(StoreErrors.workLimit (Some prefix))
                                 else
-                                    let bytes = 160L + 4L * int64 path.Length
+                                    let index =
+                                        match after with
+                                        | None -> 0
+                                        | Some previous ->
+                                            let found = Array.BinarySearch(paths, previous, StringComparer.Ordinal)
+                                            if found < 0 then ~~~found else found + 1
 
-                                    if retained > cacheBytes || bytes > cacheBytes - retained then
+                                    if index < paths.Length then Ok(Some paths[index]) else Ok None
+
+                            match cached with
+                            | Some(package, budget, paths) when package = prefix && budget = pathBudget -> lookup paths
+                            | _ ->
+                                cached <- None
+                                uncached <- None
+                                let paths = SortedSet<string>(StringComparer.Ordinal)
+                                let mutable retained = 128L
+                                // The builder exists even if its fixed overhead is refused.
+                                peakIndexBytes <- max peakIndexBytes retained
+                                let mutable workRefused = false
+                                let mutable cacheOverflow = false
+
+                                let retain (path: string) =
+                                    cancellationToken.ThrowIfCancellationRequested()
+                                    let cost = 1L + int64 (Math.Ceiling(Math.Log(float (paths.Count + 2), 2.0)))
+
+                                    if not (charge work cost) then
+                                        workRefused <- true
                                         false
-                                    else
-                                        retained <- retained + bytes
-                                        paths.Add path |> ignore
-                                        peakIndexBytes <- max peakIndexBytes retained
+                                    elif paths.Contains path then
                                         true
+                                    else
+                                        let bytes = 160L + 4L * int64 path.Length
 
-                            let result =
-                                if cacheBytes < retained then
-                                    Error(
-                                        error
-                                            "tree.discovery_cache_limit"
-                                            (Some prefix)
-                                            "The discovery reservation is below its fixed overhead."
-                                    )
+                                        if retained > cacheBytes || bytes > cacheBytes - retained then
+                                            cacheOverflow <- true
+                                            false
+                                        else
+                                            retained <- retained + bytes
+                                            paths.Add path |> ignore
+                                            peakIndexBytes <- max peakIndexBytes retained
+                                            true
+
+                                let result =
+                                    if cacheBytes < retained then
+                                        cacheOverflow <- true
+                                        Error(
+                                            error
+                                                "tree.discovery_cache_limit"
+                                                (Some prefix)
+                                                "The discovery reservation is below its fixed overhead."
+                                        )
+                                    else
+                                        scanModule retain work cancellationToken pathBudget prefix None
+
+                                if revision () <> originalRevision then
+                                    changed ()
+                                elif workRefused then
+                                    Error(StoreErrors.workLimit (Some prefix))
+                                elif cacheOverflow && fallbackOnCacheLimit then
+                                    uncached <- Some(prefix, pathBudget)
+                                    scanUncached ()
                                 else
-                                    scanModule retain work cancellationToken pathBudget prefix None
-
-                            if revision () <> originalRevision then
-                                changed ()
-                            elif workRefused then
-                                Error(StoreErrors.workLimit (Some prefix))
-                            else
-                                match result with
-                                | Error problem -> Error problem
-                                | Ok _ ->
-                                    // Copy directly into the charged final array. Do not
-                                    // introduce an intermediate sequence conversion buffer.
-                                    let ordered = Array.zeroCreate<string> paths.Count
-                                    paths.CopyTo ordered
-                                    cached <- Some(prefix, pathBudget, ordered)
-                                    lookup ordered
+                                    match result with
+                                    | Error problem -> Error problem
+                                    | Ok _ ->
+                                        // Copy directly into the charged final array. Do not
+                                        // introduce an intermediate sequence conversion buffer.
+                                        let ordered = Array.zeroCreate<string> paths.Count
+                                        paths.CopyTo ordered
+                                        cached <- Some(prefix, pathBudget, ordered)
+                                        lookup ordered
                 )
 
         {
@@ -283,12 +307,18 @@ module internal TreeFileSource =
 
     /// Preserve the public constant-retention scan without a discovery reservation.
     let fromFileProvider maxEntries revision provider =
-        fromFileProviderCore maxEntries 0L revision provider
+        fromFileProviderCore false maxEntries 0L revision provider
 
     /// Retain one package's paths within an explicit reservation. Zero selects the scan fallback.
     let fromFileProviderWithDiscoveryCache maxEntries cacheBytes revision provider =
         if cacheBytes < 0L then invalidArg (nameof cacheBytes) "A discovery reservation cannot be negative."
-        fromFileProviderCore maxEntries cacheBytes revision provider
+        fromFileProviderCore false maxEntries cacheBytes revision provider
+
+    /// Retain one package's paths within an advisory reservation, falling back to the metered uncached scan when
+    /// long paths overflow the index budget instead of refusing the tree.
+    let internal fromFileProviderWithDiscoveryCacheFallback maxEntries cacheBytes revision provider =
+        if cacheBytes < 0L then invalidArg (nameof cacheBytes) "A discovery reservation cannot be negative."
+        fromFileProviderCore true maxEntries cacheBytes revision provider
 
     type Profile =
         | Json

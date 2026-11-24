@@ -299,6 +299,39 @@ internal static class GenerationInputFixtures
         return directory;
     }
 
+    public static string ClassicIonWithLossyDecimalScale(string directory, bool inPattern)
+    {
+        const string scale29 = "1.00000000000000000000000000000";
+        var body = inPattern
+            ? $"(match x [(decimal \"{scale29}\"), 1] [_, 0])"
+            : $"(decimal \"{scale29}\")";
+        var inputs = inPattern ? ", inputTypes: [ { name: \"x\", type: \"morphir/SDK:decimal#decimal\" } ]" : "";
+        var outputType = inPattern ? "\"morphir/SDK:basics#int\"" : "\"morphir/SDK:decimal#decimal\"";
+        var text =
+            $$"""
+            morphir::{ ionVersion: "0.1.0-draft.1", formatVersion: "3.0.0", kind: library, packageName: "car/rental" }
+            public::def::module::{ name: "pricing", values: [ public::def::value::{ name: "rate"{{inputs}}, outputType: {{outputType}}, body: {{body}} } ] }
+            morphir_footer::{}
+            """;
+        return WriteIon(directory, "text", text);
+    }
+
+    public static string PlainV4MultiModuleTree(string directory, int moduleCount)
+    {
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(Path.Combine(directory, "manifest.json"),
+            """{"formatVersion":4,"distribution":"Library","package":"acme/orders","pathBudget":240,"dependencies":[]}""");
+        for (var i = 0; i < moduleCount; i++)
+        {
+            var modName = $"mod-{i:D2}";
+            var modDir = Path.Combine(directory, "pkg", "acme", "orders", modName);
+            Directory.CreateDirectory(modDir);
+            File.WriteAllText(Path.Combine(modDir, "module.json"),
+                $$"""{"formatVersion":4,"path":"{{modName}}","access":"Public","types":[],"values":[]}""");
+        }
+        return directory;
+    }
+
     private static void CopyBoundedOrdersTree(string versionDir, string profile, string destination)
     {
         var prefix = Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Directory + versionDir + "/" + profile + "/";

@@ -91,19 +91,21 @@ type MepGenerationTransport =
     /// <summary>
     /// Serializes a typed <see cref="VersionedModel"/> losslessly to canonical single-document UTF-8 JSON for
     /// MEP 0.2.0-draft.1 host conversion (IR 4 via <c>V4JsonWriter</c>, classic IR 3 via <c>ClassicJsonWriter</c>).
-    /// For C# callers: sets either <paramref name="bytes"/> or <paramref name="error"/>.
+    /// For C# callers: sets either <paramref name="bytes"/> or structured <paramref name="errorCode"/> and
+    /// <paramref name="error"/> so resource-limit refusals remain distinct from lossy conversions.
     /// </summary>
     static member TryWriteSingleDocumentJson
         (
             model: VersionedModel,
             [<Out; MaybeNullWhen(false)>] bytes: byref<byte array>,
+            [<Out; MaybeNullWhen(true)>] errorCode: byref<string>,
             [<Out; MaybeNullWhen(true)>] error: byref<string>
         ) : bool =
         let result =
             match model.Distribution with
             | DistributionModel.V4 distribution ->
                 Morphir.Json.V4.V4JsonWriter.writeDistribution false distribution
-                |> Result.mapError (fun problem -> $"{problem.Rule} at {problem.Location}: {problem.Message}")
+                |> Result.mapError (fun problem -> problem.Rule, $"{problem.Location}: {problem.Message}")
             | DistributionModel.Classic distribution ->
                 let profile =
                     match distribution with
@@ -113,16 +115,39 @@ type MepGenerationTransport =
                     | Morphir.IR.Classic.Distribution.Specs _ -> Morphir.Json.Classic.ClassicWireProfile.v3_1_0
 
                 Morphir.Json.Classic.ClassicJsonWriter.writeJsonAttributes profile false distribution
-                |> Result.mapError (fun problem -> $"{problem.Rule} at {problem.Location}: {problem.Message}")
+                |> Result.mapError (fun problem -> problem.Rule, $"{problem.Location}: {problem.Message}")
 
         match result with
         | Ok written ->
             bytes <- written
+            errorCode <- Unchecked.defaultof<_>
             error <- Unchecked.defaultof<_>
             true
-        | Error failure ->
+        | Error(code, failure) ->
             bytes <- Unchecked.defaultof<_>
+            errorCode <- code
             error <- failure
+            false
+
+    /// <summary>
+    /// Serializes a typed <see cref="VersionedModel"/> losslessly to canonical single-document UTF-8 JSON for
+    /// MEP 0.2.0-draft.1 host conversion (IR 4 via <c>V4JsonWriter</c>, classic IR 3 via <c>ClassicJsonWriter</c>).
+    /// For C# callers: sets either <paramref name="bytes"/> or <paramref name="error"/>.
+    /// </summary>
+    static member TryWriteSingleDocumentJson
+        (
+            model: VersionedModel,
+            [<Out; MaybeNullWhen(false)>] bytes: byref<byte array>,
+            [<Out; MaybeNullWhen(true)>] error: byref<string>
+        ) : bool =
+        let mutable code = Unchecked.defaultof<string>
+        let mutable detail = Unchecked.defaultof<string>
+
+        if MepGenerationTransport.TryWriteSingleDocumentJson(model, &bytes, &code, &detail) then
+            error <- Unchecked.defaultof<_>
+            true
+        else
+            error <- $"{code} at {detail}"
             false
 
 /// A negotiated generation view over one caller-owned tree snapshot.

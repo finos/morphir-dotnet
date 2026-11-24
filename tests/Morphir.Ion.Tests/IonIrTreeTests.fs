@@ -77,6 +77,113 @@ let private pathOf (text: string) =
 
 let private manifest = "manifest.ion"
 
+/// Named fixture builders for lossless JSON conversion verification tests (single-document and tree).
+module private LosslessFixtures =
+    let private singleV4Header =
+        "morphir::{ionVersion: \"0.1.0-draft.1\", formatVersion: \"4.0.0\", kind: library, packageName: \"my/pkg\"}"
+
+    let private singleClassicHeader =
+        "morphir::{ionVersion: \"0.1.0-draft.1\", formatVersion: \"3.0.0\", kind: library, packageName: \"my/pkg\"}"
+
+    let private utf8 (elements: string list) =
+        ReadOnlyMemory(Text.Encoding.UTF8.GetBytes(datagram elements))
+
+    let singleAnnotatedInputTypes () =
+        utf8 [
+            singleV4Header
+            $"public::def::module::{{name: \"m\", values: [public::def::value::{{name: \"f\", inputTypes: unit::{{x: {int}}}, outputType: {int}, body: x}}]}}"
+        ]
+
+    let treeAnnotatedInputTypes () =
+        treeOf [
+            manifest, header "library" "my/pkg" "4.0.0"
+            "pkg/my/pkg/m/module.ion", "public::def::module::{}"
+            "pkg/my/pkg/m/f.value.ion", $"public::def::value::{{inputTypes: unit::{{x: {int}}}, outputType: {int}, body: x}}"
+        ]
+
+    let singleDocumentNumberUnderName () =
+        utf8 [
+            singleV4Header
+            $"public::def::module::{{name: \"m\", values: [public::def::value::{{name: \"d\", outputType: {int}, body: (document {{name: number::\"1.5\"}})}}]}}"
+        ]
+
+    let treeDocumentNumberUnderName () =
+        treeOf [
+            manifest, header "library" "my/pkg" "4.0.0"
+            "pkg/my/pkg/m/module.ion", "public::def::module::{}"
+            "pkg/my/pkg/m/d.value.ion", $"public::def::value::{{outputType: {int}, body: (document {{name: number::\"1.5\"}})}}"
+        ]
+
+    let classicSingleWithDecimalExpression (lexeme: string) =
+        utf8 [
+            singleClassicHeader
+            $"public::def::module::{{name: \"m\", values: [public::def::value::{{name: \"d\", outputType: \"morphir/SDK:decimal#decimal\", body: (decimal \"{lexeme}\")}}]}}"
+        ]
+
+    let classicSingleWithDecimalPattern (lexeme: string) =
+        utf8 [
+            singleClassicHeader
+            $"public::def::module::{{name: \"m\", values: [public::def::value::{{name: \"d\", inputTypes: [{{name: \"x\", type: \"morphir/SDK:decimal#decimal\"}}], outputType: {int}, body: (match x [(decimal \"{lexeme}\"), 1] [_, 0])}}]}}"
+        ]
+
+    let classicTreeWithDecimalExpression (lexeme: string) =
+        treeOf [
+            manifest, header "library" "my/pkg" "3.0.0"
+            "pkg/my/pkg/m/module.ion", "public::def::module::{}"
+            "pkg/my/pkg/m/d.value.ion", $"public::def::value::{{outputType: \"morphir/SDK:decimal#decimal\", body: (decimal \"{lexeme}\")}}"
+        ]
+
+    let classicTreeWithDecimalPattern (lexeme: string) =
+        treeOf [
+            manifest, header "library" "my/pkg" "3.0.0"
+            "pkg/my/pkg/m/module.ion", "public::def::module::{}"
+            "pkg/my/pkg/m/d.value.ion", $"public::def::value::{{inputTypes: [{{name: \"x\", type: \"morphir/SDK:decimal#decimal\"}}], outputType: {int}, body: (match x [(decimal \"{lexeme}\"), 1] [_, 0])}}"
+        ]
+
+    let v4SingleWithDecimalExpression (lexeme: string) =
+        utf8 [
+            singleV4Header
+            $"public::def::module::{{name: \"m\", values: [public::def::value::{{name: \"d\", outputType: \"morphir/SDK:decimal#decimal\", body: (decimal \"{lexeme}\")}}]}}"
+        ]
+
+    let v4SingleWithDecimalPattern (lexeme: string) =
+        utf8 [
+            singleV4Header
+            $"public::def::module::{{name: \"m\", values: [public::def::value::{{name: \"d\", inputTypes: {{x: \"morphir/SDK:decimal#decimal\"}}, outputType: {int}, body: (match x [(decimal \"{lexeme}\"), 1] [_, 0])}}]}}"
+        ]
+
+    let private toIonBinary (text: string) : byte array =
+        use reader = Eleven19.IonDotnet.Builders.IonReaderBuilder.Build(new MemoryStream(Text.Encoding.UTF8.GetBytes text))
+        use output = new MemoryStream()
+        use writer = Eleven19.IonDotnet.Builders.IonBinaryWriterBuilder.Build(output)
+        writer.WriteValues(reader)
+        writer.Finish()
+        output.ToArray()
+
+    let multiFileAggregateBudgetTree () =
+        let manifestBytes =
+            toIonBinary "morphir::{ionVersion:\"0.1.0-draft.1\",formatVersion:\"4.0.0\",kind:library,packageName:\"p\"}"
+        let moduleBytes = toIonBinary "public::def::module::{}"
+        let valueBytes = toIonBinary $"public::def::value::{{outputType: {int}, body: 1}}"
+        [
+            manifest, VFile.ofBytes manifest (ReadOnlyMemory manifestBytes)
+            "pkg/p/m/module.ion", VFile.ofBytes "pkg/p/m/module.ion" (ReadOnlyMemory moduleBytes)
+            "pkg/p/m/x.value.ion", VFile.ofBytes "pkg/p/m/x.value.ion" (ReadOnlyMemory valueBytes)
+        ]
+        |> Map.ofList
+        |> VFileTree.fromFileMap
+
+    let deepValidTree (depth: int) =
+        let body = String.replicate depth "(list " + "1" + String.replicate depth ")"
+        let files = [
+            manifest, libraryHeader "p" + "\n"
+            "pkg/p/m/module.ion", "public::def::module::{}\n"
+            "pkg/p/m/deep.value.ion", $"public::def::value::{{outputType: {int}, body: {body}}}\n"
+        ]
+        let exactBytes =
+            files |> List.sumBy (fun (_, text) -> Text.Encoding.UTF8.GetByteCount text)
+        treeOf files, exactBytes
+
 let private baseFiles = [
     manifest,
     libraryHeader "example/finance"
@@ -1535,20 +1642,7 @@ let tests =
 
             testCase "Lossless JSON conversion verifier validates annotations by decoder position (refuses unit:: on inputTypes, accepts document number:: under name)"
             <| fun () ->
-                let singleHeader =
-                    "morphir::{ionVersion: \"0.1.0-draft.1\", formatVersion: \"4.0.0\", kind: library, packageName: \"my/pkg\"}"
-
-                // 1. unit:: on inputTypes map is ignored by keyedMembers decoder and must be refused as lossy.
-                let singleAnnotatedInputTypes =
-                    ReadOnlyMemory(
-                        Text.Encoding.UTF8.GetBytes(
-                            datagram [
-                                singleHeader
-                                $"public::def::module::{{name: \"m\", values: [public::def::value::{{name: \"f\", inputTypes: unit::{{x: {int}}}, outputType: {int}, body: x}}]}}"
-                            ]
-                        )
-                    )
-
+                let singleAnnotatedInputTypes = LosslessFixtures.singleAnnotatedInputTypes ()
                 Expect.isOk (IonIr.read limits singleAnnotatedInputTypes) "Single-doc decoder ignores unit:: on inputTypes"
                 let mutable singleLossyCode = ""
                 let mutable singleLossyReason = ""
@@ -1556,13 +1650,7 @@ let tests =
                 Expect.isFalse okSingleLossy "Single-doc unit:: on inputTypes must be refused"
                 Expect.equal singleLossyCode "data.lossy_conversion" "Single-doc unit:: on inputTypes reports data.lossy_conversion"
 
-                let treeAnnotatedInputTypes =
-                    treeOf [
-                        manifest, header "library" "my/pkg" "4.0.0"
-                        "pkg/my/pkg/m/module.ion", "public::def::module::{}"
-                        "pkg/my/pkg/m/f.value.ion", $"public::def::value::{{inputTypes: unit::{{x: {int}}}, outputType: {int}, body: x}}"
-                    ]
-
+                let treeAnnotatedInputTypes = LosslessFixtures.treeAnnotatedInputTypes ()
                 Expect.isOk (IonIrTree.read limits treeAnnotatedInputTypes) "Tree decoder ignores unit:: on inputTypes"
                 let mutable treeLossyCode = ""
                 let mutable treeLossyReason = ""
@@ -1570,37 +1658,20 @@ let tests =
                 Expect.isFalse okTreeLossy "Tree unit:: on inputTypes must be refused"
                 Expect.equal treeLossyCode "data.lossy_conversion" "Tree unit:: on inputTypes reports data.lossy_conversion"
 
-                // 2. (document {name: number::"1.5"}) is valid JSON document data and must be accepted losslessly.
-                let singleDocNumber =
-                    ReadOnlyMemory(
-                        Text.Encoding.UTF8.GetBytes(
-                            datagram [
-                                singleHeader
-                                $"public::def::module::{{name: \"m\", values: [public::def::value::{{name: \"d\", outputType: {int}, body: (document {{name: number::\"1.5\"}})}}]}}"
-                            ]
-                        )
-                    )
-
+                let singleDocNumber = LosslessFixtures.singleDocumentNumberUnderName ()
                 Expect.isOk (IonIr.read limits singleDocNumber) "Single-doc decoder accepts (document {name: number::\"1.5\"})"
                 let mutable singleDocCode = ""
                 let mutable singleDocReason = ""
                 let okSingleDoc = IonIr.tryVerifyLosslessJsonConversion (limits, singleDocNumber, &singleDocCode, &singleDocReason)
                 Expect.isTrue okSingleDoc $"Single-doc (document {{name: number::\"1.5\"}}) must be lossless (code: {singleDocCode}, reason: {singleDocReason})"
 
-                let treeDocNumber =
-                    treeOf [
-                        manifest, header "library" "my/pkg" "4.0.0"
-                        "pkg/my/pkg/m/module.ion", "public::def::module::{}"
-                        "pkg/my/pkg/m/d.value.ion", $"public::def::value::{{outputType: {int}, body: (document {{name: number::\"1.5\"}})}}"
-                    ]
-
+                let treeDocNumber = LosslessFixtures.treeDocumentNumberUnderName ()
                 Expect.isOk (IonIrTree.read limits treeDocNumber) "Tree decoder accepts (document {name: number::\"1.5\"})"
                 let mutable treeDocCode = ""
                 let mutable treeDocReason = ""
                 let okTreeDoc = IonIrTree.tryVerifyLosslessJsonConversion (limits, treeDocNumber, &treeDocCode, &treeDocReason)
                 Expect.isTrue okTreeDoc $"Tree (document {{name: number::\"1.5\"}}) must be lossless (code: {treeDocCode}, reason: {treeDocReason})"
 
-                // 3. Resource-limit failures keep their own error code instead of data.lossy_conversion.
                 let tightLimits = { limits with MaxDepth = 2 }
                 let mutable limitCode = ""
                 let mutable limitReason = ""
@@ -1608,11 +1679,90 @@ let tests =
                 Expect.isFalse okLimit "Tight depth limit fails verification"
                 Expect.equal limitCode "depth_limit_exceeded" "Resource limit keeps depth_limit_exceeded instead of data.lossy_conversion"
 
-                // 4. Every reference Ion pair fixture passes lossless verification with zero false positives.
                 for name in Fixtures.names |> Array.filter (fun n -> n.StartsWith("pairs/", StringComparison.Ordinal) && n.EndsWith(".ion", StringComparison.Ordinal)) do
                     let mutable pairCode = ""
                     let mutable pairReason = ""
                     let okPair = IonIr.tryVerifyLosslessJsonConversion (limits, ReadOnlyMemory(Fixtures.bytes name), &pairCode, &pairReason)
                     Expect.isTrue okPair $"Reference pair {name} must pass lossless check (code: {pairCode}, reason: {pairReason})"
+
+            testCase "Classic Ion lossless conversion refuses decimal scale loss in expressions and patterns while preserving lossless scales and v4 decimals"
+            <| fun () ->
+                let scale29 = "1.00000000000000000000000000000"
+                let scale28 = "1.0000000000000000000000000000"
+
+                for label, bytes in
+                    [
+                        "classic single-doc expression", LosslessFixtures.classicSingleWithDecimalExpression scale29
+                        "classic single-doc pattern", LosslessFixtures.classicSingleWithDecimalPattern scale29
+                    ] do
+                    Expect.isOk (IonIr.read limits bytes) $"{label} decodes into System.Decimal"
+                    let mutable code = ""
+                    let mutable reason = ""
+                    let ok = IonIr.tryVerifyLosslessJsonConversion (limits, bytes, &code, &reason)
+                    Expect.isFalse ok $"{label} with scale-29 decimal must be refused as lossy"
+                    Expect.equal code "data.lossy_conversion" $"{label} reports data.lossy_conversion"
+
+                for label, tree in
+                    [
+                        "classic tree expression", LosslessFixtures.classicTreeWithDecimalExpression scale29
+                        "classic tree pattern", LosslessFixtures.classicTreeWithDecimalPattern scale29
+                    ] do
+                    Expect.isOk (IonIrTree.read limits tree) $"{label} decodes into System.Decimal"
+                    let mutable code = ""
+                    let mutable reason = ""
+                    let ok = IonIrTree.tryVerifyLosslessJsonConversion (limits, tree, &code, &reason)
+                    Expect.isFalse ok $"{label} with scale-29 decimal must be refused as lossy"
+                    Expect.equal code "data.lossy_conversion" $"{label} reports data.lossy_conversion"
+
+                for label, bytes in
+                    [
+                        "classic single-doc scale-28 expression", LosslessFixtures.classicSingleWithDecimalExpression scale28
+                        "classic single-doc scale-28 pattern", LosslessFixtures.classicSingleWithDecimalPattern scale28
+                        "v4 single-doc scale-29 expression", LosslessFixtures.v4SingleWithDecimalExpression scale29
+                        "v4 single-doc scale-29 pattern", LosslessFixtures.v4SingleWithDecimalPattern scale29
+                    ] do
+                    Expect.isOk (IonIr.read limits bytes) $"{label} decodes"
+                    let mutable code = ""
+                    let mutable reason = ""
+                    let ok = IonIr.tryVerifyLosslessJsonConversion (limits, bytes, &code, &reason)
+                    Expect.isTrue ok $"{label} must pass lossless verification (code: {code}, reason: {reason})"
+
+            testCase "Ion tree lossless verification enforces one aggregate byte budget across all files and guards 2,000-level recursion on a 256 KiB stack"
+            <| fun () ->
+                // 1. Aggregate 82-byte decoded limit: every individual file is <= 82 bytes, total > 82 bytes.
+                let smallTree = LosslessFixtures.multiFileAggregateBudgetTree ()
+                let budget82 = { limits with MaxDecodedBytes = 82 }
+
+                match IonIrTree.read budget82 smallTree with
+                | Ok _ -> failtest "Loader must refuse tree exceeding 82-byte aggregate budget"
+                | Result.Error err -> Expect.equal err.Code "decoded_limit_exceeded" "Loader reports decoded_limit_exceeded"
+
+                let mutable aggCode = ""
+                let mutable aggReason = ""
+                let okAgg = IonIrTree.tryVerifyLosslessJsonConversion (budget82, smallTree, &aggCode, &aggReason)
+                Expect.isFalse okAgg "Verifier must also enforce 82-byte aggregate budget across files"
+                Expect.equal aggCode "decoded_limit_exceeded" "Verifier reports decoded_limit_exceeded across files"
+
+                // 2. Valid 2,000-level deep Ion tree verified on a 256 KiB stack must succeed via withRoom.
+                let deepTree, exactBytes = LosslessFixtures.deepValidTree 2000
+                let deepLimits = { MaxDecodedBytes = exactBytes; MaxDepth = 3000; MaxNodes = 100_000 }
+
+                let onSmallStack work =
+                    let result = ref None
+                    let thread = Threading.Thread((fun () -> result.Value <- Some(work ())), 256 * 1024)
+                    thread.Start()
+                    thread.Join()
+                    Option.get result.Value
+
+                let okDeep, deepCode, deepReason =
+                    onSmallStack (fun () ->
+                        let mutable c = ""
+                        let mutable r = ""
+                        let ok = IonIrTree.tryVerifyLosslessJsonConversion (deepLimits, deepTree, &c, &r)
+                        ok, c, r
+                    )
+
+                Expect.isTrue okDeep $"2,000-level Ion tree verification must succeed on a 256 KiB stack (code: {deepCode}, reason: {deepReason})"
+            |> testLabel "PlatformSpecific"
         ]
     ]

@@ -227,7 +227,9 @@ module IonReader =
                 let stream =
                     match MemoryMarshal.TryGetArray bytes with
                     | true, segment ->
-                        new MemoryStream(segment.Array, segment.Offset, segment.Count, false)
+                        match segment.Array with
+                        | null -> new MemoryStream(bytes.ToArray(), false)
+                        | array -> new MemoryStream(array, segment.Offset, segment.Count, false)
                     | _ -> new MemoryStream(bytes.ToArray(), false)
 
                 use stream = stream

@@ -555,23 +555,22 @@ public class ChannelTests
     [Test]
     public async Task ApplyModelAccessLimits_admits_body_at_exact_maxFrameBytes_and_refuses_one_byte_over()
     {
-        // OrdersScale opens WASM with WasmChannel.FrameBytes(65536) and offers a 65,536-byte body ceiling.
+        // OrdersScale opens WASM with WasmChannel.FrameBytes(65536) and 2 MiB per linear memory (16 pages of Extism
+        // kernel initial memory plus headroom for 64 KiB request and echo buffers), offering a 65,536-byte body ceiling.
         // extism-echo echoes the exact request body bytes as the response body, testing both request and response
         // framing through the real WASM adapter at the exact OrdersScale maxFrameBytes boundary.
         const int OrdersScaleBodyBytes = 65536;
         var ordersScaleWholeFrame = WasmChannel.FrameBytes(OrdersScaleBodyBytes);
-        // The Extism kernel's initial linear memory is 1 MiB, so give 2 MiB of headroom to allocate the 64 KiB
-        // request and echo buffers while exercising the exact OrdersScale 65,536-byte frame ceiling.
-        const int EchoMemoryCeilingBytes = 2 * 1024 * 1024;
+        const int OrdersScaleMemoryCeilingBytes = 2 * 1024 * 1024;
         var ordersScaleSessionLimits = SessionLimits.Default with
         {
-            MemoryCeilingBytes = EchoMemoryCeilingBytes,
+            MemoryCeilingBytes = OrdersScaleMemoryCeilingBytes,
             RequestFrameBytes = ordersScaleWholeFrame,
             ResponseFrameBytes = ordersScaleWholeFrame,
         };
         var modelAccessLimits = new Morphir.Mep.ModelAccessLimits(
             OrdersScaleBodyBytes, OrdersScaleBodyBytes, OrdersScaleBodyBytes, 1, 128, 1_000_000, 64, 1,
-            EchoMemoryCeilingBytes, 64 * 1024 * 1024, 32 * 1024, 2L * 1024 * 1024, 3L * 1024 * 1024 * 1024,
+            OrdersScaleMemoryCeilingBytes, 64 * 1024 * 1024, 32 * 1024, 2L * 1024 * 1024, 3L * 1024 * 1024 * 1024,
             8L * 1024 * 1024 * 1024, 100_000_000L, 200_000, 30_000, 7_200_000);
 
         using (var channel = Open("extism-echo", ordersScaleSessionLimits))
