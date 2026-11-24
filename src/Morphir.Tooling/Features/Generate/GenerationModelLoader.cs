@@ -21,6 +21,44 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
     }
 
     /// <summary>
+    /// Loads a model under the released JSON/Ion-only policy used by <c>morphir validate</c>: refuses YAML files
+    /// and JSON/YAML document trees even in <see cref="InputFormat.Auto"/> mode.
+    /// </summary>
+    internal async ValueTask<Outcome<LoadedModel>> LoadWithoutYamlOrDocumentTreesAsync(ModelInput input, ModelReadLimits limits, CancellationToken ct)
+    {
+        var captured = await capture.CaptureAsync(input, limits, ct);
+        if (captured is Outcome<RetainedInput>.Failure failed) return new Outcome<LoadedModel>.Failure(failed.Error);
+        var original = ((Outcome<RetainedInput>.Success)captured).Value;
+        return DecodeLegacy(original, input, limits, ct);
+    }
+
+    private static Outcome<LoadedModel> DecodeLegacy(RetainedInput original, ModelInput input, ModelReadLimits limits, CancellationToken ct)
+    {
+        try
+        {
+            ct.ThrowIfCancellationRequested();
+            if (input.Format is not (InputFormat.Auto or InputFormat.Json or InputFormat.Ion))
+                return Failure("invalid-input-format", $"Unsupported input format '{input.Format}'.", original.SourcePath, kind: GenerationFailureKind.Invocation);
+
+            if (original is RetainedInput.File candidate && input.Format == InputFormat.Auto && !IsBinary(candidate.Entry.Memory.Span) && IsYaml(candidate))
+                return Failure("unsupported-format", "YAML model input is unsupported; use JSON or Ion IR.", original.SourcePath);
+
+            if (original is RetainedInput.Tree tree)
+            {
+                if (input.Format == InputFormat.Json)
+                    return Failure("unsupported-format", "JSON document trees are unsupported; use a JSON file or Ion tree.", original.SourcePath);
+                if (!tree.Entries.Any(entry => entry.RelativePath == "manifest.ion")
+                    && tree.Entries.Any(entry => entry.RelativePath is "manifest.json" or "manifest.yaml" or "manifest.yml" or "morphir-ir.json" or "morphir-ir.yaml" or "morphir-ir.yml"))
+                    return Failure("unsupported-format", "JSON and YAML model trees are unsupported; use an Ion tree with manifest.ion.", tree.SourcePath);
+                return DecodeIonTree(tree, limits);
+            }
+
+            return Decode(original, input, limits, ct);
+        }
+        catch (OperationCanceledException) { return Failure("cancelled", "Model loading was cancelled.", original.SourcePath, kind: GenerationFailureKind.Cancelled); }
+    }
+
+    /// <summary>
     /// Decodes an owned capture exactly as <see cref="LoadAsync"/> decodes the capture of <paramref name="input"/>.
     /// <c>compile --target</c> gives it the bytes that the compile wrote (CLI-2), so the backend sees the same
     /// <see cref="LoadedModel"/> as <c>generate --input</c> on the published file.
@@ -30,12 +68,13 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         try
         {
             ct.ThrowIfCancellationRequested();
+            if (input.Format is not (InputFormat.Auto or InputFormat.Json or InputFormat.Yaml or InputFormat.Ion))
+                return Failure("invalid-input-format", $"Unsupported input format '{input.Format}'.", original.SourcePath, kind: GenerationFailureKind.Invocation);
+
             var result = original switch
             {
                 RetainedInput.Tree tree => DecodeTree(tree, input.Format, limits, ct),
-                RetainedInput.File file when input.Format == InputFormat.Ion || input.Format == InputFormat.Auto && IsIon(file) => DecodeIon(file, limits),
-                RetainedInput.File file when input.Format == InputFormat.Yaml || input.Format == InputFormat.Auto && IsYaml(file) => DecodeYaml(file, limits, ct),
-                RetainedInput.File file => DecodeJson(file, limits, ct),
+                RetainedInput.File file => DecodeFile(file, input.Format, limits, ct),
                 _ => Failure("unsupported-format", "Unsupported input capture.", original.SourcePath)
             };
             ct.ThrowIfCancellationRequested();
@@ -46,9 +85,24 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         catch (JsonException error) { return Failure("malformed-json", "The input is not a complete JSON document.", original.SourcePath, error.Path ?? "$"); }
     }
 
+    private static Outcome<LoadedModel> DecodeFile(RetainedInput.File file, InputFormat format, ModelReadLimits limits, CancellationToken ct) =>
+        format switch
+        {
+            InputFormat.Json => DecodeJson(file, limits, ct),
+            InputFormat.Yaml => DecodeYaml(file, limits, ct),
+            InputFormat.Ion => DecodeIon(file, limits),
+            InputFormat.Auto when IsIon(file) => DecodeIon(file, limits),
+            InputFormat.Auto when IsYaml(file) => DecodeYaml(file, limits, ct),
+            InputFormat.Auto => DecodeJson(file, limits, ct),
+            _ => Failure("invalid-input-format", $"Unsupported input format '{format}'.", file.SourcePath, kind: GenerationFailureKind.Invocation)
+        };
+
     private static Outcome<LoadedModel> DecodeTree(RetainedInput.Tree tree, InputFormat format, ModelReadLimits limits, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
+
+        if (format is not (InputFormat.Auto or InputFormat.Json or InputFormat.Yaml or InputFormat.Ion))
+            return Failure("invalid-input-format", $"Unsupported input format '{format}'.", tree.SourcePath, kind: GenerationFailureKind.Invocation);
 
         var manifestFiles = tree.Entries
             .Where(entry => entry.RelativePath is "manifest.json" or "manifest.yaml" or "manifest.yml" or "manifest.ion")
@@ -88,8 +142,10 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
                 DecodeDocumentTree(tree, TreeProfileSelection.YamlOnly, limits, ct),
             InputFormat.Auto when hasIon =>
                 DecodeIonTree(tree, limits),
+            InputFormat.Auto =>
+                DecodeDocumentTree(tree, TreeProfileSelection.Any, limits, ct),
             _ =>
-                DecodeDocumentTree(tree, TreeProfileSelection.Any, limits, ct)
+                Failure("invalid-input-format", $"Unsupported input format '{format}'.", tree.SourcePath, kind: GenerationFailureKind.Invocation)
         };
     }
 
@@ -207,7 +263,7 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
     private static Outcome<LoadedModel> DecodeYaml(RetainedInput.File file, ModelReadLimits limits, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
-        if (!DocumentTreeStore.TryReadYamlDocument(file.SourcePath, file.Entry.Memory, limits.MaxDepth, limits.MaxNodes, out var root, out var errors))
+        if (!DocumentTreeStore.TryReadYamlDocument(file.SourcePath, file.Entry.Memory, limits.MaxBytes, limits.MaxDepth, limits.MaxNodes, ct, out var root, out var errors))
             return StoreFailure(errors, file.SourcePath);
         ct.ThrowIfCancellationRequested();
         return DecodeJsonElement(root, file, ModelRepresentation.Yaml);
@@ -268,7 +324,11 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
             ? GenerationFailureKind.Operational
             : GenerationFailureKind.Semantic;
         var diagnostics = errors
-            .Select(error => new GenerationDiagnostic(error.Code, error.Message, error.FileOrNull ?? defaultPath, "$"))
+            .Select(error => new GenerationDiagnostic(
+                error.Code,
+                error.MessageWithoutLocation,
+                error.FileOrNull ?? defaultPath,
+                error.LocationOrNull ?? "$"))
             .ToImmutableArray();
         return new Outcome<LoadedModel>.Failure(new GenerationFailure(kind, diagnostics));
     }

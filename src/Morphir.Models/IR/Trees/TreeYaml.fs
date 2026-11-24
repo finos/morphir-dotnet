@@ -7,6 +7,7 @@ open System.IO
 open System.Text
 open System.Text.Json
 open System.Text.RegularExpressions
+open System.Threading
 open YamlDotNet.Core
 open YamlDotNet.Core.Events
 
@@ -138,9 +139,11 @@ module internal TreeYaml =
         (maxDepth: int)
         (maxEvents: int)
         (maxNodes: int)
+        (ct: CancellationToken)
         (file: string)
         (bytes: byte array)
         : Result<JsonElement * int, StoreError list> =
+        ct.ThrowIfCancellationRequested()
         let mutable activePath = []
 
         let refused code message =
@@ -199,6 +202,7 @@ module internal TreeYaml =
             let mutable duplicate: (string list * ParsingEvent) option = None
 
             let advance path =
+                ct.ThrowIfCancellationRequested()
                 activePath <- path
 
                 if
@@ -372,10 +376,13 @@ module internal TreeYaml =
         | :? DecoderFallbackException -> refused "invalid_yaml" "/: Expected UTF-8 input."
 
     let readLimited maxDepth maxEvents file bytes =
-        readDocument false maxDepth maxEvents Int32.MaxValue file bytes |> Result.map fst
+        readDocument false maxDepth maxEvents Int32.MaxValue CancellationToken.None file bytes |> Result.map fst
 
     let readCounted contextual maxDepth maxNodes file bytes =
-        readDocument contextual maxDepth 1_000_000 maxNodes file bytes
+        readDocument contextual maxDepth 1_000_000 maxNodes CancellationToken.None file bytes
+
+    let readCountedCancellable contextual maxDepth maxNodes ct file bytes =
+        readDocument contextual maxDepth 1_000_000 maxNodes ct file bytes
 
     let read maxDepth file bytes =
         readLimited maxDepth 1_000_000 file bytes

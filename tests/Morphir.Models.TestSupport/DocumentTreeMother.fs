@@ -1129,3 +1129,41 @@ module Invalid =
     let v3TypeFileOutsideTheTree () : VFileTree =
         v3Files ()
         |> Driver.copied v3InvoiceTypeFile "invoice.type.json"
+
+/// Named single-file and contextual YAML cases for model-loader and store tests.
+module YamlDocuments =
+    /// The v4 daily-rate model from <see cref="FixtureCatalog.Models.V4DailyRate"/> encoded as YAML
+    /// with the requested <paramref name="formatVersion"/> header.
+    let v4DailyRateYaml (formatVersion: string) : string =
+        use parsed = JsonDocument.Parse(FixtureCatalog.ReadText FixtureCatalog.Models.V4DailyRate)
+        let distributionJson = parsed.RootElement.GetProperty("distribution").GetRawText()
+        let header =
+            if formatVersion.Contains('.') then $"\"{formatVersion}\"" else formatVersion
+        $"formatVersion: {header}\ndistribution: {distributionJson}\n"
+
+    /// A minimal valid plain YAML document carrying only formatVersion and an empty distribution mapping.
+    let minimalV4PlainYaml = "formatVersion: 4\ndistribution: {}\n"
+
+    /// A malformed YAML document with an unclosed flow sequence.
+    let malformedFlowYaml = "formatVersion: [broken\n"
+
+    /// A MEP model-envelope document written in YAML, which bare-IR loading must refuse.
+    let mepEnvelopeYaml = "envelopeVersion: \"0.1.0\"\npayload: {}\n"
+
+    /// A valid contextual YAML manifest envelope using the draft.1 name-compaction schema.
+    let contextualManifestYaml =
+        $"$schema: \"{MorphirFile.Draft1Schema}\"\ncontext:\n  packagePaths:\n    p0: \"acme/orders\"\ndocument:\n  formatVersion: 4\n  distribution: Library\n  package:\n    $name: p0\n  pathBudget: 4000\n"
+
+    /// A small compacted YAML manifest whose expanded output grows via repeated alias references
+    /// to a long canonical package path, staying well under a small raw input size while exceeding
+    /// tight expansion byte or node budgets.
+    let compactedExpandingManifestYaml (segmentCount: int) (dependencyCount: int) : string =
+        let longPath =
+            [ for i in 1..segmentCount -> $"segment-{i}" ]
+            |> String.concat "/"
+
+        let deps =
+            [ for _ in 1..dependencyCount -> "    - $name: p0" ]
+            |> String.concat "\n"
+
+        $"$schema: \"{MorphirFile.Draft1Schema}\"\ncontext:\n  packagePaths:\n    p0: \"{longPath}\"\ndocument:\n  formatVersion: 4\n  distribution: Library\n  package: \"acme/orders\"\n  pathBudget: 4000\n  dependencies:\n{deps}\n"

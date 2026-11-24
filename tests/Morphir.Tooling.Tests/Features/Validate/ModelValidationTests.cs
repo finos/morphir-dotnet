@@ -251,4 +251,36 @@ public sealed class ModelValidationTests
         SHA256.HashData(await File.ReadAllBytesAsync(model)).Should().Equal(before);
         Directory.GetFileSystemEntries(sandbox.Work, "*", SearchOption.AllDirectories).Should().BeEquivalentTo(entries);
     }
+
+    [Test]
+    [Category("PlatformSpecific")]
+    public async Task AutoModeRefusesYamlSingleFilesAndJsonYamlDocumentTreesAndRunsNoAnalyzer()
+    {
+        await using var sandbox = Morphir.TestSupport.TestSandbox.Create("morphir-validate-guard-");
+        var analyzer = new FakeAnalyzer("acme.lint", () => []);
+        var registry = new AnalyzerRegistry([analyzer]);
+
+        var yamlFile = Path.Combine(sandbox.Work, "model.yaml");
+        await File.WriteAllTextAsync(yamlFile, Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.v4DailyRateYaml("4.0.0"));
+        var yamlReport = await Validation(registry).RunAsync(new ValidateOverrides(yamlFile), new InvocationContext(sandbox.Work), default);
+        yamlReport.ExitCode.Should().Be(2);
+        yamlReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-format");
+
+        foreach (var profile in new[] { "plain-json", "plain-yaml" })
+        {
+            var treeDir = Path.Combine(sandbox.Work, profile);
+            var documents = Morphir.Models.TestSupport.DocumentTreeMother.BoundedOrders.catalogDocuments("v4", profile);
+            foreach (var pair in documents)
+            {
+                var target = Path.Combine(treeDir, pair.Key.Replace('/', Path.DirectorySeparatorChar));
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                await File.WriteAllBytesAsync(target, Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes(pair.Value));
+            }
+            var treeReport = await Validation(registry).RunAsync(new ValidateOverrides(treeDir), new InvocationContext(sandbox.Work), default);
+            treeReport.ExitCode.Should().Be(2);
+            treeReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-format");
+        }
+
+        analyzer.Runs.Should().Be(0);
+    }
 }

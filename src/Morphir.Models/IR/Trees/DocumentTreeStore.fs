@@ -161,7 +161,7 @@ module DocumentTreeStore =
         : Result<LoadedTreeModel, StoreError list> =
         ct.ThrowIfCancellationRequested()
 
-        TreeFileSource.discoverWithOptions options.MaxFiles options.Profiles files
+        TreeFileSource.discoverWithOptions true options.MaxFiles options.Profiles files
         |> Result.bind (fun (profile, (manifestLocation, manifestFile), others) ->
             let maxNodes = if enforceNodes then Some options.MaxNodes else None
             let ctx = TreeFileSource.createDecodeContext profile options.MaxFileBytes options.MaxDepth maxNodes ct
@@ -216,12 +216,11 @@ module DocumentTreeStore =
         )
 
     /// <summary>
-    /// Reads a tree from files in any profile allowed by <paramref name="options"/> (JSON or YAML, plain or
-    /// contextual, v3.1.0 or v4.0.0), enforcing file, byte, nesting-depth, and total node limits. Refuses mixed
-    /// profile files and ambiguous multi-manifest trees (including <c>manifest.ion</c>). C# calls this
-    /// <c>ReadAnyProfile</c>.
+    /// For F# callers only: reads a tree from files in any profile allowed by <paramref name="options"/> (JSON or
+    /// YAML, plain or contextual, v3.1.0 or v4.0.0), enforcing file, byte, nesting-depth, and total node limits.
+    /// Refuses mixed profile files and ambiguous multi-manifest trees (including <c>manifest.ion</c>). C# callers
+    /// use <see cref="TryReadModel"/>, which returns <see cref="IReadOnlyList{StoreError}"/>.
     /// </summary>
-    [<CompiledName("ReadAnyProfile")>]
     let readAnyProfile
         (options: TreeReadOptions)
         (files: Morphir.Files.VFileTree)
@@ -256,21 +255,24 @@ module DocumentTreeStore =
             false
 
     /// <summary>
-    /// For C# callers: reads a single Morphir YAML document (plain or contextual envelope) under explicit depth and
-    /// node limits, returning its expanded <see cref="JsonElement"/> value tree. Sets exactly one of
-    /// <paramref name="document"/> and <paramref name="errors"/>. C# calls this <c>TryReadYamlDocument</c>.
+    /// For C# callers: reads a single Morphir YAML document (plain or contextual envelope) under explicit byte,
+    /// depth, node, and cancellation limits, returning its expanded <see cref="JsonElement"/> value tree. Sets
+    /// exactly one of <paramref name="document"/> and <paramref name="errors"/>. C# calls this
+    /// <c>TryReadYamlDocument</c>.
     /// </summary>
     [<CompiledName("TryReadYamlDocument")>]
     let tryReadYamlDocument
         (
             file: string,
             bytes: ReadOnlyMemory<byte>,
+            maxBytes: int64,
             maxDepth: int,
             maxNodes: int,
+            ct: CancellationToken,
             [<Out>] document: byref<JsonElement>,
             [<Out; MaybeNullWhen(true)>] errors: byref<IReadOnlyList<StoreError>>
         ) : bool =
-        match TreeFileSource.readSingleYamlDocument file bytes maxDepth maxNodes with
+        match TreeFileSource.readSingleYamlDocument file bytes maxBytes maxDepth maxNodes ct with
         | Ok root ->
             document <- root
             errors <- Unchecked.defaultof<_>

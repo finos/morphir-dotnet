@@ -461,10 +461,13 @@ module internal TreeFileSource =
                 Ok(file.Document, false)
             | Some context ->
                 let expandLimit = ctx.MaxNodes |> Option.map (fun _ -> ctx.RemainingNodes ())
+                let byteLimit = if ctx.MaxFileBytes < Int64.MaxValue then Some ctx.MaxFileBytes else None
 
                 ContextExpansion.expandCounted
                     ctx.ContextLimits
+                    byteLimit
                     expandLimit
+                    ctx.Cancellation
                     (MorphirFile.familyOf file.Document)
                     location
                     context
@@ -479,7 +482,12 @@ module internal TreeFileSource =
             let encoded = ReadOnlyMemory bytes
             let nodeLimit = ctx.MaxNodes |> Option.map (fun _ -> ctx.RemainingNodes ())
 
-            ContextExpansion.countJsonNodes ctx.ContextLimits.MaxDepth nodeLimit location encoded
+            ContextExpansion.countJsonNodesCancellable
+                ctx.ContextLimits.MaxDepth
+                nodeLimit
+                ctx.Cancellation
+                location
+                encoded
             |> Result.bind (fun rawNodes ->
                 MorphirFile.readEnvelope ctx.ContextLimits location encoded
                 |> Result.bind (expandFile rawNodes)
@@ -490,7 +498,13 @@ module internal TreeFileSource =
                 |> Option.map (fun _ -> ctx.RemainingNodes ())
                 |> Option.defaultValue Int32.MaxValue
 
-            TreeYaml.readCounted true ctx.ContextLimits.MaxDepth yamlLimit location bytes
+            TreeYaml.readCountedCancellable
+                true
+                ctx.ContextLimits.MaxDepth
+                yamlLimit
+                ctx.Cancellation
+                location
+                bytes
             |> Result.bind (fun (root, rawNodes) ->
                 MorphirFile.readEnvelopeRoot ContextOrder.WholeFile ctx.ContextLimits location root
                 |> Result.bind (expandFile rawNodes)
@@ -525,16 +539,23 @@ module internal TreeFileSource =
 
     /// <summary>
     /// Decodes a single YAML document (plain or contextual) into its expanded <see cref="JsonElement"/>
-    /// under explicit depth and node limits.
+    /// under explicit byte, depth, node, and cancellation limits.
     /// </summary>
     let readSingleYamlDocument
         (file: string)
         (bytes: ReadOnlyMemory<byte>)
+        (maxBytes: int64)
         (maxDepth: int)
         (maxNodes: int)
+        (ct: CancellationToken)
         : Result<JsonElement, StoreError list> =
-        let ctx = createDecodeContext TreeProfile.Yaml (int64 bytes.Length + 1L) maxDepth (Some maxNodes) CancellationToken.None
-        decodeRaw ctx file (bytes.ToArray()) |> Result.map fst
+        ct.ThrowIfCancellationRequested()
+
+        if int64 bytes.Length > maxBytes then
+            Error [ error "tree.file_too_large" (Some file) $"The file has more than {maxBytes} bytes." ]
+        else
+            let ctx = createDecodeContext TreeProfile.Yaml maxBytes maxDepth (Some maxNodes) ct
+            decodeRaw ctx file (bytes.ToArray()) |> Result.map fst
 
     /// <summary>
     /// The exact declared <c>formatVersion</c> text of an already-decoded manifest object.
@@ -608,6 +629,7 @@ module internal TreeFileSource =
     /// a disallowed or mixed profile.
     /// </summary>
     let discoverWithOptions
+        (checkIonManifest: bool)
         (maxFiles: int)
         (selection: TreeProfileSelection)
         (files: Morphir.Files.VFileTree)
@@ -632,8 +654,11 @@ module internal TreeFileSource =
             ]
         else
             let ionManifest =
-                allFiles
-                |> List.tryFind (fun (location, _) -> location = "manifest.ion")
+                if checkIonManifest then
+                    allFiles
+                    |> List.tryFind (fun (location, _) -> location = "manifest.ion")
+                else
+                    None
 
             let manifests =
                 treeFiles
@@ -752,5 +777,5 @@ module internal TreeFileSource =
         (options: ReadOptions)
         (files: Morphir.Files.VFileTree)
         : Result<(string * Morphir.Files.VFile) * (string * Morphir.Files.VFile) list, StoreError list> =
-        discoverWithOptions options.MaxFiles TreeProfileSelection.JsonOnly files
+        discoverWithOptions false options.MaxFiles TreeProfileSelection.JsonOnly files
         |> Result.map (fun (_, manifest, others) -> manifest, others)

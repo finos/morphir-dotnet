@@ -32,9 +32,13 @@ public sealed class ModelValidation(IModelLoader loader, AnalyzerRegistry analyz
                 return ValidationReport.Failed(host, 2, input, "invalid-path", "Input and invocation directory must be valid filesystem paths.");
             }
 
-            var loaded = await loader.LoadAsync(new ModelInput(path, format.Value), ModelReadLimits.Default, ct);
+            var loaded = loader is GenerationModelLoader standard
+                ? await standard.LoadWithoutYamlOrDocumentTreesAsync(new ModelInput(path, format.Value), ModelReadLimits.Default, ct)
+                : await loader.LoadAsync(new ModelInput(path, format.Value), ModelReadLimits.Default, ct);
             if (loaded is Outcome<LoadedModel>.Failure loadFailure) return ValidationReport.Failed(host, path, loadFailure.Error);
             var model = ((Outcome<LoadedModel>.Success)loaded).Value;
+            if (model.Representation is ModelRepresentation.Yaml or ModelRepresentation.JsonTree or ModelRepresentation.YamlTree)
+                return ValidationReport.Failed(host, 2, path, "unsupported-format", "YAML models and JSON/YAML document trees are unsupported by validate; use JSON or Ion IR.");
 
             var ids = AnalyzerRunner.Entries(analyzers.Analyzers).Select(entry => entry.Identity.Id).ToArray();
             var settings = configuration.TurnedOff(context.WorkingDirectory, ids, ct);

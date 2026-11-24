@@ -1,7 +1,6 @@
-using System.Text.Json;
+using System.Text;
 using FluentAssertions;
 using Morphir.IR.Model;
-using Morphir.IR.Trees;
 using Morphir.Models.TestSupport;
 using Morphir.TestSupport;
 using Morphir.TestSupport.Fixtures;
@@ -14,14 +13,11 @@ using Morphir.Tooling.Tests.Features.TaskRecords;
 namespace Morphir.Tooling.Tests.Features.Generate;
 
 [Category("PlatformSpecific")]
-public sealed class GenerationDocumentTreeLoaderTests : IDisposable
+public sealed class GenerationDocumentTreeLoaderTests
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), "morphir-tree-gen-" + Guid.NewGuid().ToString("N"));
-    public GenerationDocumentTreeLoaderTests() => Directory.CreateDirectory(_root);
-
-    private string CopyOrdersTree(string version, string profile, string? folderName = null)
+    private static string CopyOrdersTree(string root, string version, string profile, string? folderName = null)
     {
-        var directory = Path.Combine(_root, folderName ?? $"{version}-{profile}");
+        var directory = Path.Combine(root, folderName ?? $"{version}-{profile}");
         var documents = DocumentTreeMother.BoundedOrders.catalogDocuments(version, profile);
         foreach (var pair in documents)
         {
@@ -61,7 +57,8 @@ public sealed class GenerationDocumentTreeLoaderTests : IDisposable
     public async Task LoadsJsonAndYamlDocumentTreesInPlainAndCompactedForms(
         string version, string profile, string expectedVersion, ModelRepresentation expectedRepresentation)
     {
-        var treePath = CopyOrdersTree(version, profile);
+        await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
+        var treePath = CopyOrdersTree(sandbox.Work, version, profile);
         var explicitFormat = expectedRepresentation == ModelRepresentation.JsonTree ? InputFormat.Json : InputFormat.Yaml;
 
         foreach (var format in new[] { InputFormat.Auto, explicitFormat })
@@ -82,14 +79,15 @@ public sealed class GenerationDocumentTreeLoaderTests : IDisposable
     [Test]
     public async Task PreservesExplicitFourZeroZeroFormatVersionInJsonAndYamlTrees()
     {
-        var jsonTree = CopyOrdersTree("v4", "plain-json", "v400-json");
+        await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
+        var jsonTree = CopyOrdersTree(sandbox.Work, "v4", "plain-json", "v400-json");
         var jsonManifest = Path.Combine(jsonTree, "manifest.json");
         File.WriteAllText(jsonManifest, File.ReadAllText(jsonManifest).Replace("\"formatVersion\": 4", "\"formatVersion\": \"4.0.0\""));
         var loadedJson = ((Outcome<LoadedModel>.Success)await LoadAsync(jsonTree)).Value;
         loadedJson.Model.SourceVersion.Text.Should().Be("4.0.0");
         loadedJson.Representation.Should().Be(ModelRepresentation.JsonTree);
 
-        var yamlTree = CopyOrdersTree("v4", "plain-yaml", "v400-yaml");
+        var yamlTree = CopyOrdersTree(sandbox.Work, "v4", "plain-yaml", "v400-yaml");
         var yamlManifest = Path.Combine(yamlTree, "manifest.yaml");
         File.WriteAllText(yamlManifest, File.ReadAllText(yamlManifest).Replace("formatVersion: 4", "formatVersion: \"4.0.0\""));
         var loadedYaml = ((Outcome<LoadedModel>.Success)await LoadAsync(yamlTree)).Value;
@@ -104,7 +102,8 @@ public sealed class GenerationDocumentTreeLoaderTests : IDisposable
     [Arguments("ion", "plain-yaml")]
     public async Task RejectsExplicitInputFormatMismatchOnDocumentTrees(string requestedFormat, string actualProfile)
     {
-        var treePath = CopyOrdersTree("v4", actualProfile, $"mismatch-{requestedFormat}-{actualProfile}");
+        await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
+        var treePath = CopyOrdersTree(sandbox.Work, "v4", actualProfile, $"mismatch-{requestedFormat}-{actualProfile}");
         var format = requestedFormat switch
         {
             "json" => InputFormat.Json,
@@ -119,9 +118,28 @@ public sealed class GenerationDocumentTreeLoaderTests : IDisposable
     [Test]
     public async Task RejectsExplicitYamlFormatOnIonTree()
     {
-        var ionTree = GenerationInputFixtures.DailyRate(Path.Combine(_root, "ion-tree"), "4.0.0", "tree");
+        await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
+        var ionTree = GenerationInputFixtures.DailyRate(Path.Combine(sandbox.Work, "ion-tree"), "4.0.0", "tree");
         var failure = ((Outcome<LoadedModel>.Failure)await LoadAsync(ionTree, InputFormat.Yaml)).Error;
         failure.Diagnostics[0].Code.Should().Be("unsupported-format");
+    }
+
+    [Test]
+    public async Task RejectsUndefinedInputFormatEnumWithTypedInvocationFailure()
+    {
+        await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
+        var undefinedFormat = (InputFormat)999;
+
+        var filePath = Path.Combine(sandbox.Work, "model.yaml");
+        File.WriteAllText(filePath, DocumentTreeMother.YamlDocuments.v4DailyRateYaml("4.0.0"));
+        var fileFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(filePath, undefinedFormat)).Error;
+        fileFailure.Kind.Should().Be(GenerationFailureKind.Invocation);
+        fileFailure.Diagnostics[0].Code.Should().Be("invalid-input-format");
+
+        var treePath = CopyOrdersTree(sandbox.Work, "v4", "plain-yaml");
+        var treeFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(treePath, undefinedFormat)).Error;
+        treeFailure.Kind.Should().Be(GenerationFailureKind.Invocation);
+        treeFailure.Diagnostics[0].Code.Should().Be("invalid-input-format");
     }
 
     [Test]
@@ -131,9 +149,12 @@ public sealed class GenerationDocumentTreeLoaderTests : IDisposable
     [Arguments("manifest.yaml", "manifest.yml")]
     public async Task RejectsAmbiguousMultiManifestTreesUnderEveryFormat(string firstManifest, string secondManifest)
     {
+        await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
         var baseProfile = firstManifest == "manifest.json" ? "plain-json" : "plain-yaml";
-        var treePath = CopyOrdersTree("v4", baseProfile, $"ambiguous-{firstManifest}-{secondManifest}");
-        File.WriteAllText(Path.Combine(treePath, secondManifest), secondManifest.EndsWith(".ion", StringComparison.Ordinal) ? "morphir::{}" : "formatVersion: 4\n");
+        var treePath = CopyOrdersTree(sandbox.Work, "v4", baseProfile, $"ambiguous-{firstManifest}-{secondManifest}");
+        File.WriteAllText(
+            Path.Combine(treePath, secondManifest),
+            secondManifest.EndsWith(".ion", StringComparison.Ordinal) ? "morphir::{}" : DocumentTreeMother.YamlDocuments.minimalV4PlainYaml);
 
         foreach (var format in new[] { InputFormat.Auto, InputFormat.Json, InputFormat.Yaml, InputFormat.Ion })
         {
@@ -145,9 +166,35 @@ public sealed class GenerationDocumentTreeLoaderTests : IDisposable
     [Test]
     [Arguments("plain-json")]
     [Arguments("plain-yaml")]
+    public async Task GenerationReportPreservesMemberPathAndNonRootNestedCodecLocation(string profile)
+    {
+        await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
+        var treePath = CopyOrdersTree(sandbox.Work, "v4", profile, $"nested-location-{profile}");
+        var extension = profile.EndsWith("-yaml", StringComparison.Ordinal) ? ".yaml" : ".json";
+        var relativeMember = $"pkg/acme/orders/domain/order.value{extension}";
+        var memberPath = Path.Combine(treePath, relativeMember.Replace('/', Path.DirectorySeparatorChar));
+        File.WriteAllText(memberPath, File.ReadAllText(memberPath).Replace("ExpressionBody", "UnknownBodyTag"));
+
+        var output = Path.Combine(sandbox.Work, "out");
+        var overrides = new GenerateOverrides(treePath, "fsharp", output);
+        var outcome = await RunGenerateAsync(treePath, "fsharp", output);
+        var report = GenerationReport.From(outcome, overrides);
+
+        report.Success.Should().BeFalse();
+        report.ExitCode.Should().Be(1);
+        report.Diagnostics.Should().NotBeEmpty();
+        report.Diagnostics[0].Path.Should().Be(relativeMember);
+        report.Diagnostics[0].Location.Should().NotBe("$").And.StartWith("$.def");
+        report.Diagnostics[0].Message.Should().NotStartWith("$.def");
+    }
+
+    [Test]
+    [Arguments("plain-json")]
+    [Arguments("plain-yaml")]
     public async Task EnforcesReadLimitsAndCancellationOnJsonAndYamlTrees(string profile)
     {
-        var treePath = CopyOrdersTree("v4", profile, $"limits-{profile}");
+        await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
+        var treePath = CopyOrdersTree(sandbox.Work, "v4", profile, $"limits-{profile}");
 
         var nodeFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(treePath, limits: new(MaxNodes: 1))).Error;
         nodeFailure.Diagnostics[0].Code.Should().Contain("limit");
@@ -165,6 +212,14 @@ public sealed class GenerationDocumentTreeLoaderTests : IDisposable
         cts.Cancel();
         var cancelled = ((Outcome<LoadedModel>.Failure)await LoadAsync(treePath, ct: cts.Token)).Error;
         cancelled.Kind.Should().Be(GenerationFailureKind.Cancelled);
+
+        // Direct Decode with a cancelled token also returns typed Cancelled outcome.
+        var direct = new RetainedInput.File(
+            Path.Combine(sandbox.Work, "single.yaml"),
+            new RetainedEntry("single.yaml", Encoding.UTF8.GetBytes(DocumentTreeMother.YamlDocuments.minimalV4PlainYaml)));
+        var directCancelled = ((Outcome<LoadedModel>.Failure)GenerationModelLoader.Decode(
+            direct, new(direct.SourcePath, InputFormat.Yaml), ModelReadLimits.Default, cts.Token)).Error;
+        directCancelled.Kind.Should().Be(GenerationFailureKind.Cancelled);
     }
 
     [Test]
@@ -173,11 +228,9 @@ public sealed class GenerationDocumentTreeLoaderTests : IDisposable
     [Arguments("txt", InputFormat.Yaml)]
     public async Task LoadsSingleFileYamlWithAutoAndExplicitFormat(string extension, InputFormat format)
     {
-        var yamlPath = Path.Combine(_root, $"single.{extension}");
-        // Any valid JSON document is also valid YAML 1.2; verify with block-style YAML header too.
-        using var parsed = JsonDocument.Parse(GenerateSteps.V4Model);
-        var distributionJson = parsed.RootElement.GetProperty("distribution").GetRawText();
-        File.WriteAllText(yamlPath, $"formatVersion: \"4.0.0\"\ndistribution: {distributionJson}\n");
+        await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
+        var yamlPath = Path.Combine(sandbox.Work, $"single.{extension}");
+        File.WriteAllText(yamlPath, DocumentTreeMother.YamlDocuments.v4DailyRateYaml("4.0.0"));
 
         var outcome = await LoadAsync(yamlPath, format);
         if (outcome is Outcome<LoadedModel>.Failure failure)
@@ -193,10 +246,9 @@ public sealed class GenerationDocumentTreeLoaderTests : IDisposable
     [Test]
     public async Task SingleFileYamlEnforcesBudgetsAndRejectsMepEnvelopes()
     {
-        var yamlPath = Path.Combine(_root, "budget.yaml");
-        using var parsed = JsonDocument.Parse(GenerateSteps.V4Model);
-        var distributionJson = parsed.RootElement.GetProperty("distribution").GetRawText();
-        File.WriteAllText(yamlPath, $"formatVersion: 4\ndistribution: {distributionJson}\n");
+        await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
+        var yamlPath = Path.Combine(sandbox.Work, "budget.yaml");
+        File.WriteAllText(yamlPath, DocumentTreeMother.YamlDocuments.v4DailyRateYaml("4"));
 
         var nodeFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(yamlPath, InputFormat.Yaml, new(MaxNodes: 1))).Error;
         nodeFailure.Diagnostics[0].Code.Should().Contain("limit");
@@ -204,10 +256,18 @@ public sealed class GenerationDocumentTreeLoaderTests : IDisposable
         var depthFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(yamlPath, InputFormat.Yaml, new(MaxDepth: 1))).Error;
         depthFailure.Diagnostics[0].Code.Should().Contain("limit");
 
-        var mepPath = Path.Combine(_root, "mep.yaml");
-        File.WriteAllText(mepPath, "envelopeVersion: \"0.1.0\"\npayload: {}\n");
+        var mepPath = Path.Combine(sandbox.Work, "mep.yaml");
+        File.WriteAllText(mepPath, DocumentTreeMother.YamlDocuments.mepEnvelopeYaml);
         var mepFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(mepPath, InputFormat.Auto)).Error;
         mepFailure.Diagnostics[0].Code.Should().Be("unsupported-profile");
+
+        // Compacted YAML that fits raw byte capture limits but exceeds MaxBytes on expansion is refused.
+        var bombPath = Path.Combine(sandbox.Work, "compacted-bomb.yaml");
+        var bombText = DocumentTreeMother.YamlDocuments.compactedExpandingManifestYaml(20, 12);
+        File.WriteAllText(bombPath, bombText);
+        var tightByteLimit = Encoding.UTF8.GetByteCount(bombText) + 32;
+        var expansionFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(bombPath, InputFormat.Yaml, new(MaxBytes: tightByteLimit))).Error;
+        expansionFailure.Diagnostics[0].Code.Should().Be("tree.file_too_large");
     }
 
     [Test]
@@ -217,10 +277,10 @@ public sealed class GenerationDocumentTreeLoaderTests : IDisposable
     [Arguments("csharp", "v3.1")]
     public async Task BuiltInBackendsGenerateIdenticalFilesFromSingleFileJsonAndAllJsonYamlTreeProfiles(string target, string version)
     {
-        // Join the plain-json tree into a single-file JSON baseline so both inputs hold the exact same model.
-        var plainJsonTree = CopyOrdersTree(version, "plain-json", $"parity-{target}-{version}-plain-json");
+        await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
+        var plainJsonTree = CopyOrdersTree(sandbox.Work, version, "plain-json", $"parity-{target}-{version}-plain-json");
         var baselineLoaded = ((Outcome<LoadedModel>.Success)await LoadAsync(plainJsonTree)).Value;
-        var singleFilePath = Path.Combine(_root, $"parity-{target}-{version}-single.json");
+        var singleFilePath = Path.Combine(sandbox.Work, $"parity-{target}-{version}-single.json");
 
         var singleFileBytes = baselineLoaded.Model.Distribution.Match(
             classic: dist =>
@@ -238,7 +298,7 @@ public sealed class GenerationDocumentTreeLoaderTests : IDisposable
             });
         File.WriteAllBytes(singleFilePath, singleFileBytes);
 
-        var singleOut = Path.Combine(_root, $"out-{target}-{version}-single");
+        var singleOut = Path.Combine(sandbox.Work, $"out-{target}-{version}-single");
         var singleResult = ((Outcome<GenerationSuccess>.Success)await RunGenerateAsync(singleFilePath, target, singleOut)).Value;
         singleResult.Publication.Artifacts.Should().NotBeEmpty();
         var expectedFiles = singleResult.Publication.Artifacts.ToDictionary(
@@ -254,8 +314,8 @@ public sealed class GenerationDocumentTreeLoaderTests : IDisposable
             ("contextual-yaml", "YamlTree", "yaml"),
         })
         {
-            var treePath = CopyOrdersTree(version, profile, $"parity-{target}-{version}-{profile}");
-            var treeOut = Path.Combine(_root, $"out-{target}-{version}-{profile}");
+            var treePath = CopyOrdersTree(sandbox.Work, version, profile, $"parity-{target}-{version}-{profile}");
+            var treeOut = Path.Combine(sandbox.Work, $"out-{target}-{version}-{profile}");
             var outcome = await RunGenerateAsync(treePath, target, treeOut, explicitFormat);
             if (outcome is Outcome<GenerationSuccess>.Failure failure)
                 throw new InvalidOperationException($"{target}/{version}/{profile} failed: {string.Join("; ", failure.Error.Diagnostics)}");
@@ -305,9 +365,7 @@ public sealed class GenerationDocumentTreeLoaderTests : IDisposable
             }
             else
             {
-                using var parsed = JsonDocument.Parse(GenerateSteps.V4Model);
-                var distributionJson = parsed.RootElement.GetProperty("distribution").GetRawText();
-                File.WriteAllText(Path.Combine(run.Dest, "morphir-ir.yaml"), $"formatVersion: 4\ndistribution: {distributionJson}\n");
+                File.WriteAllText(Path.Combine(run.Dest, "morphir-ir.yaml"), DocumentTreeMother.YamlDocuments.v4DailyRateYaml("4"));
                 var descriptor = new IrDescriptor(
                     RecordPath.Parse("morphir-ir.yaml"),
                     IrLayout.SingleFile,
@@ -343,6 +401,4 @@ public sealed class GenerationDocumentTreeLoaderTests : IDisposable
             generated.Publication.Artifacts.Should().NotBeEmpty();
         }
     }
-
-    public void Dispose() => TolerantDirectory.TryDelete(_root);
 }

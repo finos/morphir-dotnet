@@ -299,6 +299,42 @@ module internal TreeReader =
             valuesOf placed
             |> List.choose id
 
+        // Refuse ambiguous physical spellings (for example both .yaml and .yml for one logical document)
+        // before opening or decoding either file.
+        let ambiguousFiles =
+            found
+            |> List.choose (fun (location, _, where) ->
+                match where with
+                | PackageMetadata -> None
+                | ModuleFile address -> Some(Choice1Of2 address, location)
+                | NodeFile(scope, modulePath, stem, kind) ->
+                    Some(Choice2Of2(scope (Module modulePath), stem, kind), location)
+            )
+            |> List.groupBy fst
+            |> List.filter (fun (_, group) -> group.Length > 1)
+            |> List.map (fun (_, group) ->
+                let places =
+                    group
+                    |> List.map snd
+                    |> List.sortWith (fun left right -> String.CompareOrdinal(left, right))
+
+                let logical =
+                    let first = places.Head
+                    let dot = first.LastIndexOf '.'
+                    if dot > 0 then first.Substring(0, dot) else first
+
+                let named = String.concat " and " places
+
+                error
+                    "tree.ambiguous_profile"
+                    (Some logical)
+                    $"More than one physical file has this logical path: {named}."
+            )
+
+        if not ambiguousFiles.IsEmpty then
+            Error ambiguousFiles
+        else
+
         let isTreeFile where =
             match where with
             | PackageMetadata -> false
@@ -608,10 +644,12 @@ module internal TreeReader =
         : Result<StoredTree * 'joined * ReadReport, StoreError list> =
         readDocuments ctx manifestLocation pathBudget own holds readers files
         |> Result.bind (fun found ->
+            ctx.Cancellation.ThrowIfCancellationRequested()
             let tree = build found.Documents
 
             match join tree with
             | Ok joined ->
+                ctx.Cancellation.ThrowIfCancellationRequested()
                 Ok(
                     stored tree,
                     joined,

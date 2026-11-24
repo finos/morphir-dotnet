@@ -243,8 +243,70 @@ type StoreError =
         Message: string
     }
 
+    static let splitDiagnosticLocation (message: string) : (string * string) option =
+        if String.IsNullOrEmpty message then
+            None
+        elif message[0] = '$' then
+            let mutable i = 1
+            let mutable inQuote = false
+            let mutable escaped = false
+            let mutable found = -1
+
+            while i < message.Length && found < 0 do
+                let c = message[i]
+
+                if inQuote then
+                    if escaped then escaped <- false
+                    elif c = '\\' then escaped <- true
+                    elif c = '"' then inQuote <- false
+                elif c = '"' then
+                    inQuote <- true
+                elif c = ':' && i + 1 < message.Length && message[i + 1] = ' ' then
+                    found <- i
+
+                i <- i + 1
+
+            if found > 0 then
+                let prefix = message.Substring(0, found)
+
+                let valid =
+                    prefix = "$"
+                    || prefix.StartsWith("$.", StringComparison.Ordinal)
+                    || prefix.StartsWith("$[", StringComparison.Ordinal)
+
+                if valid then Some(prefix, message.Substring(found + 2)) else None
+            else
+                None
+        elif message[0] = '/' then
+            let separator = message.IndexOf(": ", StringComparison.Ordinal)
+
+            if separator > 0 then
+                Some(message.Substring(0, separator), message.Substring(separator + 2))
+            else
+                None
+        else
+            None
+
     /// <summary>For C# callers: the file, as a physical path from the tree's root, or null for an error of the whole tree.</summary>
     member this.FileOrNull: string | null = Option.toObj this.File
+
+    /// <summary>
+    /// For C# callers: the nested JSONPath or YAML pointer location at the start of <see cref="Message"/>,
+    /// or null when the diagnostic has no member location prefix.
+    /// </summary>
+    member this.LocationOrNull: string | null =
+        match splitDiagnosticLocation this.Message with
+        | Some(location, _) -> location
+        | None -> null
+
+    /// <summary>
+    /// For C# callers: <see cref="Message"/> without its leading member location prefix when
+    /// <see cref="LocationOrNull"/> is present.
+    /// </summary>
+    member this.MessageWithoutLocation: string =
+        match splitDiagnosticLocation this.Message with
+        | Some(_, body) -> body
+        | None -> this.Message
 
     /// <summary>The code, the file and the message.</summary>
     override this.ToString() =
