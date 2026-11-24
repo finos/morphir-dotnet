@@ -202,7 +202,9 @@ module CanonicalYaml =
             if not (seen.Add property.Name) then
                 invalidArg
                     (nameof element)
-                    $"The mapping repeats the member {JsonSerializer.Serialize property.Name}, which the YAML profile refuses as duplicate_member."
+                    ("The mapping repeats the member \""
+                     + JsonEncodedText.Encode(property.Name).ToString()
+                     + "\", which the YAML profile refuses as duplicate_member.")
 
             if not (first && startsInline) then
                 indent builder column
