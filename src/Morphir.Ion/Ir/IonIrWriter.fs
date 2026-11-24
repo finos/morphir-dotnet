@@ -16,7 +16,13 @@ type internal JsonPathNode =
     | Index of parent: JsonPathNode * index: int
 
 module internal JsonPathNode =
-    /// The path as text, such as <c>$.distribution[0].a</c>, written by walking the parents once.
+    /// A key that the path writes after a dot: ASCII letters, digits, <c>-</c> and <c>_</c>, as the v4 reader does.
+    let private isPlain (name: string) =
+        name <> ""
+        && name |> Seq.forall (fun c -> Char.IsAsciiLetterOrDigit c || c = '-' || c = '_')
+
+    /// The path as text, such as <c>$.distribution[0].a</c> or <c>$["my-org/shared"]</c>, written by walking the
+    /// parents once.
     let render (node: JsonPathNode) =
         let steps = Collections.Generic.Stack<JsonPathNode>()
         let mutable current = node
@@ -37,7 +43,21 @@ module internal JsonPathNode =
 
         for step in steps do
             match step with
-            | Key(_, name) -> builder.Append('.').Append(name) |> ignore
+            | Key(_, name) when isPlain name -> builder.Append('.').Append(name) |> ignore
+            | Key(_, name) ->
+                // Any other key is a quoted bracket, as the v4 reader writes it, with its quote, backslash and control
+                // characters escaped, so "distribution.foo" at the root is not distribution then foo.
+                builder.Append("[\"") |> ignore
+
+                for c in name do
+                    match c with
+                    | '"' -> builder.Append "\\\""
+                    | '\\' -> builder.Append "\\\\"
+                    | c when c < ' ' -> builder.Append("\\u").Append((int c).ToString("x4", Globalization.CultureInfo.InvariantCulture))
+                    | c -> builder.Append c
+                    |> ignore
+
+                builder.Append("\"]") |> ignore
             | Index(_, index) -> builder.Append('[').Append(index).Append(']') |> ignore
             | Root -> ()
 
@@ -579,10 +599,11 @@ module IonIrWriter =
         readJson json |> Result.bind (writeTreeFiles pathBudget)
 
 /// <summary>
-/// Why a write for a C# caller failed: the stable code, a message, and where the problem is, each place as text or null.
+/// Why a read or a write for a C# caller failed: the stable code, a message, and where the problem is, each place as
+/// text or null.
 /// </summary>
 [<Sealed>]
-type IonWriteFailure internal (error: IonIrError) =
+type IonFailure internal (error: IonIrError) =
     /// <summary>A stable code, such as <c>unsupported_format_version_minor</c>.</summary>
     member _.Code: string = error.Code
     /// <summary>A readable description.</summary>
@@ -634,7 +655,7 @@ type IonIrWriting =
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)>] ion:
                 byref<byte array>,
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] failure:
-                byref<IonWriteFailure>
+                byref<IonFailure>
         ) : bool =
         IonIrWriting.Assign(IonIrWriter.ofJson json, &ion, &failure)
 
@@ -649,7 +670,7 @@ type IonIrWriting =
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)>] ion:
                 byref<byte array>,
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] failure:
-                byref<IonWriteFailure>
+                byref<IonFailure>
         ) : bool =
         // C# can pass null for a non-nullable reference; that is a caller error, not a decode failure.
         if isNull (box formatVersion) then
@@ -658,7 +679,7 @@ type IonIrWriting =
         IonIrWriting.Assign(IonIrWriter.ofJsonAs formatVersion json, &ion, &failure)
 
     static member private Assign
-        (result: Result<byte array, IonIrError>, ion: byref<byte array>, failure: byref<IonWriteFailure>)
+        (result: Result<byte array, IonIrError>, ion: byref<byte array>, failure: byref<IonFailure>)
         : bool =
         match result with
         | Ok bytes ->
@@ -667,7 +688,7 @@ type IonIrWriting =
             true
         | Result.Error error ->
             ion <- Unchecked.defaultof<_>
-            failure <- IonWriteFailure error
+            failure <- IonFailure error
             false
 
     /// <summary>
@@ -681,7 +702,7 @@ type IonIrWriting =
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)>] files:
                 byref<System.Collections.Generic.IReadOnlyList<System.Collections.Generic.KeyValuePair<string, byte array>>>,
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] failure:
-                byref<IonWriteFailure>
+                byref<IonFailure>
         ) : bool =
         match IonIrWriter.ofJsonTree pathBudget json with
         | Ok written ->
@@ -693,5 +714,42 @@ type IonIrWriting =
             true
         | Result.Error error ->
             files <- Unchecked.defaultof<_>
-            failure <- IonWriteFailure error
+            failure <- IonFailure error
             false
+
+/// <summary>C# members of <see cref="IonIr"/>: a single-file read with no F# function or result in the call.</summary>
+[<AbstractClass; Sealed>]
+type IonIrReading =
+    /// <summary>
+    /// Reads a single-file Ion IR distribution, datagram or record, text or binary, within <paramref name="limits"/>. It
+    /// sets <paramref name="document"/> and returns true, or sets <paramref name="failure"/> and returns false.
+    /// </summary>
+    static member TryRead
+        (
+            limits: IonReadLimits,
+            bytes: ReadOnlyMemory<byte>,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)>] document:
+                byref<IrDocument>,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] failure:
+                byref<IonFailure>
+        ) : bool =
+        match IonIr.read limits bytes with
+        | Ok read ->
+            document <- read
+            failure <- Unchecked.defaultof<_>
+            true
+        | Result.Error error ->
+            document <- Unchecked.defaultof<_>
+            failure <- IonFailure error
+            false
+
+    /// <summary>Reads a single-file Ion IR distribution within <c>IonReadLimits.defaults</c>, the limits for local files.</summary>
+    static member TryRead
+        (
+            bytes: ReadOnlyMemory<byte>,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)>] document:
+                byref<IrDocument>,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] failure:
+                byref<IonFailure>
+        ) : bool =
+        IonIrReading.TryRead(IonReadLimits.defaults, bytes, &document, &failure)

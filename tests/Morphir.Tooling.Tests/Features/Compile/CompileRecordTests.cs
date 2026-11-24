@@ -117,9 +117,8 @@ public sealed class CompileRecordTests
         result.ExitCode.Should().Be(0, string.Join("\n", result.Diagnostics.Select(d => d.Diagnostic)));
         var bytes = File.ReadAllBytes(workspace.PathOf(".morphir/out/compile.dest/morphir-ir.ion"));
         Encoding.UTF8.GetString(bytes).Should().StartWith("morphir::{\n  ionVersion: \"0.1.0-draft.1\",\n  formatVersion: \"3.0.0\",\n  kind: library,\n");
-        var read = Morphir.Ion.IonIr.read(Morphir.Ion.IonReadLimitsModule.defaults, bytes);
-        read.IsOk.Should().BeTrue(read.IsError ? read.ErrorValue.Message : "");
-        read.ResultValue.Match((version, _) => $"classic {version}", (version, _) => $"v4 {version}").Should().Be("classic 3.0.0");
+        Morphir.Ion.IonIrReading.TryRead(bytes, out var document, out var failure).Should().BeTrue(failure?.ToString());
+        document!.Match((version, _) => $"classic {version}", (version, _) => $"v4 {version}").Should().Be("classic 3.0.0");
         using var record = Record(workspace);
         record.RootElement.GetProperty("ir").GetProperty("version").GetString().Should().Be("v3");
         record.RootElement.GetProperty("ir").GetProperty("format").GetString().Should().Be("ion");
@@ -133,9 +132,8 @@ public sealed class CompileRecordTests
         result.ExitCode.Should().Be(0, string.Join("\n", result.Diagnostics.Select(d => d.Diagnostic)));
         var bytes = File.ReadAllBytes(workspace.PathOf(".morphir/out/compile.dest/morphir-ir.ion"));
         Encoding.UTF8.GetString(bytes).Should().StartWith("morphir::{\n  ionVersion: \"0.1.0-draft.1\",\n  formatVersion: \"3.1.0\",\n  kind: library,\n");
-        var read = Morphir.Ion.IonIr.read(Morphir.Ion.IonReadLimitsModule.defaults, bytes);
-        read.IsOk.Should().BeTrue(read.IsError ? read.ErrorValue.Message : "");
-        read.ResultValue.Match((version, _) => $"classic {version}", (version, _) => $"v4 {version}").Should().Be("classic 3.1.0");
+        Morphir.Ion.IonIrReading.TryRead(bytes, out var document, out var failure).Should().BeTrue(failure?.ToString());
+        document!.Match((version, _) => $"classic {version}", (version, _) => $"v4 {version}").Should().Be("classic 3.1.0");
         File.ReadAllBytes(workspace.PathOf("dist/morphir-ir.ion")).Should().Equal(bytes);
         using var record = Record(workspace);
         record.RootElement.GetProperty("ir").GetProperty("version").GetString().Should().Be("v3.1.0");

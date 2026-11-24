@@ -561,7 +561,7 @@ let tests =
                             "\"inputTypes\":{\"x\":\"morphir/SDK:basics#int\"}",
                             "\"inputTypes\":{\"x\":\"morphir/SDK:basics#int\",\"\\u0078\":\"morphir/SDK:basics#int\"}"
                         )),
-                    "$.distribution.Application.dependencies.my-org/shared.modules.util.Public.values.identity.Public.ExpressionBody.inputTypes.x"
+                    "$.distribution.Application.dependencies[\"my-org/shared\"].modules.util.Public.values.identity.Public.ExpressionBody.inputTypes.x"
                 ] do
                 testCase $"A v4 document with {name} is refused at the repeated member"
                 <| fun () ->
@@ -574,6 +574,38 @@ let tests =
                     | Result.Error error ->
                         Expect.equal error.Code "duplicate_member" error.Message
                         Expect.equal error.Location (Some location) "The location of the second member"
+
+            for name, json, location in
+                [
+                    "a repeated root key distribution.foo",
+                    "{\"formatVersion\":4,\"distribution.foo\":1,\"distribution.foo\":2}",
+                    "$[\"distribution.foo\"]"
+                    "a repeated key foo inside distribution",
+                    "{\"formatVersion\":4,\"distribution\":{\"foo\":1,\"foo\":2}}",
+                    "$.distribution.foo"
+                    "a repeated key with a quote and a backslash",
+                    "{\"formatVersion\":4,\"a\\\"b\\\\c\":1,\"a\\\"b\\\\c\":2}",
+                    "$[\"a\\\"b\\\\c\"]"
+                ] do
+                testCase $"The location of {name} names its key without ambiguity"
+                <| fun () ->
+                    match IonIrWriter.readJson (ReadOnlyMemory(Encoding.UTF8.GetBytes json)) with
+                    | Ok _ -> failtest "A repeated member was read"
+                    | Result.Error error ->
+                        Expect.equal error.Code "duplicate_member" error.Message
+                        Expect.equal error.Location (Some location) "The location"
+
+            testCase "IonIrReading.TryRead gives the document, or the failure with text locations"
+            <| fun () ->
+                let bytes = IonIrWriter.write Cases.emptyV3Library |> ok "Writing"
+
+                match IonIrReading.TryRead(ReadOnlyMemory bytes) with
+                | true, document, _ -> Expect.equal document.FormatVersion "3.0.0" "The document"
+                | false, _, failure -> failtestf "%O" failure
+
+                match IonIrReading.TryRead(ReadOnlyMemory(Encoding.UTF8.GetBytes "morphir::{")) with
+                | true, _, _ -> failtest "Not Ion"
+                | false, _, failure -> Expect.equal failure.Code "malformed_ion" (failure.ToString())
 
             testCase "A repeated member deep in nested arrays is found without a path string for every node"
             <| fun () ->
