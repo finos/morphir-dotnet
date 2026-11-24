@@ -29,7 +29,7 @@ Each task writes its scenarios as failing tests first and confirms they fail for
 
 ## 5. reveal.js
 
-- [ ] 5.1 Confirm that the pinned reveal.js release exists, is at least two weeks old, and that its template loads `dist/reveal.js` and its style sheet. Then write the two-sections, same-diagram-twice, large-diagram, local-copy, native-and-unlowered and escaped-title scenarios, and implement the deck writer in the original-SVG mode: sections with section-prefixed SVG identifiers, `r-stretch`, the base address option, the escaped title and the initialisation script (design REV-1).
+- [x] 5.1 Confirm that the pinned reveal.js release exists, is at least two weeks old, and that its template loads `dist/reveal.js` and its style sheet. Then write the two-sections, same-diagram-twice, large-diagram, local-copy, native-and-unlowered and escaped-title scenarios, and implement the deck writer in the original-SVG mode: sections with section-prefixed SVG identifiers, `r-stretch`, the base address option, the escaped title and the initialisation script (design REV-1). (reveal.js 5.1.0 was published on 2024-04-11, and its template loads `dist/reset.css`, `dist/reveal.css`, a theme and `dist/reveal.js`, then calls `Reveal.initialize`. A deck of each family was opened in headless Chromium: reveal.js loads, each SVG fills the slide, and no ID repeats.)
 
 ## 6. Integration
 

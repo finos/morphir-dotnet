@@ -910,7 +910,7 @@ public static class FixtureCatalog
 
         /// <summary>The entry contents of each slide renderer's package for one diagram of each family.</summary>
         public static FixtureEntry SlideDigests { get; } = new(
-            "the slide export digests of one diagram of each family", "DiagramExport/slide-digests.json", "e2d8d9938a18b89639df781edf4c232677f6169a3bd48e75058edd28817a14af", Provenance);
+            "the slide export digests of one diagram of each family", "DiagramExport/slide-digests.json", "4854ab6569c0413a9c06a5553f40f1ba27622ca9a521643a4f19879e2e574a55", Provenance);
 
         /// <summary>Every digest fixture.</summary>
         public static IReadOnlyList<FixtureEntry> Files { get; } = [SvgDigests, PlayerDigests, RasterDigests, PublicApi, CanvasDigests, SlideDigests];

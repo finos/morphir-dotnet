@@ -23,5 +23,6 @@
         <Compile Include="PowerPoint.fs" />
         <Compile Include="OpenDocument.fs" />
         <Compile Include="GoogleSlides.fs" />
+        <Compile Include="RevealJs.fs" />
     </ItemGroup>
 </Project>

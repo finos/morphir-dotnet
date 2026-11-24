@@ -24,6 +24,7 @@ public class SlideDigestTests
         ("glued", () => new PowerPointRenderer(SlidePlacement.Widescreen, PowerPointConnectors.Glued)),
         ("impress", () => new OpenDocumentRenderer()),
         ("requests", () => new GoogleSlidesRenderer(GoogleSlidesOptions.Create(SlidePlacement.Widescreen, SlideObjectNamespace.Create("morphir")))),
+        ("deck", () => new RevealJsRenderer()),
     ];
 
     /// <summary>
