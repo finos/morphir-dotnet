@@ -96,7 +96,7 @@ module internal SvgWriting =
                 | None -> document
 
             DiagramScene(document, Reading.immutable connectors, options, ImmutableArray.Empty, [])
-                .WithCapture({ Root = document.Root; Hints = hints; Owners = List.ofSeq owners; OnFills = onFills })
+                .WithCapture({ Root = document.Root; Hints = hints; Owners = List.ofSeq owners; Roles = []; OnFills = onFills })
 
     let element (writer: SceneBuilder) name pairs body = writer.Element name pairs body
 

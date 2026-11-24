@@ -327,7 +327,12 @@ module internal LayoutSink =
 
             let waypoints, style =
                 match primitive.Hints |> List.tryPick (function LayoutHint.Route(points, style) -> Some(points, style) | _ -> None) with
-                | Some(points, style) -> points |> List.map (fun (x, y) -> point (Distance.FromPixels x) (Distance.FromPixels y)), style
+                | Some(points, style) ->
+                    points
+                    |> List.map (fun (x, y) -> point (Distance.FromPixels x) (Distance.FromPixels y))
+                    |> List.fold (fun kept (p: LayoutPoint) -> match kept with | last :: _ when last.Equals p -> kept | _ -> p :: kept) []
+                    |> List.rev,
+                    style
                 | None ->
                     let deduped = points |> List.fold (fun kept (p: LayoutPoint) -> match kept with | last :: _ when last.Equals p -> kept | _ -> p :: kept) [] |> List.rev
                     let curved = path.Commands |> Seq.exists (function PathCommand.CubicTo _ | PathCommand.QuadraticTo _ | PathCommand.ArcTo _ -> true | _ -> false)
@@ -635,7 +640,7 @@ module internal LayoutSink =
             | Content _ -> invalidOp "A layout is captured from an SVG element."
 
     /// Places each drawable under the drawable that owns it, then binds line ends to the drawables they name.
-    let private assemble (owners: (string * string) list) (ends: IReadOnlyDictionary<DrawableId, EndRequest * EndRequest>) (lifelineIds: IReadOnlyDictionary<string, DrawableId>) (built: Built list) : ImmutableArray<Drawable> =
+    let private assemble (capture: LayoutCapture) (owners: (string * string) list) (ends: IReadOnlyDictionary<DrawableId, EndRequest * EndRequest>) (lifelineIds: IReadOnlyDictionary<string, DrawableId>) (built: Built list) : ImmutableArray<Drawable> =
         let all = built |> List.map (fun item -> item.Drawable.id, item) |> dict
         let byReference = Dictionary<string, ResizeArray<Built>>(StringComparer.Ordinal)
 
@@ -738,9 +743,13 @@ module internal LayoutSink =
                 references
                 |> List.collect (fun reference -> match byRef.TryGetValue reference with | true, items -> List.ofSeq items | false, _ -> [])
                 |> List.choose (fun target ->
-                    match target.Kind with
-                    | DrawableKind.Element _ -> None
-                    | _ -> boxOf target |> Option.map (fun box -> target, box))
+                    // An element binds through its first shape, its body.
+                    let target =
+                        match target.Kind with
+                        | DrawableKind.Element children -> children |> Seq.tryFind (fun child -> match child.Kind with DrawableKind.Shape _ -> true | _ -> false)
+                        | _ -> Some target
+
+                    target |> Option.bind (fun target -> boxOf target |> Option.map (fun box -> target, box)))
                 |> List.sortBy (fun (_, box) -> distanceTo box p)
                 |> List.tryHead
                 |> Option.bind (fun (target, box) -> across target box p)
@@ -781,7 +790,32 @@ module internal LayoutSink =
             | _ -> drawable
 
         ignore all
-        roots |> List.map bindAll |> ImmutableArray.CreateRange
+        let roles = Dictionary<string, FamilyRole>(StringComparer.Ordinal)
+        for reference, role in capture.Roles do roles[reference] <- role
+
+        let rec withRoles (drawable: Drawable) : Drawable =
+            let role = drawable.reference |> Option.bind (fun reference -> match roles.TryGetValue(reference.ToString()) with | true, role -> Some role | false, _ -> None)
+
+            let drawable =
+                match role, drawable.Kind with
+                | Some role, DrawableKind.Shape shape -> { drawable with kind = DrawableKind.Shape { shape with role = Some role } }
+                | Some role, DrawableKind.Element children ->
+                    // An element's role belongs to its first shape, its body.
+                    match children |> Seq.tryFindIndex (fun child -> match child.Kind with DrawableKind.Shape _ -> true | _ -> false) with
+                    | Some index ->
+                        let body = children[index]
+                        let shape = match body.Kind with DrawableKind.Shape shape -> shape | _ -> invalidOp "A body is a shape."
+                        { drawable with kind = DrawableKind.Element(children.SetItem(index, { body with kind = DrawableKind.Shape { shape with role = Some role } })) }
+                    | None -> drawable
+                | _ -> drawable
+
+            match drawable.Kind with
+            | DrawableKind.Element children -> { drawable with kind = DrawableKind.Element(children |> Seq.map withRoles |> ImmutableArray.CreateRange) }
+            | DrawableKind.Group children -> { drawable with kind = DrawableKind.Group(children |> Seq.map withRoles |> ImmutableArray.CreateRange) }
+            | DrawableKind.Container container -> { drawable with kind = DrawableKind.Container { container with children = container.children |> Seq.map withRoles |> ImmutableArray.CreateRange } }
+            | _ -> drawable
+
+        roots |> List.map (bindAll >> withRoles) |> ImmutableArray.CreateRange
 
     /// The layout of a scene's page, with any warnings, in the palette of the scene's mode (auto reads as light).
     let layout (scene: DiagramScene) : DiagramLayout * Diagnostic list =
@@ -795,5 +829,5 @@ module internal LayoutSink =
             let warnings = ResizeArray<Diagnostic>()
             let converter = Converter(capture, palette, warnings)
             let bounds, built = converter.Convert capture.Root
-            let roots = assemble capture.Owners converter.Ends converter.Lifelines built
+            let roots = assemble capture capture.Owners converter.Ends converter.Lifelines built
             DiagramLayout(bounds, palette.Background, roots, scene.Document), List.ofSeq warnings

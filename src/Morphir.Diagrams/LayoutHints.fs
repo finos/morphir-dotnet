@@ -33,5 +33,6 @@ type internal LayoutCapture =
         Root: SvgNode
         Hints: IReadOnlyDictionary<SvgNode, LayoutHint list>
         Owners: (string * string) list
+        Roles: (string * FamilyRole) list
         OnFills: bool
     }

@@ -1,6 +1,7 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
 
+using System.Collections.Immutable;
 using Morphir.Diagrams.Export;
 using Morphir.Diagrams.Layout;
 using Morphir.Knowledge.Rdf;
@@ -106,5 +107,115 @@ public class DiagramLayoutTests
         warning.Message.ShouldContain("Payments");
         All(result.Layout!.Drawables).Select(drawable => drawable.Kind.Match<LayoutShape?>(shape: shape => shape, line: _ => null, text: _ => null, image: _ => null, element: _ => null, container: _ => null, group: _ => null))
             .OfType<LayoutShape>().First().Paint.Fill.ShouldBeNull();
+    }
+
+    public static LayoutContainer ContainerOf(Drawable drawable) =>
+        drawable.Kind.Match<LayoutContainer?>(shape: _ => null, line: _ => null, text: _ => null, image: _ => null, element: _ => null, container: container => container, group: _ => null)
+            .ShouldNotBeNull(drawable.ToString());
+
+    public static ImmutableArray<Drawable> ElementOf(Drawable drawable) =>
+        drawable.Kind.Match(shape: _ => default, line: _ => default, text: _ => default, image: _ => default, element: children => children, container: _ => default, group: _ => default);
+
+    [Test]
+    public void ASubgraphIsAContainerAndEdgesPaintBeforeItsNodes()
+    {
+        var layout = Layout("flowchart LR\n  subgraph checkout\n    A[Cart] --> B[Pay]\n  end\n");
+        var container = ContainerOf(Find(layout, "group=checkout"));
+
+        string.Join(" ", container.Header!.Lines).ShouldBe("checkout");
+        container.Children.Select(child => child.Reference?.ToString()).ShouldBe(["node=A", "node=B"]);
+        var line = Find(layout, "edge=A/B/0");
+        line.PaintOrder.ShouldBeLessThan(Find(layout, "node=A").PaintOrder);
+        line.PaintOrder.ShouldBeLessThan(Find(layout, "node=B").PaintOrder);
+    }
+
+    [Test]
+    public void NestedSubgraphsNestTheirContainers()
+    {
+        var layout = Layout(DiagramMother.NestedDecision);
+        var outer = ContainerOf(Find(layout, "group=Outer"));
+
+        outer.Children.Select(child => child.Reference?.ToString()).ShouldContain("group=Inner");
+        ContainerOf(Find(layout, "group=Inner")).Children.Select(child => child.Reference?.ToString()).ShouldBe(["node=D", "node=E"]);
+    }
+
+    [Test]
+    public void ALinkNamesItsEndpointsAndALinkToASubgraphBindsTheContainer()
+    {
+        var layout = Layout("flowchart LR\n  A --> B\n  subgraph S\n    C\n  end\n  B --> S\n");
+        var link = LineOf(Find(layout, "edge=A/B/0"));
+
+        link.Source.Binding!.Target.ShouldBe(Find(layout, "node=A").Id);
+        link.Target.Binding!.Target.ShouldBe(Find(layout, "node=B").Id);
+        link.Target.Head.ShouldBe(EdgeHead.Arrow);
+        link.Source.Head.ShouldBe(EdgeHead.None);
+        LineOf(Find(layout, "edge=B/S/0")).Target.Binding!.Target.ShouldBe(Find(layout, "group=S").Id);
+    }
+
+    [Test]
+    public void ADecisionNodeIsADiamondWithItsText()
+    {
+        var shape = ShapeOf(Find(Layout("flowchart LR\n  B{Approve?}\n"), "node=B"));
+
+        shape.Kind.ShouldBe(ShapeKind.Diamond);
+        shape.Text!.Lines.ShouldBe(["Approve?"]);
+    }
+
+    [Test]
+    public void ACylinderStandsForItsBodyAndItsTopEllipse()
+    {
+        var layout = Layout("flowchart LR\n  C[(Ledger)]\n");
+        var shape = ShapeOf(Find(layout, "node=C"));
+
+        shape.Kind.Match(rectangle: () => false, roundedRectangle: _ => false, ellipse: () => false, diamond: () => false, cylinder: _ => true, hexagon: _ => false, path: _ => false).ShouldBeTrue();
+        All(layout.Drawables).Count(drawable => drawable.Kind.Match(shape: candidate => candidate.Kind.Equals(ShapeKind.Ellipse), line: _ => false, text: _ => false, image: _ => false, element: _ => false, container: _ => false, group: _ => false))
+            .ShouldBe(0);
+        LayoutAgreementTests.FromLayout(layout).Count(item => item.Description.StartsWith("ellipse", StringComparison.Ordinal)).ShouldBe(1);
+    }
+
+    [Test]
+    public void ASubroutineKeepsItsBarsAsAPathInTheNodesElement()
+    {
+        var children = ElementOf(Find(Layout("flowchart LR\n  D[[Sub]]\n"), "node=D"));
+
+        ShapeOf(children[0]).Kind.ShouldBe(ShapeKind.Rectangle);
+        ShapeOf(children[1]).Kind.Match(rectangle: () => false, roundedRectangle: _ => false, ellipse: () => false, diamond: () => false, cylinder: _ => false, hexagon: _ => false, path: _ => true).ShouldBeTrue();
+    }
+
+    [Test]
+    public void ABridgeIsKeptInTheExactPathAndNotInTheWaypoints()
+    {
+        var diagram = Parse("flowchart TD\n  A --> C\n  B --> C\n  D --> E\n  A --> E\n  F --> A\n  A --> G\n  A --> H\n");
+        var layout = DiagramExport.Layout(diagram, SvgRenderOptions.Default.WithBridges(true)).Layout!;
+        var bridged = All(layout.Drawables).Where(IsLine).Select(LineOf).Where(line => line.ExactPath!.HasArcs).ToList();
+
+        bridged.ShouldNotBeEmpty();
+        bridged.ShouldAllBe(line => line.Waypoints.Length >= 2);
+        bridged[0].ExactPath!.Commands.Count(command => command.Match(_ => false, _ => false, (_, _, _) => false, (_, _) => false, (_, _, _, _, _, _) => true, () => false)).ShouldBeGreaterThan(0);
+    }
+
+    [Test]
+    public void AFlowchartIconIsAnImageInTheNodesElement()
+    {
+        var layout = Layout("architecture-beta\n  service db(database)[Orders]\n");
+        var children = ElementOf(Find(layout, "node=db"));
+        var image = children.Select(child => child.Kind.Match<LayoutImage?>(shape: _ => null, line: _ => null, text: _ => null, image: image => image, element: _ => null, container: _ => null, group: _ => null)).OfType<LayoutImage>().ShouldHaveSingleItem();
+
+        children.Length.ShouldBe(3);
+        image.SvgText.ShouldContain("viewBox=");
+        image.SvgText.ShouldContain("width=\"28\"");
+        image.SvgText.ShouldNotContain("currentColor");
+        image.SvgText.ShouldNotContain("href=\"#");
+    }
+
+    [Test]
+    public void StateMarkersHaveFamilyRoles()
+    {
+        var layout = Layout("stateDiagram-v2\n  [*] --> Idle\n  Idle --> [*]\n");
+        var roles = All(layout.Drawables).Select(drawable => drawable.Kind.Match<FamilyRole?>(shape: shape => shape.Role, line: _ => null, text: _ => null, image: _ => null, element: _ => null, container: _ => null, group: _ => null))
+            .OfType<FamilyRole>().ToList();
+
+        roles.ShouldContain(FamilyRole.Initial);
+        roles.ShouldContain(FamilyRole.Final);
     }
 }

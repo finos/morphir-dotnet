@@ -7,6 +7,43 @@ open System
 open System.Collections.Generic
 open System.Collections.Immutable
 
+/// The family roles that a diagram's model gives its elements, for the layout.
+[<RequireQualifiedAccess>]
+module internal LayoutRoles =
+    open Morphir.Diagrams.Layout
+
+    let ofDiagram (diagram: Diagram) : (string * FamilyRole) list =
+        match diagram with
+        | Diagram.State model ->
+            [
+                for state in model.States do
+                    let role =
+                        match state.Role with
+                        | StateRole.Initial -> Some FamilyRole.Initial
+                        | StateRole.Final -> Some FamilyRole.Final
+                        | StateRole.Choice -> Some FamilyRole.Choice
+                        | StateRole.Fork
+                        | StateRole.Join -> Some FamilyRole.ForkJoin
+                        | StateRole.ShallowHistory
+                        | StateRole.DeepHistory -> Some FamilyRole.History
+                        | _ -> None
+
+                    match role with
+                    | Some role -> (DiagramElementRef.Node state.Id).ToString(), role
+                    | None -> ()
+
+                // The projection draws each [*] as its own marker node.
+                match diagram.Graph with
+                | Some graph ->
+                    for node in graph.Nodes do
+                        match node.Shape with
+                        | FlowShape.FilledCircle -> (DiagramElementRef.Node node.Id).ToString(), FamilyRole.Initial
+                        | FlowShape.FramedCircle -> (DiagramElementRef.Node node.Id).ToString(), FamilyRole.Final
+                        | _ -> ()
+                | None -> ()
+            ]
+        | _ -> []
+
 /// Produces standalone, script-free SVG from a diagram model.
 [<AbstractClass; Sealed>]
 type SvgRenderer private () =
@@ -43,7 +80,7 @@ type SvgRenderer private () =
                 | _, Some graph -> FlowchartSvg.render options metadata graph
                 | _, None -> invalidOp "Every family other than sequences has a graph."
 
-            Ok(((scene.WithDiagnostics warnings).WithAnnotations(Carriage.project diagram options)).WithStructure diagram)
+            Ok(((scene.WithDiagnostics warnings).WithAnnotations(Carriage.project diagram options)).WithStructure(diagram).WithRoles(LayoutRoles.ofDiagram diagram))
 
     /// Lays out a diagram in the Archify theme and retains bindings to its rendered connector paths.
     static member BuildScene(diagram: Diagram) =

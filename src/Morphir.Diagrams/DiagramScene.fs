@@ -48,6 +48,12 @@ type DiagramScene
     /// What the drawing pass recorded for the layout, when it recorded it.
     member internal _.Capture = capture
 
+    /// The scene with family roles for the drawables of these references.
+    member internal this.WithRoles(roles: (string * Layout.FamilyRole) list) =
+        match capture with
+        | Some recorded -> this.WithCapture { recorded with Roles = recorded.Roles @ roles }
+        | None -> this
+
     member internal _.WithCapture(recorded: LayoutCapture) =
         DiagramScene(document, connectors, options, diagnostics, annotations, structure, elements, Some recorded)
 
