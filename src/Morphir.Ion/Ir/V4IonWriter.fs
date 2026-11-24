@@ -300,9 +300,22 @@ module internal V4IonWriter =
         else
             Text(number.ToString(CultureInfo.InvariantCulture))
 
+    /// The float's lexeme when the model keeps one, and otherwise the shortest text that reads back as the value. A kept
+    /// lexeme must spell the value, as the JSON writer requires, or the reader would build another float from it.
     let private floatLexeme (value: FloatValue) =
         match value.Lexeme with
-        | Some lexeme -> lexeme
+        | Some lexeme ->
+            let mutable read = 0.0
+
+            let spells =
+                (DecimalLexeme.create lexeme |> Result.isOk)
+                && Double.TryParse(lexeme, NumberStyles.Float, CultureInfo.InvariantCulture, &read)
+                && read = value.Value
+
+            if not spells then
+                refuse "invalid_literal" $"The lexeme '{lexeme}' does not spell the float's value."
+
+            lexeme
         | None -> value.Value.ToString("R", CultureInfo.InvariantCulture)
 
     /// A literal in its shorthand when there are no attributes, and in its S-expression otherwise.

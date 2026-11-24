@@ -357,6 +357,57 @@ module IonIrWriter =
 
     /// The exact release the root states, before any distribution is decoded (format-version.md: recognition and
     /// compatibility come first). A root that is not an object is left to the distribution readers to report.
+    /// The largest release component and integer spelling the format-version contract allows.
+    let private maxComponent = System.Numerics.BigInteger 4294967295L
+
+    let private isDigits (text: string) =
+        text <> "" && Seq.forall Char.IsAsciiDigit text
+
+    /// One release component: ASCII digits with no leading zero, within the unsigned 32-bit range.
+    let private releaseComponent (text: string) =
+        if not (isDigits text) || (text.Length > 1 && text[0] = '0') then
+            refuse "invalid_format_version_syntax" $"'{text}' is not a release component."
+
+        let number = System.Numerics.BigInteger.Parse(text, Globalization.CultureInfo.InvariantCulture)
+
+        if number > maxComponent then
+            refuse "format_version_out_of_range" $"'{text}' exceeds the unsigned 32-bit range."
+
+        number
+
+    /// Recognizes a root formatVersion by the format-version grammar (format-version.md: type, syntax and range) and
+    /// normalizes it: an integer N of a family from 3 is N.0.0, the historical integers 1 and 2 stay as they are, and a
+    /// release string is that release. Support is decided afterwards.
+    let private recognize (version: JsonElement) : string =
+        match version.ValueKind with
+        | JsonValueKind.Number ->
+            let lexeme = version.GetRawText()
+
+            if not (isDigits lexeme) then
+                refuse "invalid_format_version_type" "A formatVersion integer is unsigned and whole."
+
+            match System.Numerics.BigInteger.Parse(lexeme, Globalization.CultureInfo.InvariantCulture) with
+            | number when number > maxComponent ->
+                refuse "format_version_out_of_range" $"formatVersion {lexeme} exceeds the unsigned 32-bit range."
+            | number when number.IsZero -> refuse "invalid_format_version_syntax" "Integer 0 is not a format family."
+            | number when number < System.Numerics.BigInteger 3 -> lexeme
+            | _ -> lexeme + ".0.0"
+        | JsonValueKind.String ->
+            let release = version.GetString() |> nonNull
+
+            match release.Split('.') with
+            | [| major; minor; patch |] ->
+                let majorNumber = releaseComponent major
+                releaseComponent minor |> ignore
+                releaseComponent patch |> ignore
+
+                if majorNumber < System.Numerics.BigInteger 3 then
+                    refuse "invalid_format_version_syntax" "Release strings start at major version 3."
+
+                release
+            | _ -> refuse "invalid_format_version_syntax" $"'{release}' is not an exact release."
+        | _ -> refuse "invalid_format_version_type" "formatVersion is an integer or a release string."
+
     let private rootRelease (root: JsonElement) : string option =
         if root.ValueKind <> JsonValueKind.Object then
             None
@@ -369,9 +420,7 @@ module IonIrWriter =
 
             match stated with
             | [] -> refuse "missing_format_version" "The root has no formatVersion member."
-            | [ version ] when version.ValueKind = JsonValueKind.Number -> Some(releaseOf (version.GetRawText()))
-            | [ version ] when version.ValueKind = JsonValueKind.String -> Some(releaseOf (version.GetString() |> nonNull))
-            | [ _ ] -> refuse "invalid_format_version_type" "formatVersion is an integer or a release string."
+            | [ version ] -> Some(releaseOf (recognize version))
             | _ -> refuse "duplicate_format_version" "The root has more than one formatVersion member."
 
     /// <summary>
@@ -394,7 +443,8 @@ module IonIrWriter =
                 | Ok read -> Ok(V4Ir("4.0.0", read.Distribution))
                 | Result.Error error -> Result.Error(jsonError error.Rule error.Location error.Message)
             | _ ->
-                match ClassicJson.readDistribution root with
+                // Strict: a member the classic model has no place for is refused rather than dropped.
+                match ClassicJson.readDistributionStrict root with
                 | Ok read -> Ok(ClassicIr(defaultArg release (string read.Version), read.Distribution))
                 | Result.Error error -> Result.Error(jsonError error.Rule error.Location error.Message)
         with :? JsonException as error ->

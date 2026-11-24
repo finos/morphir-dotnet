@@ -20,8 +20,20 @@ let private ok what result =
     | Ok value -> value
     | Result.Error(error: IonIrError) -> failtestf "%s failed: %s: %s" what error.Code error.Message
 
+/// A catalogued upstream IR JSON document by its path below MorphirIon, such as pairs/v3-specs.json.
+let private catalogued (name: string) =
+    Morphir.TestSupport.Fixtures.FixtureCatalog.UpstreamIr.Documents
+    |> Seq.tryFind (fun entry -> Morphir.TestSupport.Fixtures.FixtureCatalog.UpstreamIr.NameOf entry = name)
+    |> Option.defaultWith (fun () -> failwithf "FixtureCatalog.UpstreamIr has no document %s." name)
+
+let private catalogBytes name =
+    Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes(catalogued name)
+
+let private catalogText name =
+    Morphir.TestSupport.Fixtures.FixtureCatalog.ReadText(catalogued name)
+
 let private fromJson (name: string) =
-    IonIrWriter.readJson (ReadOnlyMemory(Fixtures.bytes name))
+    IonIrWriter.readJson (ReadOnlyMemory(catalogBytes name))
     |> ok $"Reading {name}"
 
 let private readIon (bytes: byte array) =
@@ -53,10 +65,11 @@ let private structuredBare (reference: string) =
     |> fun text -> text.Replace("number::\"1e+2\"", "1.d+2").Replace("number::\"1e+5\"", "1.d+5")
 
 let private pairNames =
-    Fixtures.names
-    |> Array.filter (fun name -> name.StartsWith "pairs/" && name.EndsWith ".json" && not (name.Contains "/inputs/"))
-    |> Array.map (fun name -> name.Substring("pairs/".Length, name.Length - "pairs/".Length - ".json".Length))
-    |> List.ofArray
+    Morphir.TestSupport.Fixtures.FixtureCatalog.UpstreamIr.Documents
+    |> Seq.map Morphir.TestSupport.Fixtures.FixtureCatalog.UpstreamIr.NameOf
+    |> Seq.filter (fun name -> name.StartsWith "pairs/" && name.EndsWith ".json")
+    |> Seq.map (fun name -> name.Substring("pairs/".Length, name.Length - "pairs/".Length - ".json".Length))
+    |> List.ofSeq
 
 let private treeFiles (name: string) =
     let prefix = $"trees/{name}/"
@@ -76,9 +89,6 @@ let private treeOf (files: (string * byte array) list) =
     |> List.map (fun (location, bytes) -> VFile.ofBytes location (ReadOnlyMemory bytes))
     |> VFileTree.fromFiles
 
-let private v4Library (package: string) (modules: string) =
-    $"{{\"formatVersion\":4,\"distribution\":{{\"Library\":{{\"packageName\":\"{package}\",\"dependencies\":{{}},\"def\":{{\"modules\":{{{modules}}}}}}}}}}}"
-
 let private parseVersion (text: string) =
     match Morphir.IR.Versioning.parse text with
     | Ok version -> version
@@ -86,7 +96,8 @@ let private parseVersion (text: string) =
 
 let private version31 () = parseVersion "3.1.0"
 
-let private readV4Json (json: string) =
+/// Reads JSON text that the test writes by hand, because the IR it holds is not valid or not a model a builder makes.
+let private readJsonText (json: string) =
     IonIrWriter.readJson (ReadOnlyMemory(Encoding.UTF8.GetBytes json))
     |> ok "Reading the JSON"
 
@@ -129,6 +140,24 @@ module private Cases =
 
         fence.Groups[1].Value
 
+    /// A v4 library whose value greet is the string literal hello.
+    let greeting =
+        V4Ir(
+            "4.0.0",
+            aV4Library (packageName "p")
+            |> withModule (modulePath "m") (withValue (name "greet") (Constant(TextValue "hello")))
+            |> buildV4
+        )
+
+    /// A v4 library with one alias type whose name is too long for a stem in a budget of 64, and the name.
+    let longTypeName =
+        let typeName = String.replicate 30 "word-" + "end"
+        typeName, V4Ir("4.0.0", aV4Library (packageName "p") |> withModule (modulePath "m") (withType (name typeName) (alias Sdk.int)) |> buildV4)
+
+    /// A v4 library with one empty module whose path alone is longer than a budget of 64.
+    let longModulePath =
+        V4Ir("4.0.0", aV4Library (packageName "p") |> withModule (modulePath (String.replicate 12 "segment-" + "end")) id |> buildV4)
+
     /// A v4 library with two alias types whose cut stems in a budget of 64 have one prefix and one digest, 905bb72b.
     let collidingStems =
         let first, second = "commonprefixcommonprefixcommonprefixcommon-n58445", "commonprefixcommonprefixcommonprefixcommon-n91859"
@@ -153,14 +182,9 @@ let tests =
 
             testCase "An S-expression puts each operand on its own line, with no commas"
             <| fun () ->
-                let json =
-                    v4Library
-                        "p"
-                        "\"m\":{\"Public\":{\"types\":{},\"values\":{\"v\":{\"Public\":{\"ExpressionBody\":{\"inputTypes\":{\"a\":\"morphir/SDK:basics#int\",\"b\":\"morphir/SDK:basics#int\"},\"outputType\":\"morphir/SDK:basics#int\",\"body\":{\"Apply\":{\"function\":{\"Variable\":\"a\"},\"argument\":{\"Variable\":\"b\"}}}}}}}}}"
+                let actual = IonIrWriter.write Cases.greeting |> ok "Writing" |> text
 
-                let actual = readV4Json json |> IonIrWriter.write |> ok "Writing" |> text
-
-                Expect.stringContains actual "      body: (\n        apply\n        a\n        b\n      ),\n" "(apply a b)"
+                Expect.stringContains actual "      body: (\n        string\n        \"hello\"\n      ),\n" "(string \"hello\")"
                 Expect.stringContains actual "  values: [\n    public::def::value::{\n" "Annotations touch the struct"
 
             testCase "Symbols are bare only when Ion reads them back as the same symbol"
@@ -270,7 +294,9 @@ let tests =
 
             testCase "Windows device names, initialisms and tree file names give the reference tree"
             <| fun () ->
-                let document = fromJson "trees/inputs/v4-escaped-names.input.json"
+                let document =
+                    IonIrWriter.readJson (ReadOnlyMemory(Fixtures.bytes "trees/inputs/v4-escaped-names.input.json"))
+                    |> ok "Reading the escaped-names input"
 
                 let files =
                     IonIrWriter.writeTreeFiles IonIrWriter.DefaultPathBudget document
@@ -291,15 +317,7 @@ let tests =
 
             testCase "A path over the budget has its stem cut, and the file states its name"
             <| fun () ->
-                let long = String.replicate 30 "word-"
-                let name = long + "end"
-
-                let json =
-                    v4Library
-                        "p"
-                        $"\"m\":{{\"Public\":{{\"types\":{{\"{name}\":{{\"Public\":{{\"TypeAliasDefinition\":{{\"typeParams\":[],\"typeExp\":\"morphir/SDK:basics#int\"}}}}}}}},\"values\":{{}}}}}}"
-
-                let document = readV4Json json
+                let name, document = Cases.longTypeName
 
                 let files =
                     IonIrWriter.writeTreeFiles 64 document
@@ -328,10 +346,7 @@ let tests =
 
             testCase "A module path over the budget is refused"
             <| fun () ->
-                let segment = String.replicate 12 "segment-" + "end"
-                let json = v4Library "p" $"\"{segment}\":{{\"Public\":{{\"types\":{{}},\"values\":{{}}}}}}"
-
-                match IonIrWriter.writeTreeFiles 64 (readV4Json json) with
+                match IonIrWriter.writeTreeFiles 64 Cases.longModulePath with
                 | Ok _ -> failtest "A module file that does not fit is refused"
                 | Result.Error error -> Expect.equal error.Code "path_over_budget" "The code"
 
@@ -345,7 +360,7 @@ let tests =
         testList "C# members" [
             testCase "TryWriteJson writes the datagram that write gives"
             <| fun () ->
-                let json = ReadOnlyMemory(Fixtures.bytes "pairs/v4-specs.json")
+                let json = ReadOnlyMemory(catalogBytes "pairs/v4-specs.json")
 
                 match IonIrWriting.TryWriteJson json with
                 | true, ion, _ -> Expect.equal (text ion) (fromJson "pairs/v4-specs.json" |> IonIrWriter.write |> ok "Writing" |> text) "The same bytes"
@@ -354,7 +369,7 @@ let tests =
             testCase "TryWriteJson keeps the format version that the JSON states"
             <| fun () ->
                 let json (version: string) =
-                    ReadOnlyMemory(Encoding.UTF8.GetBytes((Fixtures.text "pairs/v3-daily-rate.json").Replace("{\"formatVersion\":3,", $"{{\"formatVersion\":{version},")))
+                    ReadOnlyMemory(Encoding.UTF8.GetBytes((catalogText "pairs/v3-daily-rate.json").Replace("{\"formatVersion\":3,", $"{{\"formatVersion\":{version},")))
 
                 for version, release in [ "3", "3.0.0"; "\"3.0.0\"", "3.0.0"; "\"3.1.0\"", "3.1.0" ] do
                     match IonIrWriting.TryWriteJson(json version) with
@@ -364,7 +379,7 @@ let tests =
             for version in [ "3.0.1"; "3.1.1" ] do
                 testCase $"TryWriteJson refuses formatVersion {version} instead of relabelling it"
                 <| fun () ->
-                    let json = (Fixtures.text "pairs/v3-daily-rate.json").Replace("{\"formatVersion\":3,", $"{{\"formatVersion\":\"{version}\",")
+                    let json = (catalogText "pairs/v3-daily-rate.json").Replace("{\"formatVersion\":3,", $"{{\"formatVersion\":\"{version}\",")
 
                     match IonIrWriting.TryWriteJson(ReadOnlyMemory(Encoding.UTF8.GetBytes json)) with
                     | true, ion, _ -> failtestf "%s was written as: %s" version ((text ion).Split('\n')[2])
@@ -375,7 +390,7 @@ let tests =
                     let json =
                         ReadOnlyMemory(
                             Encoding.UTF8.GetBytes(
-                                (Fixtures.text "pairs/v3-daily-rate.json").Replace("{\"formatVersion\":3,", $"{{\"formatVersion\":\"{version}\",")
+                                (catalogText "pairs/v3-daily-rate.json").Replace("{\"formatVersion\":3,", $"{{\"formatVersion\":\"{version}\",")
                             )
                         )
 
@@ -393,7 +408,7 @@ let tests =
 
             testCase "TryWriteJson with a stated release writes that release"
             <| fun () ->
-                let json = ReadOnlyMemory(Fixtures.bytes "pairs/v3-daily-rate.json")
+                let json = ReadOnlyMemory(catalogBytes "pairs/v3-daily-rate.json")
 
                 match IonIrWriting.TryWriteJson(json, version31 ()) with
                 | true, ion, _ -> Expect.stringContains (text ion) "  formatVersion: \"3.1.0\",\n" "The stated release"
@@ -411,7 +426,7 @@ let tests =
             <| fun () ->
                 Expect.throwsT<ArgumentNullException>
                     (fun () ->
-                        IonIrWriting.TryWriteJson(ReadOnlyMemory(Fixtures.bytes "pairs/v3-daily-rate.json"), Unchecked.defaultof<Morphir.IR.Versioning.FormatVersion>)
+                        IonIrWriting.TryWriteJson(ReadOnlyMemory(catalogBytes "pairs/v3-daily-rate.json"), Unchecked.defaultof<Morphir.IR.Versioning.FormatVersion>)
                         |> ignore
                     )
                     "A null version is a caller error, not a decode failure"
@@ -454,6 +469,42 @@ let tests =
                     | true, _, _ -> failtest "Relabelled"
                     | false, _, failure -> Expect.equal failure.Code "duplicate_format_version" failure.Message
 
+            for spelling, code in
+                [
+                    "4.0", "invalid_format_version_type"
+                    "-3", "invalid_format_version_type"
+                    "1e2", "invalid_format_version_type"
+                    "true", "invalid_format_version_type"
+                    "0", "invalid_format_version_syntax"
+                    "\"2.0.0\"", "invalid_format_version_syntax"
+                    "\"3.1\"", "invalid_format_version_syntax"
+                    "\"03.0.0\"", "invalid_format_version_syntax"
+                    "\"3.1.0-alpha\"", "invalid_format_version_syntax"
+                    "\" 3.0.0\"", "invalid_format_version_syntax"
+                    "\"3.4294967296.0\"", "format_version_out_of_range"
+                    "4294967296", "format_version_out_of_range"
+                    "1", "unsupported_format_version_major"
+                    "5", "unsupported_format_version_major"
+                    "\"4.0.1\"", "unsupported_format_version_minor"
+                ] do
+                testCase $"formatVersion {spelling} is {code}, by the format-version grammar before Ion support"
+                <| fun () ->
+                    let json = ReadOnlyMemory(Encoding.UTF8.GetBytes $"{{\"formatVersion\":{spelling},\"distribution\":null}}")
+
+                    match IonIrWriter.readJson json with
+                    | Ok _ -> failtest "Read"
+                    | Result.Error error -> Expect.equal error.Code code error.Message
+
+            testCase "A v3 library with a member the classic model cannot keep is refused, not dropped"
+            <| fun () ->
+                let original = catalogText "pairs/v3-daily-rate.json"
+                let json = original.Replace("{\"formatVersion\":3,", "{\"formatVersion\":3,\"extra\":true,")
+                Expect.notEqual json original "The vector gains a root member"
+
+                match IonIrWriter.readJson (ReadOnlyMemory(Encoding.UTF8.GetBytes json)) with
+                | Ok _ -> failtest "The member was dropped"
+                | Result.Error error -> Expect.equal error.Code "unknown_member" error.Message
+
             testCase "A document with no formatVersion is refused"
             <| fun () ->
                 match IonIrWriter.readJson (ReadOnlyMemory(Encoding.UTF8.GetBytes "{\"distribution\":null}")) with
@@ -468,7 +519,7 @@ let tests =
 
             testCase "TryWriteJsonTree writes the files that writeTreeFiles gives"
             <| fun () ->
-                let json = ReadOnlyMemory(Fixtures.bytes "pairs/v4-application.json")
+                let json = ReadOnlyMemory(catalogBytes "pairs/v4-application.json")
 
                 match IonIrWriting.TryWriteJsonTree(json, 4000) with
                 | true, files, _ ->
@@ -524,6 +575,35 @@ let tests =
                     let text = IonTextWriter.render [ V4IonWriter.value literal ]
                     Expect.equal text (spelling + "\n") "The canonical spelling"
                     Expect.equal (V4IonValues.value IonPath.Root (readOne text)) literal "It reads back"
+
+            testCase "A float lexeme that does not spell the float's value is refused"
+            <| fun () ->
+                let value =
+                    match Morphir.IR.V4.FloatValue.create 1.0 (Some "2.0") with
+                    | Ok value -> value
+                    | Result.Error message -> failtest message
+
+                let literal = Morphir.IR.V4.Value.Literal(Morphir.IR.V4.ValueAttributes.empty, Morphir.IR.V4.FloatLiteral value)
+
+                Expect.throwsC
+                    (fun () -> V4IonWriter.value literal |> ignore)
+                    (fun error ->
+                        match error with
+                        | IonIrFailure failure -> Expect.equal failure.Code "invalid_literal" failure.Message
+                        | other -> failtestf "Expected an Ion IR failure: %s" other.Message
+                    )
+
+            testCase "A float lexeme that spells the value is kept"
+            <| fun () ->
+                let value =
+                    match Morphir.IR.V4.FloatValue.create 4.0 (Some "4e+0") with
+                    | Ok value -> value
+                    | Result.Error message -> failtest message
+
+                let text =
+                    IonTextWriter.render [ V4IonWriter.value (Morphir.IR.V4.Value.Literal(Morphir.IR.V4.ValueAttributes.empty, Morphir.IR.V4.FloatLiteral value)) ]
+
+                Expect.equal text "(\n  float\n  \"4e+0\"\n)\n" "The lexeme"
 
             testCase "A control character without a named escape is written as \\x and reads back"
             <| fun () ->
@@ -634,12 +714,12 @@ let tests =
 
             testCase "A v3 value attribute [] would read back as the unit type, so it is refused"
             <| fun () ->
-                let original = Fixtures.text "pairs/v3-daily-rate.json"
+                let original = catalogText "pairs/v3-daily-rate.json"
                 let literal = "\"body\":[\"Literal\",[\"Reference\",{},[[[\"morphir\"],[\"s\",\"d\",\"k\"]],[[\"basics\"]],[\"int\"]],[]],"
                 Expect.stringContains original literal "The vector has a typed literal"
                 let json = original.Replace(literal, "\"body\":[\"Literal\",[],")
 
-                match IonIrWriter.write (readV4Json json) with
+                match IonIrWriter.write (readJsonText json) with
                 | Ok bytes -> failtestf "[] was written: %s" (text bytes)
                 | Result.Error error -> Expect.equal error.Code "unrepresentable_attribute" "The code"
 
@@ -652,7 +732,7 @@ let tests =
                 let json =
                     "{\"formatVersion\":3,\"distribution\":[\"Library\",[[\"p\"]],[],{\"modules\":[[[[\"m\"]],{\"access\":\"Public\",\"value\":{\"types\":[],\"values\":[[[\"v\"],{\"access\":\"Public\",\"value\":{\"doc\":\"\",\"value\":{\"inputTypes\":[],\"outputType\":[\"Unit\",{}],\"body\":[\"Unit\",{\"x\":1}]}}}]],\"doc\":null}}]]}]}"
 
-                match IonIrWriter.write (readV4Json json) with
+                match IonIrWriter.write (readJsonText json) with
                 | Ok _ -> failtest "The attribute is refused"
                 | Result.Error error -> Expect.equal error.Code "unrepresentable_attribute" "The code"
         ]

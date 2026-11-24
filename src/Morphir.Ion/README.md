@@ -146,7 +146,9 @@ A write returns an `IonIrError`, never an exception, with one of these codes:
 | `specs_before_3_1` | A v3 `specs` distribution states a version below `3.1.0`. |
 | `unrepresentable_attribute` | A v3 attribute has no Ion spelling. |
 | `unrepresentable_documentation` | A v3 member has no documentation (`WithoutDocumentation`). Ion reads a member without `doc` as the empty doc, so only `WithDocumentation("", …)` round-trips. |
-| `missing_format_version`, `duplicate_format_version`, `invalid_format_version_type` | The JSON root that `readJson` reads has no `formatVersion`, more than one, or one that is neither an integer nor a string. |
+| `missing_format_version`, `duplicate_format_version`, `invalid_format_version_type`, `invalid_format_version_syntax`, `format_version_out_of_range` | The JSON root that `readJson` reads has no `formatVersion`, more than one, or one the format-version grammar refuses: not an unsigned integer or a string (such as `4.0`), not an exact release from major 3 (such as `"3.1"` or integer `0`), or a component beyond 32 bits (such as `"3.4294967296.0"`). The grammar is checked before Ion support. |
+| `unknown_member` | A v3 JSON document that `readJson` reads has a member the classic model has no place for; `ClassicJson.readDistributionStrict` refuses it rather than drop it. |
+| `invalid_literal` | A v4 float keeps a lexeme that does not spell its value, which would read back as another float. |
 | `unsupported_node` | A node Ion cannot hold: a let binding with documentation or a body other than an expression, an external body with no binding, or a document literal in a pattern. |
 | `literal_out_of_range` | A v3 float literal is not finite. |
 | `invalid_path_budget` | A tree's path budget is under 64. |
