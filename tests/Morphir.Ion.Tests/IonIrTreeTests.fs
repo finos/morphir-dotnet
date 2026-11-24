@@ -1412,9 +1412,10 @@ let tests =
                         )
                     )
 
+                let mutable cleanCode = ""
                 let mutable cleanReason = ""
-                let okClean = IonIr.tryVerifyLosslessJsonConversion (limits, clean, &cleanReason)
-                Expect.isTrue okClean $"Clean single-document Ion is lossless (reason: {cleanReason})"
+                let okClean = IonIr.tryVerifyLosslessJsonConversion (limits, clean, &cleanCode, &cleanReason)
+                Expect.isTrue okClean $"Clean single-document Ion is lossless (code: {cleanCode}, reason: {cleanReason})"
 
                 for label, extraField in
                     [
@@ -1429,16 +1430,19 @@ let tests =
                             $"public::def::module::{{name: \"m\", values: [public::def::value::{{name: \"x\", outputType: {int}, body: 1}}]}}"
                         ]
 
+                    let mutable code = ""
                     let mutable reason = ""
 
                     let ok =
                         IonIr.tryVerifyLosslessJsonConversion (
                             limits,
                             ReadOnlyMemory(Text.Encoding.UTF8.GetBytes text),
+                            &code,
                             &reason
                         )
 
                     Expect.isFalse ok $"Single-document Ion with {label} must be refused"
+                    Expect.equal code "data.lossy_conversion" $"Code for {label}"
                     Expect.isNonEmpty reason $"Reason provided for {label}"
 
             testCase "Lossless JSON conversion verifier refuses Ion trees with ignored files or unconsumed metadata"
@@ -1449,14 +1453,17 @@ let tests =
                     |> Map.ofList
                     |> VFileTree.fromFileMap
 
+                let mutable baseCode = ""
                 let mutable baseReason = ""
-                let okBase = IonIrTree.tryVerifyLosslessJsonConversion (limits, makeTree baseFiles, &baseReason)
-                Expect.isTrue okBase "Clean Ion tree is lossless"
+                let okBase = IonIrTree.tryVerifyLosslessJsonConversion (limits, makeTree baseFiles, &baseCode, &baseReason)
+                Expect.isTrue okBase $"Clean Ion tree is lossless (code: {baseCode}, reason: {baseReason})"
 
                 let withIgnored = makeTree (("README.md", "ignored sidecar") :: baseFiles)
+                let mutable ignoredCode = ""
                 let mutable ignoredReason = ""
-                let okIgnored = IonIrTree.tryVerifyLosslessJsonConversion (limits, withIgnored, &ignoredReason)
+                let okIgnored = IonIrTree.tryVerifyLosslessJsonConversion (limits, withIgnored, &ignoredCode, &ignoredReason)
                 Expect.isFalse okIgnored "Ion tree with ignored file must be refused"
+                Expect.equal ignoredCode "data.lossy_conversion" "Ignored file reports data.lossy_conversion"
                 Expect.stringContains ignoredReason "README.md" "Names the ignored file"
 
                 let withAnnotatedBudget =
@@ -1468,9 +1475,11 @@ let tests =
                             path, text)
                     |> makeTree
 
+                let mutable budgetCode = ""
                 let mutable budgetReason = ""
-                let okBudget = IonIrTree.tryVerifyLosslessJsonConversion (limits, withAnnotatedBudget, &budgetReason)
+                let okBudget = IonIrTree.tryVerifyLosslessJsonConversion (limits, withAnnotatedBudget, &budgetCode, &budgetReason)
                 Expect.isFalse okBudget "Ion tree with annotated pathBudget must be refused"
+                Expect.equal budgetCode "data.lossy_conversion" "Annotated pathBudget reports data.lossy_conversion"
 
             testCase "Lossless JSON conversion verifier refuses annotated doc across duplicate dependency fragments in single-doc and tree Ion"
             <| fun () ->
@@ -1491,12 +1500,14 @@ let tests =
                     )
 
                 Expect.isOk (IonIr.read limits singleWithAnnotatedFragment) "Single-doc Ion reader merges the two dependency fragments"
+                let mutable singleCode = ""
                 let mutable singleReason = ""
 
                 let okSingle =
-                    IonIr.tryVerifyLosslessJsonConversion (limits, singleWithAnnotatedFragment, &singleReason)
+                    IonIr.tryVerifyLosslessJsonConversion (limits, singleWithAnnotatedFragment, &singleCode, &singleReason)
 
                 Expect.isFalse okSingle "Single-doc Ion with annotated duplicate dependency doc must be refused"
+                Expect.equal singleCode "data.lossy_conversion" "Single-doc annotated duplicate doc code"
                 Expect.stringContains singleReason "note" "Names the discarded annotation"
 
                 let treeWithAnnotatedFragment =
@@ -1512,12 +1523,96 @@ let tests =
                     ]
 
                 Expect.isOk (IonIrTree.read limits treeWithAnnotatedFragment) "Ion tree reader merges the two dependency fragments"
+                let mutable treeCode = ""
                 let mutable treeReason = ""
 
                 let okTree =
-                    IonIrTree.tryVerifyLosslessJsonConversion (limits, treeWithAnnotatedFragment, &treeReason)
+                    IonIrTree.tryVerifyLosslessJsonConversion (limits, treeWithAnnotatedFragment, &treeCode, &treeReason)
 
                 Expect.isFalse okTree "Ion tree with annotated duplicate dependency doc must be refused"
+                Expect.equal treeCode "data.lossy_conversion" "Tree annotated duplicate doc code"
                 Expect.stringContains treeReason "note" "Names the discarded annotation in tree"
+
+            testCase "Lossless JSON conversion verifier validates annotations by decoder position (refuses unit:: on inputTypes, accepts document number:: under name)"
+            <| fun () ->
+                let singleHeader =
+                    "morphir::{ionVersion: \"0.1.0-draft.1\", formatVersion: \"4.0.0\", kind: library, packageName: \"my/pkg\"}"
+
+                // 1. unit:: on inputTypes map is ignored by keyedMembers decoder and must be refused as lossy.
+                let singleAnnotatedInputTypes =
+                    ReadOnlyMemory(
+                        Text.Encoding.UTF8.GetBytes(
+                            datagram [
+                                singleHeader
+                                $"public::def::module::{{name: \"m\", values: [public::def::value::{{name: \"f\", inputTypes: unit::{{x: {int}}}, outputType: {int}, body: x}}]}}"
+                            ]
+                        )
+                    )
+
+                Expect.isOk (IonIr.read limits singleAnnotatedInputTypes) "Single-doc decoder ignores unit:: on inputTypes"
+                let mutable singleLossyCode = ""
+                let mutable singleLossyReason = ""
+                let okSingleLossy = IonIr.tryVerifyLosslessJsonConversion (limits, singleAnnotatedInputTypes, &singleLossyCode, &singleLossyReason)
+                Expect.isFalse okSingleLossy "Single-doc unit:: on inputTypes must be refused"
+                Expect.equal singleLossyCode "data.lossy_conversion" "Single-doc unit:: on inputTypes reports data.lossy_conversion"
+
+                let treeAnnotatedInputTypes =
+                    treeOf [
+                        manifest, header "library" "my/pkg" "4.0.0"
+                        "pkg/my/pkg/m/module.ion", "public::def::module::{}"
+                        "pkg/my/pkg/m/f.value.ion", $"public::def::value::{{inputTypes: unit::{{x: {int}}}, outputType: {int}, body: x}}"
+                    ]
+
+                Expect.isOk (IonIrTree.read limits treeAnnotatedInputTypes) "Tree decoder ignores unit:: on inputTypes"
+                let mutable treeLossyCode = ""
+                let mutable treeLossyReason = ""
+                let okTreeLossy = IonIrTree.tryVerifyLosslessJsonConversion (limits, treeAnnotatedInputTypes, &treeLossyCode, &treeLossyReason)
+                Expect.isFalse okTreeLossy "Tree unit:: on inputTypes must be refused"
+                Expect.equal treeLossyCode "data.lossy_conversion" "Tree unit:: on inputTypes reports data.lossy_conversion"
+
+                // 2. (document {name: number::"1.5"}) is valid JSON document data and must be accepted losslessly.
+                let singleDocNumber =
+                    ReadOnlyMemory(
+                        Text.Encoding.UTF8.GetBytes(
+                            datagram [
+                                singleHeader
+                                $"public::def::module::{{name: \"m\", values: [public::def::value::{{name: \"d\", outputType: {int}, body: (document {{name: number::\"1.5\"}})}}]}}"
+                            ]
+                        )
+                    )
+
+                Expect.isOk (IonIr.read limits singleDocNumber) "Single-doc decoder accepts (document {name: number::\"1.5\"})"
+                let mutable singleDocCode = ""
+                let mutable singleDocReason = ""
+                let okSingleDoc = IonIr.tryVerifyLosslessJsonConversion (limits, singleDocNumber, &singleDocCode, &singleDocReason)
+                Expect.isTrue okSingleDoc $"Single-doc (document {{name: number::\"1.5\"}}) must be lossless (code: {singleDocCode}, reason: {singleDocReason})"
+
+                let treeDocNumber =
+                    treeOf [
+                        manifest, header "library" "my/pkg" "4.0.0"
+                        "pkg/my/pkg/m/module.ion", "public::def::module::{}"
+                        "pkg/my/pkg/m/d.value.ion", $"public::def::value::{{outputType: {int}, body: (document {{name: number::\"1.5\"}})}}"
+                    ]
+
+                Expect.isOk (IonIrTree.read limits treeDocNumber) "Tree decoder accepts (document {name: number::\"1.5\"})"
+                let mutable treeDocCode = ""
+                let mutable treeDocReason = ""
+                let okTreeDoc = IonIrTree.tryVerifyLosslessJsonConversion (limits, treeDocNumber, &treeDocCode, &treeDocReason)
+                Expect.isTrue okTreeDoc $"Tree (document {{name: number::\"1.5\"}}) must be lossless (code: {treeDocCode}, reason: {treeDocReason})"
+
+                // 3. Resource-limit failures keep their own error code instead of data.lossy_conversion.
+                let tightLimits = { limits with MaxDepth = 2 }
+                let mutable limitCode = ""
+                let mutable limitReason = ""
+                let okLimit = IonIr.tryVerifyLosslessJsonConversion (tightLimits, singleDocNumber, &limitCode, &limitReason)
+                Expect.isFalse okLimit "Tight depth limit fails verification"
+                Expect.equal limitCode "depth_limit_exceeded" "Resource limit keeps depth_limit_exceeded instead of data.lossy_conversion"
+
+                // 4. Every reference Ion pair fixture passes lossless verification with zero false positives.
+                for name in Fixtures.names |> Array.filter (fun n -> n.StartsWith("pairs/", StringComparison.Ordinal) && n.EndsWith(".ion", StringComparison.Ordinal)) do
+                    let mutable pairCode = ""
+                    let mutable pairReason = ""
+                    let okPair = IonIr.tryVerifyLosslessJsonConversion (limits, ReadOnlyMemory(Fixtures.bytes name), &pairCode, &pairReason)
+                    Expect.isTrue okPair $"Reference pair {name} must pass lossless check (code: {pairCode}, reason: {pairReason})"
         ]
     ]

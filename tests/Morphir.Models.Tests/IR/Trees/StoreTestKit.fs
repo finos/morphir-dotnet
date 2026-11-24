@@ -183,6 +183,26 @@ let interceptingDirectoryProvider
         member _.Watch(filter) = inner.Watch(filter)
     }
 
+/// A valid flat v4 library tree containing <paramref name="moduleCount"/> modules under <c>pkg/acme/flat/</c>.
+let flatPackageTreeProvider (moduleCount: int) =
+    let manifest =
+        """{"formatVersion":4,"distribution":"Library","package":"acme/flat","pathBudget":240,"dependencies":[]}"""
+
+    let files =
+        seq {
+            yield "manifest.json", Morphir.Files.VFile.ofText "manifest.json" manifest
+
+            for i in 0 .. moduleCount - 1 do
+                let name = sprintf "mod-%04d" i
+                let location = $"pkg/acme/flat/{name}/module.json"
+                let content = $"{{\"formatVersion\":4,\"path\":\"{name}\",\"access\":\"Public\",\"types\":[],\"values\":[]}}"
+                yield location, Morphir.Files.VFile.ofText location content
+        }
+        |> Map.ofSeq
+        |> Morphir.Files.VFileTree.fromFileMap
+
+    Morphir.Files.VFileProviders.asFileProvider files
+
 /// A frozen bounded orders tree with one named file replaced by an undeclared contextual envelope $schema.
 let ordersTreeWithUndeclaredSchema (version: string) (profile: string) (targetFile: string) =
     let prefix = Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Directory + version + "/" + profile + "/"

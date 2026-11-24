@@ -290,9 +290,14 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
         }
         else
         {
-            if (VerifyLosslessConversion(model) is { } lossReason)
-                return Fail(GenerationFailureKind.Semantic, "data.lossy_conversion",
-                    $"Extension {Identity}: refusing lossy conversion of {label} to {tuple}: {lossReason}. Lossy conversion is refused by default.");
+            if (VerifyLosslessConversion(model, request.ReadLimits) is { } verifyFailure)
+            {
+                if (verifyFailure.Code == "data.lossy_conversion")
+                    return Fail(GenerationFailureKind.Semantic, "data.lossy_conversion",
+                        $"Extension {Identity}: refusing lossy conversion of {label} to {tuple}: {verifyFailure.Reason}. Lossy conversion is refused by default.");
+                return Fail(GenerationFailureKind.Operational, verifyFailure.Code,
+                    $"Extension {Identity}: could not verify lossless conversion of {label} to {tuple} ({verifyFailure.Code}): {verifyFailure.Reason}");
+            }
             if (!MepGenerationTransport.TryWriteSingleDocumentJson(model.Model, out var convertedBytes, out var writeError))
                 return Fail(GenerationFailureKind.Semantic, "data.lossy_conversion",
                     $"Extension {Identity}: the model ({label}) could not be converted losslessly to {tuple}: {writeError}");
@@ -366,18 +371,25 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
         return WithConversion(outcome);
     }
 
-    private static string? VerifyLosslessConversion(LoadedModel model)
+    private static (string Code, string Reason)? VerifyLosslessConversion(LoadedModel model, ModelReadLimits readLimits)
     {
         if (model.Representation is not (ModelRepresentation.IonText or ModelRepresentation.IonBinary or ModelRepresentation.IonTree))
             return null;
 
-        var limits = new IonReadLimits(int.MaxValue, 128, 1_000_000);
+        var limits = new IonReadLimits(
+            (int)Math.Min(readLimits.MaxBytes, int.MaxValue),
+            readLimits.MaxDepth,
+            readLimits.MaxNodes);
         if (model.Original is RetainedInput.File file)
-            return IonIr.TryVerifyLosslessJsonConversion(limits, file.Entry.Memory, out var reason) ? null : reason;
+            return IonIr.TryVerifyLosslessJsonConversion(limits, file.Entry.Memory, out var code, out var reason)
+                ? null
+                : (code, reason);
         if (model.Original is RetainedInput.Tree tree)
         {
             var files = tree.Entries.Select(entry => KeyValuePair.Create(entry.RelativePath, VFileModule.ofBytes(entry.RelativePath, entry.Memory)));
-            return IonIrTree.TryVerifyLosslessJsonConversion(limits, VFileTree.OfFiles(files), out var reason) ? null : reason;
+            return IonIrTree.TryVerifyLosslessJsonConversion(limits, VFileTree.OfFiles(files), out var code, out var reason)
+                ? null
+                : (code, reason);
         }
         return null;
     }

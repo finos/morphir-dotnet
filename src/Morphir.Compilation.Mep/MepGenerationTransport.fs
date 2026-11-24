@@ -127,7 +127,7 @@ type MepGenerationTransport =
 
 /// A negotiated generation view over one caller-owned tree snapshot.
 [<Sealed>]
-type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelAccessStart, work: BoundedTreeWorkBudget) =
+type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelAccessStart, work: BoundedTreeWorkBudget, cancellationToken: System.Threading.CancellationToken) =
     static let refuse code message : Result<'value, StoreError list> =
         Result.Error [
             {
@@ -217,12 +217,13 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
             ContextualEncoding = encoding
         }
 
-    /// Bind the announced snapshot and selected input tuple to the admitted reader.
+    /// Bind the announced snapshot and selected input tuple to the admitted reader with cancellation support.
     static member Bind
         (
             snapshot: BoundedTreeSnapshot,
             start: ModelAccessStart,
-            work: BoundedTreeWorkBudget
+            work: BoundedTreeWorkBudget,
+            cancellationToken: System.Threading.CancellationToken
         ) : Result<MepGenerationSnapshot, StoreError list> =
         let expected = MepGenerationSnapshot.TupleFor snapshot
 
@@ -243,8 +244,22 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
         elif start.Limits.MaxDepth <= 0 || start.Limits.MaxNodes <= 0 then
             refuse "tree.invalid_limit" "The negotiated maxDepth and maxNodes must be positive."
         else
-            let restricted = snapshot.WithDocumentLimits(start.Limits.MaxDepth, start.Limits.MaxNodes).WithWorkBudget(work)
-            Ok(MepGenerationSnapshot(restricted, start, work))
+            let restricted =
+                snapshot
+                    .WithDocumentLimits(start.Limits.MaxDepth, start.Limits.MaxNodes)
+                    .WithWorkBudget(work)
+                    .WithCancellation(cancellationToken)
+
+            Ok(MepGenerationSnapshot(restricted, start, work, cancellationToken))
+
+    /// Bind the announced snapshot and selected input tuple to the admitted reader.
+    static member Bind
+        (
+            snapshot: BoundedTreeSnapshot,
+            start: ModelAccessStart,
+            work: BoundedTreeWorkBudget
+        ) : Result<MepGenerationSnapshot, StoreError list> =
+        MepGenerationSnapshot.Bind(snapshot, start, work, System.Threading.CancellationToken.None)
 
     /// Bind a delivery-only view using its negotiated work allowance.
     static member Bind(snapshot: BoundedTreeSnapshot, start: ModelAccessStart) : Result<MepGenerationSnapshot, StoreError list> =
@@ -253,11 +268,21 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
         else
             MepGenerationSnapshot.Bind(snapshot, start, BoundedTreeWorkBudget(start.Limits.MaxSessionWorkUnits))
 
+    /// Bind the delivery view for a host using a shared work budget and cancellation token.
+    static member BindForHost
+        (
+            snapshot: BoundedTreeSnapshot,
+            start: ModelAccessStart,
+            work: BoundedTreeWorkBudget,
+            cancellationToken: System.Threading.CancellationToken
+        ) : Result<MepGenerationSnapshot, IReadOnlyList<StoreError>> =
+        MepGenerationSnapshot.Bind(snapshot, start, work, cancellationToken)
+        |> Result.mapError (fun errors -> List.toArray errors :> IReadOnlyList<StoreError>)
+
     /// Bind the delivery view for a host using a shared work budget.
     static member BindForHost(snapshot: BoundedTreeSnapshot, start: ModelAccessStart, work: BoundedTreeWorkBudget)
         : Result<MepGenerationSnapshot, IReadOnlyList<StoreError>> =
-        MepGenerationSnapshot.Bind(snapshot, start, work)
-        |> Result.mapError (fun errors -> List.toArray errors :> IReadOnlyList<StoreError>)
+        MepGenerationSnapshot.BindForHost(snapshot, start, work, System.Threading.CancellationToken.None)
 
     member private _.PrepareAdvanceCounted
         (
@@ -289,6 +314,8 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
 
             while index < requests.Count
                   && failure.IsNone do
+                cancellationToken.ThrowIfCancellationRequested()
+
                 let next =
                     match work.TryCharge 1L, requests[index] with
                     | false, _ -> exhausted ()

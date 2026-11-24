@@ -1249,6 +1249,235 @@ public sealed class MepDocumentTreeGenerationTests
     }
 
     [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task Draft1HostConversionRefusesIonWithAnnotatedInputTypesMap(bool tree)
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var inputPath = GenerationInputFixtures.LossyIonWithAnnotatedInputTypesMap(sandbox.PathOf("input"), "4.0.0", tree);
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "car/rental"
+
+            [codegen.text]
+            extension = "draft1"
+
+            [extensions.draft1]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var guest = new Draft1OnlyChannelGuest();
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: inputPath, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var failure = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+        failure.Kind.Should().Be(GenerationFailureKind.Semantic);
+        failure.Diagnostics.Should().Contain(d => d.Code == "data.lossy_conversion");
+        guest.GenerateCalls.Should().Be(0);
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task Draft1HostConversionAdmitsIonWithDocumentNumberUnderNameField(bool tree)
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var inputPath = GenerationInputFixtures.IonWithDocumentNumberUnderNameField(sandbox.PathOf("input"), "4.0.0", tree);
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "car/rental"
+
+            [codegen.text]
+            extension = "draft1"
+
+            [extensions.draft1]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var guest = new Draft1OnlyChannelGuest();
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: inputPath, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var success = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Success>(outcome.ToString()).Which.Value;
+        guest.GenerateCalls.Should().Be(1);
+        var converted = success.Diagnostics.Should().ContainSingle(d => d.Code == "extension.model_converted").Which;
+        converted.Data!.Value.GetProperty("dropped").GetArrayLength().Should().Be(0);
+    }
+
+    [Test]
+    public async Task Draft1HostConversionHonorsRaisedModelReadLimitsForDeepIon()
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        // 145 nested (list ...) layers exceed the default Ion depth of 128, but succeed with raised MaxDepth = 400.
+        var inputPath = GenerationInputFixtures.DeepIonSingleDocument(sandbox.PathOf("input"), "4.0.0", 145);
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "car/rental"
+
+            [codegen.text]
+            extension = "draft1"
+
+            [extensions.draft1]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var guest = new Draft1OnlyChannelGuest(maxDepth: 512);
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var innerResolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+        var resolver = new DepthOverrideSettingsResolver(innerResolver, 400);
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: inputPath, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        outcome.Should().BeOfType<Outcome<GenerationSuccess>.Success>(outcome.ToString());
+        guest.GenerateCalls.Should().Be(1);
+    }
+
+    [Test]
+    public async Task Draft1HostConversionReportsExceededIonVerificationLimitsSeparatelyFromLossyConversion()
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var inputPath = GenerationInputFixtures.IonWithDocumentNumberUnderNameField(sandbox.PathOf("input"), "4.0.0", tree: false);
+        var loadedOutcome = await new GenerationModelLoader(new BoundedModelCapture())
+            .LoadAsync(new ModelInput(inputPath), ModelReadLimits.Default, default);
+        var loaded = loadedOutcome.Should().BeOfType<Outcome<LoadedModel>.Success>().Which.Value;
+
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        var guest = new Draft1OnlyChannelGuest();
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var connected = await connector.ConnectAsync(
+            new BackendExtensionRequest(new Morphir.Tooling.Features.Compile.Setting<string>(wasmPath,
+                new Morphir.Tooling.Features.Compile.SettingOrigin.CommandLine("--extension")),
+                TargetId.Create("text"), projectRoot)
+            {
+                WasmModule = new WasmModuleSource("draft1", wasmPath),
+                Environment = SandboxEnvironment(sandbox),
+            }, default);
+        await using var backend = connected.Should().BeOfType<Outcome<IExternalGenerationBackend>.Success>().Which.Value;
+        var options = backend.ValidateOptions(BackendOptions.Empty).Should().BeOfType<Outcome<ValidatedBackendOptions>.Success>().Which.Value;
+
+        var result = await backend.GenerateAsync(
+            new BackendGenerationRequest(loaded, TargetId.Create("text"), options)
+            {
+                ReadLimits = ModelReadLimits.Default with { MaxDepth = 2 },
+            }, default);
+
+        var failure = result.Should().BeOfType<Outcome<GenerationArtifacts>.Failure>().Which.Error;
+        failure.Kind.Should().Be(GenerationFailureKind.Operational);
+        failure.Diagnostics.Should().Contain(d => d.Code == "depth_limit_exceeded");
+        failure.Diagnostics.Should().NotContain(d => d.Code == "data.lossy_conversion");
+        guest.GenerateCalls.Should().Be(0);
+    }
+
+    [Test]
+    public async Task BoundedGenerationSessionCancelsDuringFirstGuestRequestedInventoryPage()
+    {
+        using var sandbox = TestSandbox.Create();
+        var treeRoot = sandbox.PathOf("orders-tree");
+        CopyOrdersFixture("v4", "plain-json", treeRoot);
+        var stageDir = sandbox.PathOf("stage");
+        Directory.CreateDirectory(stageDir);
+
+        using var cts = new CancellationTokenSource();
+        var dirCalls = 0;
+        using var innerProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(treeRoot);
+        var cancellingProvider = new InterceptingFileProvider(innerProvider, _ =>
+        {
+            dirCalls++;
+            if (dirCalls >= 2) cts.Cancel();
+        });
+
+        var snapshotResult = DocumentTreeStore.OpenSnapshotWithDiscoveryCacheAndEncoding(
+            new ReadOptions(ModelReadLimits.Default.MaxEntries, ModelReadLimits.Default.MaxBytes),
+            BoundedTreeEncoding.Plain, 65536L, () => "r1", cancellingProvider);
+        var snapshot = snapshotResult.Match(
+            static ok => ok,
+            static errs => throw new InvalidOperationException(string.Join("; ", errs.Select(e => e.Message))));
+
+        var guest = new OrdersChannelGuest("4.0.0", ModelAccessCodec.MorphirJson, ModelAccessEncoding.Plain);
+        var tuple = MepGenerationSnapshot.TupleFor(snapshot);
+        var limits = RecordedGenerationAdmission.Offer(BoundedGenerationProfile.Default, ModelReadLimits.Default, wasm: true);
+        var peer = new PeerInfo(PeerKind.Cli, "morphir-test", "0.1.0");
+        var started = await MepChannelGuest.StartModelAccessAsync(
+            guest, peer, new ModelAccessSupport([tuple], limits), TimeSpan.FromSeconds(5), default);
+        await using var channelGuest = started.Match(
+            static ok => ok,
+            static err => throw new InvalidOperationException(err.Message));
+
+        var optionsJson = JsonDocument.Parse("{}").RootElement.Clone();
+        var start = new ModelAccessStart("sess-cancel",
+            new ModelAccessSnapshot("snap-1", snapshot.PackageId, snapshot.RevisionId,
+                Sha256Digest.Compute(Encoding.UTF8.GetBytes("{}")), "sess-cancel"),
+            tuple, "text", optionsJson, [], limits);
+        using var stage = new BoundedArtifactStage(stageDir, limits,
+            new GenerationSessionDiskBudget(limits.MaxSessionDiskBytes), 65536L, 0L);
+
+        var outcome = await BoundedGenerationSession.RunAsync(channelGuest.HostSession, snapshot, start, stage,
+            () => Task.CompletedTask, cts.Token);
+
+        var failure = outcome.Should().BeOfType<Outcome<StagedGenerationOutput>.Failure>().Which.Error;
+        failure.Kind.Should().Be(GenerationFailureKind.Cancelled);
+        failure.Diagnostics.Should().Contain(d => d.Code == "cancelled");
+        dirCalls.Should().BeGreaterThanOrEqualTo(2, "cancellation must trigger inside the first guest-requested inventory discovery");
+    }
+
+    private sealed class InterceptingFileProvider(Microsoft.Extensions.FileProviders.IFileProvider inner, Action<string> onDirectory)
+        : Microsoft.Extensions.FileProviders.IFileProvider
+    {
+        public Microsoft.Extensions.FileProviders.IDirectoryContents GetDirectoryContents(string subpath)
+        {
+            onDirectory(subpath);
+            return inner.GetDirectoryContents(subpath);
+        }
+
+        public Microsoft.Extensions.FileProviders.IFileInfo GetFileInfo(string subpath) => inner.GetFileInfo(subpath);
+
+        public Microsoft.Extensions.Primitives.IChangeToken Watch(string filter) => inner.Watch(filter);
+    }
+
+    [Test]
     [Arguments(true)]
     [Arguments(false)]
     public async Task InstalledWasmExtensionClampsInitializeModelAccessOfferToWasmFrameCeiling(bool recorded)

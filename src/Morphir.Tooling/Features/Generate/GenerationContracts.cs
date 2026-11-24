@@ -292,7 +292,11 @@ public sealed record BackendDescriptor
 }
 
 /// <summary>Backends receive no output directory, configuration reader or publication service.</summary>
-public sealed record BackendGenerationRequest(LoadedModel Model, TargetId Target, ValidatedBackendOptions Options);
+public sealed record BackendGenerationRequest(LoadedModel Model, TargetId Target, ValidatedBackendOptions Options)
+{
+    /// <summary>The caller's admitted read limits, carried into any retained-input conversion verification.</summary>
+    public ModelReadLimits ReadLimits { get; init; } = ModelReadLimits.Default;
+}
 public sealed record GenerationArtifacts(VFileTree Tree, ImmutableArray<GenerationDiagnostic> Diagnostics)
 {
     /// <summary>

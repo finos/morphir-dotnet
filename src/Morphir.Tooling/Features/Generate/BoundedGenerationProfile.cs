@@ -45,14 +45,15 @@ internal static class RecordedGenerationAdmission
     internal static SessionLimits WasmLimits(BoundedGenerationProfile profile, ModelAccessLimits offer)
     {
         var defaults = SessionLimits.Default;
+        var wholeFrameBytes = WasmChannel.FrameBytes(offer.MaxFrameBytes);
         return defaults with
         {
             MemoryCeilingBytes = Math.Min(defaults.MemoryCeilingBytes, offer.MaxGuestStateBytes),
             CallDeadline = TimeSpan.FromMilliseconds(offer.MaxCallMilliseconds),
             RequestFrameBytes = profile == BoundedGenerationProfile.OrdersScale
-                ? Math.Min(defaults.RequestFrameBytes, offer.MaxFrameBytes) : defaults.RequestFrameBytes,
+                ? Math.Min(defaults.RequestFrameBytes, wholeFrameBytes) : defaults.RequestFrameBytes,
             ResponseFrameBytes = profile == BoundedGenerationProfile.OrdersScale
-                ? Math.Min(defaults.ResponseFrameBytes, offer.MaxFrameBytes) : defaults.ResponseFrameBytes,
+                ? Math.Min(defaults.ResponseFrameBytes, wholeFrameBytes) : defaults.ResponseFrameBytes,
         };
     }
     internal static int WasmFrameBodyBytes()
@@ -64,12 +65,9 @@ internal static class RecordedGenerationAdmission
 
     internal static int MaxBodyBytesForWholeFrame(long frameBytes)
     {
-        static long WholeFrame(long bodyBytes) =>
-            bodyBytes + System.Text.Encoding.ASCII.GetByteCount($"Content-Length: {bodyBytes}\r\n\r\n");
-
         var headerBytes = System.Text.Encoding.ASCII.GetByteCount($"Content-Length: {frameBytes}\r\n\r\n");
         var body = Math.Max(0L, frameBytes - headerBytes);
-        while (body < frameBytes && WholeFrame(body + 1) <= frameBytes)
+        while (body < frameBytes && WasmChannel.FrameBytes(body + 1) <= frameBytes)
             body++;
         return (int)Math.Min(ContentLengthFraming.MaxBodyBytes, body);
     }

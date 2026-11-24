@@ -2269,16 +2269,6 @@ let discoveryCacheTests =
             |> Result.mapError List.singleton |> expectReadError "extension.bounded_work_limit" "pkg/acme/orders/"
         }
         test "OpenDetectedSnapshot detects plain and contextual encodings across JSON and YAML versions" {
-            let frozenProvider version profile =
-                let prefix = FixtureCatalog.BoundedOrders.Directory + version + "/" + profile + "/"
-                FixtureCatalog.BoundedOrders.Files
-                |> Seq.filter (fun entry -> entry.RelativePath.StartsWith(prefix, System.StringComparison.Ordinal))
-                |> Seq.map (fun entry ->
-                    let location = entry.RelativePath.Substring(prefix.Length)
-                    location, VFile.ofBytes location (System.ReadOnlyMemory(FixtureCatalog.ReadBytes entry)))
-                |> Map.ofSeq
-                |> VFileTree.fromFileMap
-                |> VFileProviders.asFileProvider
             for version, expectedIr in [ "v3.1", "3.1.0"; "v4", "4.0.0" ] do
                 for profile, expectedSyntax, expectedEncoding in
                     [
@@ -2287,7 +2277,7 @@ let discoveryCacheTests =
                         "contextual-json", BoundedTreeSyntax.Json, BoundedTreeEncoding.ContextualDraft1
                         "contextual-yaml", BoundedTreeSyntax.Yaml, BoundedTreeEncoding.ContextualDraft1
                     ] do
-                    let provider = frozenProvider version profile
+                    let provider = StoreTestKit.ordersTreeProvider version profile
                     let snapshot =
                         DocumentTreeStore.openDetectedSnapshot(
                             ReadOptions.defaults, System.Func<string>(fun () -> "r1"), provider)
@@ -2298,16 +2288,7 @@ let discoveryCacheTests =
         }
         test "OpenSnapshotWithDiscoveryCacheAndEncoding supports contextual JSON and YAML with lazy discovery" {
             for profile in [ "contextual-json"; "contextual-yaml" ] do
-                let prefix = FixtureCatalog.BoundedOrders.Directory + "v4/" + profile + "/"
-                let provider =
-                    FixtureCatalog.BoundedOrders.Files
-                    |> Seq.filter (fun entry -> entry.RelativePath.StartsWith(prefix, System.StringComparison.Ordinal))
-                    |> Seq.map (fun entry ->
-                        let location = entry.RelativePath.Substring(prefix.Length)
-                        location, VFile.ofBytes location (System.ReadOnlyMemory(FixtureCatalog.ReadBytes entry)))
-                    |> Map.ofSeq
-                    |> VFileTree.fromFileMap
-                    |> VFileProviders.asFileProvider
+                let provider = StoreTestKit.ordersTreeProvider "v4" profile
                 let snapshot =
                     DocumentTreeStore.openSnapshotWithDiscoveryCacheAndEncoding(
                         ReadOptions.defaults,
@@ -2399,5 +2380,15 @@ let discoveryCacheTests =
                 "Cancellation during mid-page directory discovery aborts immediately"
 
             Expect.isGreaterThanOrEqual dirCalls 2 "Cancellation triggered mid-discovery rather than before starting"
+        }
+        test "OpenDetectedSnapshotBounded completes a 600-module flat package within the default 1M work budget" {
+            let provider = StoreTestKit.flatPackageTreeProvider 600
+            let snapshot =
+                DocumentTreeStore.openDetectedSnapshotBounded(
+                    ReadOptions.defaults, 128, 1_000_000, 1_000_000L, System.Func<string>(fun () -> "r1"), provider, System.Threading.CancellationToken.None)
+                |> read
+            Expect.equal snapshot.IrVersion "4.0.0" "v4 IR"
+            Expect.equal snapshot.NameEncoding BoundedTreeEncoding.Plain "Plain encoding"
+            Expect.equal snapshot.Syntax BoundedTreeSyntax.Json "JSON syntax"
         }
     ]

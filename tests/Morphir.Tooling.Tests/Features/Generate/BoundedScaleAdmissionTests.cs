@@ -68,8 +68,9 @@ public sealed class BoundedScaleAdmissionTests
         limits.MaxSessionMilliseconds.Should().Be(7_200_000);
         limits.MaxGuestStateBytes.Should().Be(1024 * 1024);
         var wasm = RecordedGenerationAdmission.WasmLimits(profile, limits);
-        wasm.RequestFrameBytes.Should().Be(65536);
-        wasm.ResponseFrameBytes.Should().Be(65536);
+        var expectedWholeFrame = 65536L + System.Text.Encoding.ASCII.GetByteCount("Content-Length: 65536\r\n\r\n");
+        wasm.RequestFrameBytes.Should().Be(expectedWholeFrame);
+        wasm.ResponseFrameBytes.Should().Be(expectedWholeFrame);
         wasm.MemoryCeilingBytes.Should().Be(1024 * 1024);
         var ids = RecordedGenerationAdmission.RequestIdReservation(profile, limits.MaxHostCacheBytes);
         var discovery = limits.MaxHostCacheBytes / 4L;

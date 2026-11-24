@@ -253,8 +253,14 @@ module DocumentTreeStore =
                 let effectiveDepth = min Morphir.IR.Files.ContextLimits.draft1.MaxDepth maxDepth
                 let nodeLimit = if maxNodes > 0 then Some maxNodes else None
                 let workBudget = Some(BoundedTreeWorkBudget maxWorkUnits)
+                let discoveryCacheBytes =
+                    System.Math.Clamp(int64 options.MaxFiles * 512L, 64L * 1024L, 16L * 1024L * 1024L)
 
-                TreeFileSource.fromFileProvider options.MaxFiles (fun () -> revision.Invoke()) provider
+                TreeFileSource.fromFileProviderWithDiscoveryCache
+                    options.MaxFiles
+                    discoveryCacheBytes
+                    (fun () -> revision.Invoke())
+                    provider
                 |> BoundedTreeReader.openTreeDetectedBounded
                     options.MaxFileBytes
                     effectiveDepth
@@ -280,7 +286,14 @@ module DocumentTreeStore =
             if options.MaxFiles < 1 then
                 Error [ error "tree.invalid_limit" None "A module lookup limit must be positive." ]
             else
-                TreeFileSource.fromFileProvider options.MaxFiles (fun () -> revision.Invoke()) provider
+                let discoveryCacheBytes =
+                    System.Math.Clamp(int64 options.MaxFiles * 512L, 64L * 1024L, 16L * 1024L * 1024L)
+
+                TreeFileSource.fromFileProviderWithDiscoveryCache
+                    options.MaxFiles
+                    discoveryCacheBytes
+                    (fun () -> revision.Invoke())
+                    provider
                 |> BoundedTreeReader.openTreeDetected options.MaxFileBytes
 
         opened

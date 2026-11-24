@@ -208,6 +208,10 @@ type BoundedTreeSnapshot =
     member snapshot.WithWorkBudget(work: BoundedTreeWorkBudget) =
         { snapshot with Work = Some work }
 
+    /// Bind a cancellation token to reads and discovery without replacing the snapshot or its cursors.
+    member snapshot.WithCancellation(cancellationToken: System.Threading.CancellationToken) =
+        { snapshot with Cancellation = cancellationToken }
+
 type private ModuleInventory = {
     Path: ModulePath
     Access: Morphir.IR.V4.Access option

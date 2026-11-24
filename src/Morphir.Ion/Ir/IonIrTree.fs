@@ -1353,13 +1353,17 @@ module IonIrTree =
                     Location = None
                 }
 
-    let private verifyTreeFileBytes (limits: IonReadLimits) (location: string) (file: Morphir.Files.VFile) : Result<ReadOnlyMemory<byte>, string> =
+    let private verifyTreeFileBytes
+        (limits: IonReadLimits)
+        (location: string)
+        (file: Morphir.Files.VFile)
+        : Result<ReadOnlyMemory<byte>, string * string> =
         match IonSources.readContent limits file.Content with
         | Ok bytes -> Ok bytes
-        | Result.Error cause -> Result.Error $"Could not read Ion tree file '{location}': {cause.Message}"
+        | Result.Error cause -> Result.Error("file_read_failed", $"Could not read Ion tree file '{location}': {cause.Message}")
 
-    let private verifyNodeValue (location: string) (value: IonValue) : Result<unit, string> =
-        IonIr.verifyValueLossless None false location value
+    let private verifyNodeValue (location: string) (value: IonValue) : Result<unit, string * string> =
+        IonIr.verifyTopLevelElementLossless location value
         |> Result.bind (fun () ->
             match value.Data with
             | IonData.Struct fields ->
@@ -1374,22 +1378,26 @@ module IonIrTree =
 
                 match forbidden with
                 | Some name ->
-                    Result.Error $"Ion tree file '{location}' carries unconsumed metadata member '{name}' that JSON IR cannot preserve."
+                    Result.Error(
+                        "data.lossy_conversion",
+                        $"Ion tree file '{location}' carries unconsumed metadata member '{name}' that JSON IR cannot preserve."
+                    )
                 | None -> Ok()
             | _ -> Ok()
         )
 
     /// <summary>
     /// Verifies that a retained Ion IR document tree contains no ignored files, unconsumed manifest/header members,
-    /// annotations, symbol-zero fields, or dropped metadata that would be silently lost when converting to
-    /// single-document JSON IR. For C# callers: returns <c>true</c> when lossless, or <c>false</c> with
-    /// <paramref name="reason"/>.
+    /// annotations not consumed by the decoder at their grammar position, symbol-zero fields, or dropped metadata
+    /// that would be silently lost when converting to single-document JSON IR. Resource/parse limit failures report
+    /// their own error <paramref name="code"/> rather than <c>data.lossy_conversion</c>. For C# callers.
     /// </summary>
     [<CompiledName("TryVerifyLosslessJsonConversion")>]
     let tryVerifyLosslessJsonConversion
         (
             limits: IonReadLimits,
             source: VFileTree,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] code: byref<string>,
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] reason: byref<string>
         ) : bool =
         let check =
@@ -1404,8 +1412,11 @@ module IonIrTree =
                 |> List.tryPick (fun (file, result) ->
                     match result with
                     | Ok IgnoredFile ->
-                        Some $"Ion tree contains ignored file '{file.Location}' that single-document JSON IR cannot preserve."
-                    | Result.Error message -> Some $"{file.Location}: {message}"
+                        Some(
+                            "data.lossy_conversion",
+                            $"Ion tree contains ignored file '{file.Location}' that single-document JSON IR cannot preserve."
+                        )
+                    | Result.Error message -> Some("invalid_tree_path", $"{file.Location}: {message}")
                     | Ok ManifestFile
                     | Ok(NodeFileEntry _) -> None
                 )
@@ -1422,24 +1433,24 @@ module IonIrTree =
                     )
 
                 match manifestOpt with
-                | None -> Result.Error "The Ion tree has no manifest.ion at its root."
+                | None -> Result.Error("missing_manifest", "The Ion tree has no manifest.ion at its root.")
                 | Some manifestFile ->
                     let readValues (file: TreeFile) =
                         verifyTreeFileBytes limits file.Location file.File
                         |> Result.bind (fun bytes ->
                             IonIr.withRoom
-                                (fun err -> Result.Error err.Message)
+                                (fun err -> Result.Error(err.Code, err.Message))
                                 (fun () ->
                                     match IonReader.readOrThrowOnShortStack limits bytes with
                                     | Ok values -> Ok values
-                                    | Result.Error err -> Result.Error(IonReadError.describe err)
+                                    | Result.Error err -> Result.Error(IonReadError.code err, IonReadError.describe err)
                                 )
                         )
 
                     readValues manifestFile
                     |> Result.bind (fun values ->
                         match values with
-                        | [] -> Result.Error "manifest.ion has no morphir:: header."
+                        | [] -> Result.Error("invalid_document", "manifest.ion has no morphir:: header.")
                         | header :: rest ->
                             IonIr.verifyHeaderLossless true manifestFile.Location header
                             |> Result.bind (fun () ->
@@ -1455,13 +1466,16 @@ module IonIrTree =
                                         | _ -> rest, true
 
                                     if not hasFooter then
-                                        Result.Error $"Ion tree manifest '{manifestFile.Location}' carries non-empty footer metadata that JSON IR cannot preserve."
+                                        Result.Error(
+                                            "data.lossy_conversion",
+                                            $"Ion tree manifest '{manifestFile.Location}' carries non-empty footer metadata that JSON IR cannot preserve."
+                                        )
                                     else
                                         trailing
                                         |> List.fold
                                             (fun state item ->
                                                 state
-                                                |> Result.bind (fun () -> IonIr.verifyValueLossless None false manifestFile.Location item)
+                                                |> Result.bind (fun () -> IonIr.verifyTopLevelElementLossless manifestFile.Location item)
                                             )
                                             (Ok())
                             )
@@ -1491,8 +1505,10 @@ module IonIrTree =
 
         match check with
         | Ok() ->
+            code <- Unchecked.defaultof<_>
             reason <- Unchecked.defaultof<_>
             true
-        | Result.Error message ->
+        | Result.Error(errorCode, message) ->
+            code <- errorCode
             reason <- message
             false

@@ -125,6 +125,71 @@ internal static class GenerationInputFixtures
         return treeRoot;
     }
 
+    public static string LossyIonWithAnnotatedInputTypesMap(string directory, string version, bool tree)
+    {
+        if (!tree)
+        {
+            var datagram =
+                $$"""
+                morphir::{ionVersion: "0.1.0-draft.1", formatVersion: "{{version}}", kind: library, packageName: "car/rental"}
+                public::def::module::{name: "inventory", values: [public::def::value::{name: "daily-rate", inputTypes: unit::{x: "morphir/SDK:basics#int"}, outputType: "morphir/SDK:basics#int", body: x}]}
+                morphir_footer::{}
+                """;
+            return WriteIon(directory, "text", datagram);
+        }
+
+        var treeRoot = Path.Combine(directory, "tree");
+        Directory.CreateDirectory(treeRoot);
+        File.WriteAllText(Path.Combine(treeRoot, "manifest.ion"),
+            $$"""morphir::{ionVersion: "0.1.0-draft.1", formatVersion: "{{version}}", kind: library, packageName: "car/rental", pathBudget: 4000}""");
+        var modDir = Path.Combine(treeRoot, "pkg", "car", "rental", "inventory");
+        Directory.CreateDirectory(modDir);
+        File.WriteAllText(Path.Combine(modDir, "module.ion"), "public::def::module::{}");
+        File.WriteAllText(Path.Combine(modDir, "daily-rate.value.ion"),
+            "public::def::value::{inputTypes: unit::{x: \"morphir/SDK:basics#int\"}, outputType: \"morphir/SDK:basics#int\", body: x}");
+        return treeRoot;
+    }
+
+    public static string IonWithDocumentNumberUnderNameField(string directory, string version, bool tree)
+    {
+        if (!tree)
+        {
+            var datagram =
+                $$"""
+                morphir::{ionVersion: "0.1.0-draft.1", formatVersion: "{{version}}", kind: library, packageName: "car/rental"}
+                public::def::module::{name: "inventory", values: [public::def::value::{name: "daily-rate", outputType: "morphir/SDK:basics#int", body: (document {name: number::"1.5"})}]}
+                morphir_footer::{}
+                """;
+            return WriteIon(directory, "text", datagram);
+        }
+
+        var treeRoot = Path.Combine(directory, "tree");
+        Directory.CreateDirectory(treeRoot);
+        File.WriteAllText(Path.Combine(treeRoot, "manifest.ion"),
+            $$"""morphir::{ionVersion: "0.1.0-draft.1", formatVersion: "{{version}}", kind: library, packageName: "car/rental", pathBudget: 4000}""");
+        var modDir = Path.Combine(treeRoot, "pkg", "car", "rental", "inventory");
+        Directory.CreateDirectory(modDir);
+        File.WriteAllText(Path.Combine(modDir, "module.ion"), "public::def::module::{}");
+        File.WriteAllText(Path.Combine(modDir, "daily-rate.value.ion"),
+            "public::def::value::{outputType: \"morphir/SDK:basics#int\", body: (document {name: number::\"1.5\"})}");
+        return treeRoot;
+    }
+
+    public static string DeepIonSingleDocument(string directory, string version, int nestingLayers)
+    {
+        var sb = new System.Text.StringBuilder();
+        for (var i = 0; i < nestingLayers; i++) sb.Append("(list ");
+        sb.Append("1");
+        for (var i = 0; i < nestingLayers; i++) sb.Append(')');
+        var datagram =
+            $$"""
+            morphir::{ionVersion: "0.1.0-draft.1", formatVersion: "{{version}}", kind: library, packageName: "car/rental"}
+            public::def::module::{name: "inventory", values: [public::def::value::{name: "daily-rate", outputType: "morphir/SDK:basics#int", body: {{sb}}}]}
+            morphir_footer::{}
+            """;
+        return WriteIon(directory, "text", datagram);
+    }
+
     public static string OrdersTreeWithContextPrefixes(string directory, string versionDir, string profile)
     {
         CopyBoundedOrdersTree(versionDir, profile, directory);

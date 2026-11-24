@@ -224,7 +224,7 @@ public static class GenerationStages
             var passedModel = ((Outcome<Transform.PassedModel>.Success)passed).Value;
             backendModel = passedModel.Model;
 
-            var generation = await backend.GenerateAsync(new(backendModel, backend.Descriptor.Target, options), ct);
+            var generation = await backend.GenerateAsync(new(backendModel, backend.Descriptor.Target, options) { ReadLimits = settings.Limits }, ct);
             if (generation is Outcome<GenerationArtifacts>.Failure generationFailure) return Failed(generationFailure.Error, backendIdentity);
             var artifacts = ((Outcome<GenerationArtifacts>.Success)generation).Value;
             // The diagnostics of the passes go with the diagnostics of the backend, so that a publisher that reports them at
