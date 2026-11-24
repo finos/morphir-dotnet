@@ -652,19 +652,44 @@ public sealed class CompileDocumentTreeTests
             PathRemoval.DeletePath(path);
         }, _ => false, _ => { });
 
+        bool? lockHeldAtWarning = null;
+        var stderr = new RecordingWriter(warnings, () => lockHeldAtWarning ??= !LockIsFree(workspace));
+
         var failed = await RunWith(workspace, Inputs(), new CompilePublicationHooks(), Quiet with
         {
-            Diagnostics = warnings,
+            Diagnostics = stderr,
             Removal = removal,
             BeforeTombstoneReplace = () => throw new IOException("The tombstone could not be renamed."),
         });
 
         failed.ExitCode.Should().Be(2);
         CompileRunners.ErrorCodes(failed).Should().Equal("compile.prepare_failed");
+        lockHeldAtWarning.Should().BeTrue("compile.json is read for the warning while the run still holds compile.lock");
+        LockIsFree(workspace).Should().BeTrue("the lock is released after the warning");
         var staged = Directory.EnumerateFiles(OutRoot(workspace), ".compile.json.*").Should().ContainSingle().Subject;
         warnings.ToString().Should().Contain(staged).And.Contain("Access to the path is denied.")
             .And.Contain("compile.json is a completed record", "the tombstone did not replace the record of the earlier compile");
         IsTombstone(workspace).Should().BeFalse();
+    }
+
+    [Test]
+    public async Task AStagedRecordThatTheStartCannotRemoveIsAWarningAndTheCompileSucceeds()
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs()));
+        var stale = Path.Combine(OutRoot(workspace), ".compile.json." + Guid.NewGuid().ToString("N") + ".tmp");
+        File.Copy(workspace.PathOf(".morphir/out/compile.json"), stale);
+        var warnings = new StringWriter();
+        var removal = new PathRemoval(path =>
+        {
+            if (path == stale) throw new UnauthorizedAccessException("Access to the path is denied.");
+            PathRemoval.DeletePath(path);
+        }, _ => false, _ => { });
+
+        Succeeded(await RunWith(workspace, Inputs(), new CompilePublicationHooks(), Quiet with { Diagnostics = warnings, Removal = removal }));
+
+        IsTombstone(workspace).Should().BeFalse("the compile completes its record");
+        warnings.ToString().Should().Contain(stale).And.Contain("Access to the path is denied.").And.Contain("when the run started");
     }
 
     [Test]

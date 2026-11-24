@@ -31,7 +31,7 @@ The IR SHALL be staged beside its place in `compile.dest` and moved into place w
 - **THEN** the later compile fails with `compile.publish_failed` and exit code 2, `compile.dest` is empty, and `compile.json` is the tombstone of the later run
 
 ### Requirement: Cleanup refusals keep the outcome and are reported
-When the file system still refuses to remove a path after the bounded retries, the run SHALL keep its outcome (exit code 130 for a cancellation, its failure otherwise), SHALL write a warning on stderr that names each path that remains with the file system's reason and says what `compile.json` holds, and SHALL complete no record. Every removal SHALL run before the warnings, and a warning that stderr refuses SHALL NOT change the outcome.
+When a failed or cancelled publication cannot remove a path after the bounded retries, the run SHALL keep its outcome (exit code 130 for a cancellation, its failure otherwise), SHALL complete no record, and SHALL write a warning on stderr that names each path that remains with the file system's reason and says what `compile.json` holds while the run holds `compile.lock`. Every removal SHALL run before the warnings, and a warning that stderr refuses SHALL NOT change the outcome.
 
 #### Scenario: Rollback refused after a cancellation
 - **WHEN** an earlier compile of the project succeeded, and a later compile is cancelled after its IR moved into place, and every attempt to remove that IR is refused
@@ -46,7 +46,11 @@ When the file system still refuses to remove a path after the bounded retries, t
 - **THEN** the exit code is 130, there is no `compile.json`, and the warning says that there is none
 
 ### Requirement: A compile clears compile.dest when it starts
-A compile SHALL clear `compile.dest` with the same bounded retries when it starts, and SHALL remove the staged records (`.compile.json.<id>.tmp`) that earlier runs left; a staged record that it cannot remove is a warning of the start. It SHALL fail with `compile.prepare_failed` and exit code 2, naming `compile.dest`, when it cannot, and exit with code 130 when it is cancelled during the retries. Either way it SHALL release `compile.lock`.
+A compile SHALL clear `compile.dest` with the same bounded retries when it starts, and SHALL remove the staged records (`.compile.json.<id>.tmp`) that earlier runs left. A staged record that it cannot remove SHALL be a warning of the start, and the compile SHALL go on and can succeed. It SHALL fail with `compile.prepare_failed` and exit code 2, naming `compile.dest`, when it cannot, and exit with code 130 when it is cancelled during the retries. Either way it SHALL release `compile.lock`.
+
+#### Scenario: Staged record that the start cannot remove
+- **WHEN** a staged record that an earlier run left cannot be removed when a compile starts
+- **THEN** stderr has a warning that names it with the file system's reason, and the compile goes on and can complete its record
 
 #### Scenario: Stale stage of a crashed run
 - **WHEN** a staged IR that a crashed run left is in `compile.dest`, and another handle holds a file below it for longer than the retries

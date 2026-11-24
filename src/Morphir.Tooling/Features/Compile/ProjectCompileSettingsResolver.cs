@@ -146,16 +146,17 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             Error(CompileCodes.UnsupportedSetting, "The option --types-only is not implemented. This build compiles complete modules only.");
 
         var loaded = loader.Load(overrides, context);
+        var config = new ConfigurationView(loaded);
         foreach (var diagnostic in loaded.Diagnostics)
         {
             var key = string.Join('.', diagnostic.KeyPath);
             var text = $"{diagnostic.Source.Path}: {key}: {diagnostic.Message} ({diagnostic.Code})".Replace(": : ", ": ");
-            // The resolver checks every value of ir.layout and ir.mode itself, in the order of their precedence (ResolveLayout).
-            if (diagnostic.Severity == ConfigSeverity.Error && IsLayoutValidation(diagnostic)) continue;
+            // The resolver checks each value of ir.layout and ir.mode that it sees itself, in the order of their precedence
+            // (ResolveLayout); the schema error of a value that it does not see stands.
+            if (diagnostic.Severity == ConfigSeverity.Error && IsLayoutValidation(diagnostic) && config.ChecksAgain(diagnostic)) continue;
             if (diagnostic.Severity == ConfigSeverity.Error) Error(CompileCodes.Configuration, text);
             else warnings.Add(Diagnostic.Create(Severity.Warning, CompileCodes.Configuration, text, null));
         }
-        var config = new ConfigurationView(loaded);
         var working = CompilePaths.RealPath(context.WorkingDirectory);
         var baseDirectory = loaded.ProjectRoot ?? working;
 
@@ -428,10 +429,28 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
                 ? new(ConfigValueProjections.TryText(value, out var text) ? text : null, origin)
                 : null;
 
-        private SettingOrigin.Configuration? ConfiguredOrigin(string[] path) =>
-            loaded.Resolution is { } resolution && ConfigValueProjections.TryFindConfiguredOrigin(resolution, path, out var origin)
-                ? new SettingOrigin.Configuration(origin.Source.Path, ConfigValueProjections.KeyText(path))
+        /// <summary>
+        /// The origin of a value that a configuration file sets. With the resolution, a nonempty table takes the origin of a
+        /// key below it; a loader that gives no resolution (the released positional constructor) has the key's own origins only.
+        /// </summary>
+        private SettingOrigin.Configuration? ConfiguredOrigin(string[] path)
+        {
+            if (loaded.Resolution is { } resolution)
+                return ConfigValueProjections.TryFindConfiguredOrigin(resolution, path, out var origin)
+                    ? new SettingOrigin.Configuration(origin.Source.Path, ConfigValueProjections.KeyText(path))
+                    : null;
+            return ConfigValueProjections.TryFindOrigin(loaded.Origins, path, out var own) && !own.Source.Role.Equals(SourceRole.Defaults)
+                ? new SettingOrigin.Configuration(own.Source.Path, ConfigValueProjections.KeyText(path))
                 : null;
+        }
+
+        /// <summary>
+        /// Whether the resolver checks again the value that a schema error of <c>ir.layout</c> or <c>ir.mode</c> concerns:
+        /// only a value that it sees as configured (<see cref="Configured"/>).
+        /// </summary>
+        public bool ChecksAgain(ConfigDiagnostic diagnostic) =>
+            ConfigValueProjections.IsAt(diagnostic, ["ir", "layout"]) ? Configured("ir", "layout") is not null
+            : ConfigValueProjections.IsAt(diagnostic, ["ir", "mode"]) && Configured("ir", "mode") is not null;
 
         public Setting<string>? String(params string[] path) =>
             Find(path) is { } value && ConfigValueProjections.TryText(value, out var text) ? new(text, Origin(path)) : null;

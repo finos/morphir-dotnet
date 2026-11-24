@@ -86,8 +86,9 @@ public sealed class CompileTaskStore
         var refusals = new List<CleanupRefusal>();
         Outcome<CompileTaskRun> Stop(Outcome<CompileTaskRun> outcome)
         {
-            taskLock.Dispose();
+            // compile.json is read for the warnings while this run still holds compile.lock, so no other run changed it.
             CleanupWarnings.Write(_options.Diagnostics, refusals, Location.Record, "when the run started");
+            taskLock.Dispose();
             return outcome;
         }
         try
@@ -290,11 +291,22 @@ public sealed class CompileTaskRun : IDisposable
     }
 
     /// <summary>Releases the lock.</summary>
+    /// <summary>
+    /// Releases the lock. A staged record whose removal the file system refused, and that no caller took
+    /// (<see cref="TakeCleanupRefusals"/>), is reported first, with what <c>compile.json</c> holds while the lock is held.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        _lock.Dispose();
+        try
+        {
+            CleanupWarnings.Write(_options.Diagnostics, TakeCleanupRefusals(), Location.Record, "after the record write failed");
+        }
+        finally
+        {
+            _lock.Dispose();
+        }
     }
 }
 

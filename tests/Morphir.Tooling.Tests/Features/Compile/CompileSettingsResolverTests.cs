@@ -262,6 +262,57 @@ public sealed class CompileSettingsResolverTests
         result.Diagnostics.Single().CodeOrNull!.Value.Should().Be("compile.deprecated_setting");
     }
 
+    /// <summary>
+    /// A loader that builds its result with the released positional constructor of <see cref="LoadedCompileConfiguration"/>,
+    /// as an injected loader does, so the result has no <see cref="LoadedCompileConfiguration.Resolution"/>.
+    /// </summary>
+    private sealed class PositionalLoader : ICompileConfigurationLoader
+    {
+        public LoadedCompileConfiguration Load(CompileOverrides overrides, CompileContext context)
+        {
+            var loaded = new FileSystemCompileConfigurationLoader().Load(overrides, context);
+            return new LoadedCompileConfiguration(loaded.Effective, loaded.Origins, loaded.ProjectRoot, loaded.WorkspaceOutDirectory, loaded.Diagnostics)
+            {
+                WorkspaceRoot = loaded.WorkspaceRoot,
+                MorphirHome = loaded.MorphirHome,
+            };
+        }
+    }
+
+    private static Checked<CompileSettings> ResolvePositional(ProjectToml toml)
+    {
+        using var workspace = new CompileWorkspace();
+        workspace.Write("morphir.toml", toml.Build());
+        new PositionalLoader().Load(new CompileOverrides(), workspace.Context()).Resolution.Should().BeNull();
+        return new ProjectCompileSettingsResolver(new PositionalLoader()).Resolve(new CompileOverrides(), workspace.Context());
+    }
+
+    [Test]
+    public void AConfiguredLayoutResolvesFromALoaderWithoutAResolution()
+    {
+        var result = ResolvePositional(ProjectToml.AProject().WithLayout("document-tree"));
+        var settings = Passed(result);
+        settings.IrLayout.Value.Should().Be(IrLayout.DocumentTree);
+        settings.IrLayout.Origin.Should().BeOfType<SettingOrigin.Configuration>().Which.Key.Should().Be("ir.layout");
+    }
+
+    [Test]
+    public void AnInvalidLayoutFromALoaderWithoutAResolutionGivesOneDiagnostic()
+    {
+        var result = ResolvePositional(ProjectToml.AProject().WithLayout("bogus"));
+        Codes(result).Should().Equal(["compile.invalid_setting"], Listed(result));
+    }
+
+    [Test]
+    public void ASchemaErrorThatTheResolverCannotCheckAgainStaysAConfigurationError()
+    {
+        // Without a resolution, the origin of a nonempty table is not found, so the resolver does not see the value and
+        // the configuration's own error of it stands.
+        var result = ResolvePositional(ProjectToml.AProject().WithIr("layout", TomlValue.NonemptyTable()));
+        result.TryGetValue(out _).Should().BeFalse("a layout that nothing checks again never falls back to single-file");
+        Codes(result).Should().Contain("compile.configuration", Listed(result));
+    }
+
     [Test]
     public void ADuplicateLayoutKeyStillRefusesTheConfiguration()
     {
