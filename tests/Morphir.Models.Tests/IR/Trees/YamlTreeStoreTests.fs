@@ -227,6 +227,37 @@ let tests =
                         $"Ambiguous manifests ({name}) fail with tree.ambiguous_profile"
             }
 
+            test "Multi-profile TryReadModel and readAnyProfile refuse .ion member sibling while legacy read ignores it" {
+                let baseJson = catalogTree "v4" "plain-json"
+                let baseYaml = catalogTree "v4" "plain-yaml"
+                let ionMember = "public::def::value::{outputType: \"morphir/SDK:basics#int\", body: (int 73)}\n"
+                let logical = "pkg/acme/orders/domain/order.value"
+                let ionPath = logical + ".ion"
+
+                let jsonWithIonMember = baseJson |> Driver.withFile ionPath ionMember
+                let yamlWithIonMember = baseYaml |> Driver.withFile ionPath ionMember
+
+                match DocumentTreeStore.read ReadOptions.defaults jsonWithIonMember with
+                | Ok _ -> ()
+                | Result.Error legacyErrors ->
+                    failtestf "Expected legacy DocumentTreeStore.read to ignore non-manifest .ion sibling, got %A" legacyErrors
+
+                for name, files in [ "json + ion member", jsonWithIonMember; "yaml + ion member", yamlWithIonMember ] do
+                    let multiErrors = tryReadModelErrors TreeReadOptions.Defaults files
+                    Expect.equal
+                        (diagCodesAndFiles multiErrors)
+                        [ "tree.ambiguous_profile", Some logical ]
+                        $"TryReadModel ({name}) fails with tree.ambiguous_profile"
+
+                    let anyProfileErrors =
+                        DocumentTreeStore.readAnyProfile TreeReadOptions.Defaults files |> refusal
+
+                    Expect.equal
+                        (codesAndFiles anyProfileErrors)
+                        [ "tree.ambiguous_profile", Some logical ]
+                        $"readAnyProfile ({name}) fails with tree.ambiguous_profile"
+            }
+
             test "Refuses profile selection mismatches and mixed profile files" {
                 let yamlTree = catalogTree "v4" "plain-yaml"
                 let jsonTree = catalogTree "v4" "plain-json"

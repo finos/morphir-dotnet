@@ -328,6 +328,9 @@ module internal TreeFileSource =
     /// Inspect the physical spellings without opening any of them.
     let private locateSnapshot (source: SnapshotSource) expected logical =
         try
+            let ionPath = logical + ".ion"
+            let hasIon = source.ContainsFile ionPath
+
             let found =
                 [ Json, ".json"; Yaml, ".yaml"; Yaml, ".yml" ]
                 |> List.map (fun (profile, suffix) ->
@@ -337,9 +340,23 @@ module internal TreeFileSource =
                 )
                 |> List.filter (fun (_, location) -> source.ContainsFile location)
 
-            match found with
-            | [] -> Error(error "tree.missing_member" (Some logical) "The tree file is missing.")
-            | [ profile, location ] when
+            match found, hasIon with
+            | [], false -> Error(error "tree.missing_member" (Some logical) "The tree file is missing.")
+            | [], true ->
+                Error(
+                    error
+                        "tree.unsupported_profile"
+                        (Some ionPath)
+                        "The file is in the Ion profile."
+                )
+            | _ :: _, true ->
+                Error(
+                    error
+                        "tree.ambiguous_profile"
+                        (Some logical)
+                        "More than one physical file has this logical path."
+                )
+            | [ profile, location ], false when
                 expected
                 |> Option.exists ((<>) profile)
                 ->
@@ -349,8 +366,8 @@ module internal TreeFileSource =
                         (Some location)
                         "The file's profile differs from the manifest."
                 )
-            | [ found ] -> Ok found
-            | _ ->
+            | [ found ], false -> Ok found
+            | _, false ->
                 Error(
                     error
                         "tree.ambiguous_profile"
@@ -686,20 +703,14 @@ module internal TreeFileSource =
             || root.TryGetProperty("morphir_model", &marker)
             || root.TryGetProperty("jsonrpc", &marker))
 
-    /// <summary>
-    /// Decodes a single YAML document (plain or contextual) into its expanded <see cref="JsonElement"/>
-    /// under explicit byte, depth, node, and cancellation limits. MEP envelopes (identified by
-    /// <c>envelopeVersion</c>, <c>morphir_model</c>, or <c>jsonrpc</c>) bypass IR-context admission so the
-    /// caller's shared MEP classifier reports <c>unsupported-profile</c> even when <c>$schema</c> is present.
-    /// </summary>
-    let readSingleYamlDocument
+    let private parseSingleYamlInput
         (file: string)
         (bytes: ReadOnlyMemory<byte>)
         (maxBytes: int64)
         (maxDepth: int)
         (maxNodes: int)
         (ct: CancellationToken)
-        : Result<JsonElement, TreeDiagnostic list> =
+        : Result<TreeDecodeContext * int64 * JsonElement, TreeDiagnostic list> =
         ct.ThrowIfCancellationRequested()
 
         if maxBytes <= 0L then
@@ -714,42 +725,128 @@ module internal TreeFileSource =
             let rawBytes = bytes.ToArray()
 
             TreeYaml.readCountedDetailed true maxDepth maxNodes (Some maxBytes) ct file rawBytes
-            |> Result.bind (fun (root, rawNodes, jsonBytes) ->
-                if isMepEnvelopeRoot root then
-                    Ok root
-                else
-                    let ctx = createDecodeContext TreeProfile.Yaml maxBytes (Some maxBytes) maxDepth (Some maxNodes) ct
-                    let plainBytes = max (int64 rawBytes.Length) jsonBytes
+            |> Result.map (fun (root, _rawNodes, jsonBytes) ->
+                let ctx = createDecodeContext TreeProfile.Yaml maxBytes (Some maxBytes) maxDepth (Some maxNodes) ct
+                let plainBytes = max (int64 rawBytes.Length) jsonBytes
+                ctx, plainBytes, root
+            )
 
+    let private expandSingleYamlEnvelope
+        (ctx: TreeDecodeContext)
+        (file: string)
+        (maxBytes: int64)
+        (maxNodes: int)
+        (ct: CancellationToken)
+        (plainBytes: int64)
+        (envelope: MorphirFile<JsonElement>)
+        : Result<JsonElement, TreeDiagnostic list> =
+        match envelope.Context with
+        | None ->
+            if not (ctx.TryConsumeTotalBytes plainBytes) then
+                Error [ StoreErrors.diagnostic "tree.file_too_large" (Some file) "The decoded tree files exceed the aggregate byte limit." ]
+            else
+                Ok envelope.Document
+        | Some context ->
+            if plainBytes > maxBytes then
+                Error [ StoreErrors.diagnostic "tree.file_too_large" (Some file) "The decoded tree files exceed the aggregate byte limit." ]
+            else
+                ContextExpansion.expandCountedDetailed
+                    ctx.ContextLimits
+                    (Some maxBytes)
+                    (Some maxNodes)
+                    ct
+                    (MorphirFile.familyOf envelope.Document)
+                    file
+                    context
+                    envelope.Document
+                |> Result.bind (fun (expanded, _, expandedBytes) ->
+                    if not (ctx.TryConsumeTotalBytes(max plainBytes expandedBytes)) then
+                        Error [ StoreErrors.diagnostic "tree.file_too_large" (Some file) "The decoded tree files exceed the aggregate byte limit." ]
+                    else
+                        Ok expanded
+                )
+
+    /// <summary>
+    /// Decodes a single YAML document (plain or contextual) into its expanded <see cref="JsonElement"/>
+    /// under explicit byte, depth, node, and cancellation limits. MEP envelopes (identified by
+    /// <c>envelopeVersion</c>, <c>morphir_model</c>, or <c>jsonrpc</c>) bypass IR-context admission so the
+    /// caller's shared MEP classifier reports <c>unsupported-profile</c> even when <c>$schema</c> is present.
+    /// </summary>
+    let readSingleYamlDocument
+        (file: string)
+        (bytes: ReadOnlyMemory<byte>)
+        (maxBytes: int64)
+        (maxDepth: int)
+        (maxNodes: int)
+        (ct: CancellationToken)
+        : Result<JsonElement, TreeDiagnostic list> =
+        parseSingleYamlInput file bytes maxBytes maxDepth maxNodes ct
+        |> Result.bind (fun (ctx, plainBytes, root) ->
+            if isMepEnvelopeRoot root then
+                Ok root
+            else
+                MorphirFile.readEnvelopeRootDetailed ContextOrder.WholeFile ctx.ContextLimits file root
+                |> Result.bind (expandSingleYamlEnvelope ctx file maxBytes maxNodes ct plainBytes)
+        )
+
+    /// <summary>
+    /// Verifies that a single YAML document carries no envelope, context, <c>$meta</c>, or unknown classic v3
+    /// members that single-document JSON cannot preserve losslessly.
+    /// </summary>
+    let verifyLosslessSingleYamlDocument
+        (file: string)
+        (bytes: ReadOnlyMemory<byte>)
+        (maxBytes: int64)
+        (maxDepth: int)
+        (maxNodes: int)
+        (ct: CancellationToken)
+        : Result<unit, TreeDiagnostic list> =
+        parseSingleYamlInput file bytes maxBytes maxDepth maxNodes ct
+        |> Result.bind (fun (ctx, plainBytes, root) ->
+            if isMepEnvelopeRoot root then
+                Ok()
+            else
+                match MorphirFile.findUnrepresentableEnvelopeMember root with
+                | Some memberName ->
+                    Error [
+                        StoreErrors.diagnostic
+                            "data.lossy_conversion"
+                            (Some file)
+                            $"single-document YAML contains '{memberName}', which single-document JSON cannot preserve"
+                    ]
+                | None ->
                     MorphirFile.readEnvelopeRootDetailed ContextOrder.WholeFile ctx.ContextLimits file root
                     |> Result.bind (fun envelope ->
-                        match envelope.Context with
-                        | None ->
-                            if not (ctx.TryConsumeTotalBytes plainBytes) then
-                                Error [ StoreErrors.diagnostic "tree.file_too_large" (Some file) "The decoded tree files exceed the aggregate byte limit." ]
-                            else
-                                Ok envelope.Document
-                        | Some context ->
-                            if plainBytes > maxBytes then
-                                Error [ StoreErrors.diagnostic "tree.file_too_large" (Some file) "The decoded tree files exceed the aggregate byte limit." ]
-                            else
-                                ContextExpansion.expandCountedDetailed
-                                    ctx.ContextLimits
-                                    (Some maxBytes)
-                                    (Some maxNodes)
-                                    ct
-                                    (MorphirFile.familyOf envelope.Document)
-                                    file
-                                    context
-                                    envelope.Document
-                                |> Result.bind (fun (expanded, _, expandedBytes) ->
-                                    if not (ctx.TryConsumeTotalBytes(max plainBytes expandedBytes)) then
-                                        Error [ StoreErrors.diagnostic "tree.file_too_large" (Some file) "The decoded tree files exceed the aggregate byte limit." ]
-                                    else
-                                        Ok expanded
-                                )
+                        let mutable meta = Unchecked.defaultof<JsonElement>
+
+                        if
+                            envelope.Document.ValueKind = JsonValueKind.Object
+                            && envelope.Document.TryGetProperty("$meta", &meta)
+                        then
+                            Error [
+                                StoreErrors.diagnostic
+                                    "data.lossy_conversion"
+                                    (Some file)
+                                    "single-document YAML contains '$meta', which single-document JSON cannot preserve"
+                            ]
+                        elif MorphirFile.isClassic envelope.Document then
+                            expandSingleYamlEnvelope ctx file maxBytes maxNodes ct plainBytes envelope
+                            |> Result.bind (fun expanded ->
+                                match Morphir.Json.Classic.ClassicJson.readDistributionStrict expanded with
+                                | Result.Ok _ -> Ok()
+                                | Result.Error err when err.Rule = "unknown_member" ->
+                                    Error [
+                                        StoreErrors.diagnostic
+                                            "data.lossy_conversion"
+                                            (Some file)
+                                            $"single-document YAML contains unrepresentable member at {err.Location}: {err.Message}"
+                                    ]
+                                | Result.Error _ -> Ok()
+                            )
+                        else
+                            Ok()
                     )
-            )
+        )
 
     /// <summary>
     /// The exact declared <c>formatVersion</c> text of an already-decoded manifest object.
@@ -944,12 +1041,50 @@ module internal TreeFileSource =
                     )
                     |> List.map (fun (location, file, _) -> location, file)
 
-                let treeProfile =
-                    match profile with
-                    | Json -> TreeProfile.Json
-                    | Yaml -> TreeProfile.Yaml
+                let ionAmbiguity =
+                    if not checkIonManifest then
+                        None
+                    else
+                        let ionLocations =
+                            allFiles
+                            |> Seq.choose (fun (location, _) ->
+                                if location.EndsWith(".ion", StringComparison.Ordinal) then
+                                    Some location
+                                else
+                                    None
+                            )
+                            |> fun locations -> HashSet<string>(locations, StringComparer.Ordinal)
 
-                Ok(treeProfile, (manifestLocation, manifestFile), others)
+                        others
+                        |> List.tryPick (fun (location, _) ->
+                            let dot = location.LastIndexOf '.'
+
+                            if dot > 0 then
+                                let logical = location.Substring(0, dot)
+                                let ionSibling = logical + ".ion"
+
+                                if ionLocations.Contains ionSibling then
+                                    Some(
+                                        error
+                                            "tree.ambiguous_profile"
+                                            (Some logical)
+                                            $"The tree has more than one physical file for '{logical}': {location} and {ionSibling}; a reader does not choose one."
+                                    )
+                                else
+                                    None
+                            else
+                                None
+                        )
+
+                match ionAmbiguity with
+                | Some problem -> Error [ problem ]
+                | None ->
+                    let treeProfile =
+                        match profile with
+                        | Json -> TreeProfile.Json
+                        | Yaml -> TreeProfile.Yaml
+
+                    Ok(treeProfile, (manifestLocation, manifestFile), others)
             | _ ->
                 Error [
                     error

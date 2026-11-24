@@ -1630,6 +1630,334 @@ public sealed class MepDocumentTreeGenerationTests
     }
 
     [Test]
+    public async Task RecordedTreeRouteEnforcesRequestIdReservationFromNegotiatedMaxHostCacheBytes()
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var outDir = sandbox.PathOf("out");
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("ext.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "acme/orders"
+
+            [frontend]
+            language = "fsharp"
+
+            [codegen.text]
+            extension = "ext"
+
+            [extensions.ext]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var taskOptions = new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) };
+        var outRoot = OutRoot.Resolve(new OutRootRequest(projectRoot, projectRoot) { OutDirFlag = outDir }).ShouldSucceed();
+        var store = new CompileTaskStore(outRoot, MemberPath.Root, taskOptions);
+        using (var run = (await store.BeginAsync(default)).ShouldSucceed())
+        {
+            var descriptor = IrDescriptor.Create(RecordPath.Parse("recorded/orders-model"), IrLayout.DocumentTree,
+                IrStorageFormat.Json, Versioning.parse("4").ResultValue);
+            CopyOrdersFixture("v4", "plain-json", descriptor.Path.Under(run.Dest));
+            run.Complete(new CompileProduct("fsharp", descriptor, null)).ShouldSucceed();
+        }
+
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(), taskOptions);
+
+        // 1. Negotiated maxHostCacheBytes = 4096 reserves 1024 bytes for discovery and 2048 bytes for request IDs
+        // on the recorded route just as on the explicit-tree route, stopping distinct-ID rounds before 20 complete.
+        var overflowingGuest = new TightRequestCacheGuest(maxHostCacheBytes: 4096, roundsToRequest: 20);
+        var overflowingConnector = new MepBackendExtensionConnector(null, (_, _) => (overflowingGuest, "", ""));
+        var overflowOutcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Target: "text", Output: outputDir) { OutDir = outDir },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new RejectingLoader(), new RegisteredBackendResolver([]), new GenerationPublisher(), overflowingConnector, [], default);
+
+        var overflowFailure = overflowOutcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+        overflowFailure.Kind.Should().Be(GenerationFailureKind.Operational);
+        overflowFailure.Diagnostics.Should().Contain(d =>
+            d.Code == "extension.bounded_exchange"
+            && d.Message.Contains("maxHostCacheBytes", StringComparison.Ordinal));
+        overflowingGuest.RoundsCompleted.Should().BeLessThan(20, "recorded request-ID budget must stop the session before all rounds complete");
+
+        // 2. Negotiated maxHostCacheBytes = 256 yields a 128-byte request-ID share (< 256-byte fixed charge),
+        // which must be refused immediately as extension.bounded_cache_limit before starting generation.
+        var tooSmallGuest = new TightRequestCacheGuest(maxHostCacheBytes: 256, roundsToRequest: 1);
+        var tooSmallConnector = new MepBackendExtensionConnector(null, (_, _) => (tooSmallGuest, "", ""));
+        var tooSmallOutcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Target: "text", Output: outputDir) { OutDir = outDir },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new RejectingLoader(), new RegisteredBackendResolver([]), new GenerationPublisher(), tooSmallConnector, [], default);
+
+        var tooSmallFailure = tooSmallOutcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+        tooSmallFailure.Kind.Should().Be(GenerationFailureKind.Operational);
+        tooSmallFailure.Diagnostics.Should().Contain(d => d.Code == "extension.bounded_cache_limit");
+    }
+
+    [Test]
+    [Arguments("plain-json", "Json", false)]
+    [Arguments("plain-yaml", "Yaml", false)]
+    [Arguments("plain-json", "Json", true)]
+    public async Task RecordedTreeRouteRefusesManifestIonBesideJsonOrYamlManifest(
+        string profile, string storageName, bool draft1Guest)
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var outDir = sandbox.PathOf("out");
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("ext.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "acme/orders"
+
+            [frontend]
+            language = "fsharp"
+
+            [codegen.text]
+            extension = "ext"
+
+            [extensions.ext]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var format = storageName == "Json" ? IrStorageFormat.Json : IrStorageFormat.Yaml;
+        var taskOptions = new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) };
+        var outRoot = OutRoot.Resolve(new OutRootRequest(projectRoot, projectRoot) { OutDirFlag = outDir }).ShouldSucceed();
+        var store = new CompileTaskStore(outRoot, MemberPath.Root, taskOptions);
+        using (var run = (await store.BeginAsync(default)).ShouldSucceed())
+        {
+            var descriptor = IrDescriptor.Create(RecordPath.Parse("recorded/orders-model"), IrLayout.DocumentTree,
+                format, Versioning.parse("4").ResultValue);
+            var recordedTreeRoot = descriptor.Path.Under(run.Dest);
+            CopyOrdersFixture("v4", profile, recordedTreeRoot);
+            File.WriteAllText(Path.Combine(recordedTreeRoot, "manifest.ion"),
+                """morphir::{ionVersion: "0.1.0-draft.1", formatVersion: "4", kind: library, packageName: "acme/orders", pathBudget: 240}""");
+            run.Complete(new CompileProduct("fsharp", descriptor, null)).ShouldSucceed();
+        }
+
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(), taskOptions);
+
+        if (draft1Guest)
+        {
+            var guest = new Draft1OnlyChannelGuest();
+            var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+            var outcome = await GenerateHandler.Handle(
+                new GenerateRequest(new GenerateOverrides(Target: "text", Output: outputDir) { OutDir = outDir },
+                    new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+                resolver, new GenerationModelLoader(new BoundedModelCapture()),
+                new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+            var failure = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+            failure.Diagnostics.Should().Contain(d => d.Code == "tree.ambiguous_profile");
+            guest.GenerateCalls.Should().Be(0);
+        }
+        else
+        {
+            var codec = storageName == "Json" ? ModelAccessCodec.MorphirJson : ModelAccessCodec.MorphirYaml;
+            var guest = new OrdersChannelGuest("4.0.0", codec, ModelAccessEncoding.Plain);
+            var connector = new MepBackendExtensionConnector(null, (_, _) => (guest, "", ""));
+            var outcome = await GenerateHandler.Handle(
+                new GenerateRequest(new GenerateOverrides(Target: "text", Output: outputDir) { OutDir = outDir },
+                    new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+                resolver, new RejectingLoader(), new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+            var failure = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+            failure.Diagnostics.Should().Contain(d => d.Code == "tree.ambiguous_profile");
+        }
+    }
+
+    [Test]
+    public async Task SingleFileYamlWithContextPrefixesIsRefusedAsLossyBeforeDraft1Dispatch()
+    {
+        using var sandbox = TestSandbox.Create();
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        var (projectRoot, outputDir) = GenerationInputFixtures.WriteDraft1Project(
+            sandbox.PathOf("project"), sandbox.PathOf("generated"), wasmPath, "car/rental");
+
+        using var parsed = JsonDocument.Parse(FixtureCatalog.ReadText(FixtureCatalog.Models.V4DailyRate));
+        var distributionJson = parsed.RootElement.GetProperty("distribution").GetRawText();
+        var inputPath = sandbox.PathOf("input", "model.yaml");
+        Directory.CreateDirectory(Path.GetDirectoryName(inputPath)!);
+        File.WriteAllText(inputPath,
+            $$"""
+            $schema: "https://morphir.finos.org/schemas/ir-context/0.1.0-draft.1/document.schema.json"
+            context:
+              names:
+                inv: inventory
+              prefixes:
+                c: car/rental
+            document:
+              formatVersion: 4
+              distribution: {{distributionJson}}
+            """);
+
+        var guest = new Draft1OnlyChannelGuest();
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: inputPath, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var failure = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+        failure.Kind.Should().Be(GenerationFailureKind.Semantic);
+        failure.Diagnostics.Should().Contain(d => d.Code == "data.lossy_conversion" && d.Message.Contains("context.prefixes"));
+        guest.GenerateCalls.Should().Be(0);
+    }
+
+    [Test]
+    public async Task SingleFileYamlWithEnvelopeMetaIsRefusedAsLossyBeforeDraft1Dispatch()
+    {
+        using var sandbox = TestSandbox.Create();
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        var (projectRoot, outputDir) = GenerationInputFixtures.WriteDraft1Project(
+            sandbox.PathOf("project"), sandbox.PathOf("generated"), wasmPath, "car/rental");
+
+        using var parsed = JsonDocument.Parse(FixtureCatalog.ReadText(FixtureCatalog.Models.V4DailyRate));
+        var distributionJson = parsed.RootElement.GetProperty("distribution").GetRawText();
+        var inputPath = sandbox.PathOf("input", "model.yaml");
+        Directory.CreateDirectory(Path.GetDirectoryName(inputPath)!);
+        File.WriteAllText(inputPath,
+            $$"""
+            $schema: "https://morphir.finos.org/schemas/ir-context/0.1.0-draft.1/document.schema.json"
+            $meta:
+              owner: acme
+            context:
+              names:
+                inv: inventory
+            document:
+              formatVersion: 4
+              distribution: {{distributionJson}}
+            """);
+
+        var guest = new Draft1OnlyChannelGuest();
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: inputPath, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var failure = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+        failure.Kind.Should().Be(GenerationFailureKind.Semantic);
+        failure.Diagnostics.Should().Contain(d => d.Code == "data.lossy_conversion" && d.Message.Contains("$meta"));
+        guest.GenerateCalls.Should().Be(0);
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task SingleFileClassicYamlWithTopLevelMetaIsRefusedAsLossyBeforeDraft1Dispatch(bool contextual)
+    {
+        using var sandbox = TestSandbox.Create();
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        var (projectRoot, outputDir) = GenerationInputFixtures.WriteDraft1Project(
+            sandbox.PathOf("project"), sandbox.PathOf("generated"), wasmPath, "car/rental");
+
+        var v3DailyRateEntry = FixtureCatalog.UpstreamIr.Documents.Single(
+            d => FixtureCatalog.UpstreamIr.NameOf(d) == "pairs/v3-daily-rate.json");
+        using var parsed = JsonDocument.Parse(FixtureCatalog.ReadText(v3DailyRateEntry));
+        var distributionJson = parsed.RootElement.GetProperty("distribution").GetRawText();
+        var inputPath = sandbox.PathOf("input", "model.yaml");
+        Directory.CreateDirectory(Path.GetDirectoryName(inputPath)!);
+        var yamlText = contextual
+            ? $$"""
+              $schema: "https://morphir.finos.org/schemas/ir-context/0.1.0-draft.1/document.schema.json"
+              context:
+                names:
+                  inv: inventory
+              document:
+                formatVersion: "3.1.0"
+                $meta:
+                  owner: acme
+                distribution: {{distributionJson}}
+              """
+            : $$"""
+              formatVersion: "3.1.0"
+              $meta:
+                owner: acme
+              distribution: {{distributionJson}}
+              """;
+        File.WriteAllText(inputPath, yamlText);
+
+        var guest = new Draft1OnlyChannelGuest();
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: inputPath, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var failure = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+        failure.Kind.Should().Be(GenerationFailureKind.Semantic);
+        failure.Diagnostics.Should().Contain(d => d.Code == "data.lossy_conversion" && d.Message.Contains("$meta"));
+        guest.GenerateCalls.Should().Be(0);
+    }
+
+    [Test]
+    public async Task SingleFileYamlWithOnlyContextNamesConvertsLosslesslyToDraft1()
+    {
+        using var sandbox = TestSandbox.Create();
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        var (projectRoot, outputDir) = GenerationInputFixtures.WriteDraft1Project(
+            sandbox.PathOf("project"), sandbox.PathOf("generated"), wasmPath, "car/rental");
+
+        using var parsed = JsonDocument.Parse(FixtureCatalog.ReadText(FixtureCatalog.Models.V4DailyRate));
+        var distributionJson = parsed.RootElement.GetProperty("distribution").GetRawText();
+        var inputPath = sandbox.PathOf("input", "model.yaml");
+        Directory.CreateDirectory(Path.GetDirectoryName(inputPath)!);
+        File.WriteAllText(inputPath,
+            $$"""
+            $schema: "https://morphir.finos.org/schemas/ir-context/0.1.0-draft.1/document.schema.json"
+            context:
+              names:
+                inv: inventory
+            document:
+              formatVersion: 4
+              distribution: {{distributionJson}}
+            """);
+
+        var guest = new Draft1OnlyChannelGuest();
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: inputPath, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var success = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Success>(outcome.ToString()).Which.Value;
+        success.Publication.Artifacts.Should().Equal("converted.txt");
+        var converted = success.Diagnostics.Should().ContainSingle(d => d.Code == "extension.model_converted").Which;
+        converted.Data!.Value.GetProperty("from").GetProperty("codec").GetString().Should().Be("morphir-yaml");
+        converted.Data.Value.GetProperty("to").GetProperty("codec").GetString().Should().Be("morphir-json");
+        guest.GenerateCalls.Should().Be(1);
+    }
+
+    [Test]
     public async Task NegotiatedExplicitTreeRouteServesFirstInventoryPageForLongPathTreeWhenDiscoveryCacheOverflows()
     {
         using var sandbox = TestSandbox.Create();

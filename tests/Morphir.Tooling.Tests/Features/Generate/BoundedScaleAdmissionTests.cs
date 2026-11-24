@@ -30,7 +30,7 @@ public sealed class BoundedScaleAdmissionTests
         limits.MaxSessionMilliseconds.Should().Be(120_000);
         limits.MaxSessionWorkUnits.Should().Be(1_000_000);
         limits.MaxHostCacheBytes.Should().Be(16 * 1024 * 1024);
-        RecordedGenerationAdmission.RequestIdReservation(profile, limits.MaxHostCacheBytes).Should().BeNull();
+        RecordedGenerationAdmission.RequestIdReservation(limits.MaxHostCacheBytes).Should().Be(8L * 1024 * 1024);
         var wasm = RecordedGenerationAdmission.WasmLimits(profile, limits);
         wasm.RequestFrameBytes.Should().Be(Morphir.Extensions.Wasm.SessionLimits.Default.RequestFrameBytes);
         wasm.ResponseFrameBytes.Should().Be(Morphir.Extensions.Wasm.SessionLimits.Default.ResponseFrameBytes);
@@ -39,10 +39,10 @@ public sealed class BoundedScaleAdmissionTests
     }
 
     [Test]
-    public void AOneByteScaleCacheStillRequiresARequestIdReservation()
+    public void EveryProfileReservesHalfOfNegotiatedHostCacheForRequestIds()
     {
-        RecordedGenerationAdmission.RequestIdReservation(BoundedGenerationProfile.Default, 1).Should().BeNull();
-        RecordedGenerationAdmission.RequestIdReservation(BoundedGenerationProfile.OrdersScale, 1).Should().Be(0);
+        RecordedGenerationAdmission.RequestIdReservation(1).Should().Be(0L);
+        RecordedGenerationAdmission.RequestIdReservation(4096).Should().Be(2048L);
     }
 
     [Test]
@@ -71,12 +71,12 @@ public sealed class BoundedScaleAdmissionTests
         wasm.RequestFrameBytes.Should().Be(65536);
         wasm.ResponseFrameBytes.Should().Be(65536);
         wasm.MemoryCeilingBytes.Should().Be(2 * 1024 * 1024);
-        var ids = RecordedGenerationAdmission.RequestIdReservation(profile, limits.MaxHostCacheBytes);
+        var ids = RecordedGenerationAdmission.RequestIdReservation(limits.MaxHostCacheBytes);
         var discovery = limits.MaxHostCacheBytes / 4L;
         ids.Should().Be(32L * 1024 * 1024);
-        (limits.MaxHostCacheBytes - ids.GetValueOrDefault() - discovery).Should().Be(16L * 1024 * 1024);
+        (limits.MaxHostCacheBytes - ids - discovery).Should().Be(16L * 1024 * 1024);
         // Scalar accounting only: the maximum recipe ID needs at most seven UTF-16 code units.
-        (256L + (128L + 2L * 7) * 157_825L).Should().BeLessThan(ids.GetValueOrDefault());
+        (256L + (128L + 2L * 7) * 157_825L).Should().BeLessThan(ids);
     }
 
     [Test]

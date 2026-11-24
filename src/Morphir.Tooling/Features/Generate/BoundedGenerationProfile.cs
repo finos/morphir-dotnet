@@ -38,13 +38,9 @@ internal static class RecordedGenerationAdmission
     internal static long DocumentByteLimit(ModelReadLimits reader, ModelAccessLimits selected) =>
         Math.Min(reader.MaxBytes, (long)selected.MaxDecodedBytesPerExchange);
 
-    // A zero-byte scale reservation still requires admission. Null means the default policy does not opt in.
-    internal static long? RequestIdReservation(BoundedGenerationProfile profile, long selectedHostCacheBytes) =>
-        profile == BoundedGenerationProfile.OrdersScale ? selectedHostCacheBytes / 2L : null;
-
-    // The explicit-tree route always reserves half of the negotiated host cache for request-ID tracking so
-    // the operation ledger cannot retain request IDs across rounds without a byte cap.
-    internal static long ExplicitTreeRequestIdReservation(long selectedHostCacheBytes) =>
+    // Both recorded and explicit-tree routes reserve half of the negotiated host cache for request-ID tracking
+    // so the operation ledger cannot retain request IDs across rounds without a byte cap.
+    internal static long RequestIdReservation(long selectedHostCacheBytes) =>
         selectedHostCacheBytes / 2L;
 
     internal static SessionLimits WasmLimits(BoundedGenerationProfile profile, ModelAccessLimits offer)

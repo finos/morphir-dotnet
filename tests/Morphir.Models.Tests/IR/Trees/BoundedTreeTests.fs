@@ -1000,6 +1000,95 @@ let profileTests =
                 "Neither body is opened"
         }
 
+        test "Refuses manifest.ion beside JSON or YAML manifests before opening either file" {
+            for profile, expectedManifest in [ "plain-json", "manifest.json"; "plain-yaml", "manifest.yaml" ] do
+                let source, opened = frozenOrders "v4" profile
+
+                let ambiguous =
+                    { source with
+                        ContainsFile =
+                            fun path ->
+                                path = "manifest.ion"
+                                || source.ContainsFile path
+                    }
+
+                BoundedTreeReader.openTree 1024L ambiguous
+                |> expectReadError "tree.ambiguous_profile" "manifest"
+
+                Expect.isEmpty opened $"Neither manifest ({profile}) is opened"
+
+                let ionManifest =
+                    """morphir::{ionVersion: "0.1.0-draft.1", formatVersion: "4", kind: library, packageName: "acme/orders", pathBudget: 240}"""
+
+                let treeWithIon =
+                    Orders.catalogDocuments "v4" profile
+                    |> Map.toSeq
+                    |> Seq.map (fun (path, entry) -> path, Morphir.Files.VFile.ofText path (FixtureCatalog.ReadText entry))
+                    |> Map.ofSeq
+                    |> Morphir.Files.VFileTree.fromFileMap
+                    |> Driver.withFile "manifest.ion" ionManifest
+
+                let provider = Morphir.Files.VFileProviders.asFileProvider treeWithIon
+
+                DocumentTreeStore.openManifestSnapshot(
+                    ReadOptions.defaults,
+                    128,
+                    100_000,
+                    10_000L,
+                    System.Func<string>(fun () -> "r1"),
+                    provider,
+                    System.Threading.CancellationToken.None
+                )
+                |> Result.mapError Seq.toList
+                |> expectReadError "tree.ambiguous_profile" "manifest"
+
+                DocumentTreeStore.openPlainSnapshot(
+                    ReadOptions.defaults,
+                    System.Func<string>(fun () -> "r1"),
+                    provider
+                )
+                |> Result.mapError Seq.toList
+                |> expectReadError "tree.ambiguous_profile" "manifest"
+
+                DocumentTreeStore.openDetectedSnapshot(
+                    ReadOptions.defaults,
+                    System.Func<string>(fun () -> "r1"),
+                    provider
+                )
+                |> Result.mapError Seq.toList
+                |> expectReadError "tree.ambiguous_profile" "manifest"
+
+                ignore expectedManifest
+        }
+
+        test "Refuses .ion member file beside JSON or YAML sibling before opening either file" {
+            for profile, moduleLocation in
+                [ "plain-json", "pkg/acme/orders/domain/module.json"
+                  "plain-yaml", "pkg/acme/orders/domain/module.yaml" ] do
+                let source, opened = frozenOrders "v4" profile
+                let ionMember = "pkg/acme/orders/domain/order.value.ion"
+
+                let ambiguous =
+                    { source with
+                        ContainsFile =
+                            fun path ->
+                                path = ionMember
+                                || source.ContainsFile path
+                    }
+
+                let snapshot = read (BoundedTreeReader.openTree 1024L ambiguous)
+
+                BoundedTreeReader.readMember orderAddress snapshot
+                |> expectReadError "tree.ambiguous_profile" "pkg/acme/orders/domain/order.value"
+
+                let manifestLocation = if profile = "plain-json" then "manifest.json" else "manifest.yaml"
+
+                Expect.sequenceEqual
+                    opened
+                    [ manifestLocation; moduleLocation ]
+                    $"Neither {profile} nor .ion body is opened"
+        }
+
         test "Refuses a selected file in a different profile before opening it" {
             let source, opened = frozenOrders "v4" "plain-yaml"
             let yaml = "pkg/acme/orders/domain/order.value.yaml"

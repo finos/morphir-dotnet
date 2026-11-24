@@ -290,7 +290,7 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
         }
         else
         {
-            if (VerifyLosslessConversion(model, request.ReadLimits) is { } verifyFailure)
+            if (VerifyLosslessConversion(model, request.ReadLimits, ct) is { } verifyFailure)
             {
                 if (verifyFailure.Code == "data.lossy_conversion")
                     return Fail(GenerationFailureKind.Semantic, "data.lossy_conversion",
@@ -380,8 +380,23 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
         code is "depth_limit_exceeded" or "node_limit_exceeded" or "decoded_limit_exceeded"
         || code.EndsWith("_limit_exceeded", StringComparison.Ordinal);
 
-    private static (string Code, string Reason)? VerifyLosslessConversion(LoadedModel model, ModelReadLimits readLimits)
+    private static (string Code, string Reason)? VerifyLosslessConversion(
+        LoadedModel model, ModelReadLimits readLimits, CancellationToken ct)
     {
+        if (model.Representation == ModelRepresentation.Yaml && model.Original is RetainedInput.File yamlFile)
+        {
+            return Morphir.IR.Trees.DocumentTreeStore.TryVerifyLosslessSingleYamlDocument(
+                yamlFile.SourcePath,
+                yamlFile.Entry.Memory,
+                readLimits.MaxBytes,
+                readLimits.MaxDepth,
+                readLimits.MaxNodes,
+                ct,
+                out var yamlErrors)
+                ? null
+                : (yamlErrors[0].Code, yamlErrors[0].Message);
+        }
+
         if (model.Representation is not (ModelRepresentation.IonText or ModelRepresentation.IonBinary or ModelRepresentation.IonTree))
             return null;
 

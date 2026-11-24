@@ -409,6 +409,30 @@ module DocumentTreeStore =
             false
 
     /// <summary>
+    /// For C# callers: verifies that a single YAML document carries no envelope, context, <c>$meta</c>, or
+    /// unknown classic v3 members that single-document JSON cannot preserve losslessly.
+    /// C# calls this <c>TryVerifyLosslessSingleYamlDocument</c>.
+    /// </summary>
+    [<CompiledName("TryVerifyLosslessSingleYamlDocument")>]
+    let tryVerifyLosslessSingleYamlDocument
+        (
+            file: string,
+            bytes: ReadOnlyMemory<byte>,
+            maxBytes: int64,
+            maxDepth: int,
+            maxNodes: int,
+            ct: CancellationToken,
+            [<Out; MaybeNullWhen(true)>] errors: byref<IReadOnlyList<TreeDiagnostic>>
+        ) : bool =
+        match TreeFileSource.verifyLosslessSingleYamlDocument file bytes maxBytes maxDepth maxNodes ct with
+        | Ok() ->
+            errors <- Unchecked.defaultof<_>
+            true
+        | Error found ->
+            errors <- List.toArray found :> IReadOnlyList<TreeDiagnostic>
+            false
+
+    /// <summary>
     /// For C# callers: inspects only the root YAML framing and root mapping events of <paramref name="bytes"/>
     /// in O(1) parser steps to determine whether an extensionless file looks like a YAML document rather than
     /// JSON, without decoding the body or masking downstream YAML errors. Standard JSON object starts
