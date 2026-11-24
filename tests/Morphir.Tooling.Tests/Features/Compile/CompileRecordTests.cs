@@ -1,5 +1,6 @@
 // Copyright 2026 FINOS
 // SPDX-License-Identifier: Apache-2.0
+using System.Text;
 using System.Text.Json;
 using FluentAssertions;
 using Morphir.Frontend.FSharp;
@@ -64,6 +65,113 @@ public sealed class CompileRecordTests
         ir.GetProperty("version").GetString().Should().Be("v4");
         root.GetProperty("installed").EnumerateObject().Should().BeEmpty();
         root.TryGetProperty("tombstone", out _).Should().BeFalse();
+    }
+
+    [Test]
+    [Arguments("yaml", "morphir-ir.yaml")]
+    [Arguments("ion", "morphir-ir.ion")]
+    public async Task AnIrFormatWritesThatFormatAndTheRecordNamesIt(string format, string file)
+    {
+        using var workspace = Project();
+        (await Run(workspace, Inputs())).ExitCode.Should().Be(0);
+        var json = File.ReadAllBytes(workspace.PathOf(".morphir/out/compile.dest/morphir-ir.json"));
+
+        var result = await Run(workspace, Inputs("dist") with { IrFormat = format });
+        result.ExitCode.Should().Be(0, string.Join("\n", result.Diagnostics.Select(d => d.Diagnostic)));
+        var success = ((CompileConclusion.Succeeded)result.Conclusion).Value;
+        success.Publication.IrPath.Should().Be(workspace.PathOf($".morphir/out/compile.dest/{file}"));
+        success.Publication.Installed.Should().Equal(workspace.PathOf($"dist/{file}"));
+        File.Exists(workspace.PathOf(".morphir/out/compile.dest/morphir-ir.json")).Should().BeFalse("the run cleared compile.dest");
+        File.ReadAllBytes(workspace.PathOf($"dist/{file}")).Should().Equal(File.ReadAllBytes(success.Publication.IrPath));
+
+        var written = File.ReadAllBytes(success.Publication.IrPath);
+        written.Should().Equal(format == "yaml" ? Yaml(json) : Ion(json), "the format writes the IR that the JSON writer gives");
+
+        using var record = Record(workspace);
+        var root = record.RootElement;
+        root.GetProperty("value").EnumerateArray().Select(e => e.GetString()).Should().Equal(file);
+        var ir = root.GetProperty("ir");
+        ir.GetProperty("path").GetString().Should().Be(file);
+        ir.GetProperty("layout").GetString().Should().Be("single-file");
+        ir.GetProperty("format").GetString().Should().Be(format);
+        ir.GetProperty("version").GetString().Should().Be("v4");
+    }
+
+    [Test]
+    public async Task TheConfiguredIrFormatAppliesWithoutAFlag()
+    {
+        using var workspace = Project();
+        workspace.Write("morphir.toml", "[project]\nname = \"acme/car-rental\"\n\n[ir]\nformat = \"yaml\"\n");
+        var result = await Run(workspace, Inputs() with { PackageName = null });
+        result.ExitCode.Should().Be(0, string.Join("\n", result.Diagnostics.Select(d => d.Diagnostic)));
+        using var record = Record(workspace);
+        record.RootElement.GetProperty("ir").GetProperty("format").GetString().Should().Be("yaml");
+        File.ReadAllText(workspace.PathOf(".morphir/out/compile.dest/morphir-ir.yaml")).Should().StartWith("formatVersion: 4\ndistribution:\n");
+    }
+
+    [Test]
+    public async Task AV3IonCompileReadsBackAsAV3Library()
+    {
+        using var workspace = Project();
+        var result = await Run(workspace, Inputs() with { IrVersion = "3", IrFormat = "ion" });
+        result.ExitCode.Should().Be(0, string.Join("\n", result.Diagnostics.Select(d => d.Diagnostic)));
+        var bytes = File.ReadAllBytes(workspace.PathOf(".morphir/out/compile.dest/morphir-ir.ion"));
+        Encoding.UTF8.GetString(bytes).Should().StartWith("morphir::{\n  ionVersion: \"0.1.0-draft.1\",\n  formatVersion: \"3.0.0\",\n  kind: library,\n");
+        Morphir.Ion.IonIrReading.TryRead(bytes, out var document, out var failure).Should().BeTrue(failure?.ToString());
+        document!.Match((version, _) => $"classic {version}", (version, _) => $"v4 {version}").Should().Be("classic 3.0.0");
+        using var record = Record(workspace);
+        record.RootElement.GetProperty("ir").GetProperty("version").GetString().Should().Be("v3");
+        record.RootElement.GetProperty("ir").GetProperty("format").GetString().Should().Be("ion");
+    }
+
+    [Test]
+    public async Task IonAtIrVersionThreePointOneStatesThreePointOneInTheHeaderAndTheRecord()
+    {
+        using var workspace = Project();
+        var result = await Run(workspace, Inputs("dist") with { IrVersion = "3.1.0", IrFormat = "ion" });
+        result.ExitCode.Should().Be(0, string.Join("\n", result.Diagnostics.Select(d => d.Diagnostic)));
+        var bytes = File.ReadAllBytes(workspace.PathOf(".morphir/out/compile.dest/morphir-ir.ion"));
+        Encoding.UTF8.GetString(bytes).Should().StartWith("morphir::{\n  ionVersion: \"0.1.0-draft.1\",\n  formatVersion: \"3.1.0\",\n  kind: library,\n");
+        Morphir.Ion.IonIrReading.TryRead(bytes, out var document, out var failure).Should().BeTrue(failure?.ToString());
+        document!.Match((version, _) => $"classic {version}", (version, _) => $"v4 {version}").Should().Be("classic 3.1.0");
+        File.ReadAllBytes(workspace.PathOf("dist/morphir-ir.ion")).Should().Equal(bytes);
+        using var record = Record(workspace);
+        record.RootElement.GetProperty("ir").GetProperty("version").GetString().Should().Be("v3.1.0");
+        record.RootElement.GetProperty("ir").GetProperty("format").GetString().Should().Be("ion");
+        ((CompileConclusion.Succeeded)result.Conclusion).Value.IrVersion.Text.Should().Be("3.1.0");
+    }
+
+    [Test]
+    [Arguments("json")]
+    [Arguments("yaml")]
+    public async Task IrVersionThreePointOneIsServedOnlyByIon(string format)
+    {
+        using var workspace = Project();
+        var result = await Run(workspace, Inputs() with { IrVersion = "3.1.0", IrFormat = format });
+        result.ExitCode.Should().Be(2);
+        result.Diagnostics.Select(d => d.Diagnostic.CodeOrNull?.Value).Should().Contain("compile.unsupported_ir_version");
+    }
+
+    [Test]
+    public async Task IonForIrVersionTwoFailsBeforeCompilationAndWritesNoIr()
+    {
+        using var workspace = Project();
+        var result = await Run(workspace, Inputs() with { IrVersion = "2", IrFormat = "ion" });
+        result.ExitCode.Should().Be(2);
+        result.Diagnostics.Select(d => d.Diagnostic.CodeOrNull?.Value).Should().Contain("compile.unsupported_setting");
+        Directory.Exists(workspace.PathOf(".morphir/out/compile.dest")).Should().BeFalse();
+    }
+
+    private static byte[] Yaml(byte[] json)
+    {
+        Morphir.IR.Trees.CanonicalYamlWriter.TryWriteJson(json, out var yaml, out var failure).Should().BeTrue(failure);
+        return yaml!;
+    }
+
+    private static byte[] Ion(byte[] json)
+    {
+        Morphir.Ion.IonIrWriting.TryWriteJson(json, out var ion, out var failure).Should().BeTrue(failure?.Message);
+        return ion!;
     }
 
     [Test]

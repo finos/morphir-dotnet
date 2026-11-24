@@ -129,9 +129,10 @@ public sealed class CompileRunner(
             yield return new CompileEvent.StageStarted(CompileStage.Publish);
             var publishRun = await Guard(CompileStage.Publish, () => publication.PublishAsync(written.Tree is { } tree
                 ? CompilePublishRequest.ForDocumentTree(compiled.Frontend.Language.Value, writer.Target.Version,
-                    sources.Selection.ProjectFileOrNull, written.Bytes, tree)
-                : new CompilePublishRequest(compiled.Frontend.Language.Value, writer.Target.Version,
-                    sources.Selection.ProjectFileOrNull, written.Bytes), ct), ct);
+                    sources.Selection.ProjectFileOrNull, written.Published, tree)
+                : new CompilePublishRequest(compiled.Frontend.Language.Value, settings.IrVersion.Value.Version,
+                    sources.Selection.ProjectFileOrNull, written.Published)
+                { Format = settings.IrFormat.Value }, ct), ct);
             foreach (var e in Report(CompileStage.Publish, publishRun)) yield return e;
             if (!publishRun.Passed(out var published))
             {
@@ -160,7 +161,8 @@ public sealed class CompileRunner(
                 { Sources = sources, Frontend = success.Frontend, Compiled = success }), settings);
                 yield break;
             }
-            await foreach (var e in generation.RunAsync(target, success, settings, written.Bytes, _passes, ct)) yield return e;
+            var (input, format) = CompileIrFormats.GenerationInput(settings.IrFormat.Value, written.Json, written.Published);
+            await foreach (var e in generation.RunAsync(target, success, settings, input, format, _passes, ct)) yield return e;
         }
         finally
         {
@@ -185,7 +187,8 @@ public sealed class CompileRunner(
         if (!settings.TryGetValue(out var value)) return Checked<ResolvedRun>.Fail(settings.Diagnostics);
         resolved(value);
         var diagnostics = new List<Diagnostic>(settings.Diagnostics);
-        var writer = writers.Resolve(value.IrVersion.Value.Version);
+        // The writer of the JSON that every format starts from. Ion at 3.1.0 starts from the JSON of IR 3.
+        var writer = writers.Resolve(CompileIrFormats.WriterVersion(value.IrFormat.Value, value.IrVersion.Value.Version));
         diagnostics.AddRange(writer.Diagnostics);
         if (!writer.TryGetValue(out var resolvedWriter)) return Checked<ResolvedRun>.Fail(diagnostics);
 
@@ -234,8 +237,8 @@ public sealed class CompileRunner(
 
     private sealed record Compiled(ResolvedFrontend Frontend, CompiledPackage Package);
 
-    /// <summary>The bytes that the writer wrote, and the document tree of their model for <see cref="IrLayout.DocumentTree"/>.</summary>
-    private sealed record WrittenIr(ReadOnlyMemory<byte> Bytes, Morphir.IR.Trees.DocumentTreeStore.WrittenTree? Tree);
+    /// <summary>The JSON bytes and encoded bytes that the writer wrote, and the document tree for <see cref="IrLayout.DocumentTree"/>.</summary>
+    private sealed record WrittenIr(ReadOnlyMemory<byte> Json, ReadOnlyMemory<byte> Published, Morphir.IR.Trees.DocumentTreeStore.WrittenTree? Tree);
 
     /// <summary>
     /// Writes the model with the writer of the requested version and, for <see cref="IrLayout.DocumentTree"/>, splits the
@@ -245,15 +248,21 @@ public sealed class CompileRunner(
     private static async Task<Checked<WrittenIr>> WriteAsync(ResolvedWriter writer, CompileSettings settings, CompiledPackage package,
         CancellationToken ct)
     {
-        var written = writer.Writer.Write(writer.Target, PublishedLayout, package.Model);
-        if (!written.TryGetValue(out var bytes)) return Checked<WrittenIr>.Fail(written.Diagnostics);
+        var written = writer.Writer.Write(writer.Target, CompileIrFormats.WriterOptions(settings.IrFormat.Value, PublishedLayout), package.Model);
+        if (!written.TryGetValue(out var json)) return Checked<WrittenIr>.Fail(written.Diagnostics);
         if (settings.IrLayout.Value == IrLayout.SingleFile)
-            return Checked<WrittenIr>.Of(new WrittenIr(bytes, null), written.Diagnostics);
-        var tree = await Morphir.Tooling.Infrastructure.LargeStack.RunAsync(() => CompileDocumentTree.Write(bytes),
+        {
+            var encoded = CompileIrFormats.Encode(settings.IrFormat.Value, json, settings.IrVersion.Value.Version);
+            var singleDiagnostics = written.Diagnostics.Concat(encoded.Diagnostics);
+            return encoded.TryGetValue(out var bytes)
+                ? Checked<WrittenIr>.Of(new WrittenIr(json, bytes, null), singleDiagnostics)
+                : Checked<WrittenIr>.Fail(singleDiagnostics);
+        }
+        var tree = await Morphir.Tooling.Infrastructure.LargeStack.RunAsync(() => CompileDocumentTree.Write(json),
             "morphir compile document tree", ct);
         var diagnostics = written.Diagnostics.Concat(tree.Diagnostics);
         return tree.TryGetValue(out var output)
-            ? Checked<WrittenIr>.Of(new WrittenIr(bytes, output), diagnostics)
+            ? Checked<WrittenIr>.Of(new WrittenIr(json, json, output), diagnostics)
             : Checked<WrittenIr>.Fail(diagnostics);
     }
 

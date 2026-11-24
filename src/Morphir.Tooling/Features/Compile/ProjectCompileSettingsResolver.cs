@@ -162,13 +162,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
         var working = CompilePaths.RealPath(context.WorkingDirectory);
         var baseDirectory = loaded.ProjectRoot ?? working;
 
-        foreach (var (key, value, reason) in new[]
-                 {
-                     (new[] { "ir", "format" }, "yaml", "YAML IR is not implemented. Use \"json\"."),
-                     (new[] { "ir", "format" }, "ion", "Ion IR output is not implemented. Use \"json\"."),
-                 })
-            if (config.String(key) is { } setting && setting.Value == value)
-                Error(CompileCodes.UnsupportedSetting, $"The setting {string.Join('.', key)} = \"{value}\" in {Describe(setting.Origin)} is not supported. {reason}");
+        // Both ir.layout and ir.format are now implemented across single-file and document-tree.
 
         // Language: CLI, else frontend.language from a configuration file. The upstream default is not a selection.
         Setting<LanguageId>? language = null;
@@ -209,6 +203,21 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             Error(CompileCodes.UnsupportedSetting,
                 $"The layout document-tree from {Describe(tree.Origin)} is not supported for IR version {requested.Value.Text} from {Describe(requested.Origin)}. "
                 + "Document trees exist only for IR 3 (3.1.0) and IR 4. Use \"single-file\", or IR version 3 or 4.");
+
+        // IR format: --ir-format, else ir.format, else JSON. Ion carries IR 3 and 4 only.
+        var formatText = overrides.IrFormat is { } cliFormat
+            ? new Setting<string>(cliFormat, new SettingOrigin.CommandLine("--ir-format"))
+            : config.String("ir", "format") ?? new Setting<string>(IrStorageNames.Name(IrStorageFormat.Json), SettingOrigin.Default.Instance);
+        Setting<IrStorageFormat>? format = null;
+        if (IrStorageNames.TryParseFormat(formatText.Value, out var parsedFormat))
+            format = new(parsedFormat, formatText.Origin);
+        // The configuration check owns a configured value: it already reported ir.format as an error.
+        else if (!(formatText.Origin is SettingOrigin.Configuration && ReportsKey(loaded, "ir.format")))
+            Error(CompileCodes.InvalidSetting,
+                $"The IR format '{formatText.Value}' from {Describe(formatText.Origin)} is not valid. Use \"json\", \"yaml\" or \"ion\".");
+        if (format is { Value: IrStorageFormat.Ion } && version is not null && !IonCarries(version.Value.Version))
+            Error(CompileCodes.UnsupportedSetting,
+                $"The setting {FormatSettingText(format.Origin)} is not supported for IR version {version.Value.Text}. The Ion IR format carries IR 3 and 4. Use \"json\" or \"yaml\", or IR version 3 or 4.");
 
         // Exposed modules.
         Setting<ImmutableArray<string>>? exposed = config.Strings("project", "exposed_modules");
@@ -289,7 +298,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             else output = new(Path.GetFullPath(outputText, working), new SettingOrigin.CommandLine("--output"));
         }
 
-        if (errors.Count > 0 || package is null || version is null || layout is null || sources is null || place is null)
+        if (errors.Count > 0 || package is null || version is null || layout is null || format is null || sources is null || place is null)
             return Checked<CompileSettings>.Fail(warnings.Concat(errors));
 
         return Checked<CompileSettings>.Of(new CompileSettings
@@ -298,6 +307,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             Package = package,
             IrVersion = version,
             IrLayout = layout,
+            IrFormat = format,
             ExposedModules = exposed,
             Extension = extension,
             InstalledExtensionId = installedId,
@@ -392,6 +402,22 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
     private static bool HasDocumentTrees(Morphir.IR.Versioning.FormatVersion version) =>
         !Morphir.Compilation.FormatVersion.SameVersion(version, Morphir.IR.Versioning.FormatVersion.NewClassic(1))
         && !Morphir.Compilation.FormatVersion.SameVersion(version, Morphir.IR.Versioning.FormatVersion.NewClassic(2));
+
+    /// <summary>
+    /// Whether the Ion IR format carries a format version (<c>3</c>, <c>3.0.0</c>, <c>3.1.0</c>, <c>4</c> or
+    /// <c>4.0.0</c>): the check of the Ion writer itself, so the two cannot disagree.
+    /// </summary>
+    public static bool IonCarries(Morphir.IR.Versioning.FormatVersion version) => Morphir.Ion.IonIrWriting.Carries(version);
+
+    private static bool ReportsKey(LoadedCompileConfiguration loaded, string key) =>
+        loaded.Diagnostics.Any(diagnostic => diagnostic.Severity == ConfigSeverity.Error && string.Join('.', diagnostic.KeyPath) == key);
+
+    private static string FormatSettingText(SettingOrigin origin) => origin switch
+    {
+        SettingOrigin.CommandLine { Flag: var flag } => $"{flag} ion",
+        SettingOrigin.Configuration { File: var file } => $"ir.format = \"ion\" in {file}",
+        _ => "ir.format = \"ion\"",
+    };
 
     /// <summary>
     /// The key <c>[codegen.&lt;target&gt;].extension</c> of a target, for messages, as TOML writes it: a dotted target id

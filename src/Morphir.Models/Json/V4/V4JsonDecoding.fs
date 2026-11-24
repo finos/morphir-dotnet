@@ -43,25 +43,8 @@ module internal V4JsonDecoding =
                 }
         )
 
-    let memberAt (location: string) (name: string) =
-        let isPlain =
-            name <> ""
-            && name
-               |> Seq.forall (fun c ->
-                   Char.IsAsciiLetterOrDigit c
-                   || c = '-'
-                   || c = '_'
-               )
-
-        if isPlain then
-            location
-            + "."
-            + name
-        else
-            location
-            + "[\""
-            + name
-            + "\"]"
+    /// The location of a member, as RFC 9535 spells it (JsonPaths.memberAt).
+    let memberAt (location: string) (name: string) = Morphir.Json.JsonPaths.memberAt location name
 
     let itemAt (location: string) (index: int) =
         location

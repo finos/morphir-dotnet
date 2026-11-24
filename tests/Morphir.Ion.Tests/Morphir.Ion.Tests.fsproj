@@ -23,6 +23,8 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\src\Morphir.Ion\Morphir.Ion.fsproj" />
+        <!-- The shared distribution builder and FixtureCatalog, for the writer's named cases. -->
+        <ProjectReference Include="..\Morphir.Models.TestSupport\Morphir.Models.TestSupport.fsproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -41,6 +43,7 @@
         <Compile Include="IonIrTreeTests.fs" />
         <Compile Include="IonIrTreeReferenceTests.fs" />
         <Compile Include="IonIrParserTests.fs" />
+        <Compile Include="IonIrWriterTests.fs" />
         <Compile Include="Program.fs" />
     </ItemGroup>
 

@@ -56,6 +56,7 @@
         <Compile Include="IR/Trees/BoundedTreeTests.fs" />
         <Compile Include="IR/Trees/TreeYamlTests.fs" />
         <Compile Include="IR/Trees/YamlTreeStoreTests.fs" />
+        <Compile Include="IR/Trees/CanonicalYamlTests.fs" />
         <Compile Include="IR/Trees/V4StoreTests.fs" />
         <Compile Include="IR/Trees/ClassicStoreTests.fs" />
         <Compile Include="IR/Trees/RefusalTests.fs" />

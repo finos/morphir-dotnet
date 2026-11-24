@@ -10,6 +10,28 @@ type IrDocument =
     /// <summary>An IR v4 distribution.</summary>
     | V4Ir of formatVersion: string * Morphir.IR.V4.Distribution
 
+    /// <summary>The format version the document states, such as <c>3.1.0</c>.</summary>
+    member this.FormatVersion =
+        match this with
+        | ClassicIr(version, _)
+        | V4Ir(version, _) -> version
+
+    /// <summary>For C# callers: one function for each family, so every case is handled.</summary>
+    member this.Match<'r>
+        (
+            classic: System.Func<string, Distribution<JsonElement, JsonElement>, 'r>,
+            v4: System.Func<string, Morphir.IR.V4.Distribution, 'r>
+        ) : 'r =
+        match this with
+        | ClassicIr(version, distribution) -> classic.Invoke(version, distribution)
+        | V4Ir(version, distribution) -> v4.Invoke(version, distribution)
+
+    /// <summary>The family and the format version, such as <c>classic IR 3.1.0</c> or <c>IR 4.0.0</c>.</summary>
+    override this.ToString() =
+        match this with
+        | ClassicIr(version, _) -> $"classic IR {version}"
+        | V4Ir(version, _) -> $"IR {version}"
+
 /// <summary>Why the IR of an Ion document could not be read.</summary>
 type IonIrError = {
     /// <summary>A stable code, such as <c>ir_version_mismatch</c> or a JSON reader rule.</summary>
@@ -24,4 +46,11 @@ type IonIrError = {
     /// and this is the place in that file, such as <c>$[0].types[1].bogus</c>, counted from the file's own first value.
     /// </summary>
     Location: string option
-}
+}    with
+
+    /// <summary>The code, the place when there is one, and the message.</summary>
+    override this.ToString() =
+        match this.Location, this.Path with
+        | Some location, _
+        | None, Some location -> $"{this.Code} at {location}: {this.Message}"
+        | None, None -> $"{this.Code}: {this.Message}"

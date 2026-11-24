@@ -53,6 +53,15 @@ public static class FixtureCatalog
         /// </summary>
         public static IReadOnlyList<KitFileSpelling> FileSpellings => DocumentTreeCases.Value.FileSpellings;
 
+        private static readonly Lazy<IReadOnlyList<KitCanonicalSpelling>> Spellings = new(() =>
+            [.. UpstreamIr.KitFeatures.SelectMany(feature => KitSpellingReader.Read(Path.GetFileName(feature.RelativePath), ReadText(feature)))]);
+
+        /// <summary>
+        /// Each case of the kit features pinned beside the Ion fixtures (<see cref="UpstreamIr.KitFeatures"/>) that states
+        /// both a canonical YAML and a canonical JSON spelling, in the kit's order: the vectors of the canonical YAML writer.
+        /// </summary>
+        public static IReadOnlyList<KitCanonicalSpelling> CanonicalSpellings => Spellings.Value;
+
         /// <summary>The tree case with this kit id.</summary>
         public static KitTreeCase Case(string id) =>
             DocumentTree.FirstOrDefault(kitCase => kitCase.Id == id)
@@ -357,25 +366,254 @@ public static class FixtureCatalog
             Document("mep/fixtures/plain-ir.json", "fd49ad8b0cab49216323beb969c08f91a888925dbb995838c57a05b48a80bb2f"),
         ];
 
-        /// <summary>The Ion text daily-rate pair fixture (<c>pairs/v3-daily-rate.ion</c>).</summary>
-        public static FixtureEntry V3DailyRateIon { get; } =
-            Document("pairs/v3-daily-rate.ion", "057ff48219c0280173e42ae9649907cf8c3e6a30586a007f5fd6c71e57d982e0");
+        private static FixtureEntry KitFeature(string name, string sha256) =>
+            new($"the Ion snapshot of the kit feature {name}", Directory + "kit/" + name, sha256, Provenance);
 
         /// <summary>The Ion text MEP rich-model wrapper fixture (<c>mep/fixtures/rich-model.ion</c>).</summary>
         public static FixtureEntry RichModelIon { get; } =
             Document("mep/fixtures/rich-model.ion", "3c314a4e29bb3e1477171aff632fecec35257d0835c2e18549c732c609dfa664");
 
+        /// <summary>The Ion text daily-rate pair fixture (<c>pairs/v3-daily-rate.ion</c>).</summary>
+        public static FixtureEntry V3DailyRateIon =>
+            IonReferences.First(entry => entry.RelativePath == Directory + "pairs/v3-daily-rate.ion");
+
         /// <summary>The Ion document-tree files of <c>trees/v3-daily-rate/</c>.</summary>
         public static IReadOnlyList<FixtureEntry> V3DailyRateIonTreeFiles { get; } =
-        [
-            Document("trees/v3-daily-rate/manifest.ion", "655a8604be8cd2db6488ce45cd3152aabbe62b870f93fdcd4af94f1c90fa50a1"),
-            Document("trees/v3-daily-rate/pkg/car/rental/inventory/daily-rate.value.ion", "754ce7627f3db7199a6f7ad514a064e5368c50471eabfd0348af1a755d2aa196"),
-            Document("trees/v3-daily-rate/pkg/car/rental/inventory/module.ion", "80f3802f6bd8134981575b708e23a8174ae375f0905f4d0b0f68545a0396b6af"),
-        ];
+            [.. IonReferences.Where(entry => entry.RelativePath.StartsWith(Directory + "trees/v3-daily-rate/", StringComparison.Ordinal))];
 
         /// <summary><see cref="V3DailyRateIonTreeFiles"/> as a tree: the Ion document tree for <c>v3-daily-rate</c>.</summary>
         public static FixtureTree V3DailyRateIonTree { get; } =
             FixtureTree.Below("the Ion document tree for v3-daily-rate", Directory + "trees/v3-daily-rate/", V3DailyRateIonTreeFiles);
+
+        /// <summary>
+        /// The kit features of finos/morphir <c>spec/ir/mck/</c> pinned beside the Ion fixtures. Each scenario that
+        /// states a canonical YAML and a canonical JSON spelling is a vector of the canonical YAML writer.
+        /// </summary>
+        public static IReadOnlyList<FixtureEntry> KitFeatures { get; } =
+        [
+            KitFeature("definitions.feature", "cacff2dfe5a0edd7f759a3db4de50289cc1c37f3aeb080c5525f1054c984d3e5"),
+            KitFeature("distributions.feature", "05ae2cfe848f98bced7a6dda407a6c08ffac15ed0e334173f7025de963fa3936"),
+            KitFeature("names.feature", "9e7de8831da4270ccdcc701f9a57f929fd39d376b9743821a3d253973cf19e43"),
+            KitFeature("patterns-and-literals.feature", "45b71901c8a2cb6ffe636c165b105c1fcdfa66bdf1d28b3fecb21108ed44652d"),
+            KitFeature("types.feature", "4dc0c0e95e11d4203e96c8d561676a9c23134e3635ae68cc3e840eee8f7eeed8"),
+            KitFeature("values.feature", "9bbb3d092e29148d5eac4e8cd63bf2f9a9d5418b38755fba9453dfc108248f8c"),
+        ];
+
+        /// <summary>
+        /// The Ion IR draft of finos/morphir (<c>docs/design/draft/ir/ion.md</c>) pinned beside the Ion fixtures, whose
+        /// examples state canonical Ion bytes, such as the canonical empty v3 library.
+        /// </summary>
+        public static FixtureEntry IonDraft { get; } = new(
+            "the pinned Ion IR draft", Directory + "ion-draft.md", "ebb72938b80d65e91683d484a98444e79835d3dd7aca317397d88dd8e2915a5d", Provenance);
+
+        /// <summary>
+        /// The hand-written v4 input of the escaped-names reference tree (<c>trees/inputs/v4-escaped-names.input.json</c>),
+        /// whose names need escaping: Windows device names, initialisms and tree file names.
+        /// </summary>
+        public static FixtureEntry EscapedNamesInput { get; } = new(
+            "the v4 input with names that need escaping", Directory + "trees/inputs/v4-escaped-names.input.json",
+            "69a4f83198c8ac9b9c9953a3d9899e25df1d354938ad94257ea42d269554dca9", Provenance);
+
+        private static FixtureEntry IonReference(string name, string sha256) =>
+            new($"the reference Ion file {name}", Directory + name, sha256, Provenance);
+
+        /// <summary>
+        /// The Ion single files and document trees that the pinned reference CLI wrote (<c>pairs/*.ion</c> and
+        /// <c>trees/</c>), by their path below <see cref="Directory"/>: the byte reference of the canonical Ion writer.
+        /// </summary>
+        public static IReadOnlyList<FixtureEntry> IonReferences { get; } =
+        [
+            IonReference("pairs/books-and-records-example.ion", "d7cfa91adc4759d621a43a058c767d252f5a70b29c00ff828de2611de636c21c"),
+            IonReference("pairs/complete-example.ion", "5f56fee733a00e51ae9920ed456c2860194a2a1fa425304e7e923e4fca4caa48"),
+            IonReference("pairs/direct-rules-example.ion", "c0097541b81a4dec2967f8b4c3fbe0a02c6bab17aa914337cfa6c29bca12febe"),
+            IonReference("pairs/greeting-example.ion", "a30ed9bf164a3260bb7df6db7952894eddc7c7399af99072685c0f4ce0f237b9"),
+            IonReference("pairs/rule-set-example.ion", "3ce9c2873a84192beeccfb7583f986ba17f78137b31d5f96ebf9f4405536997c"),
+            IonReference("pairs/v3-daily-rate.ion", "057ff48219c0280173e42ae9649907cf8c3e6a30586a007f5fd6c71e57d982e0"),
+            IonReference("pairs/v3-library-nodes.ion", "3941df9f799d1dc2830d2e82ea991bb30f85b27683311a7b118cf245624df2b1"),
+            IonReference("pairs/v3-specs.ion", "9e80b67c34744c36dee004e20d1a4ba9e4f733ca1c414db2ebe9779224e43991"),
+            IonReference("pairs/v4-application.ion", "dc72d6b350cc826e433f330e036c0a5d07359daa635d482a7f3c3961f99bcec7"),
+            IonReference("pairs/v4-empty-library.ion", "fc5826b33ae0efc7830a2b6cc1fad2e014cf30a10a4ea357f1e08073ae005694"),
+            IonReference("pairs/v4-library-nodes.ion", "02a8815ed8c1d665c7b71a951f6f883779c7f87964765ba38c3ed5e66d7e414a"),
+            IonReference("pairs/v4-specs.ion", "e983cc0abfaf6687a6bf66bec97091589de24fcaa016e9665bcab66c4e78346f"),
+            IonReference("trees/books-and-records-example/deps/morphir/_sdk/@/basics/bool.type.ion", "dfd8dc4e56c928cc6897ed8af8f132dd60f55266231d24a004da7152a8c5557f"),
+            IonReference("trees/books-and-records-example/deps/morphir/_sdk/@/basics/float.type.ion", "dfd8dc4e56c928cc6897ed8af8f132dd60f55266231d24a004da7152a8c5557f"),
+            IonReference("trees/books-and-records-example/deps/morphir/_sdk/@/basics/int.type.ion", "dfd8dc4e56c928cc6897ed8af8f132dd60f55266231d24a004da7152a8c5557f"),
+            IonReference("trees/books-and-records-example/deps/morphir/_sdk/@/basics/module.ion", "5f9a8cb0c573e9559b69582d2d00bdf93bdee121809fb5401c9d6450e3f7865a"),
+            IonReference("trees/books-and-records-example/deps/morphir/_sdk/@/dict/dict.type.ion", "3591857c8682c385e322292be8a221c5c1108d92acc4d36bef034b9b28f558ac"),
+            IonReference("trees/books-and-records-example/deps/morphir/_sdk/@/dict/module.ion", "5f9a8cb0c573e9559b69582d2d00bdf93bdee121809fb5401c9d6450e3f7865a"),
+            IonReference("trees/books-and-records-example/deps/morphir/_sdk/@/string/module.ion", "5f9a8cb0c573e9559b69582d2d00bdf93bdee121809fb5401c9d6450e3f7865a"),
+            IonReference("trees/books-and-records-example/deps/morphir/_sdk/@/string/string.type.ion", "dfd8dc4e56c928cc6897ed8af8f132dd60f55266231d24a004da7152a8c5557f"),
+            IonReference("trees/books-and-records-example/manifest.ion", "7fc68fc3fa1b394c8e13e585725b30c480436d1217adc70a3c7b42f96bb0c80b"),
+            IonReference("trees/books-and-records-example/pkg/morphir/reference/model/books-and-records/book.type.ion", "2f45f9c13b30e5eb1ba72b12246f2436edbde938782fec393829d183255a3917"),
+            IonReference("trees/books-and-records-example/pkg/morphir/reference/model/books-and-records/close-deal.value.ion", "7794ef168039953be6b589133b1081f795747b575a285f716f7898017192ae31"),
+            IonReference("trees/books-and-records-example/pkg/morphir/reference/model/books-and-records/deal-cmd.type.ion", "22c144e8e1291ad29b22bc95b50e6b754d4169c89f5f08b83d4e0a6d09c34085"),
+            IonReference("trees/books-and-records-example/pkg/morphir/reference/model/books-and-records/deal-event.type.ion", "85e1e2314119af055a8f7439e400ff95d2468dec094398517ced5715b1456690"),
+            IonReference("trees/books-and-records-example/pkg/morphir/reference/model/books-and-records/deal.type.ion", "243ad5f8b47c3ef0cc379a321ed7ad1b847b4bd59173ad66ff3d6a53cb4b3c41"),
+            IonReference("trees/books-and-records-example/pkg/morphir/reference/model/books-and-records/module.ion", "ed6dd45a59afccb9adfc7eb841466d7ca2601cd27d480f221f10345bd84582e9"),
+            IonReference("trees/books-and-records-example/pkg/morphir/reference/model/books-and-records/open-deal.value.ion", "2068731d7837fb1e1e1f6695f57b9888522ad2fd158596fa669f2155eac0ced6"),
+            IonReference("trees/books-and-records-example/pkg/morphir/reference/model/books-and-records/price.type.ion", "757633b5cdefc3b83678d260ae9a21521fc9dba5db85df00bd9e174df433bc16"),
+            IonReference("trees/books-and-records-example/pkg/morphir/reference/model/books-and-records/product-_id.type.ion", "8e7084b8b47322e57613b60c3a46e939afac80bb73c5993c79fab7d4b256f0a8"),
+            IonReference("trees/books-and-records-example/pkg/morphir/reference/model/books-and-records/quantity.type.ion", "d1cd62d4de91812e79f877a4f48a95196a1711b8026d808dced2397b0d6fc4a4"),
+            IonReference("trees/complete-example/deps/morphir/_sdk/@/basics/add.value.ion", "f557fe8bad0641a87d39756a5812d84143520f8e0e3723b9b58a461f618afb49"),
+            IonReference("trees/complete-example/deps/morphir/_sdk/@/basics/bool.type.ion", "dfd8dc4e56c928cc6897ed8af8f132dd60f55266231d24a004da7152a8c5557f"),
+            IonReference("trees/complete-example/deps/morphir/_sdk/@/basics/float.type.ion", "dfd8dc4e56c928cc6897ed8af8f132dd60f55266231d24a004da7152a8c5557f"),
+            IonReference("trees/complete-example/deps/morphir/_sdk/@/basics/int.type.ion", "dfd8dc4e56c928cc6897ed8af8f132dd60f55266231d24a004da7152a8c5557f"),
+            IonReference("trees/complete-example/deps/morphir/_sdk/@/basics/module.ion", "5f9a8cb0c573e9559b69582d2d00bdf93bdee121809fb5401c9d6450e3f7865a"),
+            IonReference("trees/complete-example/deps/morphir/_sdk/@/list/list.type.ion", "b0c63dd3a1b3536f3e675e951bcbde72fe909fca8f8d6b52b21a3b40217a678c"),
+            IonReference("trees/complete-example/deps/morphir/_sdk/@/list/map.value.ion", "7d4d40aec35da74aa8be1f039c50e000b28a3c7feebf17b2f0662a77b97da148"),
+            IonReference("trees/complete-example/deps/morphir/_sdk/@/list/module.ion", "5f9a8cb0c573e9559b69582d2d00bdf93bdee121809fb5401c9d6450e3f7865a"),
+            IonReference("trees/complete-example/manifest.ion", "d96a861b1418f0f6493772700e6f25af335dc78f94fe45ec2059e76e0c259447"),
+            IonReference("trees/complete-example/pkg/regulation/u-s/f-r-2052-a/data-tables/calculate-total.value.ion", "2bd1612aa97524d265ea5f163e787b2f64c6e4ce349eb499355415cf7d5fb960"),
+            IonReference("trees/complete-example/pkg/regulation/u-s/f-r-2052-a/data-tables/data-tables.type.ion", "f6bb4f94e2f4eb3a8462cae0ff028815ba98f9c672aadf88e72821ebb6758b9c"),
+            IonReference("trees/complete-example/pkg/regulation/u-s/f-r-2052-a/data-tables/inflows.type.ion", "5bd66492eed9b133e1463ddee48b1bc14e8715b7a259c9b0965f815d6d514778"),
+            IonReference("trees/complete-example/pkg/regulation/u-s/f-r-2052-a/data-tables/module.ion", "4da9a719f7698c8d76fe1394e0243373cff72c4dea71d86e1683911ce29024ca"),
+            IonReference("trees/greeting-example/manifest.ion", "21950920a70f33d6bbd756de2285fd6336e407b8f2d23d642c5db330cac101c1"),
+            IonReference("trees/greeting-example/pkg/elm-compat/api/api-error.type.ion", "5b2420d02a8ca16785006ab55bcbaad67bc48db2359ac32a11a805b935a84372"),
+            IonReference("trees/greeting-example/pkg/elm-compat/api/create-order.value.ion", "c93b7b107598883caf9d430181c6c3a7585cf4debd466de931b0388690e3ba10"),
+            IonReference("trees/greeting-example/pkg/elm-compat/api/get-order-status.value.ion", "4dc7a93830cc27d61c9c1661694a82d6af89151b4325bec4dd4663587f4f3545"),
+            IonReference("trees/greeting-example/pkg/elm-compat/api/module.ion", "50df6bb4990e278394e395d74f69097cbd53514a5bbf4a61d1d38ce4d2dfee31"),
+            IonReference("trees/greeting-example/pkg/elm-compat/api/process-request.value.ion", "25f2a1faf2c4f2c2184dc716319346a2dcfbc0145796b98544f2b8b561517693"),
+            IonReference("trees/greeting-example/pkg/elm-compat/api/request.type.ion", "0f9b2c5d79d7afe1f5036b0d53e76c81c316d44351392441b7c69ae4b7dc0d54"),
+            IonReference("trees/greeting-example/pkg/elm-compat/api/response.type.ion", "2a6a784244ee119326e7b513fefd52ca874e1d8411274c2b643f7a83c1536e0a"),
+            IonReference("trees/greeting-example/pkg/elm-compat/main/apply-discount.value.ion", "e582130011dd9e600a19d15ef3b5085ece0718353d45a5f35ec95933e036de3d"),
+            IonReference("trees/greeting-example/pkg/elm-compat/main/calculate-total.value.ion", "786c9c2659d13bd5bd18656d669d161b66220a373520473bad723fbdf2837c7b"),
+            IonReference("trees/greeting-example/pkg/elm-compat/main/customer-order.type.ion", "a90419b8c8194b841750998f660f35f0cd03cca99a8390352d6d4fd707b9da86"),
+            IonReference("trees/greeting-example/pkg/elm-compat/main/is-valid-order.value.ion", "01ecb4c369a42c3aedff56a4a27b24a4994e0e8159576643242529c77d28b7b7"),
+            IonReference("trees/greeting-example/pkg/elm-compat/main/module.ion", "1444e6e7c6b1ee85c3c82f9f1be93d6493d8ebcb728ddbd4428e8a326525f070"),
+            IonReference("trees/greeting-example/pkg/elm-compat/main/order-status-to-string.value.ion", "4310df2fe146a6717e458708993b03811be02dbc61984fcc4df8ad3660cc1096"),
+            IonReference("trees/greeting-example/pkg/elm-compat/main/order-status.type.ion", "9c795b38f8d6c07ee0166bdbdb93d208a0083765b264e9b9bbc4cb23c269dd0c"),
+            IonReference("trees/greeting-example/pkg/elm-compat/main/product-id.type.ion", "9497e57023b8eb1c692512ae7f802c62c1061f9b7c68455e47d88bdcb16898f3"),
+            IonReference("trees/greeting-example/pkg/elm-compat/main/product.type.ion", "cc02a5e45241f825713996ccea6295656ddbbd5ce87298e5e52539b24281dc74"),
+            IonReference("trees/greeting-example/pkg/elm-compat/main/quantity.type.ion", "78e0874f75916f73431c3ebdfcc9829fe38ef5741f7b96b1c8ebdf8865c21139"),
+            IonReference("trees/v3-daily-rate/manifest.ion", "655a8604be8cd2db6488ce45cd3152aabbe62b870f93fdcd4af94f1c90fa50a1"),
+            IonReference("trees/v3-daily-rate/pkg/car/rental/inventory/daily-rate.value.ion", "754ce7627f3db7199a6f7ad514a064e5368c50471eabfd0348af1a755d2aa196"),
+            IonReference("trees/v3-daily-rate/pkg/car/rental/inventory/module.ion", "80f3802f6bd8134981575b708e23a8174ae375f0905f4d0b0f68545a0396b6af"),
+            IonReference("trees/v3-library-nodes/deps/my/dep/@/util/choice.type.ion", "9560f87171f96c0382be4a07f6be53bd17e45d93a89409e4140e2dbb74d9b97d"),
+            IonReference("trees/v3-library-nodes/deps/my/dep/@/util/handle.type.ion", "216bbd8c9d1494215721a2b27cd4b2e336f190a76372f031f050fac623fbab82"),
+            IonReference("trees/v3-library-nodes/deps/my/dep/@/util/id.type.ion", "584123cb814cddac15067225adcf0adf5beeeae9ebdc9ed701f970a9b32f8d3e"),
+            IonReference("trees/v3-library-nodes/deps/my/dep/@/util/module.ion", "152b799b5d6cf78cdeebf720ac9b8c7f848500b60927cafe6748788d0108e0ca"),
+            IonReference("trees/v3-library-nodes/deps/my/dep/@/util/money.type.ion", "44cb0b555b6f1ca74712cdd718b4f29f564e46f67ea6c8bddb71ebe9f904b6ec"),
+            IonReference("trees/v3-library-nodes/deps/my/dep/@/util/now.value.ion", "d6316f0f9112bfb0edf0c211cdb1ec0883156a2c7e5b869ce35b1c5ea3dc4427"),
+            IonReference("trees/v3-library-nodes/deps/my/dep/@/util/parse.value.ion", "0ce799c7ef699062d4383deb28d76ee905806efcb085a8a8c0d3c964ca379baa"),
+            IonReference("trees/v3-library-nodes/manifest.ion", "595f2a35ef7dff6c47207cd281b96044cec212f6b83fe00b166d66e64a03ab7d"),
+            IonReference("trees/v3-library-nodes/pkg/my/pkg/domain/accessors.value.ion", "110390c2a6d00a54f9e3b4a067952562c1a3b960f4f737fe3f8eb9c425f58048"),
+            IonReference("trees/v3-library-nodes/pkg/my/pkg/domain/box.type.ion", "218e5005cd221e82f16db525f9e4d988911aba7fd5de455916b19ee48d717412"),
+            IonReference("trees/v3-library-nodes/pkg/my/pkg/domain/control.value.ion", "2d8e37bc7b231cb104f5df4c5c2924d5253062bbfdb500a784d5ba9af5589b14"),
+            IonReference("trees/v3-library-nodes/pkg/my/pkg/domain/destructured.value.ion", "a9fd57cf4a8bc2850537aadf63278e22acbce0aba55f6387d0cfcc35dfc7b43a"),
+            IonReference("trees/v3-library-nodes/pkg/my/pkg/domain/handler.type.ion", "ea06c2d7cca6150730b03eb26119c86538b570ae9d689f17a5b37f85d0814255"),
+            IonReference("trees/v3-library-nodes/pkg/my/pkg/domain/lambda-value.value.ion", "994ac756e07ec4956f563ac635ff8b541882c8c038cbe45c8963a0150abcb274"),
+            IonReference("trees/v3-library-nodes/pkg/my/pkg/domain/list-value.value.ion", "41baf33605f16dde2277c46bdde11d431ae1e36f19deacbfd5bf2ae6163aec29"),
+            IonReference("trees/v3-library-nodes/pkg/my/pkg/domain/literals.value.ion", "3da92655c25cb5553fd3887658232feef50429d7a02be75ce3610e7215ce8d8e"),
+            IonReference("trees/v3-library-nodes/pkg/my/pkg/domain/maker.value.ion", "c685a7bdfbd6f23491e41530189f8a29540251862d1f7c571b4655ef23887ed6"),
+            IonReference("trees/v3-library-nodes/pkg/my/pkg/domain/module.ion", "7a5d996a81d1165d4bb192b78f4f68344eee67d1f61b67087f9d10a0e1c8ed75"),
+            IonReference("trees/v3-library-nodes/pkg/my/pkg/domain/open-record.type.ion", "9b4d645eb811729be6feae7cd0de59dc90c78ebd7aa2d2f749da4a97566cce5a"),
+            IonReference("trees/v3-library-nodes/pkg/my/pkg/domain/pair.type.ion", "6619e6a2fdf4bdc0d6fccd7114c9477bff638d9c313875a17b239a276f6a9345"),
+            IonReference("trees/v3-library-nodes/pkg/my/pkg/domain/patterns.value.ion", "0d4880eec6cac8e81098031bea38e71e9077746c2860e1d131e976ec824e69c1"),
+            IonReference("trees/v3-library-nodes/pkg/my/pkg/domain/records.value.ion", "70ce609c85a88ac41d9749d3020f78833fe483e7925ba072a8f0eb152f0f43d1"),
+            IonReference("trees/v3-library-nodes/pkg/my/pkg/domain/references.value.ion", "53d8a2655b7725fb37d4eb4dece6e558973db585474c644b7c7955fbe15b4c7a"),
+            IonReference("trees/v3-library-nodes/pkg/my/pkg/domain/shape.type.ion", "e0db97388829f5583c1b9ec890f3e89fdb423122a56ddbb0e4dccbc8a74671ba"),
+            IonReference("trees/v3-library-nodes/pkg/my/pkg/domain/unit-value.value.ion", "c56446e95ef0d4a1134e33665fdce0353a34c3b2bbc4f9ce08fd4abcb199341c"),
+            IonReference("trees/v3-library-nodes/pkg/my/pkg/hidden/module.ion", "44d6ea18c5aa02e03491bb7c7165d51781e18025e1164a4a66f601faa3e0e59d"),
+            IonReference("trees/v3-specs/deps/my/dep/@/util/choice.type.ion", "9560f87171f96c0382be4a07f6be53bd17e45d93a89409e4140e2dbb74d9b97d"),
+            IonReference("trees/v3-specs/deps/my/dep/@/util/handle.type.ion", "216bbd8c9d1494215721a2b27cd4b2e336f190a76372f031f050fac623fbab82"),
+            IonReference("trees/v3-specs/deps/my/dep/@/util/id.type.ion", "584123cb814cddac15067225adcf0adf5beeeae9ebdc9ed701f970a9b32f8d3e"),
+            IonReference("trees/v3-specs/deps/my/dep/@/util/module.ion", "152b799b5d6cf78cdeebf720ac9b8c7f848500b60927cafe6748788d0108e0ca"),
+            IonReference("trees/v3-specs/deps/my/dep/@/util/money.type.ion", "44cb0b555b6f1ca74712cdd718b4f29f564e46f67ea6c8bddb71ebe9f904b6ec"),
+            IonReference("trees/v3-specs/deps/my/dep/@/util/now.value.ion", "d6316f0f9112bfb0edf0c211cdb1ec0883156a2c7e5b869ce35b1c5ea3dc4427"),
+            IonReference("trees/v3-specs/deps/my/dep/@/util/parse.value.ion", "0ce799c7ef699062d4383deb28d76ee905806efcb085a8a8c0d3c964ca379baa"),
+            IonReference("trees/v3-specs/manifest.ion", "10be395f4d44ea32e9aaee95c228623bad7fbf74a6c24bbab3f59f9b9f368f3a"),
+            IonReference("trees/v3-specs/pkg/my/pkg/basics/identity.value.ion", "1682c0539c7c668a2cdf2bce28e71cb77ca7098e45765540f5bf6595e92dee03"),
+            IonReference("trees/v3-specs/pkg/my/pkg/basics/int.type.ion", "dfd8dc4e56c928cc6897ed8af8f132dd60f55266231d24a004da7152a8c5557f"),
+            IonReference("trees/v3-specs/pkg/my/pkg/basics/module.ion", "2a9d10f49a38a921f3d399a4e6f9561fc8ad6609ca501f5dc46de1c278c81af3"),
+            IonReference("trees/v3-specs/pkg/my/pkg/empty/module.ion", "5f9a8cb0c573e9559b69582d2d00bdf93bdee121809fb5401c9d6450e3f7865a"),
+            IonReference("trees/v4-application/deps/my-org/shared/@/secret/module.ion", "e00672ed57d5ef450d871c035bc1756399a4112ef2fb94239d541d776ddcbeaf"),
+            IonReference("trees/v4-application/deps/my-org/shared/@/util/identity.value.ion", "3c2915c58f786904680470b130daf6b86f455838abfc2c906784d05c34489a6a"),
+            IonReference("trees/v4-application/deps/my-org/shared/@/util/module.ion", "80f3802f6bd8134981575b708e23a8174ae375f0905f4d0b0f68545a0396b6af"),
+            IonReference("trees/v4-application/manifest.ion", "d93e25c64dfdd2542f0f983e39998742429e0e05782061a684d30255f1424a2d"),
+            IonReference("trees/v4-application/pkg/example/main/module.ion", "80f3802f6bd8134981575b708e23a8174ae375f0905f4d0b0f68545a0396b6af"),
+            IonReference("trees/v4-application/pkg/example/main/run.value.ion", "441bad2f9497f95defe647fb2a17d263a6c9d789d57db61c9757040d56ab6738"),
+            IonReference("trees/v4-empty-library/manifest.ion", "275bb27a4036e71abf0bd8f58be7d8ab7a53a621f1558b93b2d52356f87674cc"),
+            IonReference("trees/v4-escaped-names.ion", "c9b9054e58cf2c80a47dc7ef17d8a2c00c9467dce6d2c86f93e3359928198e1d"),
+            IonReference("trees/v4-escaped-names/deps/acme/_xml/@/manifest/module.ion", "5f9a8cb0c573e9559b69582d2d00bdf93bdee121809fb5401c9d6450e3f7865a"),
+            IonReference("trees/v4-escaped-names/deps/acme/_xml/@/manifest/module.type.ion", "dfd8dc4e56c928cc6897ed8af8f132dd60f55266231d24a004da7152a8c5557f"),
+            IonReference("trees/v4-escaped-names/deps/morphir/_sdk/@/basics/int.type.ion", "dfd8dc4e56c928cc6897ed8af8f132dd60f55266231d24a004da7152a8c5557f"),
+            IonReference("trees/v4-escaped-names/deps/morphir/_sdk/@/basics/module.ion", "5f9a8cb0c573e9559b69582d2d00bdf93bdee121809fb5401c9d6450e3f7865a"),
+            IonReference("trees/v4-escaped-names/deps/morphir/_sdk/@/con_/aux_.type.ion", "dfd8dc4e56c928cc6897ed8af8f132dd60f55266231d24a004da7152a8c5557f"),
+            IonReference("trees/v4-escaped-names/deps/morphir/_sdk/@/con_/module.ion", "5f9a8cb0c573e9559b69582d2d00bdf93bdee121809fb5401c9d6450e3f7865a"),
+            IonReference("trees/v4-escaped-names/deps/morphir/_sdk/@/con_/value-in-_usd.type.ion", "dfd8dc4e56c928cc6897ed8af8f132dd60f55266231d24a004da7152a8c5557f"),
+            IonReference("trees/v4-escaped-names/manifest.ion", "663b5a2d96da433719c3011af1a76872e31edfecca5a0e07b70359412b38bd9b"),
+            IonReference("trees/v4-escaped-names/pkg/example/_id/key.type.ion", "d1cd62d4de91812e79f877a4f48a95196a1711b8026d808dced2397b0d6fc4a4"),
+            IonReference("trees/v4-escaped-names/pkg/example/_id/module.ion", "80f3802f6bd8134981575b708e23a8174ae375f0905f4d0b0f68545a0396b6af"),
+            IonReference("trees/v4-escaped-names/pkg/example/con_/module.ion", "80f3802f6bd8134981575b708e23a8174ae375f0905f4d0b0f68545a0396b6af"),
+            IonReference("trees/v4-escaped-names/pkg/example/con_/thing.type.ion", "d1cd62d4de91812e79f877a4f48a95196a1711b8026d808dced2397b0d6fc4a4"),
+            IonReference("trees/v4-escaped-names/pkg/example/manifest/aux_.type.ion", "d1cd62d4de91812e79f877a4f48a95196a1711b8026d808dced2397b0d6fc4a4"),
+            IonReference("trees/v4-escaped-names/pkg/example/manifest/com1_.type.ion", "d1cd62d4de91812e79f877a4f48a95196a1711b8026d808dced2397b0d6fc4a4"),
+            IonReference("trees/v4-escaped-names/pkg/example/manifest/con_.type.ion", "d1cd62d4de91812e79f877a4f48a95196a1711b8026d808dced2397b0d6fc4a4"),
+            IonReference("trees/v4-escaped-names/pkg/example/manifest/lpt9_.value.ion", "41e35430e2a32460c08a6c877b2e348dcfc497de14961179dcfb401541bed9d8"),
+            IonReference("trees/v4-escaped-names/pkg/example/manifest/manifest.type.ion", "d1cd62d4de91812e79f877a4f48a95196a1711b8026d808dced2397b0d6fc4a4"),
+            IonReference("trees/v4-escaped-names/pkg/example/manifest/manifest.value.ion", "5e89852468dd8c9b6729e15bdd558331b63aebb0de1c37ce8d254274b28f8070"),
+            IonReference("trees/v4-escaped-names/pkg/example/manifest/module.ion", "ea7f80a2223cbdf6efcb538647284797a376a2eb0eaf6c56ec570a29fd870edf"),
+            IonReference("trees/v4-escaped-names/pkg/example/manifest/module.type.ion", "d1cd62d4de91812e79f877a4f48a95196a1711b8026d808dced2397b0d6fc4a4"),
+            IonReference("trees/v4-escaped-names/pkg/example/manifest/module/item.type.ion", "d1cd62d4de91812e79f877a4f48a95196a1711b8026d808dced2397b0d6fc4a4"),
+            IonReference("trees/v4-escaped-names/pkg/example/manifest/module/module.ion", "80f3802f6bd8134981575b708e23a8174ae375f0905f4d0b0f68545a0396b6af"),
+            IonReference("trees/v4-escaped-names/pkg/example/manifest/nul_.type.ion", "d1cd62d4de91812e79f877a4f48a95196a1711b8026d808dced2397b0d6fc4a4"),
+            IonReference("trees/v4-escaped-names/pkg/example/manifest/rate-in-_usd.value.ion", "0a7e77a6a27e38352b1757e860c1cff12b0f4bc26e62742f47de9388701f7c18"),
+            IonReference("trees/v4-escaped-names/pkg/example/manifest/user-_id.type.ion", "d1cd62d4de91812e79f877a4f48a95196a1711b8026d808dced2397b0d6fc4a4"),
+            IonReference("trees/v4-escaped-names/pkg/example/manifest/value-in-_usd.type.ion", "d1cd62d4de91812e79f877a4f48a95196a1711b8026d808dced2397b0d6fc4a4"),
+            IonReference("trees/v4-library-nodes/deps/my-org/shared/@/annotated/add.value.ion", "ec80f92f67861ba1cc35179ee8d1b7dba87b5681983b16729e1b8b1459141875"),
+            IonReference("trees/v4-library-nodes/deps/my-org/shared/@/annotated/alias.type.ion", "b0c626025b94f2f79910a8184dcd9d1220c7fa22ff3360c196ab0a5cb9b19d5b"),
+            IonReference("trees/v4-library-nodes/deps/my-org/shared/@/annotated/custom.type.ion", "e472a63d780289b424a5e8bcff8f4305446e9a72719c7bd4e2a483f7f849d69a"),
+            IonReference("trees/v4-library-nodes/deps/my-org/shared/@/annotated/derived.type.ion", "328b234bfd518d04e191c4cdc52af30214fb2fe89d72c8870f4e940de20e3b32"),
+            IonReference("trees/v4-library-nodes/deps/my-org/shared/@/annotated/module.ion", "bee081e31c772be94b6b9cc0309c54ea73e316d2630fc34356ea13498d341efb"),
+            IonReference("trees/v4-library-nodes/deps/my-org/shared/@/annotated/opaque.type.ion", "141f72a8045c2380865eb6c12f3f415cf98c92cda6b9ed9c86b9526b42ce5f46"),
+            IonReference("trees/v4-library-nodes/deps/my-org/shared/@/annotated/zero.value.ion", "d907d786d37be012384f95b6100f2f008f62c938dcec8cdaa8f3e08d41e602f3"),
+            IonReference("trees/v4-library-nodes/deps/my-org/shared/@/plain/module.ion", "5f9a8cb0c573e9559b69582d2d00bdf93bdee121809fb5401c9d6450e3f7865a"),
+            IonReference("trees/v4-library-nodes/manifest.ion", "f533d6c552805be9900acc29b3a13f68d65c11eb89407df9ae0acffe54e9b8c6"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/hidden/module.ion", "44d6ea18c5aa02e03491bb7c7165d51781e18025e1164a4a66f601faa3e0e59d"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/attributes-on-types.type.ion", "a84c7d5cb55d36b7081c25471e9de6890b6c643bf50ec209e9a16ce3e1f2c7f2"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/attributes-on-values.value.ion", "48745aaff9d8d6fedb021cfedee979bafdafb6a95389c21cb4cc0e55083c15d3"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/custom-public.type.ion", "a586ca1e3ec6b72d53421bb78869b3daa9c4b23df442e3611577942ea7263c14"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/custom.type.ion", "20203f9e8740622d9dcccdc7d4150173bfce77fc6b5d079d58ab019adb6a7f6b"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/document.value.ion", "2cc0b65acda0adcd76439900678b607867fdd27bee15eb75cd3e4c9ac22a262f"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/external-plain.value.ion", "56807905ce25bc6c103b5b95b4db1f60598c8c6e36f61f15863c15b5cda78cba"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/external.value.ion", "eb78bb7ecfc31942f9a6fa29144a53bdae4124a4825aaab8d5cd93b3f641333e"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/holes.value.ion", "306555d18f8e9ca17e72e9fc901ed7b9a9922932ac309a637dd21b7046b42889"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/incomplete-deleted.value.ion", "9005149f65847f8972a3a8a75dfcfbe0f579183d19c72840a4c70f46051bf17c"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/incomplete-draft-type.type.ion", "97cbd441a9fb5f9123546c604b034b6e5ac819b3e26fa71507315f83f9b117bf"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/incomplete-draft.value.ion", "25c39db1620124c13100b7cef4c8ceb2d0c81ba1b0c68d1015fda139d4e66568"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/incomplete-hole-type.type.ion", "0f5c9ddb8bc695bbcb103a04e7fe2fc0676f305ac57d77196c12178b7170adc0"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/incomplete-mismatch.value.ion", "980dc058fdeee93c1bdf9aed6c7cc6d5b8e7fa3e71309bd9b773beebe074a6fa"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/incomplete-partial.value.ion", "c92dd4575b7ccf4e58fc529fdc9121695f05eb295f2dcb2292506f3d7e825e16"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/incomplete-unresolved.value.ion", "4eb77ef808fe0796aa18ddf0593e1e9c0f62fc1188f41005939db04e6a644487"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/module.ion", "55043f86d95389a19d493c0ed5c2fa8d2b82cc9e90c7977304e76d6e63524c7e"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/native-collection.value.ion", "478371caee0a772f8e4049aa2c4f1553ce9d7cb5ac440fe49242e465347a7935"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/native-compare.value.ion", "341696c6b8f2fe17b603389c37aab99a741d2955db2c690ea1d4d5ffeec8b16e"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/native-platform.value.ion", "4315a987944e88ec7c1f3167317623c406fb79ecb982b37ab1101df47e5321b4"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/native-string.value.ion", "a4e9e2b4cfa2879090df17ffd34d34382d6ce6facd40b45a09bffdc638456a7a"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/native.value.ion", "7c0a31358637b5dc9c20f5c1e731ea1a737b413173ea8d0e1fb8ffde7467236b"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/numbers.value.ion", "85682a5cfbc9f7f5234cd1bdca8683f4f1b2600aed3382da63d0942f4790be7f"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/patterns.value.ion", "8bf007efd551d06a7ee8a8528b07ae90af84786ea2c86423632e9a73ddac1081"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/plain-expressions.value.ion", "c0bae63af4f334db27e87fa36ad41ab7fd7dce14a88d9213ec62c970fb2a1820"),
+            IonReference("trees/v4-library-nodes/pkg/my-org/project/nodes/plain-types.type.ion", "f1cc7bdf00cc55dc340704ba757e4ba5842a81e0a3c04fb579b3efa04cc4c5fe"),
+            IonReference("trees/v4-specs/deps/my-org/shared/@/annotated/add.value.ion", "ec80f92f67861ba1cc35179ee8d1b7dba87b5681983b16729e1b8b1459141875"),
+            IonReference("trees/v4-specs/deps/my-org/shared/@/annotated/alias.type.ion", "b0c626025b94f2f79910a8184dcd9d1220c7fa22ff3360c196ab0a5cb9b19d5b"),
+            IonReference("trees/v4-specs/deps/my-org/shared/@/annotated/custom.type.ion", "e472a63d780289b424a5e8bcff8f4305446e9a72719c7bd4e2a483f7f849d69a"),
+            IonReference("trees/v4-specs/deps/my-org/shared/@/annotated/derived.type.ion", "328b234bfd518d04e191c4cdc52af30214fb2fe89d72c8870f4e940de20e3b32"),
+            IonReference("trees/v4-specs/deps/my-org/shared/@/annotated/module.ion", "bee081e31c772be94b6b9cc0309c54ea73e316d2630fc34356ea13498d341efb"),
+            IonReference("trees/v4-specs/deps/my-org/shared/@/annotated/opaque.type.ion", "141f72a8045c2380865eb6c12f3f415cf98c92cda6b9ed9c86b9526b42ce5f46"),
+            IonReference("trees/v4-specs/deps/my-org/shared/@/annotated/zero.value.ion", "d907d786d37be012384f95b6100f2f008f62c938dcec8cdaa8f3e08d41e602f3"),
+            IonReference("trees/v4-specs/deps/my-org/shared/@/plain/module.ion", "5f9a8cb0c573e9559b69582d2d00bdf93bdee121809fb5401c9d6450e3f7865a"),
+            IonReference("trees/v4-specs/manifest.ion", "11b0c673fc141728b9e4b5eea0fd6f5932d96077eaf3f4c9dc3c22d485ab6050"),
+            IonReference("trees/v4-specs/pkg/example/main/add.value.ion", "ec80f92f67861ba1cc35179ee8d1b7dba87b5681983b16729e1b8b1459141875"),
+            IonReference("trees/v4-specs/pkg/example/main/alias.type.ion", "b0c626025b94f2f79910a8184dcd9d1220c7fa22ff3360c196ab0a5cb9b19d5b"),
+            IonReference("trees/v4-specs/pkg/example/main/custom.type.ion", "e472a63d780289b424a5e8bcff8f4305446e9a72719c7bd4e2a483f7f849d69a"),
+            IonReference("trees/v4-specs/pkg/example/main/derived.type.ion", "328b234bfd518d04e191c4cdc52af30214fb2fe89d72c8870f4e940de20e3b32"),
+            IonReference("trees/v4-specs/pkg/example/main/module.ion", "bee081e31c772be94b6b9cc0309c54ea73e316d2630fc34356ea13498d341efb"),
+            IonReference("trees/v4-specs/pkg/example/main/opaque.type.ion", "141f72a8045c2380865eb6c12f3f415cf98c92cda6b9ed9c86b9526b42ce5f46"),
+            IonReference("trees/v4-specs/pkg/example/main/zero.value.ion", "d907d786d37be012384f95b6100f2f008f62c938dcec8cdaa8f3e08d41e602f3"),
+            IonReference("trees/v4-specs/pkg/example/other/greet.value.ion", "276f13b0e0b24ab9ecf5dc1ae8a42f9b5cc605c7aecaac813da9edb030b3920c"),
+            IonReference("trees/v4-specs/pkg/example/other/module.ion", "1a514cf7a805ab7b149ce62a80097f7a8a8346899280e08efe835a8928e9b671"),
+        ];
 
         /// <summary>The path of a document below <see cref="Directory"/>, such as <c>pairs/v3-specs.json</c>.</summary>
         public static string NameOf(FixtureEntry document) => document.RelativePath[Directory.Length..];
@@ -941,7 +1179,7 @@ public static class FixtureCatalog
     [
         .. Kit.Files, Mep.BoundedGenerationSession, .. BoundedWasmLimits.Files, OrdersScale.Guest, .. BoundedGenerationReceipts.Files,
         .. Models.All, .. BoundedOrders.Files, BoundedOrders.ExpandedV4, .. Trees.AcmeDemo, .. Trees.Written,
-        .. UpstreamIr.Documents, UpstreamIr.V3DailyRateIon, UpstreamIr.RichModelIon, .. UpstreamIr.V3DailyRateIonTreeFiles, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark,
+        .. UpstreamIr.Documents, UpstreamIr.RichModelIon, .. UpstreamIr.KitFeatures, UpstreamIr.IonDraft, UpstreamIr.EscapedNamesInput, .. UpstreamIr.IonReferences, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark,
         WasmHost.Corpus, WasmHost.UnknownNamespaceModule, .. Context.Files, .. Context.Policy.Files,
         .. Context.Naming.Files, .. DiagramsMbt.Files, .. DiagramExport.Files, CssColor.NamedColors
     ];

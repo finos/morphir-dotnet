@@ -33,9 +33,9 @@ public sealed class RecordGenerationSettingsTests
     private static readonly CompileOverrides Ordered = new() { Inputs = ["src/Rates.fs", "src/Pricing.fs"] };
 
     private static async Task<CompileResult> Compile(CompileWorkspace workspace, IFrontend? frontend = null, string version = "4",
-        string? layout = null) =>
+        string? layout = null, string? format = null) =>
         CompileHandler.Fold(await CompileRunners.Events(CompileRunners.Create([frontend ?? FSharpFrontend.Registration]),
-            Ordered with { IrVersion = version, IrLayout = layout }, workspace.Context()));
+            Ordered with { IrVersion = version, IrLayout = layout, IrFormat = format }, workspace.Context()));
 
     /// <summary>The car-rental project of these tests with <c>ir.layout = "folder"</c>, which is not a layout.</summary>
     private static ProjectToml CarRentalWithAnInvalidLayout => ProjectToml.AProject("acme/car-rental").WithFrontend("fsharp").WithLayout("folder");
@@ -118,6 +118,30 @@ public sealed class RecordGenerationSettingsTests
         generated.SourceVersion.Should().Be("3", "the record's ir.version is v3");
         generated.OutputDirectory.Should().Be(workspace.PathOf("gen"));
         generated.Publication.Artifacts.Should().NotBeEmpty();
+    }
+
+    [Test]
+    public async Task GenerateWithoutAnInputReadsTheIonIrOfTheCompileRecord()
+    {
+        using var workspace = Project();
+        (await Compile(workspace, format: "ion")).ExitCode.Should().Be(0);
+
+        var generated = (await Generate(workspace, FromRecord())).ShouldSucceed();
+        generated.InputPath.Should().Be(workspace.PathOf(".morphir/out/compile.dest/morphir-ir.ion"));
+        generated.Publication.Artifacts.Should().NotBeEmpty();
+    }
+
+    [Test]
+    public async Task GenerateWithoutAnInputRefusesTheYamlIrOfACompileRecord()
+    {
+        using var workspace = Project();
+        (await Compile(workspace, format: "yaml")).ExitCode.Should().Be(0);
+
+        var outcome = await Generate(workspace, FromRecord());
+        var failure = outcome.ShouldFail("compile.record_unsupported_format");
+        GenerationReport.From(outcome, FromRecord()).ExitCode.Should().Be(2);
+        failure.Diagnostics.Single().Message.Should().Contain("yaml");
+        Directory.Exists(workspace.PathOf("gen")).Should().BeFalse();
     }
 
     [Test]

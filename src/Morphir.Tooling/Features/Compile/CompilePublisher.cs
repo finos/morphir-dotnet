@@ -27,12 +27,15 @@ public interface ICompilePublisher
 /// <param name="ProjectFile">The absolute project file that supplied the sources, or null.</param>
 /// <param name="Ir">The exact bytes that the writer wrote.</param>
 /// <remarks>
-/// A request from the constructor publishes <paramref name="Ir"/> as <c>compile.dest/morphir-ir.json</c>. A request from
-/// <see cref="ForDocumentTree"/> publishes its <see cref="DocumentTree"/> as <c>compile.dest/morphir-ir</c> instead, and
-/// the record names the version that the files of the tree declare.
+/// A request from the constructor publishes <paramref name="Ir"/> as <c>compile.dest/morphir-ir.&lt;ext&gt;</c>
+/// according to <see cref="Format"/>. A request from <see cref="ForDocumentTree"/> publishes its document tree as
+/// <c>compile.dest/morphir-ir</c> instead, and the record names the format and version that the files of the tree declare.
 /// </remarks>
 public sealed record CompilePublishRequest(string Language, FormatVersion IrVersion, string? ProjectFile, ReadOnlyMemory<byte> Ir)
 {
+    /// <summary>The serialization of the published IR, which names the single file or tree files and the record's <c>ir.format</c>.</summary>
+    public IrStorageFormat Format { get; init; } = IrStorageFormat.Json;
+
     /// <summary>
     /// The document tree to publish in place of the single file, or null for a single-file compile. Only
     /// <see cref="ForDocumentTree"/> sets it.
@@ -83,7 +86,7 @@ public interface ICompilePublication : IDisposable
 
 /// <summary>
 /// Publishes through the compile task record store (REC-1): <c>&lt;out&gt;/[&lt;member&gt;/]compile.dest/morphir-ir.json</c>
-/// (or the document tree <c>compile.dest/morphir-ir</c>),
+/// (<c>.yaml</c> or <c>.ion</c> for those formats, or the document tree <c>compile.dest/morphir-ir</c>),
 /// the schema-1 record <c>compile.json</c> beside it, and the <c>-o</c> install through the <c>installed</c> ledger.
 /// The run holds <c>compile.lock</c> from <see cref="BeginAsync"/> until the publication is disposed, so a reader
 /// such as <c>generate</c> waits for the run and then reads its IR.
@@ -95,7 +98,7 @@ public interface ICompilePublication : IDisposable
 /// </remarks>
 public sealed class TaskRecordCompilePublisher : ICompilePublisher
 {
-    /// <summary>The file name of the published IR in <c>compile.dest</c>.</summary>
+    /// <summary>The file name of the published JSON IR in <c>compile.dest</c>. See <see cref="CompileIrFormats.FileName"/>.</summary>
     public const string IrFile = "morphir-ir.json";
 
     /// <summary>The directory name of a published document tree in <c>compile.dest</c>.</summary>
@@ -134,7 +137,7 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
         {
             ct.ThrowIfCancellationRequested();
             var tree = request.DocumentTree;
-            var name = tree is null ? IrFile : IrDirectory;
+            var name = tree is null ? CompileIrFormats.FileName(request.Format) : IrDirectory;
             var target = Path.Combine(run.Dest, name);
             // One staging root for every run: the run holds compile.lock, so no other run stages here, and the tree
             // publication of Morphir.Files keeps one lock file for this root instead of one for each run.
@@ -202,8 +205,8 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
                 else
                 {
                     var ir = tree is null
-                        ? IrDescriptor.Create(RecordPath.Parse(name), IrLayout.SingleFile, IrStorageFormat.Json, request.IrVersion)
-                        : IrDescriptor.Create(RecordPath.Parse(name), IrLayout.DocumentTree, IrStorageFormat.Json, tree.FormatVersion);
+                        ? IrDescriptor.Create(RecordPath.Parse(name), IrLayout.SingleFile, request.Format, request.IrVersion)
+                        : IrDescriptor.Create(RecordPath.Parse(name), IrLayout.DocumentTree, request.Format, tree.FormatVersion);
                     if (run.Complete(new CompileProduct(request.Language, ir, request.ProjectFile), ct) is Outcome<TaskRecord>.Failure recordFailure)
                         refused = Checked<PublishedCompile>.Fail(TaskDiagnostics.Of(recordFailure.Error, ct));
                     else recorded = true;

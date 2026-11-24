@@ -89,11 +89,21 @@ public sealed class CompileGenerationStages(IGenerationBackendResolver backends,
     /// file that the published tree is the split of, so a tree gives the backend the same model. <paramref name="passes"/> are the
     /// registered passes of the compile; the passes before the backend continue the lineage of the passes after the frontend.
     /// </summary>
-    public async IAsyncEnumerable<CompileEvent> RunAsync(CompileTarget target, CompileSuccess compiled, CompileSettings settings,
-        ReadOnlyMemory<byte> ir, Transform.ModelPasses? passes = null, [EnumeratorCancellation] CancellationToken ct = default)
+    public IAsyncEnumerable<CompileEvent> RunAsync(CompileTarget target, CompileSuccess compiled, CompileSettings settings,
+        ReadOnlyMemory<byte> ir, Transform.ModelPasses? passes = null, CancellationToken ct = default) =>
+        RunAsync(target, compiled, settings, ir, InputFormat.Auto, passes, ct);
+
+    /// <summary>
+    /// The events of the generation stages, as <see cref="RunAsync(CompileTarget, CompileSuccess, CompileSettings, ReadOnlyMemory{byte}, Transform.ModelPasses?, CancellationToken)"/>
+    /// gives them, with the format in which the model loader reads <paramref name="ir"/>: <see cref="InputFormat.Auto"/>
+    /// detects it from the bytes and the name of the published file. Every argument is required, so a call with
+    /// <c>default</c> arguments binds to the released overload.
+    /// </summary>
+    internal async IAsyncEnumerable<CompileEvent> RunAsync(CompileTarget target, CompileSuccess compiled, CompileSettings settings,
+        ReadOnlyMemory<byte> ir, InputFormat format, Transform.ModelPasses? passes, [EnumeratorCancellation] CancellationToken ct)
     {
         var irPath = compiled.Publication.IrPath;
-        var input = new ModelInput(irPath, InputFormat.Auto);
+        var input = new ModelInput(irPath, format);
         var options = target.Options.WithConfigured(settings.ConfiguredBackendOptions);
         var generationSettings = new GenerationSettings(input, target.Target, options, new PublicationPolicy(target.OutputDirectory), Limits);
         var gate = new StagedPublisher(publisher);

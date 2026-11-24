@@ -444,6 +444,10 @@ public class TreeVerificationTests
     [Arguments("$", "")]
     [Arguments("$.distribution.Library.def.modules.inventory.values.daily-rate", "/distribution/Library/def/modules/inventory/values/daily-rate")]
     [Arguments("$.modules[\"a b\"][0]", "/modules/a b/0")]
+    [Arguments("$.values[\"daily-rate\"]", "/values/daily-rate")]
+    [Arguments("$[\"a\\\"b\"]", "/a\"b")]
+    [Arguments("$[\"a\\\\b\"].c", "/a\\b/c")]
+    [Arguments("$[\"a\\u0001b\"]", "/a\u0001b")]
     [Arguments("not a location", "not a location")]
     public void AJsonLocationIsAJsonPointer(string location, string pointer)
     {

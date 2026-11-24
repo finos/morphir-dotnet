@@ -138,6 +138,8 @@ public sealed record CompileOverrides
     public string? IrVersion { get; init; }
     /// <summary><c>--ir-layout</c>: <c>single-file</c> or <c>document-tree</c>, before <c>ir.layout</c> and <c>ir.mode</c>.</summary>
     public string? IrLayout { get; init; }
+    /// <summary><c>--ir-format</c>: <c>json</c>, <c>yaml</c> or <c>ion</c>.</summary>
+    public string? IrFormat { get; init; }
     /// <summary><c>--project</c>: a project directory, a member path or a project name.</summary>
     public string? Project { get; init; }
     /// <summary><c>--config</c>: an explicitly selected configuration file.</summary>
@@ -203,10 +205,15 @@ public sealed record CompileSettings
     /// <summary>The requested IR format version, with its exact spelling.</summary>
     public required Setting<SourceFormatVersion> IrVersion { get; init; }
     /// <summary>
-    /// The layout of the published IR: one file, or a JSON document tree (IR 3 and IR 4 only). It comes from
+    /// The layout of the published IR: one file, or a document tree (IR 3 and IR 4 only). It comes from
     /// <c>--ir-layout</c>, else <c>ir.layout</c>, else the deprecated <c>ir.mode</c>, else the default <c>single-file</c>.
     /// </summary>
     public Setting<IrLayout> IrLayout { get; init; } = new(TaskRecords.IrLayout.SingleFile, SettingOrigin.Default.Instance);
+    /// <summary>
+    /// The serialization of the published IR: <c>--ir-format</c>, else <c>ir.format</c>, else JSON. YAML and Ion are
+    /// written from the IR that the JSON writer gives.
+    /// </summary>
+    public Setting<IrStorageFormat> IrFormat { get; init; } = new(IrStorageFormat.Json, SettingOrigin.Default.Instance);
     /// <summary>The exposed modules, or null to expose every public module.</summary>
     public Setting<ImmutableArray<string>>? ExposedModules { get; init; }
     /// <summary>
@@ -270,6 +277,7 @@ public sealed record CompileSettings
         origins.Add(("packageName", Package.Origin));
         origins.Add(("irVersion", IrVersion.Origin));
         origins.Add(("irLayout", IrLayout.Origin));
+        origins.Add(("irFormat", IrFormat.Origin));
         if (ExposedModules is { } exposed) origins.Add(("exposedModules", exposed.Origin));
         if (Extension is { } extension) origins.Add(("extension", extension.Origin));
         if (Output is { } output) origins.Add(("output", output.Origin));
@@ -421,6 +429,8 @@ public static class CompileCodes
     public static readonly DiagnosticCode GenerationUnavailable = DiagnosticCode.Create("compile.generation_unavailable");
     /// <summary>The written IR could not be published.</summary>
     public static readonly DiagnosticCode PublishFailed = DiagnosticCode.Create("compile.publish_failed");
+    /// <summary>The IR could not be written in the selected <c>ir.format</c>.</summary>
+    public static readonly DiagnosticCode IrFormatFailed = DiagnosticCode.Create("compile.ir_format_failed");
 
     /// <summary><c>--project-file</c> and <c>--input</c> are both given.</summary>
     public static readonly DiagnosticCode ConflictingSourceOptions = DiagnosticCode.Create("sources.conflicting_source_options");

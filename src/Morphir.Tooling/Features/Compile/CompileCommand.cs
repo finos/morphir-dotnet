@@ -54,6 +54,7 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
     private readonly Option<string?> _project = new("--project") { Description = "Project directory, workspace member path or project name" };
     private readonly Option<string?> _irVersion = new("--ir-version") { Description = "IR format version, for example 3, 4 or 4.0.0; overrides ir.format_version" };
     private readonly Option<string?> _irLayout = new("--ir-layout") { Description = "IR layout, single-file or document-tree (IR 3 and IR 4 only); overrides ir.layout" };
+    private readonly Option<string?> _irFormat = new("--ir-format") { Description = "IR serialization: json, yaml or ion; overrides ir.format" };
     private readonly Option<string> _json = JsonOutputOption.Create();
     private readonly Option<bool> _typesOnly = new("--types-only") { Description = "Not implemented; rejected" };
     private readonly Option<string?> _output = new("--output", "-o") { Description = "Install a copy of the IR in this directory. Files that an earlier install did not write stay unchanged" };
@@ -73,7 +74,7 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
     public CompileCommand(IServiceProvider services) : base("compile", "Compile source code to Morphir IR")
     {
         _services = services;
-        foreach (var option in new Option[] { _language, _extension, _extensionId, _input, _projectFile, _packageName, _config, _project, _irVersion, _irLayout, _json, _typesOnly, _output, _outDir })
+        foreach (var option in new Option[] { _language, _extension, _extensionId, _input, _projectFile, _packageName, _config, _project, _irVersion, _irLayout, _irFormat, _json, _typesOnly, _output, _outDir })
             Options.Add(option);
         // CLI-2: compile can continue into generation.
         foreach (var option in new Option[] { _target, _generateOutput, _generateOptions })
@@ -129,6 +130,7 @@ public sealed class CompileCommand : Command, IMorphirParseErrorHandler
         Project = result.GetValue(_project),
         IrVersion = result.GetValue(_irVersion),
         IrLayout = result.GetValue(_irLayout),
+        IrFormat = result.GetValue(_irFormat),
         TypesOnly = result.GetValue(_typesOnly),
         Output = result.GetValue(_output),
         OutDir = result.GetValue(_outDir),

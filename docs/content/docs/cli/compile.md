@@ -18,7 +18,7 @@ command starts and that compiles the documents. See [Frontend extensions](#front
 
 ```text
 dotnet-morphir compile [--language <id>] [--input <file>... | --input <directory> | --project-file <file>]
-  [--package-name <name>] [--ir-version <version>] [--ir-layout <layout>] [--project <path-or-name>] [--config <file>]
+  [--package-name <name>] [--ir-version <version>] [--ir-layout <layout>] [--ir-format json|yaml|ion] [--project <path-or-name>] [--config <file>]
   [--extension <id-or-path>] [-o <directory>] [--out-dir <directory>]
   [--target <id> --generate-output <directory> [--option <key>=<value>]...] [--json[=stream|document]]
 ```
@@ -33,6 +33,7 @@ dotnet-morphir compile [--language <id>] [--input <file>... | --input <directory
 | `--package-name` | Package name, for example `acme/car-rental`. Overrides `project.name`. |
 | `--ir-version` | IR format version: `1`, `2`, `3`, `4`, or a SemVer version such as `4.0.0`. Overrides `ir.format_version`. |
 | `--ir-layout` | IR layout: `single-file` or `document-tree`. Overrides `ir.layout` and `ir.mode`. See [IR layouts](#ir-layouts). |
+| `--ir-format` | The serialization of the written IR: `json`, `yaml` or `ion`. Overrides `ir.format`. See [IR formats](#ir-formats). |
 | `--project` | A project directory, a workspace member path, or a project name. |
 | `--config` | An explicit configuration file. |
 | `--extension` | A frontend extension: a command name, a path, or a `.dll`. Overrides `[frontend.<language>].extension`. |
@@ -55,9 +56,9 @@ Each setting comes from the first source that supplies it:
 
 1. a command-line option;
 2. the selected project configuration: `project.name`, `project.source_directory`,
-   `project.exposed_modules`, `ir.format_version`, `ir.layout` (or the deprecated `ir.mode`),
+   `project.exposed_modules`, `ir.format_version`, `ir.layout` (or the deprecated `ir.mode`), `ir.format`,
    `frontend.language`, and the `[frontend.<language>]` keys `project_file` and `extension`;
-3. a default: IR version `4`, layout `single-file`, source directory `src`, all public modules exposed.
+3. a default: IR version `4`, layout `single-file`, IR format `json`, source directory `src`, all public modules exposed.
 
 `--project` and `--config` select the project through the usual project discovery. Outside a project, only
 the command line and the defaults apply. The report gives the origin of each setting in `origins`.
@@ -70,6 +71,7 @@ exposed_modules = ["Pricing"]
 [ir]
 format_version = 4            # or "4.0.0"; a declared pre-release such as "4.1.0-draft.1" is also valid
 layout = "document-tree"      # or "single-file", the default
+format = "json"               # or "yaml" or "ion"
 
 [frontend]
 language = "fsharp"
@@ -103,21 +105,22 @@ example `4.1.0-draft.1`, matches only a writer that declares that exact version.
 
 `ir.layout`, or `--ir-layout`, selects how the compile stores its IR:
 
-- `single-file` (the default) writes one file, `compile.dest/morphir-ir.json`.
-- `document-tree` writes a JSON document tree, the directory `compile.dest/morphir-ir`: `manifest.json`,
-  one `module.json` for each module, and one `<stem>.type.json` or `<stem>.value.json` for each type and value,
-  below `pkg/<package>/` and `deps/<package>/@/`. The tree holds the same model as the single file. It has no
+- `single-file` (the default) writes one file, `compile.dest/morphir-ir.json` (or `.yaml` / `.ion`).
+- `document-tree` writes a document tree, the directory `compile.dest/morphir-ir`: for `json` or `yaml`,
+  `manifest.{json,yaml}`, one `module.{json,yaml}` for each module, and one `<stem>.type.{json,yaml}` or
+  `<stem>.value.{json,yaml}` for each type and value, below `pkg/<package>/` and `deps/<package>/@/`; for `ion`,
+  `manifest.ion`, `module.ion`, `<stem>.type.ion`, and `<stem>.value.ion`. The tree holds the same model as the single file. It has no
   module order, so a tree that joins back into one file lists the modules by name.
 
 Document trees exist only for IR 3 and IR 4. A `document-tree` layout with IR version `1` or `2` fails before
-compilation with `compile.unsupported_setting` and exit code 2. An IR 4 tree says `"formatVersion": 4` in every
-file. An IR 3 tree says `"formatVersion": "3.1.0"` in every file, as the parent's v3 document-tree
+compilation with `compile.unsupported_setting` and exit code 2. For `json` and `yaml`, an IR 4 tree says `"formatVersion": 4` in every
+file, and an IR 3 tree says `"formatVersion": "3.1.0"` in every file, as the parent's v3 document-tree
 specification requires, and the record names its version `v3.1.0`.
 
-Request an IR 3 tree with `--ir-version 3`, not `3.1.0`. The classic writer declares `3`, and `3.1.0` is
-another version (VER-1), so `--ir-version 3.1.0` fails before compilation with
-`compile.unsupported_ir_version` and exit code 2. The tree that `--ir-version 3` writes still says `3.1.0`
-in every file. The report keeps `irVersion` as you wrote it (`3`).
+With `--ir-format json` or `yaml`, request an IR 3 tree with `--ir-version 3`, not `3.1.0`. The classic writer declares `3`, and `3.1.0` is
+another version (VER-1), so `--ir-version 3.1.0` with JSON or YAML fails before compilation with
+`compile.unsupported_ir_version` and exit code 2. The JSON/YAML tree that `--ir-version 3` writes still says `3.1.0`
+in every file. With `--ir-format ion`, both `--ir-version 3` (which writes `3.0.0`) and `--ir-version 3.1.0` (which writes `3.1.0`) are supported. The report keeps `irVersion` as you wrote it (`3` or `3.1.0`).
 
 `ir.mode` is the deprecated name of the layout: `classic` is `single-file`, and `vfs` is `document-tree`. A
 configured `ir.mode` always gives the warning `compile.deprecated_setting`. When `--ir-layout` or `ir.layout`
@@ -131,6 +134,29 @@ dotnet-morphir compile --language fsharp --input src/Rates.fs --package-name acm
 ```
 
 In human mode, standard output is the path of the tree, for example `/work/.morphir/out/compile.dest/morphir-ir`.
+
+## IR formats
+
+`--ir-format` or `ir.format` selects how the command writes the IR. Every format holds the same IR value.
+
+| Format | Single file | Tree files | Content |
+| --- | --- | --- | --- |
+| `json` | `morphir-ir.json` | `manifest.json`, `module.json`, `*.type.json`, `*.value.json` | The IR JSON that the writer of the IR version writes (or split tree). This is the default. |
+| `yaml` | `morphir-ir.yaml` | `manifest.yaml`, `module.yaml`, `*.type.yaml`, `*.value.yaml` | The canonical YAML of that JSON, as the [YAML profile](https://github.com/finos/morphir/blob/main/docs/spec/ir/schemas/v4/yaml-profile.md) defines it. A YAML reader of the profile reads back the same value. |
+| `ion` | `morphir-ir.ion` | `manifest.ion`, `module.ion`, `*.type.ion`, `*.value.ion` | The canonical Ion 1.0 text of the [Ion IR format](https://github.com/finos/morphir/blob/main/docs/design/draft/ir/ion.md), draft `0.1.0-draft.1`: one datagram ending with `morphir_footer::{}` for single-file, or split tree files without footer. |
+
+The Ion format carries the IR versions `3`, `3.0.0`, `3.1.0`, `4` and `4.0.0` only. Ion at `3.1.0` writes the v3 library
+that the IR 3 writer gives and states `formatVersion: "3.1.0"`; the task record names `v3.1.0`. JSON and YAML have no
+writer for a v3 library at `3.1.0`, so `--ir-version 3.1.0` with them fails with `compile.unsupported_ir_version`. Ion
+holds a v3 doc as a string, so a v3 Ion compile writes a member that has no documentation with the empty doc. Ion with any other version, such as
+`1`, `2` or `4.1.0-draft.1`, fails before compilation with `compile.unsupported_setting` and exit code 2. A value that is
+not `json`, `yaml` or `ion` fails with exit code 2: in a configuration file the configuration check reports it once,
+with `compile.configuration`, and `--ir-format` reports it with `compile.invalid_setting`. If the command cannot write the IR in the selected format, the write stage
+fails with `compile.ir_format_failed`. The task record names the format in `ir.format`, and `-o` installs the same
+file or tree directory.
+
+`morphir generate --input` reads JSON, YAML, or Ion single files and document trees. `morphir generate` without `--input`
+reads a compile record whose IR is JSON, YAML, or Ion (`single-file` or `document-tree`).
 
 ## Sources
 
@@ -238,7 +264,8 @@ conformance corpus. See the [F# frontend]({{< relref "/docs/frontends/fsharp" >}
 
 ## Output
 
-A compile writes its IR to `<out root>/[<member path>/]compile.dest/morphir-ir.json`, or for a
+A compile writes its IR to `<out root>/[<member path>/]compile.dest/morphir-ir.json` (`morphir-ir.yaml` or
+`morphir-ir.ion` for those [IR formats](#ir-formats)), or for a
 [document tree](#ir-layouts) to the directory `compile.dest/morphir-ir`, and its task record to
 `compile.json` beside that directory. These files use the out-directory contract of the Morphir ecosystem.
 The out root is the first of:
@@ -307,7 +334,8 @@ It currently has no `--dry-run` option; `--option format=false` controls formatt
 of generated F# only.
 
 With `--target <id> --generate-output <directory>`, a successful compile continues into generation in the
-same run. The command gives the exact IR bytes that it wrote to the model loader of `generate --input`, and
+same run. The command gives the exact IR bytes that it wrote to the model loader of `generate --input` (for the
+`yaml` format, the JSON that the YAML was written from, which holds the same model), and
 then runs the generation stages of `generate`: backend selection, `--option` validation, generation and
 owned publication. The result is the same as these two commands:
 
@@ -379,6 +407,9 @@ $ dotnet-morphir compile --language fsharp --input src/Rates.fs src/Totals.fs --
       "kind": "default"
     },
     "irLayout": {
+      "kind": "default"
+    },
+    "irFormat": {
       "kind": "default"
     },
     "input": {
@@ -478,6 +509,9 @@ $ dotnet-morphir compile --language fsharp --input src/Rates.fs src/Totals.fs --
     "irLayout": {
       "kind": "default"
     },
+    "irFormat": {
+      "kind": "default"
+    },
     "input": {
       "kind": "cli",
       "flag": "--input"
@@ -564,6 +598,9 @@ $ dotnet-morphir compile --language fsharp --input broken/Pricing.fs --package-n
     "irLayout": {
       "kind": "default"
     },
+    "irFormat": {
+      "kind": "default"
+    },
     "input": {
       "kind": "cli",
       "flag": "--input"
@@ -608,6 +645,9 @@ $ dotnet-morphir compile --language fsharp --input src/Rates.fs --package-name a
       "flag": "--ir-version"
     },
     "irLayout": {
+      "kind": "default"
+    },
+    "irFormat": {
       "kind": "default"
     },
     "input": {
@@ -655,6 +695,9 @@ $ morphir compile --language fsharp --input src/Rates.fs --package-name acme/dem
     "irLayout": {
       "kind": "default"
     },
+    "irFormat": {
+      "kind": "default"
+    },
     "input": {
       "kind": "cli",
       "flag": "--input"
@@ -698,7 +741,7 @@ $ dotnet-morphir compile --language fsharp --input src/Rates.fs src/Totals.fs --
 {"event":"stageCompleted","stage":"write","passed":true}
 {"event":"stageStarted","stage":"publish"}
 {"event":"stageCompleted","stage":"publish","passed":true}
-{"event":"completed","report":{"success":true,"exitCode":0,"language":"fsharp","frontend":"morphir-dotnet.fsharp (in-process)","irVersion":"3","sources":{"projectFile":null,"root":"src","documents":["Rates.fs","Totals.fs"]},"modules":["Rates","Totals"],"output":"/work/.morphir/out/compile.dest/morphir-ir.json","installed":[],"diagnostics":[],"failureKind":null,"origins":{"language":{"kind":"cli","flag":"--language"},"packageName":{"kind":"cli","flag":"--package-name"},"irVersion":{"kind":"cli","flag":"--ir-version"},"irLayout":{"kind":"default"},"input":{"kind":"cli","flag":"--input"}}}}
+{"event":"completed","report":{"success":true,"exitCode":0,"language":"fsharp","frontend":"morphir-dotnet.fsharp (in-process)","irVersion":"3","sources":{"projectFile":null,"root":"src","documents":["Rates.fs","Totals.fs"]},"modules":["Rates","Totals"],"output":"/work/.morphir/out/compile.dest/morphir-ir.json","installed":[],"diagnostics":[],"failureKind":null,"origins":{"language":{"kind":"cli","flag":"--language"},"packageName":{"kind":"cli","flag":"--package-name"},"irVersion":{"kind":"cli","flag":"--ir-version"},"irLayout":{"kind":"default"},"irFormat":{"kind":"default"},"input":{"kind":"cli","flag":"--input"}}}}
 ```
 
 A consumer that needs only the outcome reads the last line and its `report` member. The command has no
@@ -706,8 +749,7 @@ A consumer that needs only the outcome reads the last line and its `report` memb
 
 ## Unimplemented options
 
-These fail with exit code 2 and `compile.unsupported_setting`, which names the option or the key and its
-file: `--types-only`, and `ir.format = "yaml"` or `"ion"`.
+This fails with exit code 2 and `compile.unsupported_setting`, which names the option: `--types-only`.
 
 ## See also
 

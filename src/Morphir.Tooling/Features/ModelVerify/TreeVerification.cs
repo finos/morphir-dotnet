@@ -259,10 +259,35 @@ public static class StoreLocation
             }
             else if (message[index] == '[' && index + 1 < message.Length && message[index + 1] == '"')
             {
-                var end = message.IndexOf("\"]", index + 2, StringComparison.Ordinal);
-                if (end < 0) return ("", message);
-                Append(pointer, message[(index + 2)..end]);
-                index = end + 2;
+                // An RFC 9535 name selector: a quoted name with its quote, backslash and control characters escaped.
+                var name = new StringBuilder();
+                index += 2;
+                while (index < message.Length && message[index] != '"')
+                {
+                    if (message[index] != '\\')
+                    {
+                        name.Append(message[index++]);
+                        continue;
+                    }
+                    if (index + 1 >= message.Length) return ("", message);
+                    var escaped = message[index + 1];
+                    if (escaped == 'u')
+                    {
+                        if (index + 6 > message.Length
+                            || !int.TryParse(message.AsSpan(index + 2, 4), NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var code))
+                            return ("", message);
+                        name.Append((char)code);
+                        index += 6;
+                    }
+                    else
+                    {
+                        name.Append(escaped switch { 'b' => '\b', 'f' => '\f', 'n' => '\n', 'r' => '\r', 't' => '\t', _ => escaped });
+                        index += 2;
+                    }
+                }
+                if (index + 1 >= message.Length || message[index + 1] != ']') return ("", message);
+                Append(pointer, name.ToString());
+                index += 2;
             }
             else if (message[index] == '[')
             {

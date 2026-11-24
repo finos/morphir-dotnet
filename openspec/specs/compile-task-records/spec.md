@@ -6,7 +6,7 @@ Keeps the Morphir ecosystem's out-directory and task-record contract for compila
 ## Requirements
 
 ### Requirement: Compile output uses the workspace out root
-Compile SHALL write its IR to `<out>/[<member path>/]compile.dest/morphir-ir.json`, or for the `document-tree` layout to the directory `compile.dest/morphir-ir`, and its record to `compile.json` beside that directory. `<out>` SHALL resolve in this order:
+Compile SHALL write its IR to `<out>/[<member path>/]compile.dest/morphir-ir.json` (`morphir-ir.yaml` or `morphir-ir.ion` for those `ir.format` values), or for the `document-tree` layout to the directory `compile.dest/morphir-ir`, and its record to `compile.json` beside that directory. `<out>` SHALL resolve in this order:
 
 1. `--out-dir`;
 2. `MORPHIR_OUT_DIR`;
@@ -59,9 +59,15 @@ A compile SHALL clear `compile.dest` with the same bounded retries when it start
 ### Requirement: Records follow the ecosystem schema
 A successful compile SHALL write a schema-1 record with these fields: `task` `compile`, `module`, `language`, `inputs`, `value`, `ir {path, layout, format, version}`, `installed` and `completedAt`. `value` SHALL list product paths relative to `.dest`. Unknown fields in an existing record SHALL be preserved on rewrite, except where a tombstone clears them.
 
+`ir.path` SHALL name the published file or directory (`morphir-ir` for `document-tree`), and `ir.format` SHALL be `json`, `yaml` or `ion` as the IR was written.
+
 #### Scenario: Document-tree record
 - **WHEN** a compile with `ir.layout = "document-tree"` succeeds
-- **THEN** the record has `"value": ["morphir-ir"]` and `ir` with `path` `morphir-ir`, `layout` `document-tree`, `format` `json`, and `version` `v4` for IR 4 or `v3.1.0` for IR 3, the version that every file of the tree declares
+- **THEN** the record has `"value": ["morphir-ir"]` and `ir` with `path` `morphir-ir`, `layout` `document-tree`, `format` matching the selected `ir.format` (`json`, `yaml`, or `ion`), and `version` `v4` for IR 4 or `v3.1.0` for IR 3 JSON/YAML trees (or `v3` / `v3.1.0` for Ion trees)
+
+#### Scenario: Record of an Ion compile
+- **WHEN** `morphir compile --ir-format ion` succeeds
+- **THEN** `value` is `["morphir-ir.ion"]`, and `ir` is `{ "path": "morphir-ir.ion", "layout": "single-file", "format": "ion", "version": "v4" }`
 
 #### Scenario: Ecosystem reader accepts the record
 - **WHEN** a record written by `morphir compile` is compared with the pinned upstream out-directory specification and its example record (`tests/Fixtures/MorphirOut/`)
@@ -86,15 +92,19 @@ A compile SHALL hold an exclusive lock on `compile.lock` from clearing `.dest` u
 - **THEN** `generate` waits, then reads the completed record and the IR from that compile
 
 ### Requirement: Generate reads the most recent compile
-When `--input` is absent, `morphir generate` SHALL resolve the project and out root in the same way as compile. It SHALL read the IR through the compile record's `ir` descriptor and keep the recorded format version. A missing record or a tombstone SHALL fail with exit code 2 and a message telling the user to run `morphir compile` first. An explicit `--input` SHALL never read a record.
+When `--input` is absent, `morphir generate` SHALL resolve the project and out root in the same way as compile. It SHALL read the IR through the compile record's `ir` descriptor and keep the recorded format version. A record whose `ir.format` is `json`, `yaml` or `ion` SHALL be read in that format (single file or document tree). A missing record or a tombstone SHALL fail with exit code 2 and a message telling the user to run `morphir compile` first. An explicit `--input` SHALL never read a record.
 
 #### Scenario: Compile then generate
 - **WHEN** `morphir compile` succeeds, and then `morphir generate --target fsharp --output gen` runs in the same project
 - **THEN** generation uses the compiled IR, and the report names the record's IR path and version as its input
 
 #### Scenario: Bounded generation from a recorded document tree
-- **WHEN** `morphir compile` with `ir.layout = "document-tree"` succeeds, and then `morphir generate --target <id> --extension <backend>` runs without `--input`
-- **THEN** generate reads the tree through the record in a bounded session under MEP `0.2.0-draft.2`, offering the recorded IR version, and holds the compile read lease until the backend has stopped
+- **WHEN** `morphir compile` with `ir.layout = "document-tree"` (`json` or `yaml`) succeeds, and then `morphir generate --target <id> --extension <backend>` runs without `--input`
+- **THEN** generate reads the tree through the record in a bounded session under MEP `0.2.0-draft.2`, offering the recorded IR version and codec, and holds the compile read lease until the backend has stopped
+
+#### Scenario: Generate after a YAML compile
+- **WHEN** `morphir compile --ir-format yaml` succeeds, and then `morphir generate --target fsharp --output gen` runs in the same project
+- **THEN** generation uses the compiled YAML IR, and the report names the record's IR path and version as its input
 
 #### Scenario: No prior compile
 - **WHEN** `morphir generate --target fsharp --output gen` runs in a project with no compile record
