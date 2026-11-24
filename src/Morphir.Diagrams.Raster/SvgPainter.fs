@@ -120,6 +120,64 @@ module internal SvgPainter =
             | true, (r, g, b) -> Some { R = r; G = g; B = b; A = 255 }
             | _ -> None
 
+    let private translucent =
+        Regex(@"^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*)?\)$", RegexOptions.CultureInvariant)
+
+    let private reference = Regex(@"var\(\s*--([\w-]+)\s*(?:,\s*([^()]*))?\)", RegexOptions.CultureInvariant)
+
+    /// An SVG for applications that read no CSS variables, such as office suites. Each `var()` holds its value in the
+    /// light palette (the fixed palette overlaid with the `data-theme="light"` block), or its fallback, or `none`; an
+    /// `rgba` paint attribute becomes a hex colour with its alpha folded into the paint's opacity attribute; and the
+    /// style sheet loses its custom properties. Everything else is kept.
+    let portable (source: string) : string =
+        let settings = XmlReaderSettings(DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null)
+        use reader = XmlReader.Create(new StringReader(source), settings)
+        let document = XDocument.Load(reader, LoadOptions.PreserveWhitespace)
+        let palette = Dictionary<string, string>(variables document true, StringComparer.Ordinal)
+
+        for pair in variables document false do
+            palette[pair.Key] <- pair.Value
+
+        let rec resolve (depth: int) (value: string) =
+            if depth > 16 || not (value.Contains "var(") then
+                value
+            else
+                reference.Replace(
+                    value,
+                    MatchEvaluator(fun found ->
+                        match palette.TryGetValue found.Groups[1].Value with
+                        | true, value -> resolve (depth + 1) value
+                        | _ when found.Groups[2].Success -> resolve (depth + 1) (found.Groups[2].Value.Trim())
+                        | _ -> "none")
+                )
+
+        let decimalOf (text: string) = Decimal.Parse(text, NumberStyles.Float, CultureInfo.InvariantCulture)
+
+        for element in document.Descendants() |> Seq.toList do
+            for attribute in element.Attributes() |> Seq.toList do
+                if attribute.Value.Contains "var(" then attribute.Value <- resolve 0 attribute.Value
+
+            for paint, opacity in [ "fill", "fill-opacity"; "stroke", "stroke-opacity"; "stop-color", "stop-opacity" ] do
+                match element.Attribute(XName.Get paint) with
+                | null -> ()
+                | attribute ->
+                    let found = translucent.Match(attribute.Value.Trim())
+
+                    if found.Success then
+                        let channel (index: int) = int (Math.Round(decimalOf found.Groups[index].Value, MidpointRounding.ToEven)) |> max 0 |> min 255
+                        attribute.Value <- String.Format(CultureInfo.InvariantCulture, "#{0:x2}{1:x2}{2:x2}", channel 1, channel 2, channel 3)
+
+                        if found.Groups[4].Success then
+                            let existing = match element.Attribute(XName.Get opacity) with | null -> 1m | given -> decimalOf given.Value
+                            element.SetAttributeValue(XName.Get opacity, (existing * decimalOf found.Groups[4].Value).ToString(CultureInfo.InvariantCulture))
+
+        for style in document.Descendants(svg + "style") |> Seq.toList do
+            style.Value <- Regex.Replace(resolve 0 style.Value, @"--[\w-]+\s*:[^;}]*;?", "")
+
+        match document.Root with
+        | null -> source
+        | root -> root.ToString(SaveOptions.DisableFormatting)
+
     /// The paint values of an SVG that this painter approximates: a gradient, which it paints as its first stop, and a
     /// colour it cannot read, such as a CSS name outside its table. The light palette of an adaptive SVG is used.
     let approximations (source: string) : string list =

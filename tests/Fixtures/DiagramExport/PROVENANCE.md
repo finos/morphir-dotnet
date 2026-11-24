@@ -8,7 +8,8 @@ After it, a change that alters this output on purpose records the files again an
 The SVG, player and raster files were recorded before the layout sink was added in commit `ff126fbe`. The swimlane
 rows of `player-digests.json` and `raster-digests.json` were recorded later, when the representative swimlane became a
 diagram with lanes; recording them again on `76399312`, the commit before `ff126fbe`, gives identical files. `public-api.txt` and
-`canvas-digests.json` pin the new API and the canvas renderers' output.
+`canvas-digests.json` pin the new API and the canvas renderers' output, and `slide-digests.json`, from
+`add-diagram-slide-export`, pins the slide renderers' output.
 
 To record a file, set `MORPHIR_RECORD_BASELINES` to this folder and run the test named below; the test writes the file
 there and fails, so that the variable is never left set by accident.
@@ -20,3 +21,4 @@ there and fails, so that the variable is never left set by accident.
 | `raster-digests.json` | `Morphir.Diagrams.Raster.Tests.RasterBaselineTests`: for the same representatives, the PNG as its size and decoded pixels, the JPEG and GIF bytes, and the raster player with each embedded PNG replaced by its pixel digest | `7cd513eb35e4bddc0d6cc2f5db8fc67e44844ea46803499faf6588f5d1e15417` |
 | `public-api.txt` | `Morphir.Diagrams.Tests.PublicApiTests`: each public type of Morphir.Diagrams and its public and protected members. A reviewed API change records it again. | `0f4c8270bd9ba0755ed48d461b8e16887f2e15cfb6a2105f25c3d40aa9989734` |
 | `canvas-digests.json` | `Morphir.Diagrams.Canvas.Tests.CanvasDigestTests`: the draw.io, Excalidraw and Obsidian output of each representative, after the files were checked in draw.io 32.7.5, Excalidraw 0.18.0 and Obsidian with the Excalidraw plugin 2.29.4 | `8c1fea9aee84d198d0e3cbb935983053d4acfb77d6658947c583ea56da0c44d5` |
+| `slide-digests.json` | `Morphir.Diagrams.Slides.Tests.SlideDigestTests`: for each representative and each slide renderer, the names and contents of the package's entries (not its compressed bytes), after the files were converted by LibreOffice 26.8 and compared with the SVG | `455d6a3e2dd8f3eb08b84163395d63fe5f51e8c874bef99ff4256f0b9b4ad5e3` |

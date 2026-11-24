@@ -1,0 +1,20 @@
+{
+  "activity.exact.pptx": "31614e4462b3512dfbd5a7afe93d482349bd5a07ef42fb53ed49af58a3c89a5c",
+  "activity.glued.pptx": "a985719c5de6351c5952be07646ea9c39b6849a7efacd207a7cd68ec7c4896d9",
+  "architecture.exact.pptx": "501c0ee00defd20a605b821784c583457208d2e4e7fd9bed3cf2b91461436c4b",
+  "architecture.glued.pptx": "b90765d315fb4b537dadbb5d4955135010a6e67aa4ab2717c34ab2342a502eac",
+  "bpmn.exact.pptx": "fdd0d416ccd3babd2b4a581ae30eead9d132f3a120071a7fdbd4cb05c97e93b0",
+  "bpmn.glued.pptx": "5ee2e4489b3aabecfa2fe3d3080c10ecc22e2c4027dd5042f6224b3ea6c55461",
+  "data-tree.exact.pptx": "e422dee4f9a8e3eb087cecbb6d7046ca4f86175fd40c09b8188d1a36e46d8e35",
+  "data-tree.glued.pptx": "2f717cea81a7b46796dd60a7e6a1c7b0ed8999c4806215872191e6374f852c37",
+  "flowchart.exact.pptx": "ddf9adf476b7a60dec4044b0c12877e512e4bc26f8eb2e2fcf9d0836d251e07b",
+  "flowchart.glued.pptx": "ddf9adf476b7a60dec4044b0c12877e512e4bc26f8eb2e2fcf9d0836d251e07b",
+  "railroad.exact.pptx": "da181a8daad6faef45985561c31afe659723e730162f778996ff95d6c8a09672",
+  "railroad.glued.pptx": "60f25743a2e6b9d70adf95760bdeb31c446938cab7e063ae703bf13db927f08f",
+  "sequence.exact.pptx": "0d8bbb94d19beb93c16f96677bb662652c3aeab3d41048161edaf8f2e6fb9ab0",
+  "sequence.glued.pptx": "7cd37dd5c825cedfee4d765cb6397d9a6a1b4bec8d5c569018a657e33981c9f4",
+  "state.exact.pptx": "1b485826dac05065764b2f25265ea1eaec855f5cbe0b884b62a4ea0d2ec94224",
+  "state.glued.pptx": "4bcd88d008fe95b7f02838f15b64b283023a60dd6cab3b0c4d6f7c4af646579f",
+  "swimlane.exact.pptx": "03e36bb29b5b45ce784c7e5b3dad60841a67e5b33d8f6e66e14f5c9d9478d88e",
+  "swimlane.glued.pptx": "85e8112f9d292223ea649bd88f730a635f135c0b613671a3372b20f02b0a9cdb"
+}

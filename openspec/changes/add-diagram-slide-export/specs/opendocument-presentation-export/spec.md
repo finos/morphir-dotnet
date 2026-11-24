@@ -59,7 +59,7 @@ The OpenDocument renderer SHALL declare these features: rounded rectangles, elli
 - **THEN** the assessment is degraded only by the container falling back to a group and the bindings of any link that ends at it
 
 ### Requirement: Styles, links and images are kept
-Fills, strokes and text SHALL use the paint's colours, with fill opacity as the fill's opacity, and the stroke widths and dash patterns. A drawable's first web link SHALL open when the shape is clicked. Each SVG image SHALL be a frame holding the SVG image followed by a PNG fallback, under the same PNG size and failure rules as the PowerPoint renderer.
+Fills, strokes and text SHALL use the paint's colours, with fill opacity as the fill's opacity, and the stroke widths and dash patterns. A drawable's first web link SHALL open when the shape is clicked. Each SVG image SHALL be a frame holding the SVG image followed by a PNG fallback, under the same SVG, PNG size and failure rules as the PowerPoint renderer.
 
 #### Scenario: An image has a PNG fallback
 - **WHEN** a degraded page is rendered under the picture-fallback policy

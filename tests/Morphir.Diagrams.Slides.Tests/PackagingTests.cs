@@ -63,6 +63,29 @@ public class PackagingTests
     }
 
     [Test]
+    public void APortableSvgHasTheLightPaletteInPlaceOfItsVariables()
+    {
+        var adaptive = """
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><style>
+            svg { --fill: rgba(255, 0, 0, 0.5); --ink: var(--stroke); --stroke: #000000; }
+            @media (prefers-color-scheme: light) { svg:not([data-theme="dark"]) { --fill: #ffffff; } }
+            svg[data-theme="light"] { --fill: rgba(0, 0, 255, 0.25); --stroke: #00ff00; }
+            </style><rect width="10" height="10" fill="var(--fill)" fill-opacity="0.5" stroke="var(--ink)"/><text fill="var(--missing, #123456)">x</text></svg>
+            """;
+
+        var portable = System.Xml.Linq.XDocument.Parse(Packaging.portable(adaptive));
+        var ns = (System.Xml.Linq.XNamespace)"http://www.w3.org/2000/svg";
+        var rect = portable.Descendants(ns + "rect").Single();
+
+        portable.ToString().ShouldNotContain("var(");
+        portable.ToString().ShouldNotContain("--fill");
+        ((string?)rect.Attribute("fill")).ShouldBe("#0000ff");
+        ((string?)rect.Attribute("fill-opacity")).ShouldBe("0.125");
+        ((string?)rect.Attribute("stroke")).ShouldBe("#00ff00");
+        ((string?)portable.Descendants(ns + "text").Single().Attribute("fill")).ShouldBe("#123456");
+    }
+
+    [Test]
     public void ANamedColourOutsideThePaintersTableAndAGradientAreReported()
     {
         var named = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="Aqua"/></svg>""";

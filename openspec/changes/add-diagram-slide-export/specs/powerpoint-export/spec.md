@@ -89,6 +89,13 @@ A PNG fallback SHALL have the fidelity of Morphir.Diagrams.Raster. When an image
 - **WHEN** a sequence diagram with `box Aqua` is rendered under the picture-fallback policy
 - **THEN** the result holds a `slides/png-approximated` warning naming the page's image
 
+### Requirement: Stored SVG holds no CSS variables
+Because office applications read no CSS variables, a stored SVG image SHALL hold the light palette's value in place of each theme variable, with a translucent paint written as a colour and an opacity. These are the values that its PNG is drawn with.
+
+#### Scenario: A picture's SVG has the light palette
+- **WHEN** a degraded page is rendered under the picture-fallback policy
+- **THEN** the picture's stored SVG has no `var()` reference and no custom property
+
 ### Requirement: Images carry a PNG fallback
 Each SVG image SHALL be stored as SVG, with a PNG drawn from the same SVG as the fallback for readers without SVG support. The PNG SHALL be drawn at two pixels per placed CSS pixel. When that exceeds the raster limits, the density SHALL be halved until it fits, but not below one. If a PNG cannot be drawn at one, the render SHALL write nothing and return the error `slides/raster-failed`. Cancellation SHALL be observed between images.
 

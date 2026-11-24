@@ -20,5 +20,6 @@
         <ProjectReference Include="../Morphir.Diagrams.Raster/Morphir.Diagrams.Raster.fsproj" />
         <Compile Include="SlidePlacement.fs" />
         <Compile Include="Packaging.fs" />
+        <Compile Include="PowerPoint.fs" />
     </ItemGroup>
 </Project>
