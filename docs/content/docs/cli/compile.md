@@ -276,8 +276,9 @@ A built-in backend, for example `generate --target fsharp` with no extension, do
 tree. It fails with `unsupported-format` and exit code 1, and writes nothing.
 
 When a compile starts, it clears `compile.dest` and replaces an earlier record with a tombstone. A
-successful compile then writes the full record. A failed compile publishes no IR and leaves the tombstone,
-which keeps the `installed` ledger. The compile holds the exclusive lock `compile.lock` until its record and
+successful compile then writes the full record. A failed compile publishes no IR. After an earlier successful
+compile it leaves the tombstone, which keeps the `installed` ledger; a first compile that fails leaves no
+`compile.json`. A write failure, a cancellation or a record failure leaves no partial or staged IR in `compile.dest`. The compile holds the exclusive lock `compile.lock` until its record and
 its install are written. Another run that waits for the lock writes one line to stderr:
 
 ```text

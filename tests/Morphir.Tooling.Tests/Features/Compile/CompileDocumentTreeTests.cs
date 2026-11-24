@@ -287,6 +287,100 @@ public sealed class CompileDocumentTreeTests
         File.Exists(PublishLockOf(staged[0])).Should().BeTrue("the publication of the tree takes the lock of its one staging root");
     }
 
+    /// <summary>
+    /// A removal whose delete fails as a scanner's handle makes it fail on Windows, the first <paramref name="failures"/>
+    /// times for each path. It runs on every system, so no handle and no timing decides.
+    /// </summary>
+    private sealed class ScannedRemoval(int failures)
+    {
+        private readonly Dictionary<string, int> _deletes = new(StringComparer.Ordinal);
+
+        public int DeletesOf(string path) => _deletes.GetValueOrDefault(path);
+
+        public PathRemoval Removal => new(path =>
+        {
+            _deletes[path] = DeletesOf(path) + 1;
+            if (DeletesOf(path) <= failures) throw new IOException("The process cannot access the file because it is being used by another process.");
+            PathRemoval.DeletePath(path);
+        }, _ => true, _ => { });
+    }
+
+    /// <summary>A started publication of a tree compile and its request, with a stale staging root left in <c>compile.dest</c>.</summary>
+    private static async Task<(ICompilePublication Publication, CompilePublishRequest Request, string Staging)> StalePublicationAsync(
+        CompileWorkspace workspace, CompilePublicationHooks hooks)
+    {
+        var written = File.ReadAllBytes(Succeeded(await Run(workspace, Inputs(layout: "single-file"))).Publication.IrPath);
+        var request = CompilePublishRequest.ForDocumentTree("fsharp", Morphir.IR.Versioning.parse("4").ResultValue, null, written,
+            Passed(CompileDocumentTree.Write(written)));
+        var settings = Passed(new ProjectCompileSettingsResolver().Resolve(Inputs(), workspace.Context()));
+        var publication = Passed(await new TaskRecordCompilePublisher(Quiet, hooks).BeginAsync(settings, default));
+        var staging = Path.Combine(Dest(workspace), ".morphir-ir.staging");
+        Directory.CreateDirectory(Path.Combine(staging, "pkg"));
+        File.WriteAllText(Path.Combine(staging, "manifest.json"), "{ \"left\": \"by a crashed run\" }");
+        return (publication, request, staging);
+    }
+
+    [Test]
+    public async Task AStaleStagingRootIsClearedWithRetriesBeforeTheTreeIsStaged()
+    {
+        using var workspace = Project();
+        var scanner = new ScannedRemoval(failures: 2);
+        var (publication, request, staging) = await StalePublicationAsync(workspace, new CompilePublicationHooks { Removal = scanner.Removal });
+        using (publication)
+        {
+            var published = Passed(await publication.PublishAsync(request, default));
+            ReadTree(published.IrPath).IrVersion.Should().Be("4");
+        }
+
+        scanner.DeletesOf(staging).Should().Be(3, "two deletes met the handle and the third cleared the stale root");
+        Files(Path.Combine(Dest(workspace), "morphir-ir")).Should().NotContain(file => file.Contains("crashed"));
+        Directory.Exists(staging).Should().BeFalse();
+    }
+
+    [Test]
+    public async Task AStagingRootThatCannotBeClearedRefusesThePublication()
+    {
+        using var workspace = Project();
+        var scanner = new ScannedRemoval(failures: int.MaxValue);
+        var (publication, request, staging) = await StalePublicationAsync(workspace, new CompilePublicationHooks { Removal = scanner.Removal });
+        Checked<PublishedCompile> refused;
+        using (publication) refused = await publication.PublishAsync(request, default);
+
+        refused.IsPassed.Should().BeFalse("the tree is never written into a root that still holds other files");
+        refused.Diagnostics.Select(d => d.CodeOrNull?.Value).Should().Equal("compile.publish_failed");
+        refused.Diagnostics[0].Message.Should().Contain(staging);
+        scanner.DeletesOf(staging).Should().Be(Morphir.Files.FileReplacement.Attempts);
+        Directory.Exists(Path.Combine(Dest(workspace), "morphir-ir")).Should().BeFalse();
+        IsTombstone(workspace).Should().BeTrue("no record is completed");
+    }
+
+    [Test]
+    [Arguments(2)]
+    [Arguments(int.MaxValue)]
+    public async Task TheRollbackOfACancelledPublicationRetriesItsDeleteAndStaysCancelled(int failures)
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs()));
+        using var cancellation = new CancellationTokenSource();
+        var scanner = new ScannedRemoval(failures);
+        var target = Path.Combine(Dest(workspace), "morphir-ir");
+
+        var cancelled = await RunWith(workspace, Inputs(), new CompilePublicationHooks
+        {
+            Removal = scanner.Removal,
+            AfterMoved = _ => cancellation.Cancel(),
+        }, ct: cancellation.Token);
+
+        cancelled.ExitCode.Should().Be(130, "a cleanup that fails never hides the cancellation");
+        IsTombstone(workspace).Should().BeTrue();
+        if (failures == 2)
+        {
+            scanner.DeletesOf(target).Should().Be(3);
+            NothingIsLeft(workspace);
+        }
+        else scanner.DeletesOf(target).Should().Be(Morphir.Files.FileReplacement.Attempts, "the rollback tries a bounded number of times");
+    }
+
     [Test]
     [Arguments("document-tree")]
     [Arguments("single-file")]
@@ -449,7 +543,7 @@ public sealed class CompileDocumentTreeTests
         using var workspace = new CompileWorkspace();
         // An invalid ir.layout that --ir-layout overrides is a warning of the compile, and generate takes the layout from the record.
         workspace.Write("morphir.toml", overriddenLayout
-            ? Morphir.TestSupport.Drivers.BoundedOrdersRecordMother.ProjectConfiguration + "\n[ir]\nlayout = \"folder\"\n"
+            ? ProjectToml.OrdersWithAnInvalidLayout.Build()
             : Morphir.TestSupport.Drivers.BoundedOrdersRecordMother.DocumentTreeConfiguration);
         workspace.Write("src/Domain.fs", Morphir.TestSupport.Drivers.BoundedOrdersRecordMother.DomainSource);
         workspace.Write("bounded-orders.mode", "compiled-orders");

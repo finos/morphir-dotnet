@@ -39,24 +39,37 @@ public sealed record TomlValue
 }
 
 /// <summary>
-/// Builds the <c>morphir.toml</c> of a settings test: a project named <c>acme/demo</c> and the keys of its <c>[ir]</c>
-/// table, in the order they are given.
+/// Builds the <c>morphir.toml</c> of a settings test: a project named <c>acme/demo</c>, its frontend language, and the
+/// keys of its <c>[ir]</c> table, in the order they are given.
 /// </summary>
 public sealed record ProjectToml
 {
-    private ProjectToml(string name, ImmutableList<(string Key, TomlValue Value)> ir) => (Name, Ir) = (name, ir);
+    private ProjectToml(string name, string? language, ImmutableList<(string Key, TomlValue Value)> ir) =>
+        (Name, Language, Ir) = (name, language, ir);
 
     /// <summary>The package name, <c>project.name</c>.</summary>
     public string Name { get; }
+
+    /// <summary>The frontend language, <c>frontend.language</c>, or null.</summary>
+    public string? Language { get; }
 
     /// <summary>The keys of <c>[ir]</c>.</summary>
     public ImmutableList<(string Key, TomlValue Value)> Ir { get; }
 
     /// <summary>A project with no <c>[ir]</c> key.</summary>
-    public static ProjectToml AProject(string name = "acme/demo") => new(name, []);
+    public static ProjectToml AProject(string name = "acme/demo") => new(name, null, []);
+
+    /// <summary>
+    /// The F# Orders project of bounded generation (<c>BoundedOrdersRecordMother.ProjectConfiguration</c>) with
+    /// <c>ir.layout = "folder"</c>, which is not a layout: a compile with <c>--ir-layout</c> overrides it.
+    /// </summary>
+    public static ProjectToml OrdersWithAnInvalidLayout => AProject("acme/orders").WithFrontend("fsharp").WithLayout("folder");
+
+    /// <summary>The project with <c>frontend.language</c> set to <paramref name="language"/>.</summary>
+    public ProjectToml WithFrontend(string language) => new(Name, language, Ir);
 
     /// <summary>The project with <c>ir.&lt;key&gt;</c> set to <paramref name="value"/>.</summary>
-    public ProjectToml WithIr(string key, TomlValue value) => new(Name, Ir.Add((key, value)));
+    public ProjectToml WithIr(string key, TomlValue value) => new(Name, Language, Ir.Add((key, value)));
 
     /// <summary>The project with <c>ir.layout</c> set to the string <paramref name="layout"/>.</summary>
     public ProjectToml WithLayout(string layout) => WithIr("layout", TomlValue.String(layout));
@@ -65,9 +78,10 @@ public sealed record ProjectToml
     public ProjectToml WithMode(string mode) => WithIr("mode", TomlValue.String(mode));
 
     /// <summary>The text of the file.</summary>
-    public string Build() => Ir.IsEmpty
-        ? $"[project]\nname = \"{Name}\"\n"
-        : $"[project]\nname = \"{Name}\"\n\n[ir]\n" + string.Concat(Ir.Select(entry => $"{entry.Key} = {entry.Value.Text}\n"));
+    public string Build() =>
+        $"[project]\nname = \"{Name}\"\n"
+        + (Language is null ? "" : $"\n[frontend]\nlanguage = \"{Language}\"\n")
+        + (Ir.IsEmpty ? "" : "\n[ir]\n" + string.Concat(Ir.Select(entry => $"{entry.Key} = {entry.Value.Text}\n")));
 
     /// <inheritdoc />
     public override string ToString() => Build();

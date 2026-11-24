@@ -5,7 +5,6 @@ using System.Text;
 using FluentAssertions;
 using Morphir.TestSupport;
 using Morphir.Tooling.Features.TaskRecords;
-using Morphir.Tooling.Tests.Features.Generate;
 using TUnit.Core.Enums;
 using Path = System.IO.Path;
 
@@ -22,12 +21,6 @@ namespace Morphir.Tooling.Tests.Features.TaskRecords;
 [Category("PlatformSpecific")]
 public sealed class RecordFileTests
 {
-    private static TaskRecord UpstreamRecord()
-    {
-        var text = File.ReadAllText(Path.Combine(GenerateSteps.RepositoryRoot(), "tests", "Fixtures", "MorphirOut", "compile-record.json"));
-        return TaskRecordCodec.Decode(Encoding.UTF8.GetBytes(text)).Should().BeOfType<RecordDecoding.Decoded>().Subject.Record;
-    }
-
     // As a scanner does: it reads, and shares reading and writing but not deletion.
     private static FileStream HoldWithoutDeleteSharing(string path) =>
         new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
@@ -43,7 +36,7 @@ public sealed class RecordFileTests
     {
         public int Deletes { get; private set; }
 
-        public StagedRecordCleanup Cleanup => new(path =>
+        public PathRemoval Cleanup => new(path =>
         {
             if (++Deletes <= failures) throw new IOException("The process cannot access the file because it is being used by another process.");
             File.Delete(path);
@@ -55,7 +48,7 @@ public sealed class RecordFileTests
     {
         using var sandbox = TestSandbox.Create("morphir-record-");
         var path = sandbox.PathOf("out", "compile.json");
-        var record = UpstreamRecord();
+        var record = TaskRecordMother.CompletedCompile();
         RecordFile.Write(path, record);
         using var cancellation = new CancellationTokenSource();
         var scanner = new ScannedCleanup(failures: 2);
@@ -73,7 +66,7 @@ public sealed class RecordFileTests
     {
         using var sandbox = TestSandbox.Create("morphir-record-");
         var path = sandbox.PathOf("out", "compile.json");
-        var record = UpstreamRecord();
+        var record = TaskRecordMother.CompletedCompile();
         RecordFile.Write(path, record);
         using var cancellation = new CancellationTokenSource();
         var scanner = new ScannedCleanup(failures: int.MaxValue);
@@ -91,7 +84,7 @@ public sealed class RecordFileTests
     {
         using var sandbox = TestSandbox.Create("morphir-record-");
         var path = sandbox.PathOf("out", "compile.json");
-        var record = UpstreamRecord();
+        var record = TaskRecordMother.CompletedCompile();
         RecordFile.Write(path, record);
         var scanner = HoldWithoutDeleteSharing(path);
         var waits = 0;
@@ -115,7 +108,7 @@ public sealed class RecordFileTests
     {
         using var sandbox = TestSandbox.Create("morphir-record-");
         var path = sandbox.PathOf("out", "compile.json");
-        var record = UpstreamRecord();
+        var record = TaskRecordMother.CompletedCompile();
         RecordFile.Write(path, record);
         var other = Encoding.UTF8.GetBytes("{\"written\":\"by another tool\"}");
         var scanner = HoldWithoutDeleteSharing(path);
@@ -146,7 +139,7 @@ public sealed class RecordFileTests
     {
         using var sandbox = TestSandbox.Create("morphir-record-");
         var path = sandbox.PathOf("out", "compile.json");
-        var record = UpstreamRecord();
+        var record = TaskRecordMother.CompletedCompile();
         RecordFile.Write(path, record);
         var waits = 0;
         var clock = Stopwatch.StartNew();

@@ -54,6 +54,24 @@ public sealed class RecordGenerationSettingsTests
     private static string RecordIr(CompileWorkspace workspace) => workspace.PathOf(".morphir/out/compile.dest/morphir-ir.json");
 
     [Test]
+    public async Task AnExplicitInputWithItsConfigurationStillRefusesAnInvalidLayout()
+    {
+        using var workspace = Project();
+        (await Compile(workspace)).ExitCode.Should().Be(0);
+        var configuration = workspace.Write("morphir.toml", ProjectToml.OrdersWithAnInvalidLayout.Build());
+
+        var resolved = await Resolver().ResolveAsync(
+            new GenerateOverrides(Input: RecordIr(workspace), Target: "fsharp", Output: workspace.PathOf("gen")) { Config = configuration },
+            Invocation(workspace), default);
+
+        var failure = resolved.Should().BeOfType<Outcome<GenerationSettings>.Failure>(
+            "only a run that reads the compile record takes its layout from the record").Subject;
+        // The run with --input reports the configuration's own errors of the key, as it does for every other key.
+        failure.Error.Diagnostics.Should().Contain(diagnostic => diagnostic.Code == "compile.configuration"
+            && diagnostic.Message.Contains("ir.layout"));
+    }
+
+    [Test]
     public async Task GenerateWithoutAnInputUsesTheIrAndVersionOfTheCompileRecord()
     {
         using var workspace = Project();

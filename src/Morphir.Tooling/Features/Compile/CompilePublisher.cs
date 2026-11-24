@@ -139,7 +139,11 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
             // One staging root for every run: the run holds compile.lock, so no other run stages here, and the tree
             // publication of Morphir.Files keeps one lock file for this root instead of one for each run.
             var staging = Path.Combine(run.Dest, $".{name}.staging");
-            Remove(staging);
+            var removal = hooks.Removal ?? PathRemoval.Default;
+            // The IR is staged only into an absent root: a root that a crashed run left and that cannot be cleared refuses it.
+            if (!removal.TryRemove(staging))
+                return Checked<PublishedCompile>.Fail([Diagnostic.Create(Severity.Error, CompileCodes.PublishFailed,
+                    $"The IR could not be written to '{target}': the staging path '{staging}' could not be cleared.", null)]);
             // Only what this attempt moved into place is rolled back: a target that was there before stays.
             var moved = false;
             var recorded = false;
@@ -181,9 +185,10 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
             }
             finally
             {
-                // The run holds compile.lock: no reader sees the IR of a run whose record is not complete.
-                Remove(staging);
-                if (moved && !recorded) Remove(target);
+                // The run holds compile.lock: no reader sees the IR of a run whose record is not complete. The removals retry
+                // while another handle holds a file and never throw, so the failure or the cancellation of the run stands.
+                removal.TryRemove(staging);
+                if (moved && !recorded) removal.TryRemove(target);
             }
 
             if (settings.Output is not { } output) return Checked<PublishedCompile>.Pass(new PublishedCompile(target, []));
@@ -215,20 +220,6 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
             if (!FileReplacement.Replace(move, () => !File.Exists(target) && !Directory.Exists(target)))
                 throw new IOException($"Something appeared at '{target}' while the move of the IR waited for another handle.");
         }
-
-        /// <summary>Removes a file or a directory, as far as the file system lets it; the result of the publication stands.</summary>
-        private static void Remove(string path)
-        {
-            try
-            {
-                if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
-                else if (File.Exists(path)) File.Delete(path);
-            }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-            {
-                // Best effort: the next run clears compile.dest.
-            }
-        }
     }
 }
 
@@ -252,6 +243,9 @@ internal sealed record CompilePublicationHooks
 
     /// <summary>Runs with the target, after the IR moved into place and before the record is written.</summary>
     public Action<string>? AfterMoved { get; init; }
+
+    /// <summary>Removes the staging root and a rolled-back IR in place of <see cref="PathRemoval.Default"/>.</summary>
+    public PathRemoval? Removal { get; init; }
 }
 
 /// <summary>Turns task record failures into compile diagnostics.</summary>

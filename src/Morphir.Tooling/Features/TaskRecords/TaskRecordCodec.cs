@@ -313,11 +313,11 @@ internal static class RecordFile
     /// cancellation throws <see cref="OperationCanceledException"/>, removes the staged record and leaves the record.</param>
     /// <param name="beforeReplace">Runs before each attempt to replace the record, for tests.</param>
     internal static void Write(string path, TaskRecord record, Action? afterWait, CancellationToken ct, Action? beforeReplace) =>
-        Write(path, record, afterWait, ct, beforeReplace, StagedRecordCleanup.Default);
+        Write(path, record, afterWait, ct, beforeReplace, PathRemoval.Default);
 
     /// <param name="cleanup">Removes the staged record when the write fails or is cancelled. Tests replace it.</param>
     internal static void Write(string path, TaskRecord record, Action? afterWait, CancellationToken ct, Action? beforeReplace,
-        StagedRecordCleanup cleanup)
+        PathRemoval cleanup)
     {
         ct.ThrowIfCancellationRequested();
         var directory = Path.GetDirectoryName(path)!;
@@ -348,7 +348,7 @@ internal static class RecordFile
         {
             // A replaced record moved the staged one; only a failed or cancelled write still has it. Its removal never
             // hides the failure or the cancellation.
-            cleanup.Remove(temporary);
+            cleanup.TryRemove(temporary);
             throw;
         }
     }
@@ -362,34 +362,43 @@ internal static class RecordFile
 }
 
 /// <summary>
-/// Removes the staged copy of a task record after its write failed or was cancelled. On Windows a virus scanner or a
-/// search indexer can hold the staged file just after it is written, without delete sharing, so a delete that another
-/// handle refuses waits and tries again, up to <see cref="FileReplacement.Attempts"/> times. It never throws: a staged
-/// file that it cannot remove stays, and the error of the write stands.
+/// Removes a file or a directory that another handle may hold for a short time. On Windows a virus scanner or a search
+/// indexer opens a file just after it is written, without delete sharing, so a delete that another handle refuses waits
+/// and tries again, up to <see cref="FileReplacement.Attempts"/> times. It never throws, so the failure or the
+/// cancellation of the work that it cleans up after stands; <see cref="TryRemove"/> says whether the path is gone.
 /// </summary>
-/// <param name="Delete">Deletes the file.</param>
+/// <param name="Delete">Deletes the file or the directory with its content.</param>
 /// <param name="IsTransient">Whether a failure of the delete is one that another handle causes, which a later attempt can pass.</param>
 /// <param name="Wait">Waits between attempts.</param>
-internal sealed record StagedRecordCleanup(Action<string> Delete, Func<Exception, bool> IsTransient, Action<TimeSpan> Wait)
+internal sealed record PathRemoval(Action<string> Delete, Func<Exception, bool> IsTransient, Action<TimeSpan> Wait)
 {
-    /// <summary>The cleanup of the file system: <see cref="File.Delete"/>, the handle check of <see cref="FileReplacement"/>, and a sleep.</summary>
-    public static StagedRecordCleanup Default { get; } = new(File.Delete, FileReplacement.IsHeldByAnotherHandle, Thread.Sleep);
+    /// <summary>The removal of the file system: <see cref="DeletePath"/>, the handle check of <see cref="FileReplacement"/>, and a sleep.</summary>
+    public static PathRemoval Default { get; } = new(DeletePath, FileReplacement.IsHeldByAnotherHandle, Thread.Sleep);
 
-    /// <summary>Removes <paramref name="path"/> when it exists, as far as the file system lets it.</summary>
-    public void Remove(string path)
+    /// <summary>Deletes a directory with its content, or a file.</summary>
+    public static void DeletePath(string path)
+    {
+        if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
+        else File.Delete(path);
+    }
+
+    /// <summary>Removes what is at <paramref name="path"/>, as far as the file system lets it. True when nothing is there after.</summary>
+    public bool TryRemove(string path)
     {
         for (var attempt = 1; ; attempt++)
         {
             try
             {
-                if (File.Exists(path)) Delete(path);
-                return;
+                if (Exists(path)) Delete(path);
+                return !Exists(path);
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException)
             {
-                if (attempt >= FileReplacement.Attempts || !IsTransient(error)) return;
+                if (attempt >= FileReplacement.Attempts || !IsTransient(error)) return false;
                 Wait(TimeSpan.FromMilliseconds(Math.Min(20 << (attempt - 1), 500)));
             }
         }
     }
+
+    private static bool Exists(string path) => File.Exists(path) || Directory.Exists(path);
 }

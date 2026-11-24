@@ -289,7 +289,9 @@ public sealed class CompileSettingsResolverTests
 
     [Test]
     [Arguments("layout", "boolean")]
+    [Arguments("layout", "integer")]
     [Arguments("layout", "table")]
+    [Arguments("mode", "boolean")]
     [Arguments("mode", "integer")]
     [Arguments("mode", "table")]
     public void ASelectedLayoutThatIsNotAStringGivesOneDiagnostic(string key, string type)
@@ -304,6 +306,7 @@ public sealed class CompileSettingsResolverTests
 
     [Test]
     [Arguments("folder")]
+    [Arguments("boolean")]
     [Arguments("integer")]
     [Arguments("table")]
     public void AnInvalidModeThatTheLayoutOverridesIsIgnoredWithAWarning(string value)
@@ -320,6 +323,7 @@ public sealed class CompileSettingsResolverTests
     [Test]
     [Arguments("folder")]
     [Arguments("boolean")]
+    [Arguments("integer")]
     [Arguments("table")]
     public void AnInvalidConfiguredLayoutThatTheCommandLineOverridesIsIgnoredWithAWarning(string value)
     {
