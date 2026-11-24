@@ -5,6 +5,8 @@ using System;
 using System.Text;
 using Morphir.Bpmn;
 using Morphir.Diagrams;
+using Morphir.Diagrams.Canvas;
+using Morphir.Diagrams.Export;
 using Morphir.Diagrams.Query;
 using Morphir.Diagrams.Raster;
 using Morphir.Knowledge;
@@ -83,6 +85,22 @@ if (!png.Succeeded)
 }
 Console.WriteLine($"raster png {png.Width}x{png.Height} {Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(png.Bytes.AsSpan()))}");
 Console.WriteLine("raster: ok");
+
+// One export to each canvas target, through the registry: its digest is the same under JIT and Native AOT.
+if (!DiagramSource.TryParse("flowchart LR\n  subgraph Orders\n    A[Submit] --> B{Valid?}\n  end\n  B -->|yes| C[(Ledger)]", out var flowchart, out _)
+    || DiagramExport.Layout(flowchart.Diagram).Layout is not { } layout)
+    return 1;
+foreach (var file in new[] { "orders.drawio", "orders.excalidraw", "orders.excalidraw.md" })
+{
+    if (!CanvasRenderers.Registry.TryFind(file, out var canvas))
+        return 1;
+    using var exported = new System.IO.MemoryStream();
+    var export = await DiagramExport.RenderAsync([layout], canvas, exported, DegradationPolicy.AllowDegraded, System.Threading.CancellationToken.None);
+    if (!export.Written || export.HasErrors || exported.Length == 0)
+        return 1;
+    Console.WriteLine($"canvas {file} {Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(exported.ToArray()))}");
+}
+Console.WriteLine("canvas: ok");
 
 var expected = Canonical(dataset);
 var actual = Canonical(extracted);
