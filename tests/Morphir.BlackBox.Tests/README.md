@@ -168,6 +168,10 @@ two steps have the same pattern.
 | Bounded generation | `Then the Orders scale profile refuses a document one byte over` |
 | Bounded generation | `Then bounded generation protects sibling task records` |
 | Bounded generation | `Then bounded generation refuses a recorded FIFO` |
+| Bounded generation | `Given the Orders domain source in a document-tree project` |
+| Bounded generation | `When I compile the Orders project` |
+| Bounded generation | `Then the compile records the Orders document tree` |
+| Bounded generation | `Then bounded generation renders order {int} from the compile record` |
 | Package consumer | `When I build the consumer` |
 | Package consumer | `When I build the consumer with no restore` |
 | Package consumer | `When I build the consumer and it fails` |

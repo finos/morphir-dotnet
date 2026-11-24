@@ -138,10 +138,14 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             Error(CompileCodes.UnsupportedSetting, "The option --types-only is not implemented. This build compiles complete modules only.");
 
         var loaded = loader.Load(overrides, context);
+        // An error of ir.layout or ir.mode waits for the layout: the resolver reports a value that it refuses itself.
+        var layoutErrors = new List<(string Key, string Text)>();
         foreach (var diagnostic in loaded.Diagnostics)
         {
-            var text = $"{diagnostic.Source.Path}: {string.Join('.', diagnostic.KeyPath)}: {diagnostic.Message} ({diagnostic.Code})".Replace(": : ", ": ");
-            if (diagnostic.Severity == ConfigSeverity.Error) Error(CompileCodes.Configuration, text);
+            var key = string.Join('.', diagnostic.KeyPath);
+            var text = $"{diagnostic.Source.Path}: {key}: {diagnostic.Message} ({diagnostic.Code})".Replace(": : ", ": ");
+            if (diagnostic.Severity == ConfigSeverity.Error && key is LayoutKey or ModeKey) layoutErrors.Add((key, text));
+            else if (diagnostic.Severity == ConfigSeverity.Error) Error(CompileCodes.Configuration, text);
             else warnings.Add(Diagnostic.Create(Severity.Warning, CompileCodes.Configuration, text, null));
         }
         var config = new ConfigurationView(loaded);
@@ -190,7 +194,9 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             Error(CompileCodes.InvalidSetting, $"The IR version from {Describe(versionText.Origin)} is not valid. {versionFailure}");
 
         // IR layout: --ir-layout, else ir.layout, else the deprecated ir.mode, else single-file.
-        var layout = ResolveLayout(overrides, config, warnings, Error);
+        var layout = ResolveLayout(overrides, config, warnings, Error, out var refusedKey);
+        foreach (var (key, text) in layoutErrors)
+            if (key != refusedKey) Error(CompileCodes.Configuration, text);
         if (layout is { Value: IrLayout.DocumentTree } tree && version is { } requested && !HasDocumentTrees(requested.Value.Version))
             Error(CompileCodes.UnsupportedSetting,
                 $"The layout document-tree from {Describe(tree.Origin)} is not supported for IR version {requested.Value.Text} from {Describe(requested.Origin)}. "
@@ -308,8 +314,9 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
     /// <c>ir.mode</c> always gives a warning, as the <c>morphir.toml</c> specification says. Null when the value is not valid.
     /// </summary>
     private static Setting<IrLayout>? ResolveLayout(CompileOverrides overrides, ConfigurationView config, List<Diagnostic> warnings,
-        Action<DiagnosticCode, string> error)
+        Action<DiagnosticCode, string> error, out string? refusedKey)
     {
+        refusedKey = null;
         var configured = config.String("ir", "layout") is { Origin: SettingOrigin.Configuration } fromLayout ? fromLayout : null;
         var mode = config.String("ir", "mode") is { Origin: SettingOrigin.Configuration } fromMode ? fromMode : null;
         var selected = overrides.IrLayout is { } cli
@@ -323,8 +330,10 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
         if (selected is not null)
         {
             if (IrStorageNames.TryParseLayout(selected.Value, out var parsed)) return new(parsed, selected.Origin);
+            var name = selected.Origin is SettingOrigin.Configuration ? LayoutKey : "--ir-layout";
             error(CompileCodes.InvalidSetting,
-                $"The IR layout '{selected.Value}' from {Describe(selected.Origin)} is not valid. Use \"single-file\" or \"document-tree\".");
+                $"The IR layout {name} = '{selected.Value}' from {Describe(selected.Origin)} is not valid. Use \"single-file\" or \"document-tree\".");
+            if (selected.Origin is SettingOrigin.Configuration) refusedKey = LayoutKey;
             return null;
         }
         switch (mode?.Value)
@@ -334,10 +343,14 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             case "vfs": return new(IrLayout.DocumentTree, mode.Origin);
             default:
                 error(CompileCodes.InvalidSetting,
-                    $"The IR mode '{mode.Value}' from {Describe(mode.Origin)} is not valid. Use ir.layout = \"single-file\" or \"document-tree\".");
+                    $"The IR mode {ModeKey} = '{mode.Value}' from {Describe(mode.Origin)} is not valid. Use ir.layout = \"single-file\" or \"document-tree\".");
+                refusedKey = ModeKey;
                 return null;
         }
     }
+
+    private const string LayoutKey = "ir.layout";
+    private const string ModeKey = "ir.mode";
 
     /// <summary>
     /// Whether the document-tree specifications define a tree for a version: not for classic IR 1 or 2. A version that no

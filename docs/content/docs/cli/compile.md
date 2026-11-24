@@ -114,16 +114,22 @@ compilation with `compile.unsupported_setting` and exit code 2. An IR 4 tree say
 file. An IR 3 tree says `"formatVersion": "3.1.0"` in every file, as the parent's v3 document-tree
 specification requires, and the record names its version `v3.1.0`.
 
+Request an IR 3 tree with `--ir-version 3`, not `3.1.0`. The classic writer declares `3`, and `3.1.0` is
+another version (VER-1), so `--ir-version 3.1.0` fails before compilation with
+`compile.unsupported_ir_version` and exit code 2. The tree that `--ir-version 3` writes still says `3.1.0`
+in every file. The report keeps `irVersion` as you wrote it (`3`).
+
 `ir.mode` is the deprecated name of the layout: `classic` is `single-file`, and `vfs` is `document-tree`. A
 configured `ir.mode` always gives the warning `compile.deprecated_setting`. When `--ir-layout` or `ir.layout`
 is also set, that layout is used and `ir.mode` is ignored. A layout or a mode that is not one of these words
 fails with `compile.invalid_setting` and exit code 2. The report gives the origin of the layout in
 `origins.irLayout`.
 
-```bash
-$ dotnet-morphir compile --language fsharp --input src/Rates.fs --package-name acme/demo --ir-layout document-tree
-/work/.morphir/out/compile.dest/morphir-ir
+```text
+dotnet-morphir compile --language fsharp --input src/Rates.fs --package-name acme/demo --ir-layout document-tree
 ```
+
+In human mode, standard output is the path of the tree, for example `/work/.morphir/out/compile.dest/morphir-ir`.
 
 ## Sources
 
@@ -247,10 +253,26 @@ The member path is the directory of a workspace member relative to the workspace
 
 The record has schema `1`, task `compile`, the `language`, the project file in `inputs` (relative to the
 workspace root), `value`, the `ir` descriptor (`path`, `layout`, `format` and `version`, for example `v4`),
-the `installed` ledger and `completedAt`. For a document tree, `value` and `ir.path` are `morphir-ir`,
-`ir.layout` is `document-tree`, and `ir.format` is `json`. `morphir generate` without `--input` reads the IR
-through this descriptor. A backend extension reads a recorded document tree in bounded sessions. See
-[Generate]({{< relref "/docs/cli/generate" >}}).
+the `installed` ledger and `completedAt`. `morphir generate` without `--input` reads the IR through this
+descriptor. See [Generate]({{< relref "/docs/cli/generate" >}}). The record of a document-tree compile has:
+
+```json
+"value": ["morphir-ir"],
+"ir": { "path": "morphir-ir", "layout": "document-tree", "format": "json", "version": "v4" }
+```
+
+An IR 3 tree has `"version": "v3.1.0"`. Only a backend extension reads a recorded document tree, in a
+bounded session under MEP `0.2.0-draft.2`: give `morphir generate` the extension and no `--input`.
+
+```text
+dotnet-morphir compile --ir-layout document-tree
+dotnet-morphir generate --target text --extension ./orders-generator --output generated
+```
+
+`orders-generator` is a backend extension that advertises the `text` target. See
+[Bounded generation from a compile record]({{< relref "/docs/cli/generate#bounded-generation-from-a-compile-record" >}}).
+A built-in backend, for example `generate --target fsharp` with no extension, does not read a JSON document
+tree. It fails with `unsupported-format` and exit code 1, and writes nothing.
 
 When a compile starts, it clears `compile.dest` and replaces an earlier record with a tombstone. A
 successful compile then writes the full record. A failed compile publishes no IR and leaves the tombstone,

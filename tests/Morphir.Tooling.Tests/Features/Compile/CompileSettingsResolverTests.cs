@@ -274,6 +274,23 @@ public sealed class CompileSettingsResolverTests
     }
 
     [Test]
+    [Arguments("layout", "folder")]
+    [Arguments("mode", "folder")]
+    public void AnInvalidConfiguredLayoutGivesOneDiagnostic(string key, string value)
+    {
+        using var workspace = new CompileWorkspace();
+        workspace.Write("morphir.toml", $"[project]\nname = \"acme/demo\"\n\n[ir]\n{key} = \"{value}\"\n");
+        var result = Resolver.Resolve(new CompileOverrides(), workspace.Context());
+        result.TryGetValue(out _).Should().BeFalse();
+        var errors = result.Diagnostics.Where(d => d.IsError).ToArray();
+        errors.Select(d => d.CodeOrNull?.Value).Should().Equal(["compile.invalid_setting"], string.Join("\n", result.Diagnostics));
+        errors[0].Message.Should().Contain($"ir.{key}").And.Contain("morphir.toml").And.Contain(value)
+            .And.Contain("single-file").And.Contain("document-tree");
+        result.Diagnostics.Where(d => !d.IsError).Select(d => d.CodeOrNull?.Value).Should()
+            .Equal(key == "mode" ? ["compile.deprecated_setting"] : []);
+    }
+
+    [Test]
     [Arguments("1")]
     [Arguments("2")]
     [Arguments("2.0.0")]

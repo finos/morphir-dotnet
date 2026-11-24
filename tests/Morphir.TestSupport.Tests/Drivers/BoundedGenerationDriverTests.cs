@@ -49,6 +49,18 @@ public sealed class BoundedGenerationDriverTests
     }
 
     [Test]
+    public async Task TheCompiledOrdersProjectIsADocumentTreeProjectWithTheDomainSource()
+    {
+        await using var workspace = ScenarioWorkspace.Create("");
+        Driver(workspace, new RecordingCli()).PrepareCompiledOrders();
+        workspace.ReadText(workspace.File("morphir.toml")).Should().Be(BoundedOrdersRecordMother.DocumentTreeConfiguration)
+            .And.Contain("layout = \"document-tree\"");
+        workspace.ReadText(workspace.File("src/Domain.fs")).Should().Be(BoundedOrdersRecordMother.DomainSource);
+        workspace.ReadText(workspace.File("bounded-orders.mode")).Should().Be("compiled-orders");
+        workspace.Exists(workspace.File("build-artifacts/compile.json")).Should().BeFalse("the compile writes the record");
+    }
+
+    [Test]
     public async Task NativeGenerationPreservesPathsAndBackendOptionsAsSingleArguments()
     {
         await using var workspace = ScenarioWorkspace.Create("");

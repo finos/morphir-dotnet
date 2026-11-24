@@ -101,6 +101,48 @@ module DocumentTreeStore =
         | ClassicTree classic -> ClassicTreeWriter.writeClassic options classic
 
     /// <summary>
+    /// The files of a written tree and the format version that every one of them declares: <c>4</c> for a v4 tree,
+    /// <c>3.1.0</c> for a classic v3 tree. Only <see cref="writeTree"/> builds one, so the version always agrees with
+    /// the files. C# callers read <c>Files</c> and <c>FormatVersion</c>.
+    /// </summary>
+    [<Sealed>]
+    type WrittenTree internal (files: Morphir.Files.VFileTree, formatVersion: Versioning.FormatVersion) =
+        /// <summary>The files, as <see cref="write"/> gives them.</summary>
+        member _.Files = files
+
+        /// <summary>The format version that every file of the tree declares.</summary>
+        member _.FormatVersion = formatVersion
+
+        /// <summary>The layout and the format version.</summary>
+        override _.ToString() =
+            $"document tree, format version {Versioning.version formatVersion}"
+
+    /// The version that every file of a classic v3 tree declares, as the parent's v3 tree specification requires.
+    let private classicTreeVersion =
+        Versioning.SemVer {
+            Major = 3
+            Minor = 1
+            Patch = 0
+            PreRelease = None
+            BuildMetadata = None
+        }
+
+    /// <summary>
+    /// Writes a tree as <see cref="write"/> does, and gives its files with the format version that they declare:
+    /// <c>4</c> for a v4 tree and <c>3.1.0</c> for a classic v3 tree. C# calls this <c>WriteTree</c>; take its result
+    /// with <c>StoredModel.TryGetWritten</c>.
+    /// </summary>
+    [<CompiledName("WriteTree")>]
+    let writeTree (options: WriteOptions) (tree: StoredTree) : Result<WrittenTree, StoreError list> =
+        let version =
+            match tree with
+            | V4Tree _ -> Versioning.Classic 4
+            | ClassicTree _ -> classicTreeVersion
+
+        write options tree
+        |> Result.map (fun files -> WrittenTree(files, version))
+
+    /// <summary>
     /// Reads a tree from files. The manifest's <c>formatVersion</c> chooses the version: a manifest of major 3 is
     /// read as a classic v3 tree, which says <c>"3.1.0"</c> in every file, and any other as a v4 tree. The files are
     /// taken by their location in the tree, whatever order the tree lists them in. A JSON file is part of the tree, a

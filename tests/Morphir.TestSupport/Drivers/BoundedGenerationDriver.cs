@@ -11,6 +11,11 @@ namespace Morphir.TestSupport.Drivers;
 public interface IBoundedGenerationDriver
 {
     void Prepare(string mode);
+    /// <summary>
+    /// A project with <c>ir.layout = "document-tree"</c> and the Orders domain source, for a real compile, and the orders
+    /// guest in its mode for compiled trees. No record is written: the compile writes it.
+    /// </summary>
+    void PrepareCompiledOrders();
     void ConfigureOrdersScaleGuest();
     WorkspaceDirectory RecordScaleProductionTree();
     WorkspaceDirectory RecordScaleDocumentOverTree();
@@ -37,6 +42,13 @@ public sealed class BoundedGenerationDriver(IScenarioWorkspace workspace, IGener
     {
         workspace.WriteText(workspace.File("morphir.toml"), BoundedOrdersRecordMother.ProjectConfiguration);
         workspace.WriteText(workspace.File("bounded-orders.mode"), mode);
+    }
+
+    public void PrepareCompiledOrders()
+    {
+        workspace.WriteText(workspace.File("morphir.toml"), BoundedOrdersRecordMother.DocumentTreeConfiguration);
+        workspace.WriteText(workspace.File("src/Domain.fs"), BoundedOrdersRecordMother.DomainSource);
+        workspace.WriteText(workspace.File("bounded-orders.mode"), "compiled-orders");
     }
 
     public WorkspaceDirectory RecordTree(int order, int? reserve = null)
@@ -159,6 +171,16 @@ public sealed class BoundedGenerationDriver(IScenarioWorkspace workspace, IGener
 public static class BoundedOrdersRecordMother
 {
     public const string ProjectConfiguration = "[project]\nname = \"acme/orders\"\n\n[frontend]\nlanguage = \"fsharp\"\n";
+
+    /// <summary>The Orders project that compiles to a JSON document tree.</summary>
+    public const string DocumentTreeConfiguration = ProjectConfiguration + "\n[ir]\nlayout = \"document-tree\"\n";
+
+    /// <summary>
+    /// The F# source of the Orders domain that the orders guest reads: the type and the value <c>order</c> (73), and the
+    /// value <c>total-in-USD</c> that references it, as in the pinned Orders tree.
+    /// </summary>
+    public const string DomainSource =
+        "namespace Acme.Orders\n\nmodule Domain =\n    type Order = int\n    let order : int = 73\n    let totalInUSD : int = order\n";
 
     public const string WasmConfiguration = ProjectConfiguration
         + "[extensions.text]\npath = \"orders.wasm\"\nabi = \"extism-kernel-v1\"\n";

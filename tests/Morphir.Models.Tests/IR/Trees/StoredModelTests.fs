@@ -219,4 +219,44 @@ let tests =
 
             Expect.isSome (Morphir.Files.VFileTree.tryGet DocumentTreeStore.plainFiles files) "under the policy"
         }
+
+        testList "DocumentTreeStore.writeTree gives the files and the version they declare" [
+            let writeTree (model: StoredModel) =
+                let mutable tree = Unchecked.defaultof<DocumentTreeStore.WrittenTree>
+                let mutable problems = Unchecked.defaultof<_>
+
+                if
+                    StoredModel.TryGetWritten(
+                        DocumentTreeStore.writeTree (StoredModel.WriteOptions false) model.Tree,
+                        &tree,
+                        &problems
+                    )
+                then
+                    tree
+                else
+                    failtestf "Expected the tree, got %A" [ for problem in problems -> problem.ToString() ]
+
+            let manifestVersion (tree: DocumentTreeStore.WrittenTree) =
+                match Morphir.Files.VFileTree.findFile "manifest.json" tree.Files |> Option.map Morphir.Files.VFile.readText with
+                | Some(Ok text) ->
+                    use document = JsonDocument.Parse(text)
+                    document.RootElement.GetProperty("formatVersion").GetRawText()
+                | _ -> failtest "Expected a manifest file"
+
+            test "A v4 tree declares IR 4" {
+                let tree = readOk (v4Bytes DistributionMother.v4LibraryWithOneModule) |> convert ModelLayout.DocumentTree |> writeTree
+                Expect.equal (Versioning.version tree.FormatVersion) "4" "the version of the v4 files"
+                Expect.equal (manifestVersion tree) "4" "the manifest says 4"
+            }
+
+            test "A classic v3 tree declares 3.1.0" {
+                let tree =
+                    readOk (classicBytes ClassicWireProfile.v3 DistributionMother.v3Library)
+                    |> convert ModelLayout.DocumentTree
+                    |> writeTree
+
+                Expect.equal (Versioning.version tree.FormatVersion) "3.1.0" "every classic tree file says 3.1.0"
+                Expect.equal (manifestVersion tree) "\"3.1.0\"" "the manifest says 3.1.0"
+            }
+        ]
     ]

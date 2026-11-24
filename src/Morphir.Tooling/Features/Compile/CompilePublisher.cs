@@ -23,63 +23,55 @@ public interface ICompilePublisher
 
 /// <summary>What a successful compile publishes.</summary>
 /// <param name="Language">The source language, for example <c>fsharp</c>.</param>
+/// <param name="IrVersion">The format version of the written IR.</param>
 /// <param name="ProjectFile">The absolute project file that supplied the sources, or null.</param>
-/// <param name="Ir">The written IR, in the layout of the settings, with its format version.</param>
-public sealed record CompilePublishRequest(string Language, string? ProjectFile, CompileIrOutput Ir);
-
-/// <summary>
-/// The written IR of one compile, in one of its layouts: one file or a JSON document tree. Each case has the format
-/// version that its files declare, which the record names.
-/// </summary>
-public abstract record CompileIrOutput
+/// <param name="Ir">The exact bytes that the writer wrote.</param>
+/// <remarks>
+/// A request from the constructor publishes <paramref name="Ir"/> as <c>compile.dest/morphir-ir.json</c>. A request from
+/// <see cref="ForDocumentTree"/> publishes its <see cref="DocumentTree"/> as <c>compile.dest/morphir-ir</c> instead, and
+/// the record names the version that the files of the tree declare.
+/// </remarks>
+public sealed record CompilePublishRequest(string Language, FormatVersion IrVersion, string? ProjectFile, ReadOnlyMemory<byte> Ir)
 {
-    private CompileIrOutput(FormatVersion version) => Version = version;
-
-    /// <summary>The format version that the files of the IR declare.</summary>
-    public FormatVersion Version { get; }
-
-    /// <summary>The exact bytes that the writer wrote, published as <c>compile.dest/morphir-ir.json</c>.</summary>
-    public sealed record SingleFile(FormatVersion Version, ReadOnlyMemory<byte> Bytes) : CompileIrOutput(Version);
+    /// <summary>
+    /// The document tree to publish in place of the single file, or null for a single-file compile. Only
+    /// <see cref="ForDocumentTree"/> sets it.
+    /// </summary>
+    public DocumentTreeStore.WrittenTree? DocumentTree { get; private init; }
 
     /// <summary>
-    /// The files of a document tree (<c>DocumentTreeStore.Write</c>), published as <c>compile.dest/morphir-ir</c>: an
-    /// IR 4 tree declares the version of the writer, and a classic tree declares <c>3.1.0</c> in every file.
+    /// A request that publishes <paramref name="tree"/>: the document tree of the model that <paramref name="ir"/>, the bytes
+    /// that the writer of <paramref name="irVersion"/> wrote, holds.
     /// </summary>
-    public sealed record DocumentTree(FormatVersion Version, VFileTree Tree) : CompileIrOutput(Version);
-
-    /// <summary>Calls the function for this layout.</summary>
-    public TResult Match<TResult>(Func<SingleFile, TResult> singleFile, Func<DocumentTree, TResult> documentTree) => this switch
+    public static CompilePublishRequest ForDocumentTree(string language, FormatVersion irVersion, string? projectFile,
+        ReadOnlyMemory<byte> ir, DocumentTreeStore.WrittenTree tree)
     {
-        SingleFile file => singleFile(file),
-        DocumentTree tree => documentTree(tree),
-        _ => throw new System.Diagnostics.UnreachableException(),
-    };
+        ArgumentNullException.ThrowIfNull(tree);
+        return new(language, irVersion, projectFile, ir) { DocumentTree = tree };
+    }
 }
 
-/// <summary>Splits the written single-file IR into the document tree of the same model (IR 3 and IR 4).</summary>
+/// <summary>Writes the single-file IR of a compile as the document tree of the same model (IR 3 and IR 4).</summary>
 internal static class CompileDocumentTree
 {
     /// <summary>The depth of JSON that the written IR may have; the codecs guard their own recursion.</summary>
     private const int MaxDepth = 4096;
 
-    /// <summary>The version that every file of a classic tree declares (the parent's v3 tree specification).</summary>
-    private static readonly FormatVersion ClassicTreeVersion = Morphir.IR.Versioning.parse("3.1.0").ResultValue;
-
     /// <summary>
-    /// The tree of the model that <paramref name="written"/> holds: the bytes that the writer of <paramref name="version"/>
-    /// wrote. The model is read back with the single-file codecs, so the tree holds exactly the written model, and is split
-    /// with <c>V4DocumentTree.split</c> or <c>ClassicDocumentTree.split</c>. A refusal gives one
-    /// <see cref="CompileCodes.TreeWriteFailed"/> error for each problem.
+    /// The tree of the model that <paramref name="written"/>, the bytes that the writer wrote, holds. The model is read back
+    /// with the single-file codecs, so the tree holds exactly the written model, split (<see cref="StoredModel.TryConvert"/>)
+    /// and written by <see cref="DocumentTreeStore.WriteTree"/> with the version that its files declare. A refusal gives
+    /// one <see cref="CompileCodes.TreeWriteFailed"/> error for each problem.
     /// </summary>
-    public static Checked<CompileIrOutput> Split(ReadOnlyMemory<byte> written, FormatVersion version)
+    public static Checked<DocumentTreeStore.WrittenTree> Write(ReadOnlyMemory<byte> written)
     {
         using var document = System.Text.Json.JsonDocument.Parse(written, new System.Text.Json.JsonDocumentOptions { MaxDepth = MaxDepth });
-        if (!StoredModel.TryReadSingleFile(document.RootElement, out var model, out var problems)
-            || !model.TryConvert(ModelLayout.DocumentTree, out var tree, out problems)
-            || !StoredModel.TryGetWritten(DocumentTreeStore.Write(StoredModel.WriteOptions(false), tree.Tree), out var files, out problems))
-            return Checked<CompileIrOutput>.Fail(problems.Select(problem => Diagnostic.Create(Severity.Error, CompileCodes.TreeWriteFailed,
-                $"The written IR could not be split into a document tree: {problem}", null)));
-        return Checked<CompileIrOutput>.Pass(new CompileIrOutput.DocumentTree(tree.IrVersion == "3" ? ClassicTreeVersion : version, files));
+        if (StoredModel.TryReadSingleFile(document.RootElement, out var model, out var problems)
+            && model.TryConvert(ModelLayout.DocumentTree, out var split, out problems)
+            && StoredModel.TryGetWritten(DocumentTreeStore.WriteTree(StoredModel.WriteOptions(false), split.Tree), out var tree, out problems))
+            return Checked<DocumentTreeStore.WrittenTree>.Pass(tree);
+        return Checked<DocumentTreeStore.WrittenTree>.Fail(problems.Select(problem => Diagnostic.Create(Severity.Error, CompileCodes.TreeWriteFailed,
+            $"The written IR could not be split into a document tree: {problem}", null)));
     }
 }
 
@@ -97,7 +89,12 @@ public interface ICompilePublication : IDisposable
 /// The run holds <c>compile.lock</c> from <see cref="BeginAsync"/> until the publication is disposed, so a reader
 /// such as <c>generate</c> waits for the run and then reads its IR.
 /// </summary>
-public sealed class TaskRecordCompilePublisher(TaskStoreOptions options) : ICompilePublisher
+/// <remarks>
+/// The IR is staged in a sibling of its place in <c>compile.dest</c> and moved into place whole, then the record is
+/// written. A write failure, a cancellation or a record failure before the record is complete removes the staged and the
+/// moved IR, so <c>compile.dest</c> holds no partial IR and the tombstone of the run stays.
+/// </remarks>
+public sealed class TaskRecordCompilePublisher : ICompilePublisher
 {
     /// <summary>The file name of the published IR in <c>compile.dest</c>.</summary>
     public const string IrFile = "morphir-ir.json";
@@ -105,52 +102,77 @@ public sealed class TaskRecordCompilePublisher(TaskStoreOptions options) : IComp
     /// <summary>The directory name of a published document tree in <c>compile.dest</c>.</summary>
     public const string IrDirectory = "morphir-ir";
 
+    private readonly TaskStoreOptions _options;
+    private readonly Action<string>? _afterStaged;
+
+    /// <summary>A publisher with the given task store options.</summary>
+    public TaskRecordCompilePublisher(TaskStoreOptions options) : this(options, null) { }
+
     /// <summary>A publisher whose waiting line and warnings go to stderr.</summary>
     public TaskRecordCompilePublisher() : this(new TaskStoreOptions()) { }
+
+    /// <summary>For tests: <paramref name="afterStaged"/> runs with the staged path, before the IR moves into place.</summary>
+    internal TaskRecordCompilePublisher(TaskStoreOptions options, Action<string>? afterStaged) =>
+        (_options, _afterStaged) = (options, afterStaged);
 
     /// <inheritdoc />
     public async Task<Checked<ICompilePublication>> BeginAsync(CompileSettings settings, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(settings);
         var place = new CompileTaskPlace(settings.OutRoot, settings.Member, settings.MorphirHome);
-        return await place.Store(options).BeginAsync(ct) switch
+        return await place.Store(_options).BeginAsync(ct) switch
         {
-            Outcome<CompileTaskRun>.Success started => Checked<ICompilePublication>.Pass(new Publication(started.Value, settings)),
+            Outcome<CompileTaskRun>.Success started => Checked<ICompilePublication>.Pass(new Publication(started.Value, settings, _afterStaged)),
             Outcome<CompileTaskRun>.Failure failed => Checked<ICompilePublication>.Fail(TaskDiagnostics.Of(failed.Error, ct)),
             _ => throw new System.Diagnostics.UnreachableException(),
         };
     }
 
-    private sealed class Publication(CompileTaskRun run, CompileSettings settings) : ICompilePublication
+    private sealed class Publication(CompileTaskRun run, CompileSettings settings, Action<string>? afterStaged) : ICompilePublication
     {
         public async Task<Checked<PublishedCompile>> PublishAsync(CompilePublishRequest request, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            var (name, layout) = request.Ir.Match(_ => (IrFile, IrLayout.SingleFile), _ => (IrDirectory, IrLayout.DocumentTree));
+            var tree = request.DocumentTree;
+            var name = tree is null ? IrFile : IrDirectory;
             var target = Path.Combine(run.Dest, name);
-            string? failure;
+            var staging = Path.Combine(run.Dest, $".{name}.staging-{Guid.NewGuid():N}");
+            var recorded = false;
             try
             {
-                failure = await request.Ir.Match(
-                    async file =>
+                string? failure;
+                try
+                {
+                    failure = tree is null ? await StageFileAsync(staging, request.Ir, ct) : StageTree(staging, tree.Files);
+                    if (failure is null)
                     {
-                        await File.WriteAllBytesAsync(target, file.Bytes, ct);
-                        return (string?)null;
-                    },
-                    tree => Task.FromResult(VFileTreeModule.MatchPublish<string?>(new PublishOptions(target, ManifestMode.NoManifest), tree.Tree,
-                        _ => null, TreeWriteErrorModule.describe)));
-            }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-            {
-                failure = error.Message;
-            }
-            if (failure is not null)
-                return Checked<PublishedCompile>.Fail([Diagnostic.Create(Severity.Error, CompileCodes.PublishFailed,
-                    $"The IR could not be written to '{target}': {failure}", null)]);
+                        afterStaged?.Invoke(staging);
+                        ct.ThrowIfCancellationRequested();
+                        MoveIntoPlace(staging, target, tree is not null);
+                    }
+                }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+                {
+                    failure = error.Message;
+                }
+                if (failure is not null)
+                    return Checked<PublishedCompile>.Fail([Diagnostic.Create(Severity.Error, CompileCodes.PublishFailed,
+                        $"The IR could not be written to '{target}': {failure}", null)]);
 
-            var ir = IrDescriptor.Create(RecordPath.Parse(name), layout, IrStorageFormat.Json, request.Ir.Version);
-            if (run.Complete(new CompileProduct(request.Language, ir, request.ProjectFile)) is Outcome<TaskRecord>.Failure recordFailure)
-                return Checked<PublishedCompile>.Fail(TaskDiagnostics.Of(recordFailure.Error, ct));
+                ct.ThrowIfCancellationRequested();
+                var ir = tree is null
+                    ? IrDescriptor.Create(RecordPath.Parse(name), IrLayout.SingleFile, IrStorageFormat.Json, request.IrVersion)
+                    : IrDescriptor.Create(RecordPath.Parse(name), IrLayout.DocumentTree, IrStorageFormat.Json, tree.FormatVersion);
+                if (run.Complete(new CompileProduct(request.Language, ir, request.ProjectFile)) is Outcome<TaskRecord>.Failure recordFailure)
+                    return Checked<PublishedCompile>.Fail(TaskDiagnostics.Of(recordFailure.Error, ct));
+                recorded = true;
+            }
+            finally
+            {
+                // The run holds compile.lock: no reader sees the IR of a run whose record is not complete.
+                Remove(staging);
+                if (!recorded) Remove(target);
+            }
 
             if (settings.Output is not { } output) return Checked<PublishedCompile>.Pass(new PublishedCompile(target, []));
             return await run.InstallAsync(output.Value, ct) switch
@@ -163,6 +185,41 @@ public sealed class TaskRecordCompilePublisher(TaskStoreOptions options) : IComp
         }
 
         public void Dispose() => run.Dispose();
+
+        private static async Task<string?> StageFileAsync(string staging, ReadOnlyMemory<byte> bytes, CancellationToken ct)
+        {
+            await File.WriteAllBytesAsync(staging, bytes, ct);
+            return null;
+        }
+
+        /// <summary>Writes the tree into the new directory <paramref name="staging"/>; the reason when it fails.</summary>
+        private static string? StageTree(string staging, VFileTree files) =>
+            VFileTreeModule.MatchPublish<string?>(new PublishOptions(staging, ManifestMode.NoManifest), files, _ => null, TreeWriteErrorModule.describe);
+
+        /// <summary>
+        /// Moves the staged IR to <paramref name="target"/>, which the cleared <c>compile.dest</c> does not hold. On Windows the
+        /// move waits a bounded time while another process holds a staged file open.
+        /// </summary>
+        private static void MoveIntoPlace(string staging, string target, bool directory)
+        {
+            Action move = directory ? () => Directory.Move(staging, target) : () => File.Move(staging, target, overwrite: false);
+            if (!FileReplacement.Replace(move, () => !File.Exists(target) && !Directory.Exists(target)))
+                throw new IOException($"Something appeared at '{target}' while the move of the IR waited for another handle.");
+        }
+
+        /// <summary>Removes a file or a directory, as far as the file system lets it; the result of the publication stands.</summary>
+        private static void Remove(string path)
+        {
+            try
+            {
+                if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
+                else if (File.Exists(path)) File.Delete(path);
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                // Best effort: the next run clears compile.dest.
+            }
+        }
     }
 }
 

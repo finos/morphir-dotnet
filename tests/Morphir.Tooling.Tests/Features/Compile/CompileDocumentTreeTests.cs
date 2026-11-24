@@ -25,10 +25,6 @@ public sealed class CompileDocumentTreeTests
 {
     private const string TreeDirectory = ".morphir/out/compile.dest/morphir-ir";
 
-    /// <summary>The Orders domain that the bounded orders guest reads: a type and a value <c>order</c>, and a value that references it.</summary>
-    private const string OrdersDomain =
-        "namespace Acme.Orders\n\nmodule Domain =\n    type Order = int\n    let order : int = 73\n    let totalInUSD : int = order\n";
-
     private static string GuestAssembly => Path.Combine(AppContext.BaseDirectory, "Morphir.Conformance.FakeWorker.dll");
 
     private static CompileWorkspace Project()
@@ -68,19 +64,12 @@ public sealed class CompileDocumentTreeTests
         return model!;
     }
 
-    /// <summary>The plain single-file JSON of a model, for comparing a joined tree with a single-file compile.</summary>
+    /// <summary>The plain single-file JSON of a tree model joined back into one file.</summary>
     private static byte[] SingleFileBytes(StoredModel model)
     {
         model.TryConvert(ModelLayout.SingleFile, out var single, out var problems).Should().BeTrue(problems is null ? "" : string.Join("\n", problems));
         single!.TryWriteSingleFile(false, out var bytes, out problems).Should().BeTrue(problems is null ? "" : string.Join("\n", problems));
         return bytes!;
-    }
-
-    private static byte[] SingleFileBytes(string file)
-    {
-        using var document = JsonDocument.Parse(File.ReadAllBytes(file));
-        StoredModel.TryReadSingleFile(document.RootElement, out var model, out _).Should().BeTrue();
-        return SingleFileBytes(model!);
     }
 
     private static string[] Files(string root) =>
@@ -95,7 +84,8 @@ public sealed class CompileDocumentTreeTests
     {
         using var workspace = Project();
         var single = Succeeded(await Run(workspace, Inputs(version, "single-file")));
-        var singleBytes = SingleFileBytes(single.Publication.IrPath);
+        // The oracle is the file that the single-file compile published, read as JSON and not through the tree codecs.
+        var singleBytes = File.ReadAllBytes(single.Publication.IrPath);
 
         var success = Succeeded(await Run(workspace, Inputs(version)));
 
@@ -104,7 +94,8 @@ public sealed class CompileDocumentTreeTests
         File.Exists(workspace.PathOf(".morphir/out/compile.dest/morphir-ir.json")).Should().BeFalse("the run clears .dest and writes only the tree");
         var tree = ReadTree(success.Publication.IrPath);
         tree.IrVersion.Should().Be(storedVersion);
-        // A tree keeps no module order, so the join lists the modules by name: the models are equal as JSON objects.
+        // A tree keeps no module order, so the join lists the modules by name. JSON object members have no order, so
+        // DeepEquals compares the members of each object by name and every array in order.
         using (var joined = JsonDocument.Parse(SingleFileBytes(tree)))
         using (var expected = JsonDocument.Parse(singleBytes))
             JsonElement.DeepEquals(joined.RootElement, expected.RootElement).Should().BeTrue("the tree holds the model of the single file");
@@ -117,6 +108,88 @@ public sealed class CompileDocumentTreeTests
         ir.GetProperty("layout").GetString().Should().Be("document-tree");
         ir.GetProperty("format").GetString().Should().Be("json");
         ir.GetProperty("version").GetString().Should().Be(recorded);
+    }
+
+    private static string Dest(CompileWorkspace workspace) => workspace.PathOf(".morphir/out/compile.dest");
+
+    private static async Task<CompileResult> RunWithHook(CompileWorkspace workspace, CompileOverrides overrides, Action<string> afterStaged,
+        CancellationToken ct = default)
+    {
+        var publisher = new TaskRecordCompilePublisher(
+            new Morphir.Tooling.Features.TaskRecords.TaskStoreOptions { Diagnostics = TextWriter.Null }, afterStaged);
+        return CompileHandler.Fold(await CompileRunners.Events(CompileRunners.Create([FSharpFrontend.Registration], publisher: publisher),
+            overrides, workspace.Context(), ct));
+    }
+
+    private static bool IsTombstone(CompileWorkspace workspace)
+    {
+        using var record = JsonDocument.Parse(File.ReadAllText(workspace.PathOf(".morphir/out/compile.json")));
+        return record.RootElement.TryGetProperty("tombstone", out var tombstone) && tombstone.GetBoolean();
+    }
+
+    [Test]
+    [Arguments("document-tree")]
+    [Arguments("single-file")]
+    public async Task AWriteFailureOfTheStagedIrLeavesNoPartialIrAndKeepsTheTombstone(string layout)
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs(layout: layout)));
+        string? staged = null;
+
+        var failed = await RunWithHook(workspace, Inputs(layout: layout), path =>
+        {
+            staged = path;
+            throw new IOException("The disk is full.");
+        });
+
+        failed.ExitCode.Should().Be(2);
+        CompileRunners.ErrorCodes(failed).Should().Equal("compile.publish_failed");
+        staged.Should().NotBeNull().And.StartWith(Dest(workspace));
+        Directory.EnumerateFileSystemEntries(Dest(workspace)).Should().BeEmpty("neither the staged nor a partial IR stays");
+        IsTombstone(workspace).Should().BeTrue("the record of the failed run stays a tombstone");
+    }
+
+    [Test]
+    [Arguments("document-tree")]
+    [Arguments("single-file")]
+    public async Task ACancellationDuringPublicationLeavesNoPartialIrAndKeepsTheTombstone(string layout)
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs(layout: layout)));
+        using var cancellation = new CancellationTokenSource();
+
+        var cancelled = await RunWithHook(workspace, Inputs(layout: layout), _ => cancellation.Cancel(), cancellation.Token);
+
+        cancelled.ExitCode.Should().Be(130);
+        Directory.EnumerateFileSystemEntries(Dest(workspace)).Should().BeEmpty("a cancelled run commits no IR");
+        IsTombstone(workspace).Should().BeTrue("a cancelled run completes no record");
+    }
+
+    [Test]
+    public async Task ARecordWriteFailureRemovesTheMovedTree()
+    {
+        using var workspace = Project();
+        var record = workspace.PathOf(".morphir/out/compile.json");
+
+        var failed = await RunWithHook(workspace, Inputs(), _ =>
+        {
+            // The record cannot be written where a directory is.
+            File.Delete(record);
+            Directory.CreateDirectory(record);
+        });
+
+        failed.ExitCode.Should().Be(2);
+        CompileRunners.ErrorCodes(failed).Should().Equal("compile.record_write_failed");
+        Directory.EnumerateFileSystemEntries(Dest(workspace)).Should().BeEmpty("a tree whose record failed is not published");
+    }
+
+    [Test]
+    public async Task AClassicTreeIsRequestedAsThreeAndNotAsThreePointOne()
+    {
+        using var workspace = Project();
+        var refused = await Run(workspace, Inputs("3.1.0"));
+        refused.ExitCode.Should().Be(2);
+        CompileRunners.ErrorCodes(refused).Should().Equal("compile.unsupported_ir_version");
     }
 
     [Test]
@@ -215,13 +288,30 @@ public sealed class CompileDocumentTreeTests
     }
 
     [Test]
+    public async Task ABuiltInBackendRefusesARecordedJsonTree()
+    {
+        using var workspace = Project();
+        var compiled = await Command(workspace, $"--json=document {CommandInputs} --ir-layout document-tree");
+        compiled.Exit.Should().Be(0, compiled.Output.Text);
+
+        using var app = MorphirCli.CreateBuilder([]).AddScenario<GenerationScenario>().Build();
+        var invocation = new GenerateOverrides(Target: "fsharp", Output: workspace.PathOf("generated"));
+        var outcome = await app.Services.GetRequiredService<IMediator>().InvokeAsync<Outcome<GenerationSuccess>>(
+            new GenerateRequest(invocation, new InvocationContext(workspace.Root) { Environment = workspace.Context().Environment }));
+        var report = GenerationReport.From(outcome, invocation);
+
+        report.ExitCode.Should().Be(1, report.ToJson());
+        report.Diagnostics.Select(d => d.Code).Should().Equal(["unsupported-format"], report.ToJson());
+        Directory.Exists(workspace.PathOf("generated")).Should().BeFalse();
+    }
+
+    [Test]
     public async Task BoundedGenerationReadsTheRecordOfARealDocumentTreeCompile()
     {
         using var workspace = new CompileWorkspace();
-        workspace.Write("morphir.toml",
-            "[project]\nname = \"acme/orders\"\n\n[frontend]\nlanguage = \"fsharp\"\n\n[ir]\nlayout = \"document-tree\"\n");
-        workspace.Write("src/Domain.fs", OrdersDomain);
-        workspace.Write("bounded-orders.mode", "orders");
+        workspace.Write("morphir.toml", Morphir.TestSupport.Drivers.BoundedOrdersRecordMother.DocumentTreeConfiguration);
+        workspace.Write("src/Domain.fs", Morphir.TestSupport.Drivers.BoundedOrdersRecordMother.DomainSource);
+        workspace.Write("bounded-orders.mode", "compiled-orders");
 
         var compiled = await Command(workspace, "--json=document");
         compiled.Exit.Should().Be(0, compiled.Output.Text);
