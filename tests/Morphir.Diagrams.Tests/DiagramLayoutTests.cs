@@ -401,4 +401,55 @@ public class DiagramLayoutTests
         flow.Target.Binding!.Target.ShouldBe(ElementOf(Find(layout, "node=U"))[0].Id);
         flow.Target.Binding.Anchor.Match(across: point => point.X.Value, along: _ => -1.0).ShouldBe(0.0);
     }
+
+    private static DiagramLayout CheckoutWith(RdfDataset dataset) =>
+        DiagramExport.Layout(Parse(DiagramMother.Checkout), SvgRenderOptions.Default.WithDocument(DiagramMother.CheckoutDocument)
+            .WithMetadata(dataset, MetadataEmbedding.NQuads, NamedGraphHandling.Reject)).Layout.ShouldNotBeNull();
+
+    [Test]
+    public void LinksFollowTheProjectionsOrder()
+    {
+        var snapshot = DiagramMother.Snapshot(DiagramMother.Checkout);
+        DiagramSelection.TryCreate(snapshot, [DiagramElementRef.Create("node=Billing")], out var billing, out _).ShouldBeTrue();
+        Morphir.Knowledge.KnowledgeLink<LinkEndpoint, LinkEndpoint> To(string id, string target) => new(
+            Morphir.Knowledge.LinkId.Create(Morphir.Knowledge.Iri.Create(id)), LinkEndpoint.FromDiagram(billing),
+            Morphir.Knowledge.Iri.Create("https://example.org/vocab/implementedBy"), LinkEndpoint.FromResource(Morphir.Knowledge.Iri.Create(target)));
+        var dataset = MappingMother.Write(DiagramAnnotationSet.Create([], [To("urn:link:b", "urn:isbn:0451450523"), To("urn:link:a", "https://example.org/src/Billing.fs")], []));
+
+        var links = Find(CheckoutWith(dataset), "node=Billing").Links;
+
+        links.Select(link => (link.Target, link.IsWeb)).ShouldBe([("https://example.org/src/Billing.fs", true), ("urn:isbn:0451450523", false)]);
+        links.ShouldAllBe(link => link.Predicate == "https://example.org/vocab/implementedBy");
+    }
+
+    [Test]
+    public void AWebValuedPropertyIsNotALink() =>
+        Find(CheckoutWith(PlayerAnnotationMother.SeeAlso("https://example.org/docs/ledger")), "node=Ledger").Links.ShouldBeEmpty();
+
+    [Test]
+    public void TwoRunsGiveEqualLayouts()
+    {
+        foreach (var (_, source) in Morphir.TestSupport.Fixtures.DiagramCorpus.Representatives())
+        {
+            var first = Layout(source.Source);
+            var second = Layout(source.Source);
+
+            first.ShouldBe(second);
+            first.GetHashCode().ShouldBe(second.GetHashCode());
+        }
+
+        Layout(DiagramMother.Checkout).ShouldNotBe(Layout(DiagramMother.CheckoutWithRenamedLedger));
+    }
+
+    [Test]
+    public void TextBoxesUseTheThemesTextWidthEstimate()
+    {
+        var text = ShapeOf(Find(Layout("flowchart LR\n  A[Payments]\n"), "node=A")).Text!;
+
+        // The theme estimates monospace text at 0.62 of the font size per character, rounded up.
+        text.Box.Width.ShouldBe(Distance.FromPixels((8 * 13 * 62 + 99) / 100));
+        text.Size.ShouldBe(Distance.FromPixels(13));
+        text.Align.ShouldBe(TextAlign.Middle);
+        (text.Box.X + Distance.FromQuarterEmu(text.Box.Width.QuarterEmu / 2)).ShouldBe(text.Origin.X);
+    }
 }

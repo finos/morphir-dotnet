@@ -851,4 +851,33 @@ module internal LayoutSink =
             let converter = Converter(capture, palette, warnings)
             let bounds, built = converter.Convert capture.Root
             let roots = assemble capture capture.Owners converter.Ends converter.Lifelines built
+
+            // Each referenced drawable carries the links the metadata projection gives its reference, in its order.
+            let links =
+                scene.Annotations
+                |> List.map (fun (reference, items) ->
+                    reference,
+                    items
+                    |> List.filter (fun item -> item.Kind = "link")
+                    |> List.map (fun item -> ({ predicate = item.Predicate; linkTarget = item.Target; isWeb = item.IsWeb }: DrawableLink))
+                    |> ImmutableArray.CreateRange)
+                |> List.filter (fun (_, items) -> not items.IsEmpty)
+                |> dict
+
+            let rec link (drawable: Drawable) : Drawable =
+                let drawable =
+                    match drawable.reference with
+                    | Some reference ->
+                        match links.TryGetValue(reference.ToString()) with
+                        | true, items -> { drawable with links = items }
+                        | false, _ -> drawable
+                    | None -> drawable
+
+                match drawable.Kind with
+                | DrawableKind.Element children -> { drawable with kind = DrawableKind.Element(children |> Seq.map link |> ImmutableArray.CreateRange) }
+                | DrawableKind.Group children -> { drawable with kind = DrawableKind.Group(children |> Seq.map link |> ImmutableArray.CreateRange) }
+                | DrawableKind.Container container -> { drawable with kind = DrawableKind.Container { container with children = container.children |> Seq.map link |> ImmutableArray.CreateRange } }
+                | _ -> drawable
+
+            let roots = if links.Count = 0 then roots else roots |> Seq.map link |> ImmutableArray.CreateRange
             DiagramLayout(bounds, palette.Background, roots, scene.Document), List.ofSeq warnings
