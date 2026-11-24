@@ -423,3 +423,145 @@ module internal TreeYaml =
 
     let read maxDepth file bytes =
         readLimited maxDepth 1_000_000 file bytes
+
+    let private isAsciiWhitespace (b: byte) =
+        b = 0x20uy || b = 0x09uy || b = 0x0Duy || b = 0x0Auy
+
+    let private isWhitespaceOrEof (span: ReadOnlySpan<byte>) (index: int) =
+        index >= span.Length || isAsciiWhitespace span[index]
+
+    let private startsWithToken (span: ReadOnlySpan<byte>) (index: int) (token: string) =
+        if span.Length - index < token.Length then
+            false
+        else
+            let mutable matched = true
+            let mutable k = 0
+
+            while matched && k < token.Length do
+                if span[index + k] <> byte token[k] then
+                    matched <- false
+
+                k <- k + 1
+
+            matched && isWhitespaceOrEof span (index + token.Length)
+
+    let looksLikeYamlDocument (bytes: ReadOnlyMemory<byte>) (ct: CancellationToken) : bool =
+        ct.ThrowIfCancellationRequested()
+        let mutable span = bytes.Span
+
+        if
+            span.IsEmpty
+            || (span.Length >= 4
+                && span[0] = 0xE0uy
+                && span[1] = 0x01uy
+                && span[2] = 0x00uy
+                && span[3] = 0xEAuy)
+        then
+            false
+        else
+            if span.Length >= 3 && span[0] = 0xEFuy && span[1] = 0xBBuy && span[2] = 0xBFuy then
+                span <- span.Slice 3
+
+            let mutable i = 0
+
+            while i < span.Length && isAsciiWhitespace span[i] do
+                if (i &&& 1023) = 0 then
+                    ct.ThrowIfCancellationRequested()
+
+                i <- i + 1
+
+            if i >= span.Length then
+                false
+            else
+                let first = span[i]
+
+                if first = byte '#' then
+                    true
+                elif first = byte '%' && (startsWithToken span i "%YAML" || startsWithToken span i "%TAG") then
+                    true
+                elif startsWithToken span i "---" then
+                    true
+                elif first = byte '[' then
+                    false
+                else
+                    let fastDecision =
+                        if first = byte '{' then
+                            let mutable j = i + 1
+
+                            while j < span.Length && isAsciiWhitespace span[j] do
+                                if (j &&& 1023) = 0 then
+                                    ct.ThrowIfCancellationRequested()
+
+                                j <- j + 1
+
+                            if j >= span.Length then Some false
+                            elif span[j] = byte '"' || span[j] = byte '}' then Some false
+                            elif span[j] = byte '#' then Some true
+                            elif span[j] = byte '?' && isWhitespaceOrEof span (j + 1) then Some true
+                            else None
+                        else
+                            None
+
+                    match fastDecision with
+                    | Some decided -> decided
+                    | None ->
+                        try
+                            ct.ThrowIfCancellationRequested()
+                            let encoding = UTF8Encoding(encoderShouldEmitUTF8Identifier = false, throwOnInvalidBytes = true)
+                            let text = encoding.GetString(span.Slice(i).ToArray())
+                            use reader = new StringReader(text)
+                            let parser = Parser(reader)
+
+                            if not (parser.MoveNext()) || not (parser.Current :? StreamStart) then
+                                false
+                            else
+                                ct.ThrowIfCancellationRequested()
+
+                                if not (parser.MoveNext()) then
+                                    false
+                                else
+                                    match parser.Current with
+                                    | :? DocumentStart as docStart when not docStart.IsImplicit -> true
+                                    | :? DocumentStart ->
+                                        ct.ThrowIfCancellationRequested()
+
+                                        if not (parser.MoveNext()) then
+                                            false
+                                        else
+                                            match parser.Current with
+                                            | :? MappingStart as mapping when mapping.Style = MappingStyle.Block -> true
+                                            | :? MappingStart as mapping when mapping.Style = MappingStyle.Flow ->
+                                                ct.ThrowIfCancellationRequested()
+
+                                                if not (parser.MoveNext()) then
+                                                    false
+                                                else
+                                                    match parser.Current with
+                                                    | :? Scalar as scalar when
+                                                        scalar.Style = ScalarStyle.Plain
+                                                        || scalar.Style = ScalarStyle.SingleQuoted
+                                                        ->
+                                                        // Advance past the first flow key to its value. When YAML synthesizes
+                                                        // an implicit empty null value (for example truncated "{broken"), step
+                                                        // one more event so EOF triggers YamlException (false) instead of
+                                                        // misclassifying truncated JSON-like input as YAML.
+                                                        ct.ThrowIfCancellationRequested()
+
+                                                        if not (parser.MoveNext()) then
+                                                            false
+                                                        else
+                                                            match parser.Current with
+                                                            | :? Scalar as value when
+                                                                value.Style = ScalarStyle.Plain
+                                                                && value.Value.Length = 0
+                                                                && value.Start = value.End
+                                                                ->
+                                                                ct.ThrowIfCancellationRequested()
+                                                                parser.MoveNext()
+                                                            | _ -> true
+                                                    | _ -> false
+                                            | _ -> false
+                                    | _ -> false
+                        with
+                        | :? YamlException
+                        | :? DecoderFallbackException -> false

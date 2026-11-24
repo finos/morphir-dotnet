@@ -295,6 +295,17 @@ module DocumentTreeStore =
             false
 
     /// <summary>
+    /// For C# callers: inspects only the root YAML framing and root mapping events of <paramref name="bytes"/>
+    /// in O(1) parser steps to determine whether an extensionless file looks like a YAML document rather than
+    /// JSON, without decoding the body or masking downstream YAML errors. Standard JSON object starts
+    /// (<c>{"...</c>, <c>{}</c>), JSON arrays (<c>[</c>), and binary Ion return <c>false</c>. C# calls this
+    /// <c>LooksLikeYamlDocument</c>.
+    /// </summary>
+    [<CompiledName("LooksLikeYamlDocument")>]
+    let looksLikeYamlDocument (bytes: ReadOnlyMemory<byte>, cancellationToken: CancellationToken) : bool =
+        TreeYaml.looksLikeYamlDocument bytes cancellationToken
+
+    /// <summary>
     /// For C# callers that check a tree and need no model: each error of <see cref="read"/>, in the order the read
     /// found them, or none when the tree reads. C# calls this <c>ReadErrors</c>.
     /// </summary>

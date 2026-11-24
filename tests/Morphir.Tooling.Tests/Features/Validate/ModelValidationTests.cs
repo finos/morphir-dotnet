@@ -284,6 +284,18 @@ public sealed class ModelValidationTests
         jsonSuffixedDoubleColonReport.ExitCode.Should().Be(2);
         jsonSuffixedDoubleColonReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-format");
 
+        var jsonSuffixedDoubleColonQuotedYaml = Path.Combine(sandbox.Work, "yaml-double-colon-quoted.json");
+        await File.WriteAllTextAsync(jsonSuffixedDoubleColonQuotedYaml, Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.FormatVersionDoubleColonQuotedYaml);
+        var jsonSuffixedDoubleColonQuotedReport = await Validation(registry).RunAsync(new ValidateOverrides(jsonSuffixedDoubleColonQuotedYaml, "auto"), new InvocationContext(sandbox.Work), default);
+        jsonSuffixedDoubleColonQuotedReport.ExitCode.Should().Be(2);
+        jsonSuffixedDoubleColonQuotedReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-format");
+
+        var ionTextWithYamlSuffix = Path.Combine(sandbox.Work, "ion-model.yaml");
+        await File.WriteAllBytesAsync(ionTextWithYamlSuffix, Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes(Morphir.TestSupport.Fixtures.FixtureCatalog.UpstreamIr.V3DailyRateIon));
+        var ionTextWithYamlSuffixReport = await Validation(registry).RunAsync(new ValidateOverrides(ionTextWithYamlSuffix, "auto"), new InvocationContext(sandbox.Work), default);
+        ionTextWithYamlSuffixReport.ExitCode.Should().Be(2);
+        ionTextWithYamlSuffixReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-format");
+
         foreach (var profile in new[] { "plain-json", "plain-yaml" })
         {
             var treeDir = Path.Combine(sandbox.Work, profile);

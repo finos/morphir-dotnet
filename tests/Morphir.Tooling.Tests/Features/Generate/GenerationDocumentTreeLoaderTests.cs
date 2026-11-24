@@ -487,6 +487,29 @@ public sealed class GenerationDocumentTreeLoaderTests
         var binaryIonLoaded = ((Outcome<LoadedModel>.Success)await LoadAsync(binaryIonWithYamlSuffix, InputFormat.Auto)).Value;
         binaryIonLoaded.Representation.Should().Be(ModelRepresentation.IonBinary);
         binaryIonLoaded.Model.SourceVersion.Text.Should().Be("4.0.0");
+
+        // 6. Extensionless v4 Ion with a block comment containing ': ' between morphir:: and '{' succeeds in Auto mode.
+        var commentedIonPath = Path.Combine(sandbox.Work, "ion-comment-after-annotation");
+        File.WriteAllText(commentedIonPath, DocumentTreeMother.YamlDocuments.V4DailyRateIonWithBlockCommentAfterAnnotation);
+        var commentedIonOutcome = await LoadAsync(commentedIonPath, InputFormat.Auto);
+        var commentedIonLoaded = commentedIonOutcome.Should().BeOfType<Outcome<LoadedModel>.Success>().Subject.Value;
+        commentedIonLoaded.Representation.Should().Be(ModelRepresentation.IonText);
+        commentedIonLoaded.Model.SourceVersion.Text.Should().Be("4.0.0");
+
+        // 7. Extensionless valid v4 YAML starting with morphir::[key]: ignored or custom:: "ignored" succeeds in Auto mode.
+        foreach (var (name, content) in new[]
+        {
+            ("yaml-morphir-bracket-key", DocumentTreeMother.YamlDocuments.V4DailyRateYamlWithMorphirBracketKey),
+            ("yaml-custom-double-colon-quoted", DocumentTreeMother.YamlDocuments.V4DailyRateYamlWithCustomDoubleColonQuotedValue),
+        })
+        {
+            var yamlPath = Path.Combine(sandbox.Work, name);
+            File.WriteAllText(yamlPath, content);
+            var yamlOutcome = await LoadAsync(yamlPath, InputFormat.Auto);
+            var yamlLoaded = yamlOutcome.Should().BeOfType<Outcome<LoadedModel>.Success>($"{name} should decode as YAML in Auto mode").Subject.Value;
+            yamlLoaded.Representation.Should().Be(ModelRepresentation.Yaml);
+            yamlLoaded.Model.SourceVersion.Text.Should().Be("4");
+        }
     }
 
     [Test]

@@ -889,5 +889,32 @@ let tests =
                 Expect.isFalse (Morphir.Json.Classic.ClassicJson.tryReadDistribution (badJson.RootElement, &classicDoc, &classicErr)) "Classic TryReadDistribution fails on empty object"
                 Expect.equal (classicErr.ToString()) $"{classicErr.Rule} ({classicErr.Location}): {classicErr.Message}" "ClassicJsonError.ToString format"
             }
+
+            test "LooksLikeYamlDocument classifies YAML root framing and mappings without masking body errors or malformed JSON" {
+                let check (text: string) =
+                    DocumentTreeStore.looksLikeYamlDocument (ReadOnlyMemory(Encoding.UTF8.GetBytes text), CancellationToken.None)
+
+                Expect.isTrue (check YamlDocs.minimalV4PlainYaml) "Plain block mapping"
+                Expect.isTrue (check YamlDocs.malformedDistributionSequenceYaml) "Block mapping with later malformed sequence"
+                Expect.isTrue (check YamlDocs.mepCrOnlyCommentEnvelopeYaml) "CR-only leading comment"
+                Expect.isTrue (check YamlDocs.mepFlowMappingEnvelopeYaml) "Unquoted flow mapping"
+                Expect.isTrue (check YamlDocs.flowColonColonParenKeyWithUndeclaredSchemaYaml) "Flow mapping with ::(key)"
+                Expect.isTrue (check YamlDocs.v4DailyRateYamlWithMorphirBracketKey) "Block mapping starting with morphir::[key]:"
+                Expect.isTrue (check YamlDocs.v4DailyRateYamlWithCustomDoubleColonQuotedValue) "Block mapping starting with custom:: \"ignored\""
+
+                Expect.isFalse (check YamlDocs.trailingCommaV4DailyRateJson) "Trailing-comma JSON object stays JSON"
+                Expect.isFalse (check YamlDocs.malformedJsonBrace) "Truncated {broken stays JSON"
+                Expect.isFalse (check YamlDocs.emptyJsonObject) "Empty JSON object stays JSON"
+                Expect.isFalse (DocumentTreeStore.looksLikeYamlDocument (ReadOnlyMemory [| 0xE0uy; 0x01uy; 0x00uy; 0xEAuy |], CancellationToken.None)) "Binary Ion stays non-YAML"
+
+                use cts = new CancellationTokenSource()
+                cts.Cancel()
+                Expect.throwsT<OperationCanceledException>
+                    (fun () ->
+                        DocumentTreeStore.looksLikeYamlDocument (ReadOnlyMemory(Encoding.UTF8.GetBytes YamlDocs.minimalV4PlainYaml), cts.Token)
+                        |> ignore
+                    )
+                    "Cancelled token throws OperationCanceledException"
+            }
         ]
     ]

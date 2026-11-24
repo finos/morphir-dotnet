@@ -1213,6 +1213,33 @@ module YamlDocuments =
     [<CompiledName("FormatVersionDoubleColonYaml")>]
     let formatVersionDoubleColonYaml = "formatVersion:: ignored\n"
 
+    /// A single-line YAML mapping whose key ends with a colon (<c>formatVersion:</c>) with a quoted value.
+    [<CompiledName("FormatVersionDoubleColonQuotedYaml")>]
+    let formatVersionDoubleColonQuotedYaml = "formatVersion:: \"ignored\"\n"
+
+    /// A valid v4 Ion daily-rate document with a block comment containing <c>: </c> between <c>morphir::</c> and <c>{</c>.
+    [<CompiledName("V4DailyRateIonWithBlockCommentAfterAnnotation")>]
+    let v4DailyRateIonWithBlockCommentAfterAnnotation =
+        let v4Ion =
+            (FixtureCatalog.ReadText FixtureCatalog.UpstreamIr.V3DailyRateIon)
+                .Replace("3.0.0", "4.0.0")
+
+        v4Ion.Replace("morphir::{", "morphir::/* note: details */{")
+
+    /// A valid contextual v4 YAML daily-rate envelope preceded by an optional <c>morphir::[key]: ignored</c> entry.
+    [<CompiledName("V4DailyRateYamlWithMorphirBracketKey")>]
+    let v4DailyRateYamlWithMorphirBracketKey =
+        use parsed = JsonDocument.Parse(FixtureCatalog.ReadText FixtureCatalog.Models.V4DailyRate)
+        let distributionJson = parsed.RootElement.GetProperty("distribution").GetRawText()
+        $"morphir::[key]: ignored\n$schema: \"{MorphirFile.Draft1Schema}\"\ncontext: {{}}\ndocument:\n  formatVersion: 4\n  distribution: {distributionJson}\n"
+
+    /// A valid contextual v4 YAML daily-rate envelope preceded by an optional <c>custom:: "ignored"</c> entry.
+    [<CompiledName("V4DailyRateYamlWithCustomDoubleColonQuotedValue")>]
+    let v4DailyRateYamlWithCustomDoubleColonQuotedValue =
+        use parsed = JsonDocument.Parse(FixtureCatalog.ReadText FixtureCatalog.Models.V4DailyRate)
+        let distributionJson = parsed.RootElement.GetProperty("distribution").GetRawText()
+        $"custom:: \"ignored\"\n$schema: \"{MorphirFile.Draft1Schema}\"\ncontext: {{}}\ndocument:\n  formatVersion: 4\n  distribution: {distributionJson}\n"
+
     /// The <see cref="FixtureCatalog.Models.V4DailyRate"/> JSON document with an invalid trailing comma
     /// before the closing brace, which JSON must refuse as <c>malformed-json</c> and never silently decode as YAML.
     [<CompiledName("TrailingCommaV4DailyRateJson")>]

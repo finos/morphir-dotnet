@@ -47,9 +47,24 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
             if (input.Format is not (InputFormat.Auto or InputFormat.Json or InputFormat.Ion))
                 return Failure("invalid-input-format", $"Unsupported input format '{input.Format}'.", original.SourcePath, kind: GenerationFailureKind.Invocation);
 
-            if (original is RetainedInput.File candidate && input.Format == InputFormat.Auto && !IsIon(candidate, ct)
-                && (HasYamlExtension(candidate) || LooksLikeYamlFile(candidate.Entry.Memory.Span, ct)))
-                return Failure("unsupported-format", "YAML model input is unsupported; use JSON or Ion IR.", original.SourcePath);
+            if (original is RetainedInput.File candidate)
+            {
+                if (input.Format == InputFormat.Ion)
+                    return Decode(candidate, new(candidate.SourcePath, InputFormat.Ion), limits, ct);
+                if (input.Format == InputFormat.Json)
+                    return Decode(candidate, new(candidate.SourcePath, InputFormat.Json), limits, ct);
+
+                // InputFormat.Auto: preserve released validate refusal policy.
+                if (IsBinary(candidate.Entry.Memory.Span))
+                    return Decode(candidate, new(candidate.SourcePath, InputFormat.Ion), limits, ct);
+                if (IsLegacyYaml(candidate))
+                    return Failure("unsupported-format", "YAML model input is unsupported; use JSON or Ion IR.", original.SourcePath);
+                if (IsLegacyIon(candidate))
+                    return Decode(candidate, new(candidate.SourcePath, InputFormat.Ion), limits, ct);
+                if (!HasJsonExtension(candidate) && ClassifyExtensionlessAuto(candidate, limits, ct) == InputFormat.Yaml)
+                    return Failure("unsupported-format", "YAML model input is unsupported; use JSON or Ion IR.", original.SourcePath);
+                return Decode(candidate, new(candidate.SourcePath, InputFormat.Json), limits, ct);
+            }
 
             if (original is RetainedInput.Tree tree)
             {
@@ -109,11 +124,16 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
 
     private static Outcome<LoadedModel> DecodeAutoFile(RetainedInput.File file, ModelReadLimits limits, CancellationToken ct)
     {
-        if (IsIon(file, ct)) return DecodeIon(file, limits);
+        if (IsBinary(file.Entry.Memory.Span) || HasIonExtension(file)) return DecodeIon(file, limits);
         if (HasYamlExtension(file)) return DecodeYaml(file, limits, ct);
         if (HasJsonExtension(file)) return DecodeJson(file, limits, ct);
-        if (LooksLikeYamlFile(file.Entry.Memory.Span, ct)) return DecodeYaml(file, limits, ct);
-        return DecodeJson(file, limits, ct);
+
+        return ClassifyExtensionlessAuto(file, limits, ct) switch
+        {
+            InputFormat.Ion => DecodeIon(file, limits),
+            InputFormat.Yaml => DecodeYaml(file, limits, ct),
+            _ => DecodeJson(file, limits, ct),
+        };
     }
 
     private static Outcome<LoadedModel> DecodeTree(RetainedInput.Tree tree, InputFormat format, ModelReadLimits limits, CancellationToken ct)
@@ -196,53 +216,188 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
 
     private static bool IsBinary(ReadOnlySpan<byte> bytes) => bytes.StartsWith(new byte[] { 0xE0, 0x01, 0x00, 0xEA });
 
-    private static bool IsIon(RetainedInput.File file, CancellationToken ct)
+    private static bool HasIonExtension(RetainedInput.File file) =>
+        Path.GetExtension(file.SourcePath).ToLowerInvariant() is ".ion" or ".ionb";
+
+    private static bool HasYamlExtension(RetainedInput.File file) =>
+        Path.GetExtension(file.SourcePath).ToLowerInvariant() is ".yaml" or ".yml";
+
+    private static bool HasJsonExtension(RetainedInput.File file) =>
+        Path.GetExtension(file.SourcePath).Equals(".json", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Legacy YAML detection used by <c>morphir validate</c> Auto mode to preserve released refusal codes.</summary>
+    private static bool IsLegacyYaml(RetainedInput.File file)
     {
-        var bytes = file.Entry.Memory.Span;
-        if (IsBinary(bytes)) return true;
-        if (Path.GetExtension(file.SourcePath).ToLowerInvariant() is ".ion" or ".ionb") return true;
-        if (bytes.StartsWith(new byte[] { 0xEF, 0xBB, 0xBF })) bytes = bytes[3..];
-        // Content hints may follow arbitrarily long comments. Scan within the already bounded capture.
-        while (!bytes.IsEmpty)
-        {
-            if (bytes[0] is 9 or 10 or 13 or 32) { bytes = bytes[1..]; continue; }
-            if (bytes.StartsWith("//"u8))
-            {
-                var end = bytes.IndexOf((byte)'\n'); if (end < 0) return false;
-                bytes = bytes[(end + 1)..]; continue;
-            }
-            if (bytes.StartsWith("/*"u8))
-            {
-                var end = bytes[2..].IndexOf("*/"u8); if (end < 0) return false;
-                bytes = bytes[(end + 4)..]; continue;
-            }
-            if (bytes.StartsWith("$ion_"u8) || bytes.StartsWith("'morphir'::"u8))
-                return true;
-            if (bytes.StartsWith("morphir::"u8))
-                return !HasYamlMappingKeyAfterAnnotation(bytes, "morphir::"u8.Length, ct);
-            if (bytes.StartsWith("morphir_model::"u8))
-                return !HasYamlMappingKeyAfterAnnotation(bytes, "morphir_model::"u8.Length, ct);
-            return false;
-        }
-        return false;
+        if (HasYamlExtension(file)) return true;
+        var span = file.Entry.Memory.Span;
+        var prefix = System.Text.Encoding.UTF8.GetString(span[..Math.Min(256, span.Length)]).TrimStart('\uFEFF', ' ', '\t', '\r', '\n');
+        return prefix.StartsWith("---", StringComparison.Ordinal)
+            || prefix.StartsWith("formatVersion:", StringComparison.Ordinal)
+            || prefix.StartsWith("distribution:", StringComparison.Ordinal);
     }
 
-    private static bool HasYamlMappingKeyAfterAnnotation(ReadOnlySpan<byte> bytes, int start, CancellationToken ct)
+    /// <summary>Legacy Ion detection used by <c>morphir validate</c> Auto mode.</summary>
+    private static bool IsLegacyIon(RetainedInput.File file)
     {
-        if (start >= bytes.Length) return false;
-        var b = bytes[start];
-        if (b is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n'
-            or (byte)'"' or (byte)'\'' or (byte)'{' or (byte)'[')
-            return false;
-        if (b == (byte)'(')
+        var bytes = file.Entry.Memory.Span;
+        if (IsBinary(bytes) || HasIonExtension(file)) return true;
+        if (bytes.StartsWith(new byte[] { 0xEF, 0xBB, 0xBF })) bytes = bytes[3..];
+        var index = SkipIonTrivia(bytes, 0, CancellationToken.None);
+        if (index >= bytes.Length) return false;
+        var rest = bytes[index..];
+        return rest.StartsWith("$ion_"u8)
+            || rest.StartsWith("morphir::"u8)
+            || rest.StartsWith("'morphir'::"u8)
+            || rest.StartsWith("morphir_model::"u8);
+    }
+
+    /// <summary>
+    /// Parser-backed Auto classifier for extensionless non-binary single files.
+    /// Uses Ion comment/annotation scanning + bounded <see cref="IonReader"/> for Ion-annotated inputs
+    /// and O(1) root-event <see cref="DocumentTreeStore.LooksLikeYamlDocument"/> inspection for YAML.
+    /// </summary>
+    private static InputFormat ClassifyExtensionlessAuto(RetainedInput.File file, ModelReadLimits limits, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var bytes = file.Entry.Memory.Span;
+        if (bytes.StartsWith(new byte[] { 0xEF, 0xBB, 0xBF })) bytes = bytes[3..];
+
+        var index = SkipIonTrivia(bytes, 0, ct);
+        if (index >= bytes.Length) return InputFormat.Json;
+        var content = bytes[index..];
+
+        if (content.StartsWith("$ion_"u8) || content.StartsWith("'morphir'::"u8))
+            return InputFormat.Ion;
+
+        if (content.StartsWith("morphir::"u8) || content.StartsWith("morphir_model::"u8))
         {
-            if (!TrySkipBalancedParensOnLine(bytes, start, out var afterParens, ct))
-                return false;
-            if (afterParens >= bytes.Length || bytes[afterParens] is (byte)'\r' or (byte)'\n')
-                return false;
-            return TryMatchPlainBlockKey(bytes, afterParens, ct);
+            var afterAnnotations = AdvancePastChainedIonAnnotations(content, ct);
+            if (afterAnnotations < content.Length && content[afterAnnotations] == (byte)'{')
+                return InputFormat.Ion;
+
+            var ion = IonReader.read(IonLimits(limits), file.Entry.Memory);
+            if (ion.IsOk) return InputFormat.Ion;
+
+            return DocumentTreeStore.LooksLikeYamlDocument(file.Entry.Memory, ct)
+                ? InputFormat.Yaml
+                : InputFormat.Ion;
         }
-        return TryMatchPlainBlockKey(bytes, start, ct);
+
+        if (FirstLineContainsColonColon(content))
+        {
+            var ion = IonReader.read(IonLimits(limits), file.Entry.Memory);
+            if (ion.IsOk && !ion.ResultValue.IsEmpty && !ion.ResultValue.Head.Annotations.IsEmpty)
+                return InputFormat.Json;
+        }
+
+        return DocumentTreeStore.LooksLikeYamlDocument(file.Entry.Memory, ct)
+            ? InputFormat.Yaml
+            : InputFormat.Json;
+    }
+
+    private static int SkipIonTrivia(ReadOnlySpan<byte> bytes, int index, CancellationToken ct)
+    {
+        while (index < bytes.Length)
+        {
+            if ((index & 1023) == 0) ct.ThrowIfCancellationRequested();
+            var b = bytes[index];
+            if (b is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
+            {
+                index++;
+                continue;
+            }
+            if (bytes[index..].StartsWith("//"u8))
+            {
+                index += 2;
+                while (index < bytes.Length && bytes[index] is not ((byte)'\n' or (byte)'\r'))
+                {
+                    if ((index & 1023) == 0) ct.ThrowIfCancellationRequested();
+                    index++;
+                }
+                continue;
+            }
+            if (bytes[index..].StartsWith("/*"u8))
+            {
+                var close = bytes[(index + 2)..].IndexOf("*/"u8);
+                if (close < 0) return bytes.Length;
+                index += close + 4;
+                continue;
+            }
+            break;
+        }
+        return index;
+    }
+
+    private static int AdvancePastChainedIonAnnotations(ReadOnlySpan<byte> bytes, CancellationToken ct)
+    {
+        var i = 0;
+        while (i < bytes.Length)
+        {
+            i = SkipIonTrivia(bytes, i, ct);
+            if (!TrySkipIonAnnotation(bytes, i, out var next, ct))
+                break;
+            i = next;
+        }
+        return SkipIonTrivia(bytes, i, ct);
+    }
+
+    private static bool TrySkipIonAnnotation(ReadOnlySpan<byte> bytes, int start, out int nextIndex, CancellationToken ct)
+    {
+        nextIndex = start;
+        if (start >= bytes.Length) return false;
+
+        int i;
+        if (bytes[start] == (byte)'\'')
+        {
+            i = start + 1;
+            var closed = false;
+            while (i < bytes.Length)
+            {
+                if ((i & 1023) == 0) ct.ThrowIfCancellationRequested();
+                var b = bytes[i];
+                if (b == (byte)'\\') { i += 2; continue; }
+                if (b is (byte)'\r' or (byte)'\n') return false;
+                if (b == (byte)'\'') { i++; closed = true; break; }
+                i++;
+            }
+            if (!closed) return false;
+        }
+        else if (IsIonIdentifierStart(bytes[start]))
+        {
+            i = start + 1;
+            while (i < bytes.Length && IsIonIdentifierPart(bytes[i]))
+            {
+                if ((i & 1023) == 0) ct.ThrowIfCancellationRequested();
+                i++;
+            }
+        }
+        else
+        {
+            return false;
+        }
+
+        i = SkipIonTrivia(bytes, i, ct);
+        if (!bytes[i..].StartsWith("::"u8))
+            return false;
+
+        nextIndex = i + 2;
+        return true;
+    }
+
+    private static bool IsIonIdentifierStart(byte b) =>
+        (b >= (byte)'a' && b <= (byte)'z')
+        || (b >= (byte)'A' && b <= (byte)'Z')
+        || b == (byte)'_'
+        || b == (byte)'$';
+
+    private static bool IsIonIdentifierPart(byte b) =>
+        IsIonIdentifierStart(b) || (b >= (byte)'0' && b <= (byte)'9');
+
+    private static bool FirstLineContainsColonColon(ReadOnlySpan<byte> bytes)
+    {
+        var lineEnd = bytes.IndexOfAny((byte)'\r', (byte)'\n');
+        var firstLine = lineEnd < 0 ? bytes : bytes[..lineEnd];
+        return firstLine.IndexOf("::"u8) >= 0;
     }
 
     private static IonReadLimits IonLimits(ModelReadLimits limits) =>
@@ -253,374 +408,6 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         if (limits.MaxBytes <= 0 || limits.MaxEntries <= 0 || limits.MaxDepth <= 0 || limits.MaxNodes <= 0 || limits.MaxPathLength <= 0)
             return Failure("invalid-input-limits", BoundedCapture.InvalidLimitsMessage, path, kind: GenerationFailureKind.Invocation);
         return null;
-    }
-
-    private static bool HasYamlExtension(RetainedInput.File file) =>
-        Path.GetExtension(file.SourcePath).ToLowerInvariant() is ".yaml" or ".yml";
-
-    private static bool HasJsonExtension(RetainedInput.File file) =>
-        Path.GetExtension(file.SourcePath).Equals(".json", StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// Bounded, cancellation-aware syntactic Auto classifier for extensionless non-Ion single files.
-    /// Distinguishes YAML framing, YAML flow mappings, and YAML block mappings from JSON upfront so
-    /// <see cref="DecodeAutoFile"/> and <see cref="DecodeLegacy"/> route directly to YAML or JSON with
-    /// no silent cross-codec fallback. Standard JSON object starts (<c>{"...</c> or <c>{}</c>) and arrays
-    /// (<c>[</c>) stay JSON so malformed JSON (for example trailing commas) reports <c>malformed-json</c>.
-    /// </summary>
-    internal static bool LooksLikeYamlFile(ReadOnlySpan<byte> bytes, CancellationToken ct)
-    {
-        ct.ThrowIfCancellationRequested();
-        if (bytes.IsEmpty || IsBinary(bytes)) return false;
-        if (bytes.StartsWith(new byte[] { 0xEF, 0xBB, 0xBF })) bytes = bytes[3..];
-
-        var index = SkipAsciiWhitespace(bytes, 0, ct);
-        if (index >= bytes.Length) return false;
-
-        var first = bytes[index];
-
-        // Leading YAML-only framing: '#' comment (LF, CRLF, or CR-only), %YAML/%TAG directives, or '---' marker.
-        if (first == (byte)'#') return true;
-        if (first == (byte)'%' && (StartsWithToken(bytes, index, "%YAML"u8) || StartsWithToken(bytes, index, "%TAG"u8)))
-            return true;
-        if (StartsWithToken(bytes, index, "---"u8)) return true;
-
-        // Leading '{': standard JSON object starts '{"...' or '{}' stay JSON.
-        if (first == (byte)'{')
-        {
-            var innerIndex = SkipAsciiWhitespace(bytes, index + 1, ct);
-            if (innerIndex >= bytes.Length) return false;
-            var inner = bytes[innerIndex];
-            if (inner is (byte)'"' or (byte)'}') return false;
-            if (inner == (byte)'#') return true;
-            if (inner == (byte)'?' && IsWhitespaceOrEof(bytes, innerIndex + 1)) return true;
-            if (inner == (byte)'\'') return TryMatchSingleQuotedFlowKey(bytes, innerIndex, ct);
-            return TryMatchUnquotedFlowKey(bytes, innerIndex, ct);
-        }
-
-        // Leading '[' stays JSON.
-        if (first == (byte)'[') return false;
-
-        // Block mapping start outside '{' / '[':
-        if (first == (byte)'?' && IsWhitespaceOrEof(bytes, index + 1)) return true;
-        if (first == (byte)'"') return TryMatchDoubleQuotedBlockKey(bytes, index, ct);
-        if (first == (byte)'\'') return TryMatchSingleQuotedBlockKey(bytes, index, ct);
-        return TryMatchPlainBlockKey(bytes, index, ct);
-    }
-
-    private static int SkipAsciiWhitespace(ReadOnlySpan<byte> bytes, int index, CancellationToken ct)
-    {
-        while (index < bytes.Length && bytes[index] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n')
-        {
-            if ((index & 1023) == 0) ct.ThrowIfCancellationRequested();
-            index++;
-        }
-        return index;
-    }
-
-    private static bool IsWhitespaceOrEof(ReadOnlySpan<byte> bytes, int index) =>
-        index >= bytes.Length || bytes[index] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n';
-
-    private static bool IsFlowDelimiterOrWhitespaceOrEof(ReadOnlySpan<byte> bytes, int index) =>
-        index >= bytes.Length
-        || bytes[index] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n'
-            or (byte)',' or (byte)'}' or (byte)']' or (byte)'{' or (byte)'[';
-
-    private static bool StartsWithToken(ReadOnlySpan<byte> bytes, int index, ReadOnlySpan<byte> token) =>
-        bytes[index..].StartsWith(token) && IsWhitespaceOrEof(bytes, index + token.Length);
-
-    private static bool TryMatchSingleQuotedFlowKey(ReadOnlySpan<byte> bytes, int start, CancellationToken ct)
-    {
-        var i = start + 1;
-        while (i < bytes.Length)
-        {
-            if ((i & 1023) == 0) ct.ThrowIfCancellationRequested();
-            if (bytes[i] == (byte)'\'')
-            {
-                if (i + 1 < bytes.Length && bytes[i + 1] == (byte)'\'')
-                {
-                    i += 2;
-                    continue;
-                }
-                i++;
-                break;
-            }
-            i++;
-        }
-        if (i > bytes.Length || bytes[i - 1] != (byte)'\'') return false;
-        i = SkipAsciiWhitespace(bytes, i, ct);
-        if (i >= bytes.Length || bytes[i] != (byte)':') return false;
-        return i + 1 >= bytes.Length || bytes[i + 1] != (byte)':';
-    }
-
-    private enum ColonColonStep
-    {
-        Continue,
-        MatchedYaml,
-        StopNotYaml,
-    }
-
-    private static bool TrySkipDoubleQuotedOnLine(ReadOnlySpan<byte> bytes, int start, out int nextIndex, CancellationToken ct)
-    {
-        var i = start + 1;
-        while (i < bytes.Length)
-        {
-            if ((i & 1023) == 0) ct.ThrowIfCancellationRequested();
-            var b = bytes[i];
-            if (b == (byte)'\\')
-            {
-                i += 2;
-                continue;
-            }
-            if (b is (byte)'\r' or (byte)'\n')
-            {
-                nextIndex = i;
-                return false;
-            }
-            if (b == (byte)'"')
-            {
-                nextIndex = i + 1;
-                return true;
-            }
-            i++;
-        }
-        nextIndex = bytes.Length;
-        return false;
-    }
-
-    private static bool TrySkipSingleQuotedOnLine(ReadOnlySpan<byte> bytes, int start, out int nextIndex, CancellationToken ct)
-    {
-        var i = start + 1;
-        while (i < bytes.Length)
-        {
-            if ((i & 1023) == 0) ct.ThrowIfCancellationRequested();
-            var b = bytes[i];
-            if (b == (byte)'\\')
-            {
-                i += 2;
-                continue;
-            }
-            if (b is (byte)'\r' or (byte)'\n')
-            {
-                nextIndex = i;
-                return false;
-            }
-            if (b == (byte)'\'')
-            {
-                if (i + 1 < bytes.Length && bytes[i + 1] == (byte)'\'')
-                {
-                    i += 2;
-                    continue;
-                }
-                nextIndex = i + 1;
-                return true;
-            }
-            i++;
-        }
-        nextIndex = bytes.Length;
-        return false;
-    }
-
-    private static bool TrySkipBalancedParensOnLine(ReadOnlySpan<byte> bytes, int start, out int nextIndex, CancellationToken ct)
-    {
-        var depth = 1;
-        var i = start + 1;
-        while (i < bytes.Length && depth > 0)
-        {
-            if ((i & 1023) == 0) ct.ThrowIfCancellationRequested();
-            var b = bytes[i];
-            if (b is (byte)'\r' or (byte)'\n')
-            {
-                nextIndex = i;
-                return false;
-            }
-            if (b == (byte)'"')
-            {
-                if (!TrySkipDoubleQuotedOnLine(bytes, i, out i, ct))
-                {
-                    nextIndex = i;
-                    return false;
-                }
-                continue;
-            }
-            if (b == (byte)'\'')
-            {
-                if (!TrySkipSingleQuotedOnLine(bytes, i, out i, ct))
-                {
-                    nextIndex = i;
-                    return false;
-                }
-                continue;
-            }
-            if (b == (byte)'(') depth++;
-            else if (b == (byte)')') depth--;
-            i++;
-        }
-        nextIndex = i;
-        return depth == 0;
-    }
-
-    private static ColonColonStep StepPastColonColon(ReadOnlySpan<byte> bytes, int colonIndex, bool isFlow, out int nextIndex, CancellationToken ct)
-    {
-        var j = colonIndex;
-        while (j < bytes.Length && bytes[j] == (byte)':') j++;
-
-        var isDelim = isFlow ? IsFlowDelimiterOrWhitespaceOrEof(bytes, j) : IsWhitespaceOrEof(bytes, j);
-        if (isDelim)
-        {
-            var k = j;
-            while (k < bytes.Length && bytes[k] is (byte)' ' or (byte)'\t') k++;
-            if (k < bytes.Length && bytes[k] is (byte)'"' or (byte)'\'' or (byte)'{' or (byte)'[' or (byte)'(')
-            {
-                nextIndex = j;
-                return ColonColonStep.StopNotYaml;
-            }
-            nextIndex = j;
-            return ColonColonStep.MatchedYaml;
-        }
-
-        var next = bytes[j];
-        if (next == (byte)'"')
-        {
-            if (!TrySkipDoubleQuotedOnLine(bytes, j, out nextIndex, ct))
-                return ColonColonStep.StopNotYaml;
-            return ColonColonStep.Continue;
-        }
-        if (next == (byte)'\'')
-        {
-            if (!TrySkipSingleQuotedOnLine(bytes, j, out nextIndex, ct))
-                return ColonColonStep.StopNotYaml;
-            return ColonColonStep.Continue;
-        }
-        if (next is (byte)'{' or (byte)'[')
-        {
-            nextIndex = j;
-            return ColonColonStep.StopNotYaml;
-        }
-        if (next == (byte)'(')
-        {
-            if (!TrySkipBalancedParensOnLine(bytes, j, out nextIndex, ct))
-                return ColonColonStep.StopNotYaml;
-            return ColonColonStep.Continue;
-        }
-
-        nextIndex = j;
-        return ColonColonStep.Continue;
-    }
-
-    private static bool TryMatchUnquotedFlowKey(ReadOnlySpan<byte> bytes, int start, CancellationToken ct)
-    {
-        if (bytes[start] is (byte)'"' or (byte)'}' or (byte)'{' or (byte)'[' or (byte)']' or (byte)',')
-            return false;
-        var i = start;
-        while (i < bytes.Length)
-        {
-            if ((i & 1023) == 0) ct.ThrowIfCancellationRequested();
-            var b = bytes[i];
-            if (b is (byte)',' or (byte)'}' or (byte)']' or (byte)'{' or (byte)'[' or (byte)'\r' or (byte)'\n')
-                return false;
-            if (b == (byte)':')
-            {
-                if (i + 1 < bytes.Length && bytes[i + 1] == (byte)':')
-                {
-                    var step = StepPastColonColon(bytes, i, isFlow: true, out i, ct);
-                    if (step == ColonColonStep.MatchedYaml) return true;
-                    if (step == ColonColonStep.StopNotYaml) return false;
-                    continue;
-                }
-                if (IsFlowDelimiterOrWhitespaceOrEof(bytes, i + 1)) return true;
-            }
-            i++;
-        }
-        return false;
-    }
-
-    private static bool TryMatchDoubleQuotedBlockKey(ReadOnlySpan<byte> bytes, int start, CancellationToken ct)
-    {
-        var i = start + 1;
-        var closed = false;
-        while (i < bytes.Length)
-        {
-            if ((i & 1023) == 0) ct.ThrowIfCancellationRequested();
-            var b = bytes[i];
-            if (b == (byte)'\\')
-            {
-                i += 2;
-                continue;
-            }
-            if (b is (byte)'\r' or (byte)'\n') return false;
-            if (b == (byte)'"')
-            {
-                i++;
-                closed = true;
-                break;
-            }
-            i++;
-        }
-        if (!closed) return false;
-        while (i < bytes.Length && bytes[i] is (byte)' ' or (byte)'\t')
-            i++;
-        if (i >= bytes.Length || bytes[i] != (byte)':') return false;
-        if (i + 1 < bytes.Length && bytes[i + 1] == (byte)':') return false;
-        return IsWhitespaceOrEof(bytes, i + 1);
-    }
-
-    private static bool TryMatchSingleQuotedBlockKey(ReadOnlySpan<byte> bytes, int start, CancellationToken ct)
-    {
-        var i = start + 1;
-        var closed = false;
-        while (i < bytes.Length)
-        {
-            if ((i & 1023) == 0) ct.ThrowIfCancellationRequested();
-            var b = bytes[i];
-            if (b is (byte)'\r' or (byte)'\n') return false;
-            if (b == (byte)'\'')
-            {
-                if (i + 1 < bytes.Length && bytes[i + 1] == (byte)'\'')
-                {
-                    i += 2;
-                    continue;
-                }
-                i++;
-                closed = true;
-                break;
-            }
-            i++;
-        }
-        if (!closed) return false;
-        while (i < bytes.Length && bytes[i] is (byte)' ' or (byte)'\t')
-            i++;
-        if (i >= bytes.Length || bytes[i] != (byte)':') return false;
-        if (i + 1 < bytes.Length && bytes[i + 1] == (byte)':') return false;
-        return IsWhitespaceOrEof(bytes, i + 1);
-    }
-
-    private static bool TryMatchPlainBlockKey(ReadOnlySpan<byte> bytes, int start, CancellationToken ct)
-    {
-        var first = bytes[start];
-        if (first is (byte)'}' or (byte)']' or (byte)',') return false;
-        if (first == (byte)'-' && IsWhitespaceOrEof(bytes, start + 1)) return false;
-
-        var i = start;
-        while (i < bytes.Length)
-        {
-            if ((i & 1023) == 0) ct.ThrowIfCancellationRequested();
-            var b = bytes[i];
-            if (b is (byte)'\r' or (byte)'\n') return false;
-            if (b == (byte)':')
-            {
-                if (i + 1 < bytes.Length && bytes[i + 1] == (byte)':')
-                {
-                    var step = StepPastColonColon(bytes, i, isFlow: false, out i, ct);
-                    if (step == ColonColonStep.MatchedYaml) return true;
-                    if (step == ColonColonStep.StopNotYaml) return false;
-                    continue;
-                }
-                if (IsWhitespaceOrEof(bytes, i + 1)) return true;
-            }
-            i++;
-        }
-        return false;
     }
 
     private static Outcome<LoadedModel> DecodeIon(RetainedInput.File file, ModelReadLimits limits)
