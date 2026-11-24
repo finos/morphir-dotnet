@@ -921,6 +921,10 @@ arrowhead arrives only with a new feature, so a renderer that does not declare i
 and joins are advisory: treat a value you do not recognise as absent. Layout types have no public constructors, and
 the public API is checked against an approved listing.
 
+Two packages hold renderers built on layouts: [Morphir.Diagrams.Canvas](../Morphir.Diagrams.Canvas/README.md) writes
+editable draw.io, Excalidraw and Obsidian Excalidraw files, and [Morphir.Diagrams.Slides](../Morphir.Diagrams.Slides/README.md)
+writes PowerPoint, OpenDocument, Google Slides and reveal.js presentations.
+
 ## Migration coverage
 
 | Mermaid family | Supported syntax |
