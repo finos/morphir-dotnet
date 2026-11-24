@@ -400,12 +400,15 @@ public sealed class CompileDocumentTreeTests
         LockIsFree(workspace).Should().BeTrue("a begin that fails releases compile.lock");
     }
 
-    /// <summary>Whether <c>compile.lock</c> can be taken exclusively, as a run takes it: no run of this process still holds it.</summary>
+    /// <summary>
+    /// Whether <c>compile.lock</c> is there and can be taken exclusively, as a run takes it: no run of this process still
+    /// holds it. A lock file that is gone throws, so it is never taken for a free lock.
+    /// </summary>
     private static bool LockIsFree(CompileWorkspace workspace)
     {
         try
         {
-            using var taken = new FileStream(workspace.PathOf(".morphir/out/compile.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            using var taken = new FileStream(workspace.PathOf(".morphir/out/compile.lock"), FileMode.Open, FileAccess.ReadWrite, FileShare.None);
             return true;
         }
         catch (IOException)
@@ -436,32 +439,76 @@ public sealed class CompileDocumentTreeTests
         LockIsFree(workspace).Should().BeTrue("a cancelled begin releases compile.lock");
     }
 
-    /// <summary>A stderr that fails every write, as a closed pipe does.</summary>
-    private sealed class BrokenWriter : TextWriter
+    [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task ACancellationDuringTheLastAttemptOfTheClearExitsWithOneThirty(bool transient)
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs()));
+        LeaveTheTreeAsAStaleStage(workspace, Path.Combine(Dest(workspace), ".morphir-ir.staging"));
+        using var cancellation = new CancellationTokenSource();
+        var last = transient ? Morphir.Files.FileReplacement.Attempts : 1;
+        var deletes = 0;
+        // The user cancels during the last delete that the removal makes, after which it would give up.
+        var removal = new PathRemoval(_ =>
+        {
+            if (++deletes == last) cancellation.Cancel();
+            throw new IOException("The process cannot access the file because it is being used by another process.");
+        }, _ => transient, _ => { });
+
+        var cancelled = await RunWith(workspace, Inputs(), new CompilePublicationHooks(), Quiet with { Removal = removal }, cancellation.Token);
+
+        cancelled.ExitCode.Should().Be(130, "the cancellation decides, not the removal that gave up after it");
+        deletes.Should().Be(last);
+        LockIsFree(workspace).Should().BeTrue("a cancelled begin releases compile.lock");
+    }
+
+    /// <summary>A stderr that fails every write with <paramref name="failure"/>, and runs <paramref name="onWrite"/> before it.</summary>
+    private sealed class BrokenWriter(Func<Exception> failure, Action onWrite) : TextWriter
     {
         public override System.Text.Encoding Encoding => System.Text.Encoding.UTF8;
-        public override void Write(char value) => throw new IOException("The pipe is broken.");
-        public override void Write(string? value) => throw new IOException("The pipe is broken.");
-        public override void WriteLine(string? value) => throw new IOException("The pipe is broken.");
+        public override void Write(char value) => Fail();
+        public override void Write(string? value) => Fail();
+        public override void WriteLine(string? value) => Fail();
+
+        private void Fail()
+        {
+            onWrite();
+            throw failure();
+        }
     }
 
     [Test]
-    public async Task AWarningThatCannotBeWrittenKeepsTheCancellationAndEveryRemoval()
+    [Arguments("io")]
+    [Arguments("invalid-operation")]
+    public async Task AWarningThatCannotBeWrittenKeepsTheCancellationAndEveryRemoval(string failure)
     {
         using var workspace = Project();
         Succeeded(await Run(workspace, Inputs()));
         using var cancellation = new CancellationTokenSource();
         var scanner = new ScannedRemoval(failures: int.MaxValue);
         var target = Path.Combine(Dest(workspace), "morphir-ir");
+        var staging = Path.Combine(Dest(workspace), ".morphir-ir.staging");
+        var firstWrite = (Staging: -1, Target: -1);
+        var stderr = new BrokenWriter(
+            () => failure == "io" ? new IOException("The pipe is broken.") : new InvalidOperationException("The writer is closed."),
+            () => firstWrite = firstWrite.Staging < 0 ? (scanner.DeletesOf(staging), scanner.DeletesOf(target)) : firstWrite);
 
         var cancelled = await RunWith(workspace, Inputs(), new CompilePublicationHooks
         {
             Removal = scanner.Removal,
-            AfterMoved = _ => cancellation.Cancel(),
-        }, Quiet with { Diagnostics = new BrokenWriter() }, cancellation.Token);
+            // Both paths of the rollback are there: the moved tree, and a staging root that another tool put back.
+            AfterMoved = _ =>
+            {
+                LeaveTheTreeAsAStaleStage(workspace, staging);
+                cancellation.Cancel();
+            },
+        }, Quiet with { Diagnostics = stderr }, cancellation.Token);
 
         cancelled.ExitCode.Should().Be(130, "a warning that stderr refuses never replaces the cancellation");
-        scanner.DeletesOf(target).Should().Be(Morphir.Files.FileReplacement.Attempts, "every removal runs before any warning is written");
+        firstWrite.Should().Be((Morphir.Files.FileReplacement.Attempts, Morphir.Files.FileReplacement.Attempts),
+            "every removal of the rollback runs to its end before the first warning is written");
     }
 
     [Test]
@@ -479,7 +526,8 @@ public sealed class CompileDocumentTreeTests
 
         cancelled.ExitCode.Should().Be(130);
         File.Exists(workspace.PathOf(".morphir/out/compile.json")).Should().BeFalse();
-        warnings.ToString().Should().Contain("could not be removed").And.Contain("no compile.json").And.NotContain("tombstone");
+        warnings.ToString().Should().Contain("could not be removed").And.Contain("no compile.json").And.NotContain("tombstone")
+            .And.NotContain("succeeded", "an earlier compile can have succeeded and left a record that could not be read");
     }
 
     [Test]

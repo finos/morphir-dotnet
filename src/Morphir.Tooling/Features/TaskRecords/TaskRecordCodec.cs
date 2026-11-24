@@ -399,7 +399,12 @@ internal sealed record PathRemoval(Action<string> Delete, Func<Exception, bool> 
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException)
             {
-                if (attempt >= FileReplacement.Attempts || !IsTransient(error)) return false;
+                if (attempt >= FileReplacement.Attempts || !IsTransient(error))
+                {
+                    // A cancellation during the last attempt is the outcome, not the removal that gives up after it.
+                    ct.ThrowIfCancellationRequested();
+                    return false;
+                }
                 Wait(TimeSpan.FromMilliseconds(Math.Min(20 << (attempt - 1), 500)));
                 ct.ThrowIfCancellationRequested();
             }

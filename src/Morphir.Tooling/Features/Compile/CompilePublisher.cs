@@ -195,7 +195,7 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
                 var remaining = rolledBack.Where(path => !removal.TryRemove(path)).ToArray();
                 var record = File.Exists(run.Location.Record)
                     ? "compile.json is the tombstone of the run"
-                    : "there is no compile.json, because no earlier compile succeeded";
+                    : "there is no compile.json";
                 foreach (var left in remaining)
                     Warn($"warning: {left} could not be removed after the publication failed; another handle still holds a file below it. {record}, and the next compile clears {run.Dest}.");
             }
@@ -219,9 +219,9 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
             {
                 warnings.WriteLine(line);
             }
-            catch (Exception error) when (error is IOException or ObjectDisposedException or UnauthorizedAccessException)
+            catch (Exception error) when (error is not (OutOfMemoryException or AccessViolationException))
             {
-                // The warning is lost; the failure or the cancellation of the run stands.
+                // Any writer failure loses the warning only; the failure or the cancellation of the run stands.
             }
         }
 
