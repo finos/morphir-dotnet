@@ -133,7 +133,7 @@ svg .flow { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url
 <p>The first implementation task records three sets of digests before any writer changes:</p>
 <ul>
 <li>SHA-256 digests of the SVG of every pinned corpus diagram, for each built-in theme, mode, connector style and bridge setting</li>
-<li>digests of the player HTML, PNG, JPEG and GIF output for one diagram of each family, covering playback order, metadata, a railroad trace and highlights. PNG bytes come from the runtime's zlib, so images are digested as decoded pixels (and GIF frame delays), and the player HTML is digested with each embedded image replaced by its pixel digest. This keeps the baselines the same on every CI platform.</li>
+<li>digests of the player HTML, PNG, JPEG and GIF output for one diagram of each family, covering playback order, metadata, a railroad trace and highlights. PNG bytes come from the runtime's zlib, so a PNG is digested as its size and decoded pixels, and the player HTML is digested with each embedded PNG replaced by its pixel digest. The JPEG and GIF encoders are the library's own and use no runtime compression, so their bytes are digested directly. This keeps the baselines the same on every CI platform.</li>
 <li>digests of the connector bindings and playback structure that the player and GIF read</li>
 </ul>
 <p>The digests are committed as fixtures, each with its catalog entry and provenance row. Every later task must keep them unchanged. A digest that changes is a defect to fix. It is not re-approved.</p>

@@ -882,8 +882,16 @@ public static class FixtureCatalog
         public static FixtureEntry SvgDigests { get; } = new(
             "the SVG digests of every pinned corpus diagram", "DiagramExport/svg-digests.json", "b01892cf062c67f446a7c07563554010eb26205eb89bb1f5bbb88c4e184ea512", Provenance);
 
+        /// <summary>The offline player, the SVG and the connector bindings of one scene of each family.</summary>
+        public static FixtureEntry PlayerDigests { get; } = new(
+            "the player and scene digests of one diagram of each family", "DiagramExport/player-digests.json", "549f90d9c3423fbaf26e6b9a0a17241ef2e3aef13a454f860b2632ad649f0fc1", Provenance);
+
+        /// <summary>The PNG pixels, JPEG and GIF bytes and raster player of one diagram of each family.</summary>
+        public static FixtureEntry RasterDigests { get; } = new(
+            "the raster digests of one diagram of each family", "DiagramExport/raster-digests.json", "a079363eb645dc27c10f720ea95aa0fbd08b4ae459c4f4a1f66b96972b5cbd49", Provenance);
+
         /// <summary>Every digest fixture.</summary>
-        public static IReadOnlyList<FixtureEntry> Files { get; } = [SvgDigests];
+        public static IReadOnlyList<FixtureEntry> Files { get; } = [SvgDigests, PlayerDigests, RasterDigests];
     }
 
     /// <summary>Every file that the catalog owns and serves.</summary>

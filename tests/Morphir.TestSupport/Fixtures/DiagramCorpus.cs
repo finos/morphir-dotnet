@@ -46,4 +46,24 @@ public static class DiagramCorpus
             .OrderBy(file => file.Key, StringComparer.Ordinal)
             .Select(file => new CorpusDiagram(corpus, file.Key, file.Value))),
     ];
+
+    /// <summary>
+    /// One representative source for each diagram family, by name: flowchart, sequence, state, swimlane,
+    /// architecture, activity, railroad, data tree and BPMN. Each is a rich case of its corpus.
+    /// </summary>
+    public static IReadOnlyList<(string Family, CorpusDiagram Diagram)> Representatives() =>
+    [
+        .. new (string Family, FixtureEntry Corpus, string Suffix)[]
+        {
+            ("flowchart", FixtureCatalog.DiagramsMbt.Flowcharts, "/cases/shared-shapes.mmd"),
+            ("sequence", FixtureCatalog.DiagramsMbt.Sequence, "/examples/33.mmd"),
+            ("state", FixtureCatalog.DiagramsMbt.States, "/docs/020.mmd"),
+            ("swimlane", FixtureCatalog.DiagramsMbt.Swimlanes, "/cases/shapes.mmd"),
+            ("architecture", FixtureCatalog.DiagramsMbt.Architecture, "/all-ports.mmd"),
+            ("activity", FixtureCatalog.DiagramsMbt.PlantUmlActivity, "/fixtures/modern/docs/45.puml"),
+            ("railroad", FixtureCatalog.DiagramsMbt.PlantUml, "/fixtures/ebnf/doc-17.puml"),
+            ("data-tree", FixtureCatalog.DiagramsMbt.PlantUml, "/fixtures/json/doc-20.puml"),
+            ("bpmn", FixtureCatalog.DiagramsMbt.Bpmn, "/traversal-corpus/fixtures/process.bpmn"),
+        }.Select(pick => (pick.Family, Sources().Single(source => source.Corpus == pick.Corpus && source.Path.EndsWith(pick.Suffix, StringComparison.Ordinal)))),
+    ];
 }
