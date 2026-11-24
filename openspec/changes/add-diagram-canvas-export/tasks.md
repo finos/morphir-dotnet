@@ -54,7 +54,7 @@ Each task writes its tests first and confirms they fail for the stated reason, t
 
 - [x] 7.1 Add one export to each canvas target to `tests/Morphir.Diagrams.Smoke`, asserting that each succeeds. Verify that the existing smoke scenarios that run `diagrams-smoke` pass, managed in `LibraryHosts.feature` and under Native AOT in `NativeAot.feature`, with no new warnings beyond the allowed FSharp.Core ones.
 - [x] 7.2 Update the diagrams documentation page, the migration PRD status and the changelog. Verify the docs build and the link check pass.
-- [ ] 7.3 Run `dotnet format`, `mise run openspec:verify` and `./build.sh --target Test`, and run the `test-manager-reviewer` agent over the test diff and fix its findings. Verify every suite passes, including the digest baselines and raster goldens, on Linux, Windows and macOS in CI.
+- [x] 7.3 Run `dotnet format`, `mise run openspec:verify` and `./build.sh --target Test`, and run the `test-manager-reviewer` agent over the test diff and fix its findings. Verify every suite passes, including the digest baselines and raster goldens, on Linux, Windows and macOS in CI.
 
 ## Workflow follow-up
 
