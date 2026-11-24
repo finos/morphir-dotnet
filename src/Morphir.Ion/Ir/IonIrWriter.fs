@@ -559,25 +559,39 @@ module IonIrWriter =
     /// <summary>Reads Morphir IR JSON and writes it as one canonical Ion datagram.</summary>
     let ofJson (json: ReadOnlyMemory<byte>) : Result<byte array, IonIrError> = readJson json |> Result.bind write
 
+    let private withRelease (release: Morphir.IR.Versioning.FormatVersion) (document: IrDocument) : IrDocument =
+        let stated = Morphir.IR.Versioning.version release
+
+        match document with
+        | ClassicIr(_, distribution) -> ClassicIr(stated, distribution)
+        | V4Ir(_, distribution) -> V4Ir(stated, distribution)
+
     /// <summary>
     /// Reads Morphir IR JSON and writes it as one canonical Ion datagram that states <paramref name="release"/> in
     /// place of the JSON's version. A writer that writes a release the JSON profile cannot state, such as a v3 library
     /// at <c>3.1.0</c>, names it here. The release must be one the format carries for the document's family and kind.
     /// </summary>
     let ofJsonAs (release: Morphir.IR.Versioning.FormatVersion) (json: ReadOnlyMemory<byte>) : Result<byte array, IonIrError> =
-        let stated = Morphir.IR.Versioning.version release
-
         readJson json
-        |> Result.map (fun document ->
-            match document with
-            | ClassicIr(_, distribution) -> ClassicIr(stated, distribution)
-            | V4Ir(_, distribution) -> V4Ir(stated, distribution)
-        )
+        |> Result.map (withRelease release)
         |> Result.bind write
 
     /// <summary>Reads Morphir IR JSON and writes it as the files of a canonical Ion document tree.</summary>
     let ofJsonTree (pathBudget: int) (json: ReadOnlyMemory<byte>) : Result<(string * byte array) list, IonIrError> =
         readJson json |> Result.bind (writeTreeFiles pathBudget)
+
+    /// <summary>
+    /// Reads Morphir IR JSON and writes it as a canonical Ion document tree (<see cref="VFileTree"/>) that states
+    /// <paramref name="release"/> in its manifest header and member files.
+    /// </summary>
+    let ofJsonTreeAs
+        (release: Morphir.IR.Versioning.FormatVersion)
+        (pathBudget: int)
+        (json: ReadOnlyMemory<byte>)
+        : Result<VFileTree, IonIrError> =
+        readJson json
+        |> Result.map (withRelease release)
+        |> Result.bind (writeTree pathBudget)
 
 /// <summary>
 /// Why a read or a write for a C# caller failed: the stable code, a message, and where the problem is, each place as
@@ -702,6 +716,33 @@ type IonIrWriting =
                 [|
                     for location, bytes in written -> System.Collections.Generic.KeyValuePair(location, bytes)
                 |]
+            failure <- Unchecked.defaultof<_>
+            true
+        | Result.Error error ->
+            files <- Unchecked.defaultof<_>
+            failure <- IonFailure error
+            false
+
+    /// <summary>
+    /// Reads Morphir IR JSON and writes it as a canonical Ion document tree that states <paramref name="formatVersion"/>,
+    /// such as <c>3.1.0</c>, in place of the JSON's version (see <see cref="IonIrWriter.ofJsonTreeAs"/>).
+    /// </summary>
+    static member TryWriteJsonTree
+        (
+            json: ReadOnlyMemory<byte>,
+            formatVersion: Morphir.IR.Versioning.FormatVersion,
+            pathBudget: int,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)>] files:
+                byref<VFileTree>,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] failure:
+                byref<IonFailure>
+        ) : bool =
+        if isNull (box formatVersion) then
+            nullArg (nameof formatVersion)
+
+        match IonIrWriter.ofJsonTreeAs formatVersion pathBudget json with
+        | Ok tree ->
+            files <- tree
             failure <- Unchecked.defaultof<_>
             true
         | Result.Error error ->

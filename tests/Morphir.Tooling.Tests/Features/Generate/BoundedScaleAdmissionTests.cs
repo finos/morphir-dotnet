@@ -68,9 +68,8 @@ public sealed class BoundedScaleAdmissionTests
         limits.MaxSessionMilliseconds.Should().Be(7_200_000);
         limits.MaxGuestStateBytes.Should().Be(2 * 1024 * 1024);
         var wasm = RecordedGenerationAdmission.WasmLimits(profile, limits);
-        var expectedWholeFrame = 65536L + System.Text.Encoding.ASCII.GetByteCount("Content-Length: 65536\r\n\r\n");
-        wasm.RequestFrameBytes.Should().Be(expectedWholeFrame);
-        wasm.ResponseFrameBytes.Should().Be(expectedWholeFrame);
+        wasm.RequestFrameBytes.Should().Be(65536);
+        wasm.ResponseFrameBytes.Should().Be(65536);
         wasm.MemoryCeilingBytes.Should().Be(2 * 1024 * 1024);
         var ids = RecordedGenerationAdmission.RequestIdReservation(profile, limits.MaxHostCacheBytes);
         var discovery = limits.MaxHostCacheBytes / 4L;
@@ -176,22 +175,25 @@ public sealed class BoundedScaleAdmissionTests
             static err => throw new InvalidOperationException(err.Message),
             static notWasm => throw new InvalidOperationException(notWasm));
 
+        var exactBodyLength = RecordedGenerationAdmission.MaxBodyBytesForWholeFrame(offer.MaxFrameBytes);
+        exactBodyLength.Should().Be(65511);
+
         using (var channel = Morphir.Extensions.Wasm.WasmChannel.Open(admitted, wasmLimits).Match(
             static ok => ok,
             static err => throw new InvalidOperationException(err.Message)))
         {
-            var exactBody = new byte[offer.MaxFrameBytes];
+            var exactBody = new byte[exactBodyLength];
             Array.Fill(exactBody, (byte)'x');
             var reply = await channel.RequestAsync("morphir.shutdown", exactBody, CancellationToken.None);
             reply.Should().NotBeNull();
-            reply!.Length.Should().Be(offer.MaxFrameBytes);
+            reply!.Length.Should().Be(exactBodyLength);
         }
 
         using (var overChannel = Morphir.Extensions.Wasm.WasmChannel.Open(admitted, wasmLimits).Match(
             static ok => ok,
             static err => throw new InvalidOperationException(err.Message)))
         {
-            var oversizedBody = new byte[offer.MaxFrameBytes + 1];
+            var oversizedBody = new byte[exactBodyLength + 1];
             Array.Fill(oversizedBody, (byte)'x');
             var act = async () => await overChannel.RequestAsync("morphir.shutdown", oversizedBody, CancellationToken.None);
             var thrown = (await act.Should().ThrowAsync<Morphir.Extensions.Wasm.WasmChannelException>()).Which;

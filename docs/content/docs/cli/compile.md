@@ -299,8 +299,7 @@ dotnet-morphir generate --target text --extension ./orders-generator --output ge
 
 `orders-generator` is a backend extension that advertises the `text` target. See
 [Bounded generation from a compile record]({{< relref "/docs/cli/generate#bounded-generation-from-a-compile-record" >}}).
-A built-in backend, for example `generate --target fsharp` with no extension, does not read a JSON document
-tree. It fails with `unsupported-format` and exit code 1, and writes nothing.
+Built-in backends (`fsharp` and `csharp`) also read recorded and explicit JSON, YAML, and Ion document trees.
 
 When a compile starts, it clears `compile.dest` and replaces an earlier record with a tombstone. A
 successful compile then writes the full record. A failed compile publishes no IR. After an earlier successful
@@ -334,20 +333,18 @@ It currently has no `--dry-run` option; `--option format=false` controls formatt
 of generated F# only.
 
 With `--target <id> --generate-output <directory>`, a successful compile continues into generation in the
-same run. The command gives the exact IR bytes that it wrote to the model loader of `generate --input` (for the
-`yaml` format, the JSON that the YAML was written from, which holds the same model), and
-then runs the generation stages of `generate`: backend selection, `--option` validation, generation and
-owned publication. The result is the same as these two commands:
+same run. The command gives the exact IR bytes that it wrote in the selected format (`json`, `yaml`, or `ion`)
+to the model loader of `generate --input`, and then runs the generation stages of `generate`: backend selection,
+`--option` validation, generation and owned publication. The result is the same as these two commands:
 
 ```text
 dotnet-morphir compile ...
-dotnet-morphir generate --input <out root>/compile.dest/morphir-ir.json --target <id> --output <directory>
+dotnet-morphir generate --input <out root>/compile.dest/morphir-ir.<ext> --target <id> --output <directory>
 ```
 
-With `ir.layout = "document-tree"`, the backend gets the single file that the writer wrote, named
-`morphir-ir.json`. The published tree is the split of that file, so the backend gets the same model, and the
-generated files are the same as for a single-file compile. `generate --input` does not read a JSON document
-tree; give it the `--input` of a single-file compile.
+With `ir.layout = "document-tree"`, the backend gets the single file of the same model in the selected format,
+named `morphir-ir.json`, `morphir-ir.yaml`, or `morphir-ir.ion`. The published tree holds the same model, so the
+generated files match those from `morphir generate --input <out root>/compile.dest/morphir-ir` (or without `--input`).
 
 Both give the same files with the same bytes, and both reports name the same backend, as long as the project
 configuration selects no backend extension. `compile --target` always runs the built-in backend of the target

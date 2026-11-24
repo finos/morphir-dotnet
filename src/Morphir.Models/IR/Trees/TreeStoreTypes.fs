@@ -17,15 +17,19 @@ type CompactMode =
     | Names
 
 /// <summary>How a store writes a tree.</summary>
-type WriteOptions = {
-    /// <summary>
-    /// The longest physical path, in characters from the tree's root with the extension, that the store writes. A
-    /// longer path has its stem cut, and the module file records the cut in <c>fileNames</c> (decision 0012).
-    /// </summary>
-    PathBudget: int
-    /// <summary>The compaction of names, or none for plain files.</summary>
-    Compact: CompactMode option
-}
+type WriteOptions =
+    {
+        /// <summary>
+        /// The longest physical path, in characters from the tree's root with the extension, that the store writes. A
+        /// longer path has its stem cut, and the module file records the cut in <c>fileNames</c> (decision 0012).
+        /// </summary>
+        PathBudget: int
+        /// <summary>The compaction of names, or none for plain files.</summary>
+        Compact: CompactMode option
+    }
+
+    /// <summary>The path budget of a tree when the caller gives none: 4000 characters (decision 0012).</summary>
+    static member DefaultPathBudget = 4000
 
 /// <summary>The serialization profile of a document tree.</summary>
 [<RequireQualifiedAccess>]
@@ -71,12 +75,22 @@ type TreeProfileSelection =
     override this.ToString() = this.WireValue
 
 /// <summary>The limits of a read.</summary>
-type ReadOptions = {
-    /// <summary>The most tree files (JSON or YAML) that a read accepts.</summary>
-    MaxFiles: int
-    /// <summary>The most bytes of one file that a read accepts.</summary>
-    MaxFileBytes: int64
-}
+type ReadOptions =
+    {
+        /// <summary>The most tree files (JSON or YAML) that a read accepts.</summary>
+        MaxFiles: int
+        /// <summary>The most bytes of one file that a read accepts.</summary>
+        MaxFileBytes: int64
+    }
+
+    /// <summary>At most a million files of at most 256 MiB each.</summary>
+    static member Defaults: ReadOptions = {
+        MaxFiles = 1_000_000
+        MaxFileBytes =
+            256L
+            * 1024L
+            * 1024L
+    }
 
 /// <summary>
 /// Options for reading a whole document tree across profiles with explicit file, byte, nesting-depth and node
@@ -349,13 +363,7 @@ module WriteOptions =
 [<RequireQualifiedAccess>]
 module ReadOptions =
     /// <summary>At most a million files of at most 256 MiB each.</summary>
-    let defaults: ReadOptions = {
-        MaxFiles = 1_000_000
-        MaxFileBytes =
-            256L
-            * 1024L
-            * 1024L
-    }
+    let defaults: ReadOptions = ReadOptions.Defaults
 
 /// <summary>
 /// What the module file of a tree holds, for the module, type and value documents of one IR version: the module's

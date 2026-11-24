@@ -561,23 +561,24 @@ public class ChannelTests
     }
 
     [Test]
-    public async Task ApplyModelAccessLimits_admits_body_at_exact_maxFrameBytes_and_refuses_one_byte_over()
+    public async Task ApplyModelAccessLimits_admits_full_frame_at_exact_maxFrameBytes_and_refuses_one_byte_over()
     {
-        // OrdersScale opens WASM with WasmChannel.FrameBytes(65536) and 2 MiB per linear memory (16 pages of Extism
-        // kernel initial memory plus headroom for 64 KiB request and echo buffers), offering a 65,536-byte body ceiling.
-        // extism-echo echoes the exact request body bytes as the response body, testing both request and response
-        // framing through the real WASM adapter at the exact OrdersScale maxFrameBytes boundary.
-        const int OrdersScaleBodyBytes = 65536;
-        var ordersScaleWholeFrame = WasmChannel.FrameBytes(OrdersScaleBodyBytes);
+        // OrdersScale enforces maxFrameBytes on the full Content-Length frame (header + JSON-RPC body), matching
+        // hostSession.frameLimits.counted and the configured WASM guest contract in generate.md. With a 65,536-byte
+        // full-frame ceiling and "Content-Length: 65511\r\n\r\n" (25 bytes), 65,511 body bytes produce an exact
+        // 65,536-byte frame and 65,512 body bytes produce 65,537 bytes and are refused with maxFrameBytes.
+        const int OrdersScaleWholeFrameBytes = 65536;
+        const int OrdersScaleBodyBytes = 65511;
         const int OrdersScaleMemoryCeilingBytes = 2 * 1024 * 1024;
+        // Keep session opening limits looser than OrdersScaleWholeFrameBytes so ApplyModelAccessLimits is what enforces 65536.
         var ordersScaleSessionLimits = SessionLimits.Default with
         {
             MemoryCeilingBytes = OrdersScaleMemoryCeilingBytes,
-            RequestFrameBytes = ordersScaleWholeFrame,
-            ResponseFrameBytes = ordersScaleWholeFrame,
+            RequestFrameBytes = OrdersScaleWholeFrameBytes * 2,
+            ResponseFrameBytes = OrdersScaleWholeFrameBytes * 2,
         };
         var modelAccessLimits = new Morphir.Mep.ModelAccessLimits(
-            OrdersScaleBodyBytes, OrdersScaleBodyBytes, OrdersScaleBodyBytes, 1, 128, 1_000_000, 64, 1,
+            OrdersScaleWholeFrameBytes, OrdersScaleBodyBytes, OrdersScaleBodyBytes, 1, 128, 1_000_000, 64, 1,
             OrdersScaleMemoryCeilingBytes, 64 * 1024 * 1024, 32 * 1024, 2L * 1024 * 1024, 3L * 1024 * 1024 * 1024,
             8L * 1024 * 1024 * 1024, 100_000_000L, 200_000, 30_000, 7_200_000);
 

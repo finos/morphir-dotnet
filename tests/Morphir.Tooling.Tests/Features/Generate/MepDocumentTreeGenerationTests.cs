@@ -2164,6 +2164,9 @@ public sealed class MepDocumentTreeGenerationTests
         private readonly ModelAccessTuple _supported;
         private readonly int? _failOnRound;
         private readonly Action<int>? _onRound;
+        private readonly string _targetModulePath;
+        private readonly string _targetEntryKind;
+        private readonly string _targetMemberName;
         private readonly Guest _guest;
         private string? _sessionId;
         private string? _orderDocId;
@@ -2179,15 +2182,26 @@ public sealed class MepDocumentTreeGenerationTests
         public bool Disposed { get; private set; }
 
         public OrdersChannelGuest(string irVersion, ModelAccessCodec codec, ModelAccessEncoding encoding,
-            int? failOnRound = null, Action<int>? onRound = null)
+            int? failOnRound = null, Action<int>? onRound = null,
+            ModelAccessEncoding[]? additionalEncodings = null,
+            string targetModulePath = "domain", string targetEntryKind = "value", string targetMemberName = "order")
         {
             _failOnRound = failOnRound;
             _onRound = onRound;
+            _targetModulePath = targetModulePath;
+            _targetEntryKind = targetEntryKind;
+            _targetMemberName = targetMemberName;
             _supported = new ModelAccessTuple(ModelAccess.protocolVersion, ModelAccess.accessVersion, ModelOperation.GenerateModel,
                 SemanticVersion.Create(irVersion), "morphir-ir", codec, "document-tree", encoding);
 
+            var supportedTuples = additionalEncodings is null
+                ? [_supported]
+                : new[] { _supported }.Concat(additionalEncodings.Select(extra => new ModelAccessTuple(
+                    ModelAccess.protocolVersion, ModelAccess.accessVersion, ModelOperation.GenerateModel,
+                    SemanticVersion.Create(irVersion), "morphir-ir", codec, "document-tree", extra))).ToArray();
+
             var limits = RecordedGenerationAdmission.Offer(BoundedGenerationProfile.Default, ModelReadLimits.Default, wasm: true);
-            var support = new ModelAccessSupport([_supported], limits);
+            var support = new ModelAccessSupport(supportedTuples, limits);
             const string claimsJson = """{"claimsVersion":"0.1.0-draft.2","protocolVersions":["0.2.0-draft.2"],"extension":{"id":"org.finos.morphir.orders","name":"Orders generator","version":"0.1.0","types":["backend"]},"capabilities":{}}""";
             var claims = JsonSerializer.Deserialize(claimsJson, MepJson.Default.CapabilityClaimSet)!;
             var supportJson = JsonSerializer.Serialize(support, MepJson.Default.ModelAccessSupport);
@@ -2230,7 +2244,7 @@ public sealed class MepDocumentTreeGenerationTests
             {
                 var module = delivery.GetProperty("entries").EnumerateArray()
                     .Select(e => e.GetProperty("module"))
-                    .First(m => m.GetProperty("modulePath").GetString() == "domain");
+                    .First(m => m.GetProperty("modulePath").GetString() == _targetModulePath);
                 _domainSelection = module.GetProperty("memberSelection").GetString()!;
                 var partial = Encoding.UTF8.GetBytes("partial\n");
                 ModelArtifactChunk[] chunks = _failOnRound.HasValue
@@ -2243,10 +2257,10 @@ public sealed class MepDocumentTreeGenerationTests
             {
                 foreach (var entry in delivery.GetProperty("entries").EnumerateArray())
                 {
-                    if (!entry.TryGetProperty("value", out var value)) continue;
-                    var name = value.GetProperty("name").GetString();
-                    var docId = value.GetProperty("documentId").GetString()!;
-                    if (name == "order") _orderDocId = docId;
+                    if (!entry.TryGetProperty(_targetEntryKind, out var member)) continue;
+                    var name = member.GetProperty("name").GetString();
+                    var docId = member.GetProperty("documentId").GetString()!;
+                    if (name == _targetMemberName) _orderDocId = docId;
                     if (name == "total-in-USD") _finalDocId = docId;
                 }
                 return ModelAccessStep.NewContinue(_sessionId!, _round,
@@ -2343,5 +2357,307 @@ public sealed class MepDocumentTreeGenerationTests
 
             public void Dispose() { }
         }
+    }
+
+    [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task CompiledYamlDocumentTreeGeneratesThroughMepDraft2AndDraft1Fallback(bool draft2)
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var outDir = sandbox.PathOf("out");
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("orders.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        var sourcePath = Path.Combine(projectRoot, "src", "Domain.fs");
+        Directory.CreateDirectory(Path.GetDirectoryName(sourcePath)!);
+        File.WriteAllText(sourcePath, "module Acme.Orders.Domain\n\nlet order = 73\n");
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "acme/orders"
+
+            [frontend]
+            language = "fsharp"
+
+            [codegen.text]
+            extension = "orders"
+
+            [extensions.orders]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var compiled = CompileHandler.Fold(
+            await CompileRunners.Events(
+                CompileRunners.Create([Morphir.Frontend.FSharp.FSharpFrontend.Registration]),
+                new CompileOverrides
+                {
+                    Inputs = ["src/Domain.fs"],
+                    IrVersion = "4",
+                    IrLayout = "document-tree",
+                    IrFormat = "yaml",
+                    OutDir = outDir,
+                },
+                new CompileContext(projectRoot, SandboxEnvironment(sandbox))));
+        compiled.ExitCode.Should().Be(0, string.Join("\n", compiled.Diagnostics.Select(d => d.Diagnostic)));
+
+        var taskOptions = new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) };
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(), taskOptions);
+
+        if (draft2)
+        {
+            var guest = new OrdersChannelGuest("4.0.0", ModelAccessCodec.MorphirYaml, ModelAccessEncoding.Plain);
+            var connector = new MepBackendExtensionConnector(null, (_, _) => (guest, "", ""));
+            var outcome = await GenerateHandler.Handle(
+                new GenerateRequest(new GenerateOverrides(Target: "text", Output: outputDir) { OutDir = outDir },
+                    new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+                resolver, new GenerationModelLoader(new BoundedModelCapture()),
+                new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+            var success = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Success>(outcome.ToString()).Which.Value;
+            success.Representation.Should().Be("DocumentTree");
+            success.Publication.Artifacts.Should().Equal("order.txt");
+            guest.SelectedTuple.Should().NotBeNull();
+            guest.SelectedTuple!.Codec.Should().Be(ModelAccessCodec.MorphirYaml);
+        }
+        else
+        {
+            var guest = new Draft1OnlyChannelGuest();
+            var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+            var outcome = await GenerateHandler.Handle(
+                new GenerateRequest(new GenerateOverrides(Target: "text", Output: outputDir) { OutDir = outDir },
+                    new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+                resolver, new GenerationModelLoader(new BoundedModelCapture()),
+                new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+            var success = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Success>(outcome.ToString()).Which.Value;
+            success.Publication.Artifacts.Should().Equal("converted.txt");
+            var converted = success.Diagnostics.Should().ContainSingle(d => d.Code == "extension.model_converted").Which;
+            converted.Data!.Value.GetProperty("from").GetProperty("codec").GetString().Should().Be("morphir-yaml");
+            converted.Data.Value.GetProperty("to").GetProperty("codec").GetString().Should().Be("morphir-json");
+        }
+    }
+
+    [Test]
+    public async Task SingleFileYamlInputToDraft1GuestReportsMorphirYamlFromCodec()
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var outDir = sandbox.PathOf("out");
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("draft1.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        var sourcePath = Path.Combine(projectRoot, "src", "Domain.fs");
+        Directory.CreateDirectory(Path.GetDirectoryName(sourcePath)!);
+        File.WriteAllText(sourcePath, "module Acme.Orders.Domain\n\nlet order = 73\n");
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "acme/orders"
+
+            [frontend]
+            language = "fsharp"
+
+            [codegen.text]
+            extension = "draft1"
+
+            [extensions.draft1]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var compiled = CompileHandler.Fold(
+            await CompileRunners.Events(
+                CompileRunners.Create([Morphir.Frontend.FSharp.FSharpFrontend.Registration]),
+                new CompileOverrides
+                {
+                    Inputs = ["src/Domain.fs"],
+                    IrVersion = "4",
+                    IrFormat = "yaml",
+                    OutDir = outDir,
+                },
+                new CompileContext(projectRoot, SandboxEnvironment(sandbox))));
+        compiled.ExitCode.Should().Be(0, string.Join("\n", compiled.Diagnostics.Select(d => d.Diagnostic)));
+
+        var guest = new Draft1OnlyChannelGuest();
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var taskOptions = new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) };
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(), taskOptions);
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Target: "text", Output: outputDir) { OutDir = outDir },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var success = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Success>(outcome.ToString()).Which.Value;
+        success.Publication.Artifacts.Should().Equal("converted.txt");
+        var converted = success.Diagnostics.Should().ContainSingle(d => d.Code == "extension.model_converted").Which;
+        converted.Data!.Value.GetProperty("from").GetProperty("codec").GetString().Should().Be("morphir-yaml");
+        converted.Data.Value.GetProperty("to").GetProperty("codec").GetString().Should().Be("morphir-json");
+    }
+
+    [Test]
+    public async Task ExplicitJsonDocumentTreeWithInputFormatYamlFailsWithUnsupportedFormat()
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var treeRoot = sandbox.PathOf("input-tree");
+        CopyOrdersFixture("v4", "plain-json", treeRoot);
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("orders.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "acme/orders"
+
+            [codegen.text]
+            extension = "orders"
+
+            [extensions.orders]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var guest = new OrdersChannelGuest("4.0.0", ModelAccessCodec.MorphirYaml, ModelAccessEncoding.Plain);
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest, "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: treeRoot, Target: "text", Output: outputDir) { Project = projectRoot, InputFormat = "yaml" },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new RejectingLoader(), new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var failure = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+        failure.Kind.Should().Be(GenerationFailureKind.Semantic);
+        failure.Diagnostics.Should().Contain(d => d.Code == "unsupported-format");
+        Directory.Exists(outputDir).Should().BeFalse();
+    }
+
+    [Test]
+    public async Task MixedPlainManifestCompactedTreeNegotiatesContextualDraft1WithoutFullEagerScan()
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var treeRoot = sandbox.PathOf("input-tree");
+        var written = DocumentTreeStore.Write(
+            StoredModel.WriteOptions(true),
+            StoredTree.NewV4Tree(V4DocumentTreeModule.Split(Morphir.Models.TestSupport.DistributionMother.longNameUsedOften)));
+        written.IsOk.Should().BeTrue();
+        DocumentTreeStore.PlainFilesOf(written.ResultValue).Should().Contain("manifest.json");
+        var writeError = Morphir.Files.VFileTreeModule.MatchPublish<string?>(
+            new Morphir.Files.PublishOptions(treeRoot, Morphir.Files.ManifestMode.NoManifest),
+            written.ResultValue,
+            _ => null,
+            Morphir.Files.TreeWriteErrorModule.describe);
+        writeError.Should().BeNull();
+
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("orders.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "acme/order-management"
+
+            [codegen.text]
+            extension = "orders"
+
+            [extensions.orders]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        var guest = new OrdersChannelGuest("4.0.0", ModelAccessCodec.MorphirJson, ModelAccessEncoding.ContextualDraft1,
+            additionalEncodings: [ModelAccessEncoding.Plain],
+            targetModulePath: "pricing/discount-rules", targetEntryKind: "type", targetMemberName: "order-total");
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest, "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: treeRoot, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new RejectingLoader(), new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var success = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Success>(outcome.ToString()).Which.Value;
+        success.Publication.Artifacts.Should().Equal("order.txt");
+        guest.SelectedTuple.Should().NotBeNull();
+        guest.SelectedTuple!.ContextualEncoding.Should().Be(ModelAccessEncoding.ContextualDraft1);
+        guest.DeliveredContextualEnvelope.Should().BeTrue();
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task ExplicitAndRecordedPlainTreeWithCorruptUnselectedBodySucceedsForPlainGuest(bool recorded)
+    {
+        using var sandbox = TestSandbox.Create();
+        var projectRoot = sandbox.PathOf("project");
+        Directory.CreateDirectory(projectRoot);
+        var outDir = sandbox.PathOf("out");
+        var outputDir = sandbox.PathOf("generated");
+        var wasmPath = sandbox.PathOf("orders.wasm");
+        File.WriteAllBytes(wasmPath, [0x00, 0x61, 0x73, 0x6D]);
+        File.WriteAllText(Path.Combine(projectRoot, "morphir.toml"),
+            $"""
+            [project]
+            name = "acme/orders"
+
+            [frontend]
+            language = "fsharp"
+
+            [codegen.text]
+            extension = "orders"
+
+            [extensions.orders]
+            path = "{wasmPath.Replace("\\", "\\\\", StringComparison.Ordinal)}"
+            """);
+
+        string treeRoot;
+        if (recorded)
+        {
+            var outRoot = OutRoot.Resolve(new OutRootRequest(projectRoot, projectRoot) { OutDirFlag = outDir }).ShouldSucceed();
+            var taskOptions = new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) };
+            var store = new CompileTaskStore(outRoot, MemberPath.Root, taskOptions);
+            using var run = (await store.BeginAsync(default)).ShouldSucceed();
+            var descriptor = IrDescriptor.Create(RecordPath.Parse("recorded/orders-model"), IrLayout.DocumentTree,
+                IrStorageFormat.Json, Versioning.parse("4").ResultValue);
+            treeRoot = descriptor.Path.Under(run.Dest);
+            CopyOrdersFixture("v4", "plain-json", treeRoot);
+            run.Complete(new CompileProduct("fsharp", descriptor, null)).ShouldSucceed();
+        }
+        else
+        {
+            treeRoot = sandbox.PathOf("input-tree");
+            CopyOrdersFixture("v4", "plain-json", treeRoot);
+        }
+
+        // Corrupt an unrelated type body that the plain guest never requests.
+        File.WriteAllText(Path.Combine(treeRoot, "pkg", "acme", "orders", "domain", "order.type.json"), "{");
+
+        var guest = new OrdersChannelGuest("4.0.0", ModelAccessCodec.MorphirJson, ModelAccessEncoding.Plain);
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest, "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var overrides = recorded
+            ? new GenerateOverrides(Target: "text", Output: outputDir) { OutDir = outDir }
+            : new GenerateOverrides(Input: treeRoot, Target: "text", Output: outputDir) { Project = projectRoot };
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(overrides, new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new RejectingLoader(), new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var success = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Success>(outcome.ToString()).Which.Value;
+        success.Publication.Artifacts.Should().Equal("order.txt");
+        File.ReadAllText(Path.Combine(outputDir, "order.txt")).Should().Be("73\n");
+        guest.SelectedTuple!.ContextualEncoding.Should().Be(ModelAccessEncoding.Plain);
     }
 }

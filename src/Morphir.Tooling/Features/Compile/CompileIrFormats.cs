@@ -77,13 +77,13 @@ public static class CompileIrFormats
     }
 
     /// <summary>
-    /// What <c>compile --target</c> gives the model loader: the published bytes and their format, except for YAML, which
-    /// the loader does not read, so it gets the JSON that the YAML was written from. Both hold the same model.
+    /// What <c>compile --target</c> gives the model loader: the published bytes (or for a document tree, the single-file
+    /// bytes in the tree's format) and the format in which the model loader reads them.
     /// </summary>
     public static (ReadOnlyMemory<byte> Bytes, InputFormat Format) GenerationInput(IrStorageFormat format, ReadOnlyMemory<byte> json,
         ReadOnlyMemory<byte> published) => format switch
         {
-            IrStorageFormat.Yaml => (json, InputFormat.Json),
+            IrStorageFormat.Yaml => (published, InputFormat.Yaml),
             IrStorageFormat.Ion => (published, InputFormat.Ion),
             _ => (published, InputFormat.Auto),
         };

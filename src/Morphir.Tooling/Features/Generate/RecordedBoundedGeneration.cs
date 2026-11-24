@@ -71,9 +71,8 @@ internal static class RecordedBoundedGeneration
             var originalSha256 = ModelUpgrade.SnapshotOf(capturedTree).Hex;
             var revision = "sha256:" + originalSha256;
             var limits = RecordedGenerationAdmission.Offer(settings.BoundedProfile, readerLimits, request.WasmModule is not null);
-            // Pre-negotiation detection uses readerLimits.MaxBytes (not draft.2's 3 MiB document ceiling) so a plain
-            // tree with a larger member is not refused before discovering a draft.1-only guest that can admit it.
-            var opened = DocumentTreeStore.OpenDetectedSnapshotBounded(
+            // Pre-negotiation detection reads only the manifest so unselected and late-mutated member bodies stay lazy.
+            var opened = DocumentTreeStore.OpenManifestSnapshot(
                     new ReadOptions(readerLimits.MaxEntries, readerLimits.MaxBytes),
                     readerLimits.MaxDepth, readerLimits.MaxNodes, limits.MaxSessionWorkUnits, () => revision, files, ct)
                 .Match<BoundedTreeSnapshot, IReadOnlyList<StoreError>, Outcome<BoundedTreeSnapshot>>(
@@ -87,9 +86,13 @@ internal static class RecordedBoundedGeneration
             if (settings.Input.Format == InputFormat.Json && !json)
                 return new Outcome<GenerationSuccess>.Failure(GenerationFailure.One(GenerationFailureKind.Semantic,
                     "unsupported-format", "YAML document trees do not match --input-format json.", inputPath));
+            if (settings.Input.Format == InputFormat.Yaml && json)
+                return new Outcome<GenerationSuccess>.Failure(GenerationFailure.One(GenerationFailureKind.Semantic,
+                    "unsupported-format", "JSON document trees do not match --input-format yaml.", inputPath));
 
-            var tuple = MepGenerationSnapshot.TupleFor(snapshot);
-            var connected = await connector.ConnectModelAccessAsync(request, new ModelAccessSupport([tuple], limits), ct);
+            var offeredTuples = OfferedTuples(snapshot, settings.BoundedProfile);
+            var selectedTuple = offeredTuples[0];
+            var connected = await connector.ConnectModelAccessAsync(request, new ModelAccessSupport(offeredTuples, limits), ct);
             if (connected is Outcome<ModelAccessConnection>.Failure refusedGuest)
             {
                 if (fallbackToDraft1 is not null && settings.BoundedProfile != BoundedGenerationProfile.OrdersScale
@@ -117,7 +120,7 @@ internal static class RecordedBoundedGeneration
                     if (negotiated.Capabilities.BackendOrNull() is not { } backend
                         || !backend.Targets.Contains(target.Value, StringComparer.Ordinal))
                         return Refuse("extension.unavailable", $"Extension {label.Id} does not claim target {target.Value}.");
-                    if (!negotiated.ProtocolVersion.Equals(tuple.ProtocolVersion)
+                    if (!negotiated.ProtocolVersion.Equals(offeredTuples[0].ProtocolVersion)
                         || negotiated.Capabilities.ModelAccessOrNull() is not { } access)
                     {
                         if (fallbackToDraft1 is not null && settings.BoundedProfile != BoundedGenerationProfile.OrdersScale)
@@ -126,15 +129,16 @@ internal static class RecordedBoundedGeneration
                         }
                         else
                         {
-                            return Refuse("extension.tuple_unavailable", $"Extension {label.Id} did not agree to bounded generation with {tuple}.");
+                            return Refuse("extension.tuple_unavailable", $"Extension {label.Id} did not agree to bounded generation with {offeredTuples[0]}.");
                         }
                     }
-                    else if (!access.Tuples.Contains(tuple))
+                    else if (offeredTuples.FirstOrDefault(candidate => access.Tuples.Contains(candidate)) is not { } agreedTuple)
                     {
-                        return Refuse("extension.tuple_unavailable", $"Extension {label.Id} did not agree to bounded generation with {tuple}.");
+                        return Refuse("extension.tuple_unavailable", $"Extension {label.Id} did not agree to bounded generation with {offeredTuples[0]}.");
                     }
                     else
                     {
+                        selectedTuple = agreedTuple;
                         var discoveryReservation = access.Limits.MaxHostCacheBytes / 4L;
                         var requestIdReservation = RecordedGenerationAdmission.ExplicitTreeRequestIdReservation(
                             access.Limits.MaxHostCacheBytes);
@@ -142,7 +146,7 @@ internal static class RecordedBoundedGeneration
                             return Refuse("extension.bounded_cache_limit", "The request-ID reservation cannot be installed for this generation session.");
                         var indexed = DocumentTreeStore.OpenSnapshotWithDiscoveryCacheFallbackAndEncoding(
                                 new ReadOptions(readerLimits.MaxEntries, RecordedGenerationAdmission.DocumentByteLimit(readerLimits, access.Limits)),
-                                snapshot.NameEncoding, discoveryReservation, () => revision, files)
+                                EncodingFor(selectedTuple), discoveryReservation, () => revision, files)
                             .Match<BoundedTreeSnapshot, IReadOnlyList<StoreError>, Outcome<BoundedTreeSnapshot>>(
                                 value => new Outcome<BoundedTreeSnapshot>.Success(value),
                                 problems => new Outcome<BoundedTreeSnapshot>.Failure(new(GenerationFailureKind.Operational,
@@ -158,7 +162,7 @@ internal static class RecordedBoundedGeneration
                         Directory.CreateDirectory(stagingParent);
                         stage = new BoundedArtifactStage(stagingParent, access.Limits,
                             new GenerationSessionDiskBudget(access.Limits.MaxSessionDiskBytes), discoveryReservation, requestIdReservation);
-                        var start = Start(snapshot, tuple, target, settings.Options, access.Limits);
+                        var start = Start(snapshot, selectedTuple, target, settings.Options, access.Limits);
                         using var sessionDeadline = new CancellationTokenSource(access.Limits.MaxSessionMilliseconds);
                         result = await BoundedGenerationSession.RunAsync(guest.HostSession, snapshot, start, stage,
                             guest.TerminateModelAccessAsync, ct, sessionDeadline.Token);
@@ -211,7 +215,7 @@ internal static class RecordedBoundedGeneration
                 {
                     BackendTransport = guest.Transport,
                     BackendVersion = label.Version,
-                    Provider = connection.ObserveProvider?.Invoke(tuple),
+                    Provider = connection.ObserveProvider?.Invoke(selectedTuple),
                 });
             }
             finally
@@ -266,13 +270,13 @@ internal static class RecordedBoundedGeneration
             var revision = Guid.NewGuid().ToString("N");
             var readerLimits = RecordedGenerationAdmission.ReaderLimits(settings.BoundedProfile, settings.Limits);
             var limits = RecordedGenerationAdmission.Offer(settings.BoundedProfile, readerLimits, request.WasmModule is not null);
-            // Pre-negotiation detection on normal runs uses readerLimits.MaxBytes so a larger member does not block
-            // fallback to a draft.1-only guest; draft.2 re-opens with its negotiated document ceiling below.
+            // Pre-negotiation detection on normal runs reads only the manifest so unselected and late-mutated
+            // member bodies remain lazy; draft.2 re-opens with its negotiated encoding and document ceiling below.
             var opened = (settings.BoundedProfile == BoundedGenerationProfile.OrdersScale
                     ? DocumentTreeStore.OpenPlainSnapshot(
                         new ReadOptions(readerLimits.MaxEntries, RecordedGenerationAdmission.DocumentByteLimit(readerLimits, limits)),
                         () => revision, files)
-                    : DocumentTreeStore.OpenDetectedSnapshotBounded(
+                    : DocumentTreeStore.OpenManifestSnapshot(
                         new ReadOptions(readerLimits.MaxEntries, readerLimits.MaxBytes),
                         readerLimits.MaxDepth, readerLimits.MaxNodes, limits.MaxSessionWorkUnits, () => revision, files, ct))
                 .Match<BoundedTreeSnapshot, IReadOnlyList<StoreError>, Outcome<BoundedTreeSnapshot>>(
@@ -304,8 +308,9 @@ internal static class RecordedBoundedGeneration
             // The caller still owns the shared compile lease. Always acquire in compile -> generation order.
             using var taskRun = await RecordedGenerationTask.OpenAsync(location, outputPath, taskOptions, ct);
 
-            var tuple = MepGenerationSnapshot.TupleFor(snapshot);
-            var connected = await connector.ConnectModelAccessAsync(request, new ModelAccessSupport([tuple], limits), ct);
+            var offeredTuples = OfferedTuples(snapshot, settings.BoundedProfile);
+            var selectedTuple = offeredTuples[0];
+            var connected = await connector.ConnectModelAccessAsync(request, new ModelAccessSupport(offeredTuples, limits), ct);
             if (connected is Outcome<ModelAccessConnection>.Failure refusedGuest)
             {
                 if (fallbackToDraft1 is not null && settings.BoundedProfile != BoundedGenerationProfile.OrdersScale
@@ -337,7 +342,7 @@ internal static class RecordedBoundedGeneration
                     if (negotiated.Capabilities.BackendOrNull() is not { } backend
                         || !backend.Targets.Contains(target.Value, StringComparer.Ordinal))
                         return Refuse("extension.unavailable", $"Extension {label.Id} does not claim target {target.Value}.");
-                    if (!negotiated.ProtocolVersion.Equals(tuple.ProtocolVersion)
+                    if (!negotiated.ProtocolVersion.Equals(offeredTuples[0].ProtocolVersion)
                         || negotiated.Capabilities.ModelAccessOrNull() is not { } access)
                     {
                         if (fallbackToDraft1 is not null && settings.BoundedProfile != BoundedGenerationProfile.OrdersScale)
@@ -346,15 +351,16 @@ internal static class RecordedBoundedGeneration
                         }
                         else
                         {
-                            return Refuse("extension.tuple_unavailable", $"Extension {label.Id} did not agree to bounded generation with {tuple}.");
+                            return Refuse("extension.tuple_unavailable", $"Extension {label.Id} did not agree to bounded generation with {offeredTuples[0]}.");
                         }
                     }
-                    else if (!access.Tuples.Contains(tuple))
+                    else if (offeredTuples.FirstOrDefault(candidate => access.Tuples.Contains(candidate)) is not { } agreedTuple)
                     {
-                        return Refuse("extension.tuple_unavailable", $"Extension {label.Id} did not agree to bounded generation with {tuple}.");
+                        return Refuse("extension.tuple_unavailable", $"Extension {label.Id} did not agree to bounded generation with {offeredTuples[0]}.");
                     }
                     else
                     {
+                        selectedTuple = agreedTuple;
                         // Reserve a bounded quarter of the negotiated cache for the active package's
                         // paths before any discovery. The stage can use only the remaining bytes.
                         var discoveryReservation = access.Limits.MaxHostCacheBytes / 4L;
@@ -364,7 +370,7 @@ internal static class RecordedBoundedGeneration
                             return Refuse("extension.bounded_cache_limit", "The request-ID reservation cannot be installed for this generation session.");
                         var indexed = DocumentTreeStore.OpenSnapshotWithDiscoveryCacheFallbackAndEncoding(
                                 new ReadOptions(readerLimits.MaxEntries, RecordedGenerationAdmission.DocumentByteLimit(readerLimits, access.Limits)),
-                                snapshot.NameEncoding, discoveryReservation, () => revision, files)
+                                EncodingFor(selectedTuple), discoveryReservation, () => revision, files)
                             .Match<BoundedTreeSnapshot, IReadOnlyList<StoreError>, Outcome<BoundedTreeSnapshot>>(
                                 value => new Outcome<BoundedTreeSnapshot>.Success(value),
                                 problems => new Outcome<BoundedTreeSnapshot>.Failure(new(GenerationFailureKind.Operational,
@@ -377,7 +383,7 @@ internal static class RecordedBoundedGeneration
                         taskRun.Prepare();
                         stage = new BoundedArtifactStage(location.Dest, access.Limits,
                             new GenerationSessionDiskBudget(access.Limits.MaxSessionDiskBytes), discoveryReservation, requestIdReservation.GetValueOrDefault());
-                        var start = Start(snapshot, tuple, target, settings.Options, access.Limits);
+                        var start = Start(snapshot, selectedTuple, target, settings.Options, access.Limits);
                         using var sessionDeadline = new CancellationTokenSource(access.Limits.MaxSessionMilliseconds);
                         result = await BoundedGenerationSession.RunAsync(guest.HostSession, snapshot, start, stage,
                             guest.TerminateModelAccessAsync, ct, sessionDeadline.Token);
@@ -434,7 +440,7 @@ internal static class RecordedBoundedGeneration
                 {
                     BackendTransport = guest.Transport,
                     BackendVersion = label.Version,
-                    Provider = connection.ObserveProvider?.Invoke(tuple),
+                    Provider = connection.ObserveProvider?.Invoke(selectedTuple),
                     BoundedAccess = settings.BoundedProfile == BoundedGenerationProfile.OrdersScale
                         ? AccessObservation(readerLimits, negotiated.Capabilities.ModelAccessOrNull()!.Limits,
                             ConfiguredWasmModule.ClosedLinearMemory(connection.WasmChannel),
@@ -480,6 +486,21 @@ internal static class RecordedBoundedGeneration
                 ? failure with { Backend = identity.Id, BackendVersion = identity.Version, BackendTransport = identity.Transport }
                 : failure);
     }
+
+    private static ModelAccessTuple[] OfferedTuples(BoundedTreeSnapshot snapshot, BoundedGenerationProfile profile)
+    {
+        var baseTuple = MepGenerationSnapshot.TupleFor(snapshot);
+        if (snapshot.NameEncoding.Equals(BoundedTreeEncoding.ContextualDraft1) || profile == BoundedGenerationProfile.OrdersScale)
+            return [baseTuple];
+        var contextualTuple = new ModelAccessTuple(baseTuple.ProtocolVersion, baseTuple.AccessVersion, baseTuple.Operation,
+            baseTuple.IrVersion, baseTuple.Profile, baseTuple.Codec, baseTuple.Layout, ModelAccessEncoding.ContextualDraft1);
+        return [contextualTuple, baseTuple];
+    }
+
+    private static BoundedTreeEncoding EncodingFor(ModelAccessTuple tuple) =>
+        tuple.ContextualEncoding.Equals(ModelAccessEncoding.ContextualDraft1)
+            ? BoundedTreeEncoding.ContextualDraft1
+            : BoundedTreeEncoding.Plain;
 
     private static string StagingTempRoot(IReadOnlyDictionary<string, string>? environment)
     {

@@ -733,6 +733,38 @@ let tests =
                     let expected = fromJson "pairs/v4-application.json" |> IonIrWriter.writeTreeFiles 4000 |> ok "Writing"
                     Expect.sequenceEqual (files |> Seq.map (fun pair -> pair.Key, text pair.Value)) (written expected) "The same files"
                 | false, _, failure -> failtestf "%s" failure.Message
+
+            testCase "TryWriteJsonTree with a stated release returns a VFileTree stating that release"
+            <| fun () ->
+                let json = ReadOnlyMemory(catalogBytes "pairs/v3-daily-rate.json")
+
+                match IonIrWriting.TryWriteJsonTree(json, version31 (), 4000) with
+                | true, tree, _ ->
+                    let expected = IonIrWriter.ofJsonTreeAs (version31 ()) 4000 json |> ok "Tree"
+                    let actualFiles =
+                        VFileTree.toFileMap tree
+                        |> Map.toList
+                        |> List.map (fun (loc, file) -> loc, VFile.readText file)
+
+                    let expectedFiles =
+                        VFileTree.toFileMap expected
+                        |> Map.toList
+                        |> List.map (fun (loc, file) -> loc, VFile.readText file)
+                    Expect.equal actualFiles expectedFiles "The same Ion files"
+
+                    match IonIrTree.read limits tree with
+                    | Ok(ClassicIr(ver, _)) -> Expect.equal ver "3.1.0" "Stated release in Ion tree"
+                    | other -> failtestf "Expected ClassicIr 3.1.0, got %A" other
+                | false, _, failure -> failtestf "%s" failure.Message
+
+            testCase "TryWriteJsonTree with a null formatVersion throws ArgumentNullException"
+            <| fun () ->
+                let json = ReadOnlyMemory(catalogBytes "pairs/v3-daily-rate.json")
+                Expect.throwsT<ArgumentNullException>
+                    (fun () ->
+                        IonIrWriting.TryWriteJsonTree(json, Unchecked.defaultof<Morphir.IR.Versioning.FormatVersion>, 4000)
+                        |> ignore)
+                    "Null formatVersion"
         ]
 
         testList "Lexemes and boundaries" [

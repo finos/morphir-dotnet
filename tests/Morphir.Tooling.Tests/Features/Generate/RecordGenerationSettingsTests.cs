@@ -132,15 +132,48 @@ public sealed class RecordGenerationSettingsTests
     }
 
     [Test]
-    public async Task GenerateWithoutAnInputRefusesTheYamlIrOfACompileRecord()
+    public async Task GenerateWithoutAnInputReadsTheYamlIrOfTheCompileRecord()
     {
         using var workspace = Project();
         (await Compile(workspace, format: "yaml")).ExitCode.Should().Be(0);
 
-        var outcome = await Generate(workspace, FromRecord());
-        var failure = outcome.ShouldFail("compile.record_unsupported_format");
-        GenerationReport.From(outcome, FromRecord()).ExitCode.Should().Be(2);
-        failure.Diagnostics.Single().Message.Should().Contain("yaml");
+        var generated = (await Generate(workspace, FromRecord())).ShouldSucceed();
+        generated.InputPath.Should().Be(workspace.PathOf(".morphir/out/compile.dest/morphir-ir.yaml"));
+        generated.Representation.Should().Be(nameof(ModelRepresentation.Yaml));
+        generated.Publication.Artifacts.Should().NotBeEmpty();
+    }
+
+    [Test]
+    [Arguments("yaml", "4", "4", nameof(ModelRepresentation.YamlTree))]
+    [Arguments("yaml", "3", "3.1.0", nameof(ModelRepresentation.YamlTree))]
+    [Arguments("ion", "4", "4", nameof(ModelRepresentation.IonTree))]
+    [Arguments("ion", "3", "3", nameof(ModelRepresentation.IonTree))]
+    [Arguments("ion", "3.1.0", "3.1.0", nameof(ModelRepresentation.IonTree))]
+    public async Task GenerateWithoutAnInputReadsFormattedDocumentTreesOfTheCompileRecord(
+        string format, string compileVersion, string expectedVersion, string expectedRepresentation)
+    {
+        using var workspace = Project();
+        var compiled = await Compile(workspace, version: compileVersion, layout: "document-tree", format: format);
+        compiled.ExitCode.Should().Be(0, string.Join("\n", compiled.Diagnostics.Select(d => d.Diagnostic)));
+
+        var generated = (await Generate(workspace, FromRecord())).ShouldSucceed();
+        generated.InputPath.Should().Be(workspace.PathOf(".morphir/out/compile.dest/morphir-ir"));
+        generated.SourceVersion.Should().Be(expectedVersion);
+        generated.Representation.Should().Be(expectedRepresentation);
+        generated.Publication.Artifacts.Should().NotBeEmpty();
+    }
+
+    [Test]
+    [Arguments("yaml", "json")]
+    [Arguments("ion", "yaml")]
+    public async Task GenerateWithoutAnInputRefusesMismatchedInputFormatAgainstFormattedTreeRecord(string compiledFormat, string requestedInputFormat)
+    {
+        using var workspace = Project();
+        (await Compile(workspace, layout: "document-tree", format: compiledFormat)).ExitCode.Should().Be(0);
+
+        var outcome = await Generate(workspace, FromRecord() with { InputFormat = requestedInputFormat });
+        var failure = outcome.ShouldFail("generate.input_format_conflict");
+        failure.Kind.Should().Be(GenerationFailureKind.Invocation);
         Directory.Exists(workspace.PathOf("gen")).Should().BeFalse();
     }
 

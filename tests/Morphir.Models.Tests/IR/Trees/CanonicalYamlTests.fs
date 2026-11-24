@@ -323,5 +323,51 @@ let tests =
                             $"{location} reads back as its JSON"
                 | Error message -> failtest message
             }
+
+            test "DocumentTreeStore.TryWriteYamlTree converts a JSON VFileTree into a YAML VFileTree preserving declared order" {
+                let tree = FixtureCatalog.Trees.AcmeDemo |> List.ofSeq
+                let locationOf (entry: FixtureEntry) = entry.RelativePath.Substring FixtureCatalog.Trees.AcmeDemoDirectory.Length
+
+                let files =
+                    tree
+                    |> List.map (fun entry -> Morphir.Files.VFile.ofBytes (locationOf entry) (ReadOnlyMemory(FixtureCatalog.ReadBytes entry)))
+
+                let declared = tree |> List.map locationOf
+
+                let jsonVTree =
+                    files
+                    |> List.map (fun file -> file.Path.Value, file)
+                    |> Map.ofList
+                    |> Morphir.Files.VFileTree.fromFileMap
+                    |> Morphir.Files.VFileTree.set Morphir.Files.VFileTree.declaredOrder declared
+
+                let mutable yamlTree = Morphir.Files.VFileTree.empty
+                let mutable failure = ""
+
+                if Morphir.IR.Trees.DocumentTreeStore.tryWriteYamlTree(jsonVTree, &yamlTree, &failure) then
+                    let expectedOrder = declared |> List.map CanonicalYaml.treeLocation
+
+                    Expect.equal
+                        (Morphir.Files.VFileTree.tryGet Morphir.Files.VFileTree.declaredOrder yamlTree)
+                        (Some expectedOrder)
+                        "Declared order is mapped to YAML paths"
+
+                    let fileMap = Morphir.Files.VFileTree.toFileMap yamlTree
+
+                    for yamlLocation, entry in List.zip expectedOrder tree do
+                        let file = Map.find yamlLocation fileMap
+
+                        let yamlText =
+                            match Morphir.Files.VFile.readText file with
+                            | Ok value -> value
+                            | Error err -> failtestf "Read failed: %A" err
+
+                        Expect.equal
+                            (exact (readBack yamlText))
+                            (exact (element (FixtureCatalog.ReadText entry)))
+                            $"{yamlLocation} reads back as its JSON"
+                else
+                    failtest failure
+            }
         ]
     ]

@@ -2412,6 +2412,56 @@ let discoveryCacheTests =
             Expect.equal detected.Syntax BoundedTreeSyntax.Json "detected long-path JSON syntax"
             Expect.equal detected.NameEncoding BoundedTreeEncoding.Plain "detected long-path plain encoding"
         }
+        test "OpenManifestSnapshot reads only the manifest and skips unselected corrupt member bodies while detecting manifest encoding" {
+            let prefix = FixtureCatalog.BoundedOrders.Directory + "v4/plain-json/"
+
+            let mapWithCorruptType =
+                FixtureCatalog.BoundedOrders.Files
+                |> Seq.filter (fun entry -> entry.RelativePath.StartsWith(prefix, System.StringComparison.Ordinal))
+                |> Seq.map (fun entry ->
+                    let location = entry.RelativePath.Substring(prefix.Length)
+
+                    location,
+                    VFile.ofBytes location (System.ReadOnlyMemory(FixtureCatalog.ReadBytes entry)))
+                |> Map.ofSeq
+                |> Map.add orderLocation (VFile.ofBytes orderLocation (System.ReadOnlyMemory(System.Text.Encoding.UTF8.GetBytes "{")))
+
+            let source =
+                {
+                    Revision = fun () -> "r1"
+                    DiscoveryIndexPeakBytes = fun () -> 0L
+                    ContainsFile = fun location -> Map.containsKey location mapWithCorruptType
+                    NextModule = fun _ _ _ _ _ -> failtest "OpenManifestSnapshot must not enumerate modules"
+                    FindFile =
+                        fun location ->
+                            if location = manifestLocation then
+                                Map.tryFind location mapWithCorruptType
+                            else
+                                failtestf "OpenManifestSnapshot must not read non-manifest file %s" location
+                }
+                : TreeFileSource.SnapshotSource
+
+            let plainSnapshot =
+                BoundedTreeReader.openTreeFromManifest
+                    ReadOptions.defaults.MaxFileBytes
+                    128
+                    None
+                    (Some(BoundedTreeWorkBudget 10_000L))
+                    System.Threading.CancellationToken.None
+                    source
+                |> read
+
+            Expect.equal plainSnapshot.NameEncoding BoundedTreeEncoding.Plain "Plain manifest resolves to Plain encoding"
+
+            let contextualProvider = StoreTestKit.ordersTreeProvider "v4" "contextual-yaml"
+            let contextualSnapshot =
+                DocumentTreeStore.openManifestSnapshot(
+                    ReadOptions.defaults, 128, 0, 10_000L, System.Func<string>(fun () -> "r2"), contextualProvider, System.Threading.CancellationToken.None)
+                |> read
+
+            Expect.equal contextualSnapshot.NameEncoding BoundedTreeEncoding.ContextualDraft1 "Contextual manifest resolves to ContextualDraft1"
+            Expect.equal contextualSnapshot.Syntax BoundedTreeSyntax.Yaml "YAML manifest syntax preserved"
+        }
         test "TryJoinSnapshot refuses Classic 3.1 JSON and YAML trees with lossy decimal sign or scale and accepts lossless decimals" {
             let lossyLexemes = [
                 "-0"

@@ -50,15 +50,14 @@ internal static class RecordedGenerationAdmission
     internal static SessionLimits WasmLimits(BoundedGenerationProfile profile, ModelAccessLimits offer)
     {
         var defaults = SessionLimits.Default;
-        var wholeFrameBytes = WasmChannel.FrameBytes(offer.MaxFrameBytes);
         return defaults with
         {
             MemoryCeilingBytes = Math.Min(defaults.MemoryCeilingBytes, offer.MaxGuestStateBytes),
             CallDeadline = TimeSpan.FromMilliseconds(offer.MaxCallMilliseconds),
             RequestFrameBytes = profile == BoundedGenerationProfile.OrdersScale
-                ? Math.Min(defaults.RequestFrameBytes, wholeFrameBytes) : defaults.RequestFrameBytes,
+                ? Math.Min(defaults.RequestFrameBytes, offer.MaxFrameBytes) : defaults.RequestFrameBytes,
             ResponseFrameBytes = profile == BoundedGenerationProfile.OrdersScale
-                ? Math.Min(defaults.ResponseFrameBytes, wholeFrameBytes) : defaults.ResponseFrameBytes,
+                ? Math.Min(defaults.ResponseFrameBytes, offer.MaxFrameBytes) : defaults.ResponseFrameBytes,
         };
     }
     internal static int WasmFrameBodyBytes()

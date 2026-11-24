@@ -115,8 +115,10 @@ public sealed class CompileGenerationStages(IGenerationBackendResolver backends,
                 "input-limit", $"The written IR has {ir.Length} bytes, more than the generation input limit of {Limits.MaxBytes} bytes.", irPath)));
         else
         {
-            // A document tree is a directory; the backend gets the single file of the same model under its single-file name.
-            var entry = settings.IrLayout.Value == TaskRecords.IrLayout.DocumentTree ? TaskRecordCompilePublisher.IrFile : Path.GetFileName(irPath);
+            // A document tree is a directory; the backend gets the single file of the same model under its formatted single-file name.
+            var entry = settings.IrLayout.Value == TaskRecords.IrLayout.DocumentTree
+                ? CompileIrFormats.FileName(settings.IrFormat.Value)
+                : Path.GetFileName(irPath);
             var original = new RetainedInput.File(irPath, new RetainedEntry(entry, ir.Span));
             var loaded = GenerationModelLoader.Decode(original, input, Limits, ct);
             run = loaded switch

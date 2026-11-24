@@ -373,18 +373,6 @@ public static class FixtureCatalog
         public static FixtureEntry RichModelIon { get; } =
             Document("mep/fixtures/rich-model.ion", "3c314a4e29bb3e1477171aff632fecec35257d0835c2e18549c732c609dfa664");
 
-        /// <summary>The Ion text daily-rate pair fixture (<c>pairs/v3-daily-rate.ion</c>).</summary>
-        public static FixtureEntry V3DailyRateIon =>
-            IonReferences.First(entry => entry.RelativePath == Directory + "pairs/v3-daily-rate.ion");
-
-        /// <summary>The Ion document-tree files of <c>trees/v3-daily-rate/</c>.</summary>
-        public static IReadOnlyList<FixtureEntry> V3DailyRateIonTreeFiles { get; } =
-            [.. IonReferences.Where(entry => entry.RelativePath.StartsWith(Directory + "trees/v3-daily-rate/", StringComparison.Ordinal))];
-
-        /// <summary><see cref="V3DailyRateIonTreeFiles"/> as a tree: the Ion document tree for <c>v3-daily-rate</c>.</summary>
-        public static FixtureTree V3DailyRateIonTree { get; } =
-            FixtureTree.Below("the Ion document tree for v3-daily-rate", Directory + "trees/v3-daily-rate/", V3DailyRateIonTreeFiles);
-
         /// <summary>
         /// The kit features of finos/morphir <c>spec/ir/mck/</c> pinned beside the Ion fixtures. Each scenario that
         /// states a canonical YAML and a canonical JSON spelling is a vector of the canonical YAML writer.
@@ -614,6 +602,18 @@ public static class FixtureCatalog
             IonReference("trees/v4-specs/pkg/example/other/greet.value.ion", "276f13b0e0b24ab9ecf5dc1ae8a42f9b5cc605c7aecaac813da9edb030b3920c"),
             IonReference("trees/v4-specs/pkg/example/other/module.ion", "1a514cf7a805ab7b149ce62a80097f7a8a8346899280e08efe835a8928e9b671"),
         ];
+
+        /// <summary>The Ion text daily-rate pair fixture (<c>pairs/v3-daily-rate.ion</c>).</summary>
+        public static FixtureEntry V3DailyRateIon =>
+            IonReferences.First(entry => entry.RelativePath == Directory + "pairs/v3-daily-rate.ion");
+
+        /// <summary>The Ion document-tree files of <c>trees/v3-daily-rate/</c>.</summary>
+        public static IReadOnlyList<FixtureEntry> V3DailyRateIonTreeFiles { get; } =
+            [.. IonReferences.Where(entry => entry.RelativePath.StartsWith(Directory + "trees/v3-daily-rate/", StringComparison.Ordinal))];
+
+        /// <summary><see cref="V3DailyRateIonTreeFiles"/> as a tree: the Ion document tree for <c>v3-daily-rate</c>.</summary>
+        public static FixtureTree V3DailyRateIonTree { get; } =
+            FixtureTree.Below("the Ion document tree for v3-daily-rate", Directory + "trees/v3-daily-rate/", V3DailyRateIonTreeFiles);
 
         /// <summary>The path of a document below <see cref="Directory"/>, such as <c>pairs/v3-specs.json</c>.</summary>
         public static string NameOf(FixtureEntry document) => document.RelativePath[Directory.Length..];

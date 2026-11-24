@@ -290,7 +290,6 @@ public sealed class CompileTaskRun : IDisposable
             : relative;
     }
 
-    /// <summary>Releases the lock.</summary>
     /// <summary>
     /// Releases the lock. A staged record whose removal the file system refused, and that no caller took
     /// (<see cref="TakeCleanupRefusals"/>), is reported first, with what <c>compile.json</c> holds while the lock is held.

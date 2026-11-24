@@ -150,6 +150,78 @@ module DocumentTreeStore =
         |> Result.map (fun files -> WrittenTree(files, version))
 
     /// <summary>
+    /// Converts a JSON document tree (<see cref="Morphir.Files.VFileTree"/>) into a canonical YAML
+    /// <see cref="Morphir.Files.VFileTree"/> with each file renamed via <see cref="CanonicalYaml.treeLocation"/>,
+    /// preserving declared order when present.
+    /// </summary>
+    [<CompiledName("ToYamlTree")>]
+    let toYamlTree (jsonFiles: Morphir.Files.VFileTree) : Result<Morphir.Files.VFileTree, string> =
+        let byLocation = Morphir.Files.VFileTree.toFileMap jsonFiles
+        let declared = Morphir.Files.VFileTree.tryGet Morphir.Files.VFileTree.declaredOrder jsonFiles
+
+        let orderedInputs =
+            match declared with
+            | Some order ->
+                order
+                |> List.choose (fun location ->
+                    Map.tryFind location byLocation |> Option.map (fun file -> location, file)
+                )
+            | None -> Map.toList byLocation
+
+        let rec readAll acc remaining =
+            match remaining with
+            | [] -> Ok(List.rev acc)
+            | (location, file) :: rest ->
+                match TreeFileSource.contentBytes Int64.MaxValue location file with
+                | Ok bytes -> readAll ((location, ReadOnlyMemory bytes) :: acc) rest
+                | Error problem -> Error $"{location}: {problem.Message}"
+
+        readAll [] orderedInputs
+        |> Result.bind CanonicalYaml.ofJsonTree
+        |> Result.map (fun yamlFiles ->
+            let tree =
+                yamlFiles
+                |> List.map (fun (location, bytes) ->
+                    location, Morphir.Files.VFile.ofBytes location (ReadOnlyMemory bytes)
+                )
+                |> Map.ofList
+                |> Morphir.Files.VFileTree.fromFileMap
+
+            match declared with
+            | Some order ->
+                Morphir.Files.VFileTree.set
+                    Morphir.Files.VFileTree.declaredOrder
+                    (List.map CanonicalYaml.treeLocation order)
+                    tree
+            | None -> tree
+        )
+
+    /// <summary>
+    /// Converts a JSON document tree (<see cref="Morphir.Files.VFileTree"/>) into a canonical YAML document tree with
+    /// each file renamed via <see cref="CanonicalYaml.treeLocation"/>. Sets <paramref name="yamlFiles"/> and returns
+    /// true, or sets <paramref name="failure"/> and returns false.
+    /// </summary>
+    [<CompiledName("TryWriteYamlTree")>]
+    let tryWriteYamlTree
+        (
+            jsonFiles: Morphir.Files.VFileTree,
+            [<Out; MaybeNullWhen(false)>] yamlFiles: byref<Morphir.Files.VFileTree>,
+            [<Out; MaybeNullWhen(true)>] failure: byref<string>
+        ) : bool =
+        if isNull (box jsonFiles) then
+            nullArg (nameof jsonFiles)
+
+        match toYamlTree jsonFiles with
+        | Ok tree ->
+            yamlFiles <- tree
+            failure <- Unchecked.defaultof<_>
+            true
+        | Error message ->
+            yamlFiles <- Unchecked.defaultof<_>
+            failure <- message
+            false
+
+    /// <summary>
     /// Reads a tree from files. The manifest's <c>formatVersion</c> chooses the version: a manifest of major 3 is
     /// read as a classic v3 tree, which says <c>"3.1.0"</c> in every file, and any other as a v4 tree. The files are
     /// taken by their location in the tree, whatever order the tree lists them in. A JSON file is part of the tree, a
@@ -452,23 +524,16 @@ module DocumentTreeStore =
     let private clampInt64 (low: int64) (high: int64) (value: int64) =
         max low (min high value)
 
-    /// <summary>
-    /// Open a revision-bound tree from a host callback, detecting whether any admitted file in the tree carries
-    /// the declared contextual draft.1 envelope (<c>ir-context/0.1.0-draft.1</c>) or whether all files are plain,
-    /// while refusing undeclared <c>$schema</c> values across own and dependency files under explicit depth, node,
-    /// positive work, and cancellation bounds. For C# callers.
-    /// </summary>
-    [<CompiledName("OpenDetectedSnapshotBounded")>]
-    let openDetectedSnapshotBounded
-        (
-            options: ReadOptions,
-            maxDepth: int,
-            maxNodes: int,
-            maxWorkUnits: int64,
-            revision: System.Func<string>,
-            provider: Microsoft.Extensions.FileProviders.IFileProvider,
-            cancellationToken: System.Threading.CancellationToken
-        ) : Result<BoundedTreeSnapshot, System.Collections.Generic.IReadOnlyList<StoreError>> =
+    let private openDetectedCore
+        openWith
+        (options: ReadOptions)
+        (maxDepth: int)
+        (maxNodes: int)
+        (maxWorkUnits: int64)
+        (revision: System.Func<string>)
+        (provider: Microsoft.Extensions.FileProviders.IFileProvider)
+        (cancellationToken: System.Threading.CancellationToken)
+        : Result<BoundedTreeSnapshot, System.Collections.Generic.IReadOnlyList<StoreError>> =
         let opened =
             if options.MaxFiles < 1 then
                 Error [ error "tree.invalid_limit" None "A module lookup limit must be positive." ]
@@ -490,15 +555,62 @@ module DocumentTreeStore =
                     discoveryCacheBytes
                     (fun () -> revision.Invoke())
                     provider
-                |> BoundedTreeReader.openTreeDetectedBounded
-                    options.MaxFileBytes
-                    effectiveDepth
-                    nodeLimit
-                    workBudget
-                    cancellationToken
+                |> openWith options.MaxFileBytes effectiveDepth nodeLimit workBudget cancellationToken
 
         opened
         |> Result.mapError (fun errors -> List.toArray errors :> System.Collections.Generic.IReadOnlyList<StoreError>)
+
+    /// <summary>
+    /// Open a revision-bound tree from a host callback by reading only the manifest document under explicit depth,
+    /// node, positive work, and cancellation bounds, leaving modules and member bodies lazy. For C# callers.
+    /// </summary>
+    [<CompiledName("OpenManifestSnapshot")>]
+    let openManifestSnapshot
+        (
+            options: ReadOptions,
+            maxDepth: int,
+            maxNodes: int,
+            maxWorkUnits: int64,
+            revision: System.Func<string>,
+            provider: Microsoft.Extensions.FileProviders.IFileProvider,
+            cancellationToken: System.Threading.CancellationToken
+        ) : Result<BoundedTreeSnapshot, System.Collections.Generic.IReadOnlyList<StoreError>> =
+        openDetectedCore
+            BoundedTreeReader.openTreeFromManifest
+            options
+            maxDepth
+            maxNodes
+            maxWorkUnits
+            revision
+            provider
+            cancellationToken
+
+    /// <summary>
+    /// Open a revision-bound tree from a host callback, detecting whether any admitted file in the tree carries
+    /// the declared contextual draft.1 envelope (<c>ir-context/0.1.0-draft.1</c>) or whether all files are plain,
+    /// while refusing undeclared <c>$schema</c> values across own and dependency files under explicit depth, node,
+    /// positive work, and cancellation bounds. For C# callers.
+    /// </summary>
+    [<CompiledName("OpenDetectedSnapshotBounded")>]
+    let openDetectedSnapshotBounded
+        (
+            options: ReadOptions,
+            maxDepth: int,
+            maxNodes: int,
+            maxWorkUnits: int64,
+            revision: System.Func<string>,
+            provider: Microsoft.Extensions.FileProviders.IFileProvider,
+            cancellationToken: System.Threading.CancellationToken
+        ) : Result<BoundedTreeSnapshot, System.Collections.Generic.IReadOnlyList<StoreError>> =
+        openDetectedCore
+            BoundedTreeReader.openTreeDetectedBounded
+            options
+            maxDepth
+            maxNodes
+            maxWorkUnits
+            revision
+            provider
+            cancellationToken
 
     /// <summary>
     /// Open a revision-bound tree from a host callback, detecting whether any admitted file carries the declared

@@ -417,6 +417,8 @@ public sealed class MepGenerationBackend : IExternalGenerationBackend
                 && manifest.Memory.Span.StartsWith(new byte[] { 0xE0, 0x01, 0x00, 0xEA })
                     ? "ion-binary"
                     : "ion-text",
+            ModelRepresentation.Yaml or ModelRepresentation.YamlTree => "morphir-yaml",
+            ModelRepresentation.Json or ModelRepresentation.JsonTree => "morphir-json",
             _ => "morphir-json",
         };
         var fromIrVersion = origin?.IrVersion

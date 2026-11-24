@@ -274,8 +274,10 @@ activation and against the live negotiated session.
 The host offers MEP `0.2.0-draft.2` and access `0.1.0-draft.1` with operation
 `morphir.backend.generateModel`, profile `morphir-ir`, layout `document-tree`,
 and encoding `plain` or `https://morphir.finos.org/schemas/ir-context/0.1.0-draft.1/document.schema.json`
-(negotiated as contextual whenever any admitted file in the tree carries the declared contextual
-envelope; `orders-scale` continues to require a plain JSON v4 recorded tree). The offer uses the
+(opening inspects only the manifest lazily so unselected member bodies are not read: contextual manifests
+negotiate the contextual envelope, while plain manifests offer contextual first and plain second so both
+plain and mixed compacted trees work without eager full-tree scanning; `orders-scale` continues to require a
+plain JSON v4 recorded tree). The offer uses the
 tree's exact IR version (`3.1.0` or `4.0.0`) and codec (`morphir-json` or `morphir-yaml`).
 For non-`orders-scale` runs, if the selected extension speaks only MEP `0.2.0-draft.1` (does not
 agree to `0.2.0-draft.2` `modelAccess`), Morphir converts the model losslessly to single-document

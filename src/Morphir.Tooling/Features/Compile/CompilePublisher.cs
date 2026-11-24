@@ -42,6 +42,12 @@ public sealed record CompilePublishRequest(string Language, FormatVersion IrVers
     /// </summary>
     public DocumentTreeStore.WrittenTree? DocumentTree { get; private init; }
 
+    private CompiledDocumentTree? _resolvedTree { get; init; }
+
+    /// <summary>The resolved document-tree files and declared format version across JSON, YAML, and Ion trees.</summary>
+    internal CompiledDocumentTree? ResolvedTree =>
+        _resolvedTree ?? (DocumentTree is { } tree ? new(tree.Files, tree.FormatVersion) : null);
+
     /// <summary>
     /// A request that publishes <paramref name="tree"/>: the document tree of the model that <paramref name="ir"/>, the bytes
     /// that the writer of <paramref name="irVersion"/> wrote, holds.
@@ -52,7 +58,26 @@ public sealed record CompilePublishRequest(string Language, FormatVersion IrVers
         ArgumentNullException.ThrowIfNull(tree);
         return new(language, irVersion, projectFile, ir) { DocumentTree = tree };
     }
+
+    /// <summary>
+    /// A request that publishes the document tree <paramref name="files"/> in <paramref name="format"/> with declared
+    /// format version <paramref name="declaredVersion"/>.
+    /// </summary>
+    public static CompilePublishRequest ForDocumentTree(string language, FormatVersion irVersion, string? projectFile,
+        ReadOnlyMemory<byte> ir, VFileTree files, IrStorageFormat format, FormatVersion declaredVersion)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+        ArgumentNullException.ThrowIfNull(declaredVersion);
+        return new(language, irVersion, projectFile, ir)
+        {
+            Format = format,
+            _resolvedTree = new(files, declaredVersion),
+        };
+    }
 }
+
+/// <summary>The files of a compiled document tree and the format version that the tree and record declare.</summary>
+internal sealed record CompiledDocumentTree(VFileTree Files, FormatVersion FormatVersion);
 
 /// <summary>Writes the single-file IR of a compile as the document tree of the same model (IR 3 and IR 4).</summary>
 internal static class CompileDocumentTree
@@ -74,6 +99,42 @@ internal static class CompileDocumentTree
             return Checked<DocumentTreeStore.WrittenTree>.Pass(tree);
         return Checked<DocumentTreeStore.WrittenTree>.Fail(problems.Select(problem => Diagnostic.Create(Severity.Error, CompileCodes.TreeWriteFailed,
             $"The written IR could not be split into a document tree: {problem}", null)));
+    }
+
+    /// <summary>
+    /// Writes <paramref name="written"/> (the single-file IR JSON that the writer wrote) as a document tree in
+    /// <paramref name="format"/> (<c>json</c>, <c>yaml</c>, or <c>ion</c>), stating <paramref name="requested"/> when
+    /// Ion writes a release not stated in JSON.
+    /// </summary>
+    public static Checked<CompiledDocumentTree> Write(IrStorageFormat format, ReadOnlyMemory<byte> written, FormatVersion requested)
+    {
+        switch (format)
+        {
+            case IrStorageFormat.Json:
+                {
+                    var jsonTree = Write(written);
+                    return jsonTree.TryGetValue(out var tree)
+                        ? Checked<CompiledDocumentTree>.Of(new CompiledDocumentTree(tree.Files, tree.FormatVersion), jsonTree.Diagnostics)
+                        : Checked<CompiledDocumentTree>.Fail(jsonTree.Diagnostics);
+                }
+            case IrStorageFormat.Yaml:
+                {
+                    var jsonTree = Write(written);
+                    if (!jsonTree.TryGetValue(out var tree))
+                        return Checked<CompiledDocumentTree>.Fail(jsonTree.Diagnostics);
+                    return DocumentTreeStore.TryWriteYamlTree(tree.Files, out var yamlFiles, out var yamlFailure)
+                        ? Checked<CompiledDocumentTree>.Of(new CompiledDocumentTree(yamlFiles, tree.FormatVersion), jsonTree.Diagnostics)
+                        : Checked<CompiledDocumentTree>.Fail(jsonTree.Diagnostics.Append(Diagnostic.Create(Severity.Error, CompileCodes.IrFormatFailed,
+                            $"The IR could not be written as YAML: {yamlFailure}", null)));
+                }
+            case IrStorageFormat.Ion:
+                return Morphir.Ion.IonIrWriting.TryWriteJsonTree(written, requested, Morphir.IR.Trees.WriteOptions.DefaultPathBudget, out var ionFiles, out var ionFailure)
+                    ? Checked<CompiledDocumentTree>.Pass(new CompiledDocumentTree(ionFiles, requested))
+                    : Checked<CompiledDocumentTree>.Fail([Diagnostic.Create(Severity.Error, CompileCodes.IrFormatFailed,
+                        $"The IR could not be written as Ion: {ionFailure.Message} ({ionFailure.Code})", null)]);
+            default:
+                throw new ArgumentOutOfRangeException(nameof(format));
+        }
     }
 }
 
@@ -136,7 +197,7 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
         public async Task<Checked<PublishedCompile>> PublishAsync(CompilePublishRequest request, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            var tree = request.DocumentTree;
+            var tree = request.ResolvedTree;
             var name = tree is null ? CompileIrFormats.FileName(request.Format) : IrDirectory;
             var target = Path.Combine(run.Dest, name);
             // One staging root for every run: the run holds compile.lock, so no other run stages here, and the tree

@@ -58,7 +58,7 @@ public sealed class CompileDocumentTreeTests
     private static StoredModel ReadTree(string directory)
     {
         VFileTree.TryLoadFromDisk(directory, out var files, out _).Should().BeTrue();
-        StoredModel.TryOfTreeRead(DocumentTreeStore.ReadTree(ReadOptionsModule.defaults, files!), out var model, out _, out _, out var problems)
+        StoredModel.TryOfTreeRead(DocumentTreeStore.ReadTree(ReadOptions.Defaults, files!), out var model, out _, out _, out var problems)
             .Should().BeTrue(problems is null ? "" : string.Join("\n", problems));
         return model!;
     }
@@ -1028,7 +1028,7 @@ public sealed class CompileDocumentTreeTests
     }
 
     [Test]
-    public async Task ABuiltInBackendRefusesARecordedJsonTree()
+    public async Task ABuiltInBackendGeneratesFromARecordedJsonTree()
     {
         using var workspace = Project();
         var compiled = await Command(workspace, $"--json=document {CommandInputs} --ir-layout document-tree");
@@ -1040,8 +1040,10 @@ public sealed class CompileDocumentTreeTests
             new GenerateRequest(invocation, new InvocationContext(workspace.Root) { Environment = workspace.Context().Environment }));
         var report = GenerationReport.From(outcome, invocation);
 
-        report.ExitCode.Should().Be(1, report.ToJson());
-        report.Diagnostics.Select(d => d.Code).Should().Equal(["unsupported-format"], report.ToJson());
-        Directory.Exists(workspace.PathOf("generated")).Should().BeFalse();
+        report.ExitCode.Should().Be(0, report.ToJson());
+        report.Representation.Should().Be("JsonTree");
+        report.Artifacts.Should().NotBeEmpty();
+        foreach (var artifact in report.Artifacts)
+            File.Exists(Path.Combine(workspace.PathOf("generated"), artifact)).Should().BeTrue(artifact);
     }
 }
