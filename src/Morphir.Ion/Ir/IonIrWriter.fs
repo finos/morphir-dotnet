@@ -8,6 +8,41 @@ open Morphir.IR.Trees
 open Morphir.Json.Classic
 open Morphir.Json.V4
 
+/// A place in a JSON document as its parent and its own step, so a walk keeps one small node for each value and
+/// writes the path out only when it reports one.
+type internal JsonPathNode =
+    | Root
+    | Key of parent: JsonPathNode * name: string
+    | Index of parent: JsonPathNode * index: int
+
+module internal JsonPathNode =
+    /// The path as text, such as <c>$.distribution[0].a</c>, written by walking the parents once.
+    let render (node: JsonPathNode) =
+        let steps = Collections.Generic.Stack<JsonPathNode>()
+        let mutable current = node
+
+        while (match current with
+               | Root -> false
+               | Key _
+               | Index _ -> true) do
+            steps.Push current
+
+            current <-
+                match current with
+                | Key(parent, _)
+                | Index(parent, _) -> parent
+                | Root -> Root
+
+        let builder = Text.StringBuilder "$"
+
+        for step in steps do
+            match step with
+            | Key(_, name) -> builder.Append('.').Append(name) |> ignore
+            | Index(_, index) -> builder.Append('[').Append(index).Append(']') |> ignore
+            | Root -> ()
+
+        builder.ToString()
+
 /// <summary>The format versions the Ion IR format carries, which the writer and its callers check alike.</summary>
 [<RequireQualifiedAccess>]
 module IonIrVersions =
@@ -426,7 +461,9 @@ module IonIrWriter =
         else
             let stated = [
                 for property in root.EnumerateObject() do
-                    if property.Name = "formatVersion" then
+                    // NameEquals compares the key without decoding it, so an unrelated key that has no .NET string
+                    // cannot hide the formatVersion refusal.
+                    if property.NameEquals "formatVersion" then
                         property.Value
             ]
 
@@ -439,10 +476,11 @@ module IonIrWriter =
                 )
 
     /// Refuses a member that an object of the document repeats, before a distribution reader keeps only one of its
-    /// values. The walk uses a stack, so a deep document cannot overflow the call stack.
+    /// values. The walk uses a stack, so a deep document cannot overflow the call stack, and each node keeps only its
+    /// parent and its own key or index; the JSON path is written out only for the refusal.
     let private refuseRepeatedMembers (root: JsonElement) =
-        let pending = Collections.Generic.Stack<string * JsonElement>()
-        pending.Push("$", root)
+        let pending = Collections.Generic.Stack<JsonPathNode * JsonElement>()
+        pending.Push(JsonPathNode.Root, root)
 
         while pending.Count > 0 do
             let path, element = pending.Pop()
@@ -461,7 +499,7 @@ module IonIrWriter =
 
                     match name with
                     | Some name ->
-                        let here = path + "." + name
+                        let here = JsonPathNode.Key(path, name)
 
                         if not (seen.Add name) then
                             raise (
@@ -470,7 +508,7 @@ module IonIrWriter =
                                         Code = "duplicate_member"
                                         Message = $"The member '{name}' appears more than once, so one of its values would be lost."
                                         Path = None
-                                        Location = Some here
+                                        Location = Some(JsonPathNode.render here)
                                     }
                             )
 
@@ -480,7 +518,7 @@ module IonIrWriter =
                 let mutable index = 0
 
                 for item in element.EnumerateArray() do
-                    pending.Push($"{path}[{index}]", item)
+                    pending.Push(JsonPathNode.Index(path, index), item)
                     index <- index + 1
             | _ -> ()
 

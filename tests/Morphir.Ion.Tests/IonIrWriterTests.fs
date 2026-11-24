@@ -71,14 +71,23 @@ let private pairNames =
     |> Seq.map (fun name -> name.Substring("pairs/".Length, name.Length - "pairs/".Length - ".json".Length))
     |> List.ofSeq
 
+/// The reference Ion text of a catalogued file, by its path below MorphirIon, such as pairs/v3-specs.ion.
+let private referenceText (name: string) =
+    Morphir.TestSupport.Fixtures.FixtureCatalog.UpstreamIr.IonReferences
+    |> Seq.tryFind (fun entry -> Morphir.TestSupport.Fixtures.FixtureCatalog.UpstreamIr.NameOf entry = name)
+    |> Option.map Morphir.TestSupport.Fixtures.FixtureCatalog.ReadText
+    |> Option.defaultWith (fun () -> failwithf "FixtureCatalog.UpstreamIr has no reference Ion file %s." name)
+
+/// The files of a catalogued reference tree, by their location in it, in ordinal order.
 let private treeFiles (name: string) =
     let prefix = $"trees/{name}/"
 
-    Fixtures.names
-    |> Array.filter (fun file -> file.StartsWith prefix)
-    |> Array.map (fun file -> file.Substring prefix.Length, Fixtures.text file)
-    |> Array.sortWith (fun (a, _) (b, _) -> String.CompareOrdinal(a, b))
-    |> List.ofArray
+    Morphir.TestSupport.Fixtures.FixtureCatalog.UpstreamIr.IonReferences
+    |> Seq.map (fun entry -> Morphir.TestSupport.Fixtures.FixtureCatalog.UpstreamIr.NameOf entry, entry)
+    |> Seq.filter (fun (file, _) -> file.StartsWith prefix)
+    |> Seq.map (fun (file, entry) -> file.Substring prefix.Length, Morphir.TestSupport.Fixtures.FixtureCatalog.ReadText entry)
+    |> Seq.sortWith (fun (a, _) (b, _) -> String.CompareOrdinal(a, b))
+    |> List.ofSeq
 
 let private written (files: (string * byte array) list) =
     files
@@ -246,7 +255,7 @@ let tests =
                     testCase $"{name} gives the bytes of the reference file"
                     <| fun () ->
                         let actual = fromJson $"pairs/{name}.json" |> IonIrWriter.write |> ok "Writing" |> text
-                        let reference = Fixtures.text $"pairs/{name}.ion" |> normalize |> structuredBare
+                        let reference = referenceText $"pairs/{name}.ion" |> normalize |> structuredBare
                         Expect.equal actual reference "The canonical bytes"
 
                 testCase $"{name} is a fixed point of the writer"
@@ -538,6 +547,64 @@ let tests =
                     | Ok _ -> failtest "A repeated member was read"
                     | Result.Error error -> Expect.equal error.Code "duplicate_member" error.Message
 
+            for name, edit, location in
+                [
+                    "a repeated root distribution",
+                    (fun (text: string) ->
+                        let json = text.TrimEnd()
+                        let at = json.IndexOf ",\"distribution\":"
+                        json.Substring(0, json.Length - 1) + json.Substring(at, json.Length - 1 - at) + "}"),
+                    "$.distribution"
+                    "a nested member repeated by an escaped key",
+                    (fun (json: string) ->
+                        json.Replace(
+                            "\"inputTypes\":{\"x\":\"morphir/SDK:basics#int\"}",
+                            "\"inputTypes\":{\"x\":\"morphir/SDK:basics#int\",\"\\u0078\":\"morphir/SDK:basics#int\"}"
+                        )),
+                    "$.distribution.Application.dependencies.my-org/shared.modules.util.Public.values.identity.Public.ExpressionBody.inputTypes.x"
+                ] do
+                testCase $"A v4 document with {name} is refused at the repeated member"
+                <| fun () ->
+                    let original = catalogText "pairs/v4-application.json"
+                    let json = edit original
+                    Expect.notEqual json original "The vector gains a repeated member"
+
+                    match IonIrWriter.readJson (ReadOnlyMemory(Encoding.UTF8.GetBytes json)) with
+                    | Ok _ -> failtest "A repeated member was read"
+                    | Result.Error error ->
+                        Expect.equal error.Code "duplicate_member" error.Message
+                        Expect.equal error.Location (Some location) "The location of the second member"
+
+            testCase "A repeated member deep in nested arrays is found without a path string for every node"
+            <| fun () ->
+                let depth = 8000
+                let json = "{\"formatVersion\":4,\"distribution\":" + String('[', depth) + "{\"a\":1,\"a\":2}" + String(']', depth) + "}"
+                let bytes = ReadOnlyMemory(Encoding.UTF8.GetBytes json)
+                IonIrWriter.readJson bytes |> ignore
+                // The scan runs on this thread, and other tests run beside it, so count this thread's allocations only.
+                let before = GC.GetAllocatedBytesForCurrentThread()
+                let result = IonIrWriter.readJson bytes
+                let allocated = GC.GetAllocatedBytesForCurrentThread() - before
+
+                match result with
+                | Ok _ -> failtest "A repeated member was read"
+                | Result.Error error ->
+                    Expect.equal error.Code "duplicate_member" error.Message
+                    Expect.equal error.Location (Some("$.distribution" + String.replicate depth "[0]" + ".a")) "The full path, made once"
+
+                // A path string for each of the 8,000 levels would allocate about 190 MB; the parse and the scan need a few.
+                Expect.isLessThan allocated (24L * 1024L * 1024L) $"{allocated} bytes allocated"
+
+            testCase "A root key with a lone surrogate does not hide a formatVersion refusal"
+            <| fun () ->
+                let json = "{\"formatVersion\":\"3.0.\\uD800\",\"\\uD800\":null,\"distribution\":null}"
+
+                match IonIrWriter.readJson (ReadOnlyMemory(Encoding.UTF8.GetBytes json)) with
+                | Ok _ -> failtest "Read"
+                | Result.Error error ->
+                    Expect.equal error.Code "invalid_format_version_syntax" error.Message
+                    Expect.equal error.Location (Some "$.formatVersion") "The location"
+
             testCase "The C# failure gives text locations and a readable ToString"
             <| fun () ->
                 match IonIrWriting.TryWriteJson(ReadOnlyMemory(Encoding.UTF8.GetBytes "{\"formatVersion\":\"3.0.1\",\"distribution\":null}")) with
@@ -574,7 +641,7 @@ let tests =
 
         testList "Lexemes and boundaries" [
             let readOne (text: string) =
-                match IonReader.read limits (Fixtures.utf8 text) with
+                match IonReader.read limits (ReadOnlyMemory(Encoding.UTF8.GetBytes text)) with
                 | Ok [ value ] -> value
                 | other -> failtestf "Expected one Ion value: %A" other
 

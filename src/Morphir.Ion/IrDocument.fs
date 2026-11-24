@@ -26,6 +26,7 @@ type IrDocument =
         | ClassicIr(version, distribution) -> classic.Invoke(version, distribution)
         | V4Ir(version, distribution) -> v4.Invoke(version, distribution)
 
+    /// <summary>The family and the format version, such as <c>classic IR 3.1.0</c> or <c>IR 4.0.0</c>.</summary>
     override this.ToString() =
         match this with
         | ClassicIr(version, _) -> $"classic IR {version}"
@@ -53,4 +54,3 @@ type IonIrError = {
         | Some location, _
         | None, Some location -> $"{this.Code} at {location}: {this.Message}"
         | None, None -> $"{this.Code}: {this.Message}"
-
