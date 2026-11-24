@@ -20,6 +20,10 @@ type private YamlAtom =
     | Boolean of bool
     | Null
 
+type private YamlFrame =
+    | MappingFrame of path: string list * depth: int * keys: HashSet<string>
+    | SequenceFrame of path: string list * depth: int * nextIndex: int ref
+
 [<RequireQualifiedAccess>]
 module internal TreeYaml =
     let private integer = Regex(@"\A[+-]?[0-9]+\z", RegexOptions.CultureInvariant)
@@ -255,7 +259,9 @@ module internal TreeYaml =
                     )
                 | _ -> ()
 
-            let rec node path depth =
+            let frames = Stack<YamlFrame>()
+
+            let startValue path depth =
                 if depth > maxDepth then
                     fail path cursor "depth_limit_exceeded" "The YAML nesting limit was exceeded."
 
@@ -280,9 +286,37 @@ module internal TreeYaml =
                     writer.WriteStartObject()
                     checkOutputSize path
                     advance path
-                    let keys = HashSet<string>(StringComparer.Ordinal)
+                    frames.Push(MappingFrame(path, depth, HashSet<string>(StringComparer.Ordinal)))
+                | :? SequenceStart ->
+                    writer.WriteStartArray()
+                    checkOutputSize path
+                    advance path
+                    frames.Push(SequenceFrame(path, depth, ref 0))
+                | _ -> fail path cursor "invalid_yaml" "Expected a YAML value."
 
-                    while not (cursor :? MappingEnd) do
+            advance []
+            advance []
+
+            if not (cursor :? DocumentStart) then
+                fail [] cursor "invalid_yaml" "Expected exactly one YAML document."
+
+            advance []
+            checkNode []
+
+            if not (cursor :? MappingStart) then
+                fail [] cursor "invalid_type" "The root must be a mapping."
+
+            startValue [] 1
+
+            while frames.Count > 0 do
+                match frames.Peek() with
+                | MappingFrame(path, depth, keys) ->
+                    if cursor :? MappingEnd then
+                        writer.WriteEndObject()
+                        checkOutputSize path
+                        advance path
+                        frames.Pop() |> ignore
+                    else
                         checkNode path
 
                         let key, keyEvent =
@@ -315,43 +349,17 @@ module internal TreeYaml =
                         writer.WritePropertyName key
                         checkOutputSize child
                         advance child
-                        node child (depth + 1)
-
-                    writer.WriteEndObject()
-                    checkOutputSize path
-                    advance path
-                | :? SequenceStart ->
-                    writer.WriteStartArray()
-                    checkOutputSize path
-                    advance path
-                    let mutable index = 0
-
-                    while not (cursor :? SequenceEnd) do
-                        node
-                            (index.ToString(CultureInfo.InvariantCulture)
-                             :: path)
-                            (depth + 1)
-
-                        index <- index + 1
-
-                    writer.WriteEndArray()
-                    checkOutputSize path
-                    advance path
-                | _ -> fail path cursor "invalid_yaml" "Expected a YAML value."
-
-            advance []
-            advance []
-
-            if not (cursor :? DocumentStart) then
-                fail [] cursor "invalid_yaml" "Expected exactly one YAML document."
-
-            advance []
-            checkNode []
-
-            if not (cursor :? MappingStart) then
-                fail [] cursor "invalid_type" "The root must be a mapping."
-
-            node [] 1
+                        startValue child (depth + 1)
+                | SequenceFrame(path, depth, nextIndex) ->
+                    if cursor :? SequenceEnd then
+                        writer.WriteEndArray()
+                        checkOutputSize path
+                        advance path
+                        frames.Pop() |> ignore
+                    else
+                        let index = nextIndex.Value
+                        nextIndex.Value <- index + 1
+                        startValue (index.ToString(CultureInfo.InvariantCulture) :: path) (depth + 1)
 
             if not (cursor :? DocumentEnd) then
                 fail [] cursor "invalid_yaml" "Expected the end of the YAML document."

@@ -31,7 +31,12 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         return DecodeLegacy(original, input, limits, ct);
     }
 
-    private static Outcome<LoadedModel> DecodeLegacy(RetainedInput original, ModelInput input, ModelReadLimits limits, CancellationToken ct)
+    internal static Outcome<LoadedModel> DecodeLegacy(
+        RetainedInput original,
+        ModelInput input,
+        ModelReadLimits limits,
+        CancellationToken ct,
+        Func<RetainedInput.Tree, ModelReadLimits, Outcome<LoadedModel>>? ionTreeDecoder = null)
     {
         try
         {
@@ -49,7 +54,9 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
                 if (!tree.Entries.Any(entry => entry.RelativePath == "manifest.ion")
                     && tree.Entries.Any(entry => entry.RelativePath is "manifest.json" or "manifest.yaml" or "manifest.yml" or "morphir-ir.json" or "morphir-ir.yaml" or "morphir-ir.yml"))
                     return Failure("unsupported-format", "JSON and YAML model trees are unsupported; use an Ion tree with manifest.ion.", tree.SourcePath);
-                return DecodeIonTree(tree, limits);
+                var decoded = (ionTreeDecoder ?? DecodeIonTree)(tree, limits);
+                ct.ThrowIfCancellationRequested();
+                return decoded;
             }
 
             return Decode(original, input, limits, ct);
@@ -231,7 +238,7 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         return IonModel(result.ResultValue, file, IsBinary(file.Entry.Memory.Span) ? ModelRepresentation.IonBinary : ModelRepresentation.IonText);
     }
 
-    private static Outcome<LoadedModel> DecodeIonTree(RetainedInput.Tree tree, ModelReadLimits limits)
+    internal static Outcome<LoadedModel> DecodeIonTree(RetainedInput.Tree tree, ModelReadLimits limits)
     {
         var files = tree.Entries.Select(entry => VFileModule.ofBytes(entry.RelativePath, entry.Memory));
         var result = IonIrTree.readDetailed(IonLimits(limits), VFileTree.FromFiles(files));

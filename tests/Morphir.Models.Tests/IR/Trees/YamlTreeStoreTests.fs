@@ -476,26 +476,43 @@ let tests =
                 Expect.isFalse joinReturned "Join threw OperationCanceledException instead of returning"
 
                 // 4. Cancellation triggered inside the logical-path sort comparator must propagate OperationCanceledException
-                //    unwrapped (not System.InvalidOperationException from Array.Sort).
+                //    unwrapped (not System.InvalidOperationException from Array.Sort). Use 4 modules so Array.Sort invokes
+                //    the comparator multiple times and enters the exception-wrapping path when cancellation throws mid-sort.
                 use sortCts = new CancellationTokenSource()
                 let mutable compared = 0
+                let mutable modulesEntered = 0
+                let m3 = ModulePath(Path [ Name.fromList [ "gamma" ] ])
+                let m4 = ModulePath(Path [ Name.fromList [ "delta" ] ])
 
                 Expect.throwsT<OperationCanceledException>
                     (fun () ->
                         TreeJoin.joinPackage
                             sortCts.Token
                             family
-                            { shape with ModuleOf = fun _ -> Some(fun _ _ -> ()) }
+                            { shape with
+                                ModuleOf =
+                                    fun _ ->
+                                        modulesEntered <- modulesEntered + 1
+                                        Some(fun _ _ -> ())
+                            }
                             OrderedMap.ofList
                             Own
                             (fun address ->
                                 compared <- compared + 1
                                 if compared = 1 then sortCts.Cancel()
                                 DocumentAddress.logicalPath (PackageName(Path [ Name.fromList [ "acme" ] ])) address)
-                            [ Module m1, ModuleDoc emptyMod; Module m2, ModuleDoc emptyMod ]
+                            [
+                                Module m4, ModuleDoc emptyMod
+                                Module m2, ModuleDoc emptyMod
+                                Module m3, ModuleDoc emptyMod
+                                Module m1, ModuleDoc emptyMod
+                            ]
                         |> ignore
                     )
                     "Cancellation during List.sortWith comparison propagates OperationCanceledException without InvalidOperationException wrapping"
+
+                Expect.isGreaterThanOrEqual compared 1 "Comparator ran at least once"
+                Expect.equal modulesEntered 0 "Cancellation fired inside Array.Sort before module joining began"
             }
 
             test "Rejects contextual YAML whose transcoded envelope exceeds remaining byte budget even when expanded document fits" {
@@ -578,6 +595,23 @@ let tests =
                     )
 
                 Expect.isTrue ok "TryReadYamlDocument succeeds with MaxDepth = Int32.MaxValue"
+
+                // Deeply nested YAML (3000 levels) with MaxDepth = Int32.MaxValue must succeed iteratively
+                // without exhausting the process call stack.
+                let deepBytes = Encoding.UTF8.GetBytes(YamlDocs.deepNestedYaml 3000)
+                let deepOk =
+                    DocumentTreeStore.tryReadYamlDocument (
+                        "deep.yaml",
+                        ReadOnlyMemory deepBytes,
+                        1024L * 1024L,
+                        Int32.MaxValue,
+                        100_000,
+                        CancellationToken.None,
+                        &doc,
+                        &errors
+                    )
+
+                Expect.isTrue deepOk "Deep YAML (3000 levels) decodes iteratively at MaxDepth = Int32.MaxValue without stack overflow"
             }
 
             test "Preserves structured JSONPath location for nested context validation errors and keeps legacy StoreError message" {

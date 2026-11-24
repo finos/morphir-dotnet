@@ -18,7 +18,7 @@ public sealed class GenerationDocumentTreeLoaderTests
     private static string CopyOrdersTree(string root, string version, string profile, string? folderName = null)
     {
         var directory = Path.Combine(root, folderName ?? $"{version}-{profile}");
-        var documents = DocumentTreeMother.BoundedOrders.catalogDocuments(version, profile);
+        var documents = DocumentTreeMother.BoundedOrders.CatalogDocuments(version, profile);
         foreach (var pair in documents)
         {
             var target = Path.Combine(directory, pair.Key.Replace('/', Path.DirectorySeparatorChar));
@@ -323,6 +323,15 @@ public sealed class GenerationDocumentTreeLoaderTests
         var mepFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(mepPath, InputFormat.Auto)).Error;
         mepFailure.Diagnostics[0].Code.Should().Be("unsupported-profile");
 
+        // YAML containing a MEP marker alongside $schema must still report unsupported-profile, not context.undeclared_schema.
+        var mepWithSchemaPath = Path.Combine(sandbox.Work, "mep-with-schema.yaml");
+        File.WriteAllText(mepWithSchemaPath, DocumentTreeMother.YamlDocuments.mepEnvelopeWithSchemaYaml);
+        foreach (var format in new[] { InputFormat.Auto, InputFormat.Yaml })
+        {
+            var mepSchemaFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(mepWithSchemaPath, format)).Error;
+            mepSchemaFailure.Diagnostics[0].Code.Should().Be("unsupported-profile");
+        }
+
         // Compacted YAML that fits raw byte capture limits but exceeds MaxBytes on expansion is refused.
         var bombPath = Path.Combine(sandbox.Work, "compacted-bomb.yaml");
         var bombText = DocumentTreeMother.YamlDocuments.compactedExpandingManifestYaml(20, 12);
@@ -410,7 +419,7 @@ public sealed class GenerationDocumentTreeLoaderTests
             if (layout == IrLayout.DocumentTree)
             {
                 var profile = storageFormat == IrStorageFormat.Yaml ? "plain-yaml" : "plain-json";
-                var documents = DocumentTreeMother.BoundedOrders.catalogDocuments("v4", profile);
+                var documents = DocumentTreeMother.BoundedOrders.CatalogDocuments("v4", profile);
                 var destTree = Path.Combine(run.Dest, "ir-tree");
                 foreach (var pair in documents)
                 {

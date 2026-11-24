@@ -618,9 +618,19 @@ module internal TreeFileSource =
         |> Result.mapError (StoreErrors.ofStoreError >> List.singleton)
         |> Result.bind (decodeWithDetailed ctx location read)
 
+    let private isMepEnvelopeRoot (root: JsonElement) =
+        let mutable marker = Unchecked.defaultof<JsonElement>
+
+        root.ValueKind = JsonValueKind.Object
+        && (root.TryGetProperty("envelopeVersion", &marker)
+            || root.TryGetProperty("morphir_model", &marker)
+            || root.TryGetProperty("jsonrpc", &marker))
+
     /// <summary>
     /// Decodes a single YAML document (plain or contextual) into its expanded <see cref="JsonElement"/>
-    /// under explicit byte, depth, node, and cancellation limits.
+    /// under explicit byte, depth, node, and cancellation limits. MEP envelopes (identified by
+    /// <c>envelopeVersion</c>, <c>morphir_model</c>, or <c>jsonrpc</c>) bypass IR-context admission so the
+    /// caller's shared MEP classifier reports <c>unsupported-profile</c> even when <c>$schema</c> is present.
     /// </summary>
     let readSingleYamlDocument
         (file: string)
@@ -635,8 +645,45 @@ module internal TreeFileSource =
         if int64 bytes.Length > maxBytes then
             Error [ StoreErrors.diagnostic "tree.file_too_large" (Some file) $"The file has more than {maxBytes} bytes." ]
         else
-            let ctx = createDecodeContext TreeProfile.Yaml maxBytes (Some maxBytes) maxDepth (Some maxNodes) ct
-            decodeRawDetailed ctx file (bytes.ToArray()) |> Result.map fst
+            let rawBytes = bytes.ToArray()
+
+            TreeYaml.readCountedDetailed true maxDepth maxNodes (Some maxBytes) ct file rawBytes
+            |> Result.bind (fun (root, rawNodes, jsonBytes) ->
+                if isMepEnvelopeRoot root then
+                    Ok root
+                else
+                    let ctx = createDecodeContext TreeProfile.Yaml maxBytes (Some maxBytes) maxDepth (Some maxNodes) ct
+                    let plainBytes = max (int64 rawBytes.Length) jsonBytes
+
+                    MorphirFile.readEnvelopeRootDetailed ContextOrder.WholeFile ctx.ContextLimits file root
+                    |> Result.bind (fun envelope ->
+                        match envelope.Context with
+                        | None ->
+                            if not (ctx.TryConsumeTotalBytes plainBytes) then
+                                Error [ StoreErrors.diagnostic "tree.file_too_large" (Some file) "The decoded tree files exceed the aggregate byte limit." ]
+                            else
+                                Ok envelope.Document
+                        | Some context ->
+                            if plainBytes > maxBytes then
+                                Error [ StoreErrors.diagnostic "tree.file_too_large" (Some file) "The decoded tree files exceed the aggregate byte limit." ]
+                            else
+                                ContextExpansion.expandCountedDetailed
+                                    ctx.ContextLimits
+                                    (Some maxBytes)
+                                    (Some maxNodes)
+                                    ct
+                                    (MorphirFile.familyOf envelope.Document)
+                                    file
+                                    context
+                                    envelope.Document
+                                |> Result.bind (fun (expanded, _, expandedBytes) ->
+                                    if not (ctx.TryConsumeTotalBytes(max plainBytes expandedBytes)) then
+                                        Error [ StoreErrors.diagnostic "tree.file_too_large" (Some file) "The decoded tree files exceed the aggregate byte limit." ]
+                                    else
+                                        Ok expanded
+                                )
+                    )
+            )
 
     /// <summary>
     /// The exact declared <c>formatVersion</c> text of an already-decoded manifest object.

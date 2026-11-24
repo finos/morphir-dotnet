@@ -34,6 +34,17 @@ module BoundedOrders =
         |> Seq.map (fun entry -> entry.RelativePath.Substring(prefix.Length), entry)
         |> Map.ofSeq
 
+    /// For C# callers: exposes <see cref="catalogDocuments"/> as a .NET read-only dictionary.
+    [<CompiledName("CatalogDocuments")>]
+    let catalogDocumentEntries version profile : System.Collections.Generic.IReadOnlyDictionary<string, FixtureEntry> =
+        let entries = System.Collections.Generic.Dictionary<string, FixtureEntry>(System.StringComparer.Ordinal)
+
+        for KeyValue(path, entry) in catalogDocuments version profile do
+            entries[path] <- entry
+
+        System.Collections.ObjectModel.ReadOnlyDictionary<string, FixtureEntry>(entries)
+        :> System.Collections.Generic.IReadOnlyDictionary<string, FixtureEntry>
+
     let private plainJson version locations =
         let documents = catalogDocuments version "plain-json"
 
@@ -1149,6 +1160,18 @@ module YamlDocuments =
 
     /// A MEP model-envelope document written in YAML, which bare-IR loading must refuse.
     let mepEnvelopeYaml = "envelopeVersion: \"0.1.0\"\npayload: {}\n"
+
+    /// A MEP model-envelope document written in YAML that also carries a <c>$schema</c> member;
+    /// bare-IR loading must classify it as <c>unsupported-profile</c> before IR-context admission.
+    let mepEnvelopeWithSchemaYaml =
+        "$schema: \"https://morphir.finos.org/schemas/mep/0.2.0/model-envelope.schema.json\"\nenvelopeVersion: \"0.1.0\"\npayload: {}\n"
+
+    /// A deeply nested YAML mapping of <paramref name="depth"/> flow levels used to verify iterative
+    /// YAML decoding does not exhaust the process stack when <c>MaxDepth = Int32.MaxValue</c>.
+    let deepNestedYaml (depth: int) : string =
+        let opens = String.replicate depth "{\"a\":"
+        let closes = String.replicate depth "}"
+        opens + "1" + closes + "\n"
 
     /// A valid contextual YAML manifest envelope using the draft.1 name-compaction schema.
     let contextualManifestYaml =

@@ -5,22 +5,23 @@ using Morphir.Files;
 using Morphir.IR.Trees;
 using Morphir.Json.Classic;
 using Morphir.Json.V4;
+using Morphir.TestSupport.Fixtures;
 using Morphir.Testing;
 
 namespace Morphir.Tooling.Tests.Features.Generate;
 
 internal static class GenerationInputFixtures
 {
+    private static readonly FixtureEntry V3DailyRatePair =
+        FixtureCatalog.UpstreamIr.Documents.Single(d => FixtureCatalog.UpstreamIr.NameOf(d) == "pairs/v3-daily-rate.json");
+
     public static string DailyRate(string directory, string version, string format)
     {
         var fixtures = Path.Combine(GenerateSteps.RepositoryRoot(), "tests", "Fixtures", "MorphirIon");
         Directory.CreateDirectory(directory);
         if (format is "json" or "yaml" or "json-tree" or "yaml-tree")
         {
-            var json = version.StartsWith('4') ? GenerateSteps.V4Model :
-                version is "1" or "2" ? File.ReadAllText(Path.Combine(GenerateSteps.RepositoryRoot(), "examples", "car-rental", "models", $"car-rental-v{version}.json")) :
-                File.ReadAllText(Path.Combine(fixtures, "pairs", "v3-daily-rate.json"));
-            if (version.Contains('.')) json = json.Replace("\"formatVersion\":3", $"\"formatVersion\":\"{version}\"").Replace("\"formatVersion\":4", $"\"formatVersion\":\"{version}\"");
+            var json = ReadCatalogDailyRateJson(version);
             return WriteJsonOrYamlRepresentation(directory, version, format, json);
         }
         if (format == "tree")
@@ -71,6 +72,29 @@ internal static class GenerationInputFixtures
             return WriteJsonOrYamlRepresentation(directory, version, format, json);
         }
         return WriteIon(directory, format, header + $" public::def::module::{{name:\"literals\"}} public::def::value::{{module:\"literals\",name:\"value\",{value}}} morphir_footer::{{}}");
+    }
+
+    private static string ReadCatalogDailyRateJson(string version)
+    {
+        if (version.StartsWith('4'))
+        {
+            var v4 = FixtureCatalog.ReadText(FixtureCatalog.Models.V4DailyRate);
+            return version.Contains('.') ? v4.Replace("\"formatVersion\": 4", $"\"formatVersion\": \"{version}\"").Replace("\"formatVersion\":4", $"\"formatVersion\":\"{version}\"") : v4;
+        }
+
+        var v3 = FixtureCatalog.ReadText(V3DailyRatePair);
+        if (version is "1" or "2")
+        {
+            using var parsed = JsonDocument.Parse(v3);
+            var decoded = ClassicJson.readDistribution(parsed.RootElement);
+            if (decoded.IsError) throw new InvalidOperationException($"Failed to decode catalog v3 daily-rate fixture: {decoded.ErrorValue}");
+            var profile = version == "1" ? ClassicWireProfileModule.v1 : ClassicWireProfileModule.v2;
+            var written = ClassicJsonWriter.writeJsonAttributes(profile, true, decoded.ResultValue.Distribution);
+            if (written.IsError) throw new InvalidOperationException($"Failed to project catalog daily-rate fixture to v{version}: {written.ErrorValue}");
+            return Encoding.UTF8.GetString(written.ResultValue);
+        }
+
+        return version.Contains('.') ? v3.Replace("\"formatVersion\":3", $"\"formatVersion\":\"{version}\"") : v3;
     }
 
     private static string WriteJsonOrYamlRepresentation(string directory, string version, string format, string json)

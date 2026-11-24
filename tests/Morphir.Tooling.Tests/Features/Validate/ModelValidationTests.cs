@@ -269,7 +269,7 @@ public sealed class ModelValidationTests
         foreach (var profile in new[] { "plain-json", "plain-yaml" })
         {
             var treeDir = Path.Combine(sandbox.Work, profile);
-            var documents = Morphir.Models.TestSupport.DocumentTreeMother.BoundedOrders.catalogDocuments("v4", profile);
+            var documents = Morphir.Models.TestSupport.DocumentTreeMother.BoundedOrders.CatalogDocuments("v4", profile);
             foreach (var pair in documents)
             {
                 var target = Path.Combine(treeDir, pair.Key.Replace('/', Path.DirectorySeparatorChar));
@@ -282,5 +282,35 @@ public sealed class ModelValidationTests
         }
 
         analyzer.Runs.Should().Be(0);
+    }
+
+    [Test]
+    [Category("PlatformSpecific")]
+    public void ValidateIonTreePathReportsCancellationWhenCancelledDuringFailedDecode()
+    {
+        using var cts = new CancellationTokenSource();
+        var badIonTree = new RetainedInput.Tree(
+            "/virtual/broken-ion-tree",
+            [new RetainedEntry("manifest.ion", System.Text.Encoding.UTF8.GetBytes("morphir::{broken"))]);
+
+        var outcome = GenerationModelLoader.DecodeLegacy(
+            badIonTree,
+            new ModelInput(badIonTree.SourcePath, InputFormat.Ion),
+            ModelReadLimits.Default,
+            cts.Token,
+            (tree, limits) =>
+            {
+                var failed = GenerationModelLoader.DecodeIonTree(tree, limits);
+                failed.Should().BeOfType<Outcome<LoadedModel>.Failure>();
+                cts.Cancel();
+                return failed;
+            });
+
+        var failure = outcome.Should().BeOfType<Outcome<LoadedModel>.Failure>().Subject.Error;
+        failure.Kind.Should().Be(GenerationFailureKind.Cancelled);
+        failure.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("cancelled");
+
+        var report = ValidationReport.Failed(Native, badIonTree.SourcePath, failure);
+        report.ExitCode.Should().Be(130);
     }
 }
