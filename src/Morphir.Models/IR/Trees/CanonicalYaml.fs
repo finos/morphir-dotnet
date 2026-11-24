@@ -23,7 +23,10 @@ open System.Text.RegularExpressions
 /// sequence, <c>[a, b]</c>, when it holds no mapping at any depth, and a block sequence of <c>- </c> items otherwise; an
 /// empty sequence is <c>[]</c>. A string is plain unless plain YAML would read it as something else or it holds YAML
 /// syntax, and then it is double-quoted with JSON escapes. A number keeps its JSON lexeme. The text ends with one line
-/// feed and has no tag, anchor, alias, comment, directive, document marker or block scalar.
+/// feed and has no tag, anchor, alias, comment, directive, document marker or block scalar. A key whose written scalar
+/// is longer than the 1,024 characters YAML allows an implicit key is an explicit key, <c>? key</c>, with its value after
+/// <c>:</c> on the next line. A mapping that repeats a member, or has the member <c>&lt;&lt;</c>, has no spelling in the
+/// profile and is refused.
 /// </remarks>
 [<RequireQualifiedAccess>]
 module CanonicalYaml =
@@ -53,8 +56,8 @@ module CanonicalYaml =
         || based.IsMatch text
         || isNonFinite text
 
-    /// A character that the profile's reader does not take raw: a control character, the byte-order mark, or a line or
-    /// paragraph separator. JSON text gives no half of a surrogate pair: System.Text.Json refuses to read one.
+    /// A character that the profile's reader or another YAML reader does not take raw: a control character, the
+    /// byte-order mark, a line or paragraph separator, or the noncharacters U+FFFE and U+FFFF. JSON text gives no half of a surrogate pair: System.Text.Json refuses to read one.
     let private mustEscape (text: string) (index: int) =
         let c = text[index]
 
@@ -62,6 +65,8 @@ module CanonicalYaml =
         || c = '\uFEFF'
         || c = '\u2028'
         || c = '\u2029'
+        || c = '\uFFFE'
+        || c = '\uFFFF'
 
     let private hasEscape (text: string) =
         Seq.exists (mustEscape text) (seq { 0 .. text.Length - 1 })
@@ -176,11 +181,17 @@ module CanonicalYaml =
 
     let private indent (builder: StringBuilder) (level: int) = builder.Append(' ', level) |> ignore
 
+    /// The longest implicit key YAML allows, in characters of its written scalar.
+    [<Literal>]
+    let private MaxImplicitKey = 1024
+
     /// A block mapping at the column. The first member is written on the current line when the caller already wrote
-    /// the indentation or a <c>- </c>.
+    /// the indentation or a <c>- </c>. A key whose written scalar is longer than an implicit key may be is written as an
+    /// explicit key, <c>? key</c> with its value after <c>:</c> on the next line.
     let rec private mapping (builder: StringBuilder) (column: int) (startsInline: bool) (element: JsonElement) =
         RuntimeHelpers.EnsureSufficientExecutionStack()
         let mutable first = true
+        let seen = Collections.Generic.HashSet<string>(StringComparer.Ordinal)
 
         for property in element.EnumerateObject() do
             if property.Name = "<<" then
@@ -188,11 +199,24 @@ module CanonicalYaml =
                     (nameof element)
                     "The mapping key << is a merge key, which the YAML profile refuses even when it is quoted."
 
+            if not (seen.Add property.Name) then
+                invalidArg
+                    (nameof element)
+                    $"The mapping repeats the member {JsonSerializer.Serialize property.Name}, which the YAML profile refuses as duplicate_member."
+
             if not (first && startsInline) then
                 indent builder column
 
             first <- false
-            text builder false property.Name
+            let key = StringBuilder()
+            text key false property.Name
+
+            if key.Length > MaxImplicitKey then
+                builder.Append("? ").Append(key).Append('\n') |> ignore
+                indent builder column
+            else
+                builder.Append key |> ignore
+
             builder.Append ':' |> ignore
             member' builder column property.Value
 

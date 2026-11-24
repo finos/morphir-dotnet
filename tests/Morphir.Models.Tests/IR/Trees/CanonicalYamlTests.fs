@@ -297,6 +297,56 @@ let tests =
                     }
         ]
 
+        testList "Keys and scalars beyond rule 4" [
+            let roundTrip (json: string) =
+                let written = yaml json
+                Expect.equal (exact (readBack written)) (exact (element json)) "The profile's reader gives the value back"
+                written
+
+            test "A key of 1,024 characters stays an implicit key" {
+                let key = String('k', 1024)
+                let written = roundTrip $"{{\"{key}\": 1}}"
+                Expect.equal written $"{key}: 1\n" "Implicit"
+            }
+
+            test "A plain key of 1,025 characters is an explicit key" {
+                let key = String('k', 1025)
+                let written = roundTrip $"{{\"{key}\": 1, \"b\": {{\"c\": 2}}}}"
+                Expect.equal written $"? {key}\n: 1\nb:\n  c: 2\n" "Explicit, then implicit"
+            }
+
+            test "A key that escapes expand past 1,024 characters is an explicit key" {
+                let json = "{\"" + String.replicate 200 "\\u0001" + "\": {\"c\": [{\"d\": 1}]}}"
+                let written = roundTrip json
+                Expect.stringStarts written "? \"\\u0001" "A quoted explicit key"
+                Expect.stringContains written "\n:\n  c:\n    - d: 1\n" "Its value is a block on the next lines"
+            }
+
+            test "An explicit key inside a sequence item starts on its - line" {
+                let key = String('k', 1025)
+                let written = roundTrip $"{{\"a\": [{{\"{key}\": 1, \"z\": 2}}]}}"
+                Expect.equal written $"a:\n  - ? {key}\n    : 1\n    z: 2\n" "Explicit in a block sequence"
+            }
+
+            test "U+FFFE and U+FFFF are escaped, and read back" {
+                let json = "{\"k\": \"a\\ufffeb\\uffffc\"}"
+                let written = roundTrip json
+                Expect.equal written "k: \"a\\ufffeb\\uffffc\"\n" "JSON escapes"
+            }
+
+            test "A mapping with a repeated member has no spelling in the profile, so the write fails" {
+                match CanonicalYaml.ofJson (ReadOnlyMemory(Encoding.UTF8.GetBytes "{\"a\": {\"x\": 1, \"x\": 2}}")) with
+                | Ok bytes -> failtestf "The repeated member was written: %s" (Encoding.UTF8.GetString bytes)
+                | Error message -> Expect.stringContains message "x" "The reason names the member"
+
+                Expect.throwsT<ArgumentException> (fun () -> yaml "[{\"y\": 1, \"y\": 1}]" |> ignore) "write raises"
+            }
+
+            test "The same name in two mappings is not a repeat" {
+                roundTrip "{\"a\": {\"x\": 1}, \"b\": {\"x\": 2}}" |> ignore
+            }
+        ]
+
         testList "Refusals and limits" [
             test "A merge key has no spelling in the profile, so the write fails" {
                 match CanonicalYaml.ofJson (ReadOnlyMemory(Encoding.UTF8.GetBytes "{\"a\": {\"<<\": 1}}")) with
