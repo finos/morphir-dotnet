@@ -59,16 +59,15 @@ internal static class CompileDocumentTree
 
     /// <summary>
     /// The tree of the model that <paramref name="written"/>, the bytes that the writer wrote, holds. The model is read back
-    /// with the single-file codecs, so the tree holds exactly the written model, split (<see cref="StoredModel.TryConvert"/>)
-    /// and written by <see cref="DocumentTreeStore.WriteTree"/> with the version that its files declare. A refusal gives
+    /// with the single-file codecs, so the tree holds exactly the written model, split and written by
+    /// <see cref="StoredModel.TryWriteTree"/> with the version that its files declare. A refusal gives
     /// one <see cref="CompileCodes.TreeWriteFailed"/> error for each problem.
     /// </summary>
     public static Checked<DocumentTreeStore.WrittenTree> Write(ReadOnlyMemory<byte> written)
     {
         using var document = System.Text.Json.JsonDocument.Parse(written, new System.Text.Json.JsonDocumentOptions { MaxDepth = MaxDepth });
         if (StoredModel.TryReadSingleFile(document.RootElement, out var model, out var problems)
-            && model.TryConvert(ModelLayout.DocumentTree, out var split, out problems)
-            && StoredModel.TryGetWritten(DocumentTreeStore.WriteTree(StoredModel.WriteOptions(false), split.Tree), out var tree, out problems))
+            && model.TryWriteTree(false, out var tree, out problems))
             return Checked<DocumentTreeStore.WrittenTree>.Pass(tree);
         return Checked<DocumentTreeStore.WrittenTree>.Fail(problems.Select(problem => Diagnostic.Create(Severity.Error, CompileCodes.TreeWriteFailed,
             $"The written IR could not be split into a document tree: {problem}", null)));
@@ -142,7 +141,7 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
             var staging = Path.Combine(run.Dest, $".{name}.staging");
             var removal = hooks.Removal ?? PathRemoval.Default;
             // The IR is staged only into an absent root: a root that a crashed run left and that cannot be cleared refuses it.
-            if (!removal.TryRemove(staging))
+            if (!removal.TryRemove(staging, ct))
                 return Checked<PublishedCompile>.Fail([Diagnostic.Create(Severity.Error, CompileCodes.PublishFailed,
                     $"The IR could not be written to '{target}': the staging path '{staging}' could not be cleared.", null)]);
             // Only what this attempt moved into place is rolled back: a target that was there before stays.
@@ -163,7 +162,7 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
                     {
                         hooks.AfterStaged?.Invoke(staging);
                         ct.ThrowIfCancellationRequested();
-                        MoveIntoPlace(staging, target, tree is not null);
+                        MoveIntoPlace(staging, target, tree is not null, ct);
                         moved = true;
                         hooks.AfterMoved?.Invoke(target);
                     }
@@ -172,6 +171,8 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
                 {
                     failure = error.Message;
                 }
+                // A cancellation that comes with the failure is the outcome of the run (exit code 130).
+                ct.ThrowIfCancellationRequested();
                 if (failure is not null)
                     return Checked<PublishedCompile>.Fail([Diagnostic.Create(Severity.Error, CompileCodes.PublishFailed,
                         $"The IR could not be written to '{target}': {failure}", null)]);
@@ -193,9 +194,7 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
                 var rolledBack = moved && !recorded ? new[] { staging, target } : [staging];
                 // Every removal runs first; the warnings follow, and a warning that stderr refuses is dropped.
                 var remaining = rolledBack.Where(path => !removal.TryRemove(path)).ToArray();
-                var record = File.Exists(run.Location.Record)
-                    ? "compile.json is the tombstone of the run"
-                    : "there is no compile.json";
+                var record = remaining.Length == 0 ? "" : RecordState();
                 foreach (var left in remaining)
                     Warn($"warning: {left} could not be removed after the publication failed; another handle still holds a file below it. {record}, and the next compile clears {run.Dest}.");
             }
@@ -211,6 +210,28 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
         }
 
         public void Dispose() => run.Dispose();
+
+        /// <summary>
+        /// What <c>compile.json</c> holds now, for a warning: the tombstone of the run, the completed record of an earlier
+        /// publication of the run, a file that cannot be read, or nothing. A read that fails never replaces the outcome.
+        /// </summary>
+        private string RecordState()
+        {
+            try
+            {
+                return RecordFile.Read(run.Location.Record) switch
+                {
+                    RecordReading.Found { Record.Tombstone: true } => "compile.json is the tombstone of the run",
+                    RecordReading.Found => "compile.json is the completed record of an earlier publication of the run",
+                    RecordReading.Unreadable => "compile.json cannot be read",
+                    _ => "there is no compile.json",
+                };
+            }
+            catch (Exception error) when (error is not (OutOfMemoryException or AccessViolationException))
+            {
+                return "compile.json cannot be read";
+            }
+        }
 
         /// <summary>Writes a warning line to stderr. A stderr that refuses it never replaces the outcome of the run.</summary>
         private void Warn(string line)
@@ -236,10 +257,15 @@ public sealed class TaskRecordCompilePublisher : ICompilePublisher
         /// Moves the staged IR to <paramref name="target"/>, which the cleared <c>compile.dest</c> does not hold. On Windows the
         /// move waits a bounded time while another process holds a staged file open.
         /// </summary>
-        private static void MoveIntoPlace(string staging, string target, bool directory)
+        private static void MoveIntoPlace(string staging, string target, bool directory, CancellationToken ct)
         {
             Action move = directory ? () => Directory.Move(staging, target) : () => File.Move(staging, target, overwrite: false);
-            if (!FileReplacement.Replace(move, () => !File.Exists(target) && !Directory.Exists(target)))
+            // A cancellation during a wait for another handle ends the move before its next attempt.
+            if (!FileReplacement.Replace(move, () =>
+                {
+                    ct.ThrowIfCancellationRequested();
+                    return !File.Exists(target) && !Directory.Exists(target);
+                }))
                 throw new IOException($"Something appeared at '{target}' while the move of the IR waited for another handle.");
         }
     }

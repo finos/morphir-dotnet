@@ -62,6 +62,26 @@ public sealed class RecordFileTests
     }
 
     [Test]
+    public void ACancellationThatMeetsAFailedReplacementIsTheOutcome()
+    {
+        using var sandbox = TestSandbox.Create("morphir-record-");
+        var path = sandbox.PathOf("out", "compile.json");
+        var record = TaskRecordMother.CompletedCompile();
+        RecordFile.Write(path, record);
+        using var cancellation = new CancellationTokenSource();
+
+        Action write = () => RecordFile.Write(path, record.ToTombstone(), afterWait: null, cancellation.Token, () =>
+        {
+            cancellation.Cancel();
+            throw new IOException("The record could not be renamed.");
+        });
+
+        write.Should().Throw<OperationCanceledException>("a cancellation that comes with the failure is the outcome");
+        File.ReadAllBytes(path).Should().Equal(TaskRecordCodec.Encode(record), "the record is not replaced");
+        OtherFiles(path).Should().BeEmpty("the staged record is gone");
+    }
+
+    [Test]
     public void ACleanupThatKeepsFailingDoesNotHideTheCancellation()
     {
         using var sandbox = TestSandbox.Create("morphir-record-");

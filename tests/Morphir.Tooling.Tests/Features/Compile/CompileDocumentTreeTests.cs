@@ -512,6 +512,104 @@ public sealed class CompileDocumentTreeTests
     }
 
     [Test]
+    [Arguments("document-tree")]
+    [Arguments("single-file")]
+    public async Task ACancellationWhileTheStageFailsExitsWithOneThirty(string layout)
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs(layout: layout)));
+        using var cancellation = new CancellationTokenSource();
+        // The user cancels while the disk fills up: the cancellation decides, not the failure that it interrupted.
+        var hooks = layout == "document-tree"
+            ? new CompilePublicationHooks
+            {
+                StageTree = (staging, files) =>
+                {
+                    StagePartly(staging, files);
+                    cancellation.Cancel();
+                    throw new IOException("The disk is full.");
+                },
+            }
+            : new CompilePublicationHooks
+            {
+                StageFile = (staging, bytes, _) =>
+                {
+                    File.WriteAllBytes(staging, bytes[..16].ToArray());
+                    cancellation.Cancel();
+                    throw new IOException("The disk is full.");
+                },
+            };
+
+        var cancelled = await RunWith(workspace, Inputs(layout: layout), hooks, ct: cancellation.Token);
+
+        cancelled.ExitCode.Should().Be(130);
+        NothingIsLeft(workspace);
+        IsTombstone(workspace).Should().BeTrue();
+    }
+
+    [Test]
+    public async Task ACancellationWhileTheStagingRootIsClearedEndsThePublicationAsCancelled()
+    {
+        using var workspace = Project();
+        using var cancellation = new CancellationTokenSource();
+        var removal = new PathRemoval(_ => throw new IOException("The process cannot access the file because it is being used by another process."),
+            _ => true, _ => cancellation.Cancel());
+        var (publication, request, staging) = await StalePublicationAsync(workspace, new CompilePublicationHooks { Removal = removal });
+
+        using (publication)
+        {
+            var publish = () => publication.PublishAsync(request, cancellation.Token);
+            await publish.Should().ThrowAsync<OperationCanceledException>("the runner reports a cancellation as exit code 130");
+        }
+        Directory.Exists(staging).Should().BeTrue("the stale root is left for the next compile");
+        IsTombstone(workspace).Should().BeTrue();
+    }
+
+    [Test]
+    public async Task ACancellationThatMeetsAFailedRecordReplacementKeepsTheTombstone()
+    {
+        using var workspace = Project();
+        Succeeded(await Run(workspace, Inputs()));
+        using var cancellation = new CancellationTokenSource();
+
+        var cancelled = await RunWith(workspace, Inputs(), new CompilePublicationHooks(), Quiet with
+        {
+            BeforeRecordReplace = () =>
+            {
+                cancellation.Cancel();
+                throw new IOException("The record could not be renamed.");
+            },
+        }, cancellation.Token);
+
+        cancelled.ExitCode.Should().Be(130, "the cancellation decides, not the rename that failed with it");
+        NothingIsLeft(workspace);
+        IsTombstone(workspace).Should().BeTrue();
+    }
+
+    [Test]
+    public async Task TheWarningOfARefusedRollbackNamesACompletedRecord()
+    {
+        using var workspace = Project();
+        var written = File.ReadAllBytes(Succeeded(await Run(workspace, Inputs(layout: "single-file"))).Publication.IrPath);
+        var request = CompilePublishRequest.ForDocumentTree("fsharp", Morphir.IR.Versioning.parse("4").ResultValue, null, written,
+            Passed(CompileDocumentTree.Write(written)));
+        var settings = Passed(new ProjectCompileSettingsResolver().Resolve(Inputs(), workspace.Context()));
+        var warnings = new StringWriter();
+        var hooks = new CompilePublicationHooks { Removal = new ScannedRemoval(failures: int.MaxValue).Removal };
+
+        using (var publication = Passed(await new TaskRecordCompilePublisher(Quiet with { Diagnostics = warnings }, hooks).BeginAsync(settings, default)))
+        {
+            Passed(await publication.PublishAsync(request, default));
+            // The second publication cannot move onto the first IR, and the file system refuses the removal of its stage.
+            (await publication.PublishAsync(request, default)).IsPassed.Should().BeFalse();
+        }
+
+        IsTombstone(workspace).Should().BeFalse("the first publication completed the record");
+        warnings.ToString().Should().Contain(".morphir-ir.staging").And.Contain("compile.json is the completed record")
+            .And.NotContain("tombstone");
+    }
+
+    [Test]
     public async Task TheWarningOfARefusedRollbackOfAFirstCompileSaysThatThereIsNoRecord()
     {
         using var workspace = Project();

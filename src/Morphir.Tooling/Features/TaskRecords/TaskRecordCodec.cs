@@ -349,6 +349,8 @@ internal static class RecordFile
             // A replaced record moved the staged one; only a failed or cancelled write still has it. Its removal never
             // hides the failure or the cancellation.
             cleanup.TryRemove(temporary);
+            // A cancellation that comes with a failed replacement is the outcome, not the failure (exit code 130).
+            ct.ThrowIfCancellationRequested();
             throw;
         }
     }

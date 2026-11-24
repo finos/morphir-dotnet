@@ -220,18 +220,13 @@ let tests =
             Expect.isSome (Morphir.Files.VFileTree.tryGet DocumentTreeStore.plainFiles files) "under the policy"
         }
 
-        testList "DocumentTreeStore.writeTree gives the files and the version they declare" [
+        testList "TryWriteTree gives the files and the version they declare" [
+            // The C# surface: the model's tree, split from a single file first, and problems in place of store errors.
             let writeTree (model: StoredModel) =
                 let mutable tree = Unchecked.defaultof<DocumentTreeStore.WrittenTree>
-                let mutable problems = Unchecked.defaultof<_>
+                let mutable problems = Unchecked.defaultof<System.Collections.Generic.IReadOnlyList<ConversionProblem>>
 
-                if
-                    StoredModel.TryGetWritten(
-                        DocumentTreeStore.writeTree (StoredModel.WriteOptions false) model.Tree,
-                        &tree,
-                        &problems
-                    )
-                then
+                if model.TryWriteTree(false, &tree, &problems) then
                     tree
                 else
                     failtestf "Expected the tree, got %A" [ for problem in problems -> problem.ToString() ]
@@ -244,19 +239,21 @@ let tests =
                 | _ -> failtest "Expected a manifest file"
 
             test "A v4 tree declares IR 4" {
-                let tree = readOk (v4Bytes DistributionMother.v4LibraryWithOneModule) |> convert ModelLayout.DocumentTree |> writeTree
+                let tree = readOk (v4Bytes DistributionMother.v4LibraryWithOneModule) |> writeTree
                 Expect.equal (Versioning.version tree.FormatVersion) "4" "the version of the v4 files"
                 Expect.equal (manifestVersion tree) "4" "the manifest says 4"
             }
 
             test "A classic v3 tree declares 3.1.0" {
-                let tree =
-                    readOk (classicBytes ClassicWireProfile.v3 DistributionMother.v3Library)
-                    |> convert ModelLayout.DocumentTree
-                    |> writeTree
+                let tree = readOk (classicBytes ClassicWireProfile.v3 DistributionMother.v3Library) |> writeTree
 
                 Expect.equal (Versioning.version tree.FormatVersion) "3.1.0" "every classic tree file says 3.1.0"
                 Expect.equal (manifestVersion tree) "\"3.1.0\"" "the manifest says 3.1.0"
+            }
+
+            test "A tree model is written as it is" {
+                let split = readOk (v4Bytes DistributionMother.v4LibraryWithOneModule) |> convert ModelLayout.DocumentTree
+                Expect.equal (Versioning.version (writeTree split).FormatVersion) "4" "the tree keeps its version"
             }
         ]
     ]

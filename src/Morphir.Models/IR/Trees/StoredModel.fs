@@ -337,6 +337,34 @@ type StoredModel internal (form: ModelForm) =
     }
 
     /// <summary>
+    /// For C# callers: writes the model as a document tree (<c>DocumentTreeStore.writeTree</c>), a single file split first
+    /// (<c>V4DocumentTree.split</c>, <c>ClassicDocumentTree.split</c>). It gives the files with the format version that they
+    /// declare (<c>4</c>, or <c>3.1.0</c> for a classic v3 tree), or the store's errors as problems. With
+    /// <paramref name="compact"/>, the files are written under the writer policy.
+    /// </summary>
+    member _.TryWriteTree
+        (
+            compact: bool,
+            [<Out; MaybeNullWhen(false)>] tree: byref<DocumentTreeStore.WrittenTree>,
+            [<Out; MaybeNullWhen(true)>] problems: byref<IReadOnlyList<ConversionProblem>>
+        ) : bool =
+        let stored =
+            match form with
+            | TreeForm stored -> stored
+            | V4File distribution -> V4Tree(V4DocumentTree.split distribution)
+            | ClassicFile distribution -> ClassicTree(ClassicDocumentTree.split distribution)
+
+        match DocumentTreeStore.writeTree (StoredModel.WriteOptions compact) stored with
+        | Ok written ->
+            tree <- written
+            problems <- Unchecked.defaultof<_>
+            true
+        | Error errors ->
+            tree <- Unchecked.defaultof<_>
+            problems <- problemsOf errors
+            false
+
+    /// <summary>
     /// Takes the result of <c>DocumentTreeStore.write</c>: the files it gives, or its errors as problems. The files
     /// are generic, so this model code names no file type.
     /// </summary>

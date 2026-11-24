@@ -129,8 +129,8 @@ module DocumentTreeStore =
 
     /// <summary>
     /// Writes a tree as <see cref="write"/> does, and gives its files with the format version that they declare:
-    /// <c>4</c> for a v4 tree and <c>3.1.0</c> for a classic v3 tree. C# calls this <c>WriteTree</c>; take its result
-    /// with <c>StoredModel.TryGetWritten</c>.
+    /// <c>4</c> for a v4 tree and <c>3.1.0</c> for a classic v3 tree. For F# callers; C# calls
+    /// <c>StoredModel.TryWriteTree</c>, which gives problems in place of the store's error list.
     /// </summary>
     [<CompiledName("WriteTree")>]
     let writeTree (options: WriteOptions) (tree: StoredTree) : Result<WrittenTree, StoreError list> =
