@@ -387,23 +387,26 @@ let tests =
                 | false, _, failure -> Expect.isNotEmpty failure "The parser's message"
             }
 
-            test "A JSON tree becomes a YAML tree with the .yaml extension" {
-                let files = [
-                    "manifest.json", ReadOnlyMemory(Encoding.UTF8.GetBytes "{\"formatVersion\": 4}")
-                    "pkg/p/m/module.json", ReadOnlyMemory(Encoding.UTF8.GetBytes "{\"doc\": \"x\"}")
-                    "pkg/p/m/a.type.json", ReadOnlyMemory(Encoding.UTF8.GetBytes "{\"TypeAliasDefinition\": {}}")
-                ]
+            test "A JSON tree becomes a YAML tree with the .yaml extension, and each file reads back as its JSON" {
+                // The acme/demo tree of the catalog, with each file at its location in the tree.
+                let tree = FixtureCatalog.Trees.AcmeDemo |> List.ofSeq
+                let locationOf (entry: FixtureEntry) = entry.RelativePath.Substring FixtureCatalog.Trees.AcmeDemoDirectory.Length
+
+                let files =
+                    tree |> List.map (fun entry -> locationOf entry, ReadOnlyMemory(FixtureCatalog.ReadBytes entry))
 
                 match CanonicalYaml.ofJsonTree files with
                 | Ok written ->
                     Expect.sequenceEqual
-                        (written |> List.map (fun (location, bytes) -> location, Encoding.UTF8.GetString bytes))
-                        [
-                            "manifest.yaml", "formatVersion: 4\n"
-                            "pkg/p/m/module.yaml", "doc: x\n"
-                            "pkg/p/m/a.type.yaml", "TypeAliasDefinition: {}\n"
-                        ]
+                        (written |> List.map fst)
+                        (tree |> List.map (locationOf >> fun location -> location.Substring(0, location.Length - ".json".Length) + ".yaml"))
                         "Each file at its YAML location"
+
+                    for (location, yamlBytes), entry in List.zip written tree do
+                        Expect.equal
+                            (exact (readBack (Encoding.UTF8.GetString yamlBytes)))
+                            (exact (element (FixtureCatalog.ReadText entry)))
+                            $"{location} reads back as its JSON"
                 | Error message -> failtest message
             }
         ]
