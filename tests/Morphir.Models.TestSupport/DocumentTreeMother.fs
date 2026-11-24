@@ -1167,3 +1167,34 @@ module YamlDocuments =
             |> String.concat "\n"
 
         $"$schema: \"{MorphirFile.Draft1Schema}\"\ncontext:\n  packagePaths:\n    p0: \"{longPath}\"\ndocument:\n  formatVersion: 4\n  distribution: Library\n  package: \"acme/orders\"\n  pathBudget: 4000\n  dependencies:\n{deps}\n"
+
+    /// A single classic v3.1.0 contextual YAML type document whose raw node count is modest while expanding
+    /// its FQName references into nested classic word arrays pushes the expanded node count well past raw nodes.
+    let compactedClassicExpandingTypeYaml =
+        $"$schema: \"{MorphirFile.Draft1Schema}\"\ncontext:\n  fqNames:\n    q: \"acme-corp/billing-core:invoice-line/rate-table#daily-discount-rate\"\ndocument:\n  formatVersion: \"3.1.0\"\n  name: \"sample\"\n  def:\n    access: \"Public\"\n    value:\n      doc: null\n      value:\n        - \"TypeAliasDefinition\"\n        - []\n        - - \"Tuple\"\n          - {{}}\n          - - - \"Reference\"\n              - {{}}\n              - $name: q\n              - []\n            - - \"Reference\"\n              - {{}}\n              - $name: q\n              - []\n            - - \"Reference\"\n              - {{}}\n              - $name: q\n              - []\n"
+
+    /// A YAML document with a nested key containing ": " and a disallowed anchor value to test structured
+    /// JSON Pointer preservation without splitting on ": ".
+    let nestedYamlKeyWithColonSpace =
+        "formatVersion: 4\nouter:\n  \"note: detail\": &bad 1\n"
+
+    /// A valid v4 JSON document tree with two compacted value members whose aliases each expand to
+    /// ~3 * longWordLength bytes so each member fits individually under a tight budget while their
+    /// aggregate expanded bytes exceed it.
+    let compactedTwoMemberExpandingTree (longWordLength: int) : Map<string, string> =
+        let longName = String.replicate longWordLength "n"
+        let manifest =
+            """{"formatVersion":4,"distribution":"Library","package":"acme/orders","pathBudget":4000}"""
+
+        let moduleJson =
+            """{"formatVersion":4,"path":"domain","values":["alpha","beta"]}"""
+
+        let valueJson name =
+            $"{{\"$schema\":\"{MorphirFile.Draft1Schema}\",\"context\":{{\"fqNames\":{{\"q\":\"acme/orders:domain#{longName}\"}}}},\"document\":{{\"formatVersion\":4,\"name\":\"{name}\",\"def\":{{\"Public\":{{\"ExpressionBody\":{{\"inputTypes\":{{}},\"outputType\":{{\"Tuple\":[{{\"$name\":\"q\"}},{{\"$name\":\"q\"}},{{\"$name\":\"q\"}}]}},\"body\":{{\"Literal\":{{\"IntegerLiteral\":1}}}}}}}}}}}}}}"
+
+        Map.ofList [
+            "manifest.json", manifest
+            "pkg/acme/orders/domain/module.json", moduleJson
+            "pkg/acme/orders/domain/alpha.value.json", valueJson "alpha"
+            "pkg/acme/orders/domain/beta.value.json", valueJson "beta"
+        ]

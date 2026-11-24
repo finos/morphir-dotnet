@@ -1052,6 +1052,12 @@ module VFileTree =
 /// C# members of VFileTree, so C# callers do not build F# lists or maps.
 type VFileTree with
     /// <summary>
+    /// For C# callers: builds a flat file tree from a sequence of files, preserving their order.
+    /// </summary>
+    static member FromFiles(files: System.Collections.Generic.IEnumerable<VFile>) : VFileTree =
+        VFileTree.fromFiles (List.ofSeq files)
+
+    /// <summary>
     /// For C# callers: a tree of the files, keyed by their relative paths, with their given order as the declared
     /// order (<see cref="VFileTree.declaredOrder"/>). Paths should be distinct; a later file with the same path replaces
     /// the earlier one.

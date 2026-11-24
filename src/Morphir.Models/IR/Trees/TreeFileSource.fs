@@ -339,6 +339,9 @@ module internal TreeFileSource =
     type internal TreeDecodeContext = {
         Profile: TreeProfile
         MaxFileBytes: int64
+        EnforceExpansionBytes: bool
+        RemainingTotalBytes: unit -> int64 option
+        ConsumeTotalBytes: int64 -> unit
         ContextLimits: ContextLimits
         MaxNodes: int option
         RemainingNodes: unit -> int
@@ -349,24 +352,53 @@ module internal TreeFileSource =
     let createDecodeContext
         (profile: TreeProfile)
         (maxFileBytes: int64)
+        (maxTotalBytes: int64 option)
         (maxDepth: int)
         (maxNodes: int option)
         (ct: CancellationToken)
         : TreeDecodeContext =
-        let mutable remaining = defaultArg maxNodes Int32.MaxValue
+        let mutable remainingNodes = defaultArg maxNodes Int32.MaxValue
+        let mutable remainingBytes = defaultArg maxTotalBytes Int64.MaxValue
 
         {
             Profile = profile
             MaxFileBytes = maxFileBytes
+            EnforceExpansionBytes = true
+            RemainingTotalBytes = fun () -> if maxTotalBytes.IsSome then Some remainingBytes else None
+            ConsumeTotalBytes =
+                fun used ->
+                    if maxTotalBytes.IsSome then
+                        remainingBytes <- max 0L (remainingBytes - max 0L used)
             ContextLimits = ContextLimits.draft1.WithMaxDepth maxDepth
             MaxNodes = maxNodes
-            RemainingNodes = fun () -> remaining
+            RemainingNodes = fun () -> remainingNodes
             ConsumeNodes =
                 fun used ->
                     if maxNodes.IsSome then
-                        remaining <- max 0 (remaining - used)
+                        remainingNodes <- max 0 (remainingNodes - used)
             Cancellation = ct
         }
+
+    /// Legacy JSON-only context that enforces MaxFileBytes on stored file bytes only,
+    /// matching historical DocumentTreeStore.Read semantics without capping expanded output.
+    let createLegacyDecodeContext (maxFileBytes: int64) : TreeDecodeContext =
+        {
+            Profile = TreeProfile.Json
+            MaxFileBytes = maxFileBytes
+            EnforceExpansionBytes = false
+            RemainingTotalBytes = fun () -> None
+            ConsumeTotalBytes = fun _ -> ()
+            ContextLimits = ContextLimits.draft1
+            MaxNodes = None
+            RemainingNodes = fun () -> Int32.MaxValue
+            ConsumeNodes = fun _ -> ()
+            Cancellation = CancellationToken.None
+        }
+
+    let readFileCap (ctx: TreeDecodeContext) : int64 =
+        match ctx.RemainingTotalBytes () with
+        | Some remaining -> min ctx.MaxFileBytes remaining
+        | None -> ctx.MaxFileBytes
 
     /// The bytes of a file, refusing one over the limit after at most one lookahead byte.
     let contentBytes
@@ -445,25 +477,51 @@ module internal TreeFileSource =
 
     /// <summary>
     /// Decodes a file's JSON or YAML into its plain expanded <see cref="JsonElement"/> under the active profile,
-    /// depth, node, and cancellation limits. Gives the expanded root and whether the file was compacted.
+    /// per-file and aggregate byte, depth, node, and cancellation limits. Gives the expanded root and whether the
+    /// file was compacted, with structured diagnostics preserving member locations separately from messages.
     /// </summary>
-    let decodeRaw
+    let decodeRawDetailed
         (ctx: TreeDecodeContext)
         (location: string)
         (bytes: byte array)
-        : Result<JsonElement * bool, StoreError list> =
+        : Result<JsonElement * bool, TreeDiagnostic list> =
         ctx.Cancellation.ThrowIfCancellationRequested()
 
-        let expandFile (rawNodes: int) (file: MorphirFile<JsonElement>) =
+        let expandFile (rawNodes: int) (plainBytes: int64) (file: MorphirFile<JsonElement>) =
             match file.Context with
             | None ->
-                ctx.ConsumeNodes rawNodes
-                Ok(file.Document, false)
+                match ctx.RemainingTotalBytes () with
+                | Some remaining when plainBytes > remaining ->
+                    Error [
+                        StoreErrors.diagnostic
+                            "tree.file_too_large"
+                            (Some location)
+                            "The decoded tree files exceed the aggregate byte limit."
+                    ]
+                | _ ->
+                    ctx.ConsumeTotalBytes plainBytes
+                    ctx.ConsumeNodes rawNodes
+                    Ok(file.Document, false)
             | Some context ->
                 let expandLimit = ctx.MaxNodes |> Option.map (fun _ -> ctx.RemainingNodes ())
-                let byteLimit = if ctx.MaxFileBytes < Int64.MaxValue then Some ctx.MaxFileBytes else None
 
-                ContextExpansion.expandCounted
+                let byteLimit =
+                    if not ctx.EnforceExpansionBytes then
+                        None
+                    else
+                        let perFile =
+                            if ctx.MaxFileBytes < Int64.MaxValue then
+                                Some ctx.MaxFileBytes
+                            else
+                                None
+
+                        match perFile, ctx.RemainingTotalBytes () with
+                        | Some a, Some b -> Some(min a b)
+                        | Some a, None -> Some a
+                        | None, Some b -> Some b
+                        | None, None -> None
+
+                ContextExpansion.expandCountedDetailed
                     ctx.ContextLimits
                     byteLimit
                     expandLimit
@@ -472,7 +530,8 @@ module internal TreeFileSource =
                     location
                     context
                     file.Document
-                |> Result.map (fun (expanded, expandedNodes) ->
+                |> Result.map (fun (expanded, expandedNodes, expandedBytes) ->
+                    ctx.ConsumeTotalBytes(max plainBytes expandedBytes)
                     ctx.ConsumeNodes(max rawNodes expandedNodes)
                     expanded, true
                 )
@@ -488,9 +547,11 @@ module internal TreeFileSource =
                 ctx.Cancellation
                 location
                 encoded
+            |> Result.mapError (List.map StoreErrors.ofStoreError)
             |> Result.bind (fun rawNodes ->
                 MorphirFile.readEnvelope ctx.ContextLimits location encoded
-                |> Result.bind (expandFile rawNodes)
+                |> Result.mapError (List.map StoreErrors.ofStoreError)
+                |> Result.bind (expandFile rawNodes (int64 bytes.Length))
             )
         | TreeProfile.Yaml ->
             let yamlLimit =
@@ -498,44 +559,45 @@ module internal TreeFileSource =
                 |> Option.map (fun _ -> ctx.RemainingNodes ())
                 |> Option.defaultValue Int32.MaxValue
 
-            TreeYaml.readCountedCancellable
+            TreeYaml.readCountedDetailed
                 true
                 ctx.ContextLimits.MaxDepth
                 yamlLimit
                 ctx.Cancellation
                 location
                 bytes
-            |> Result.bind (fun (root, rawNodes) ->
+            |> Result.bind (fun (root, rawNodes, jsonBytes) ->
                 MorphirFile.readEnvelopeRoot ContextOrder.WholeFile ctx.ContextLimits location root
-                |> Result.bind (expandFile rawNodes)
+                |> Result.mapError (List.map StoreErrors.ofStoreError)
+                |> Result.bind (expandFile rawNodes (max (int64 bytes.Length) jsonBytes))
             )
 
-    let decodeWith
+    let decodeWithDetailed
         (ctx: TreeDecodeContext)
         (location: string)
         (read: JsonElement -> Result<'a, V4JsonError>)
         (bytes: byte array)
-        : Result<'a * bool, StoreError list> =
-        decodeRaw ctx location bytes
+        : Result<'a * bool, TreeDiagnostic list> =
+        decodeRawDetailed ctx location bytes
         |> Result.bind (fun (document, compacted) ->
             read document
             |> Result.map (fun value -> value, compacted)
             |> Result.mapError (fun e -> [
-                error e.Rule (Some location) $"{e.Location}: {e.Message}"
+                StoreErrors.located e.Rule (Some location) e.Location e.Message
             ])
         )
 
-    let readFileWith
+    let readFileWithDetailed
         (ctx: TreeDecodeContext)
         (location: string)
         (file: Morphir.Files.VFile)
         (read: JsonElement -> Result<'a, V4JsonError>)
-        =
+        : Result<'a * bool, TreeDiagnostic list> =
         ctx.Cancellation.ThrowIfCancellationRequested()
 
-        contentBytes ctx.MaxFileBytes location file
-        |> Result.mapError List.singleton
-        |> Result.bind (decodeWith ctx location read)
+        contentBytes (readFileCap ctx) location file
+        |> Result.mapError (StoreErrors.ofStoreError >> List.singleton)
+        |> Result.bind (decodeWithDetailed ctx location read)
 
     /// <summary>
     /// Decodes a single YAML document (plain or contextual) into its expanded <see cref="JsonElement"/>
@@ -548,14 +610,14 @@ module internal TreeFileSource =
         (maxDepth: int)
         (maxNodes: int)
         (ct: CancellationToken)
-        : Result<JsonElement, StoreError list> =
+        : Result<JsonElement, TreeDiagnostic list> =
         ct.ThrowIfCancellationRequested()
 
         if int64 bytes.Length > maxBytes then
-            Error [ error "tree.file_too_large" (Some file) $"The file has more than {maxBytes} bytes." ]
+            Error [ StoreErrors.diagnostic "tree.file_too_large" (Some file) $"The file has more than {maxBytes} bytes." ]
         else
-            let ctx = createDecodeContext TreeProfile.Yaml maxBytes maxDepth (Some maxNodes) ct
-            decodeRaw ctx file (bytes.ToArray()) |> Result.map fst
+            let ctx = createDecodeContext TreeProfile.Yaml maxBytes (Some maxBytes) maxDepth (Some maxNodes) ct
+            decodeRawDetailed ctx file (bytes.ToArray()) |> Result.map fst
 
     /// <summary>
     /// The exact declared <c>formatVersion</c> text of an already-decoded manifest object.
@@ -580,15 +642,10 @@ module internal TreeFileSource =
         (read: JsonElement -> Result<'a, V4JsonError>)
         (bytes: byte array)
         : Result<'a * bool, StoreError list> =
-        let ctx =
-            createDecodeContext
-                TreeProfile.Json
-                Int64.MaxValue
-                ContextLimits.draft1.MaxDepth
-                None
-                CancellationToken.None
+        let ctx = createLegacyDecodeContext Int64.MaxValue
 
-        decodeWith ctx location read bytes
+        decodeWithDetailed ctx location read bytes
+        |> Result.mapError StoreErrors.toStoreErrors
 
     let readFile limit location file read =
         contentBytes limit location file
@@ -603,7 +660,7 @@ module internal TreeFileSource =
     let isClassicManifest (root: JsonElement) =
         MorphirFile.familyOf root = IrFamily.Classic3
 
-    let errorsOf (results: Result<'a, StoreError list> list) =
+    let errorsOf (results: Result<'a, 'e list> list) =
         results
         |> List.collect (
             function
@@ -611,7 +668,7 @@ module internal TreeFileSource =
             | Ok _ -> []
         )
 
-    let valuesOf (results: Result<'a, StoreError list> list) =
+    let valuesOf (results: Result<'a, 'e list> list) =
         results
         |> List.choose (
             function

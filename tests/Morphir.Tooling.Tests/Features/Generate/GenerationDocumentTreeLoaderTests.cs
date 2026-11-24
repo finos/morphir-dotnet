@@ -189,6 +189,48 @@ public sealed class GenerationDocumentTreeLoaderTests
     }
 
     [Test]
+    public async Task PreservesYamlPointerLocationContainingColonSpaceInGenerationReport()
+    {
+        await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
+        var yamlPath = Path.Combine(sandbox.Work, "colon-key.yaml");
+        File.WriteAllText(yamlPath, DocumentTreeMother.YamlDocuments.nestedYamlKeyWithColonSpace);
+
+        var output = Path.Combine(sandbox.Work, "out");
+        var overrides = new GenerateOverrides(yamlPath, "fsharp", output, "yaml");
+        var outcome = await RunGenerateAsync(yamlPath, "fsharp", output, "yaml");
+        var report = GenerationReport.From(outcome, overrides);
+
+        report.Success.Should().BeFalse();
+        report.Diagnostics.Should().NotBeEmpty();
+        report.Diagnostics[0].Code.Should().Be("unsupported_yaml_feature");
+        report.Diagnostics[0].Location.Should().Be("/outer/note: detail");
+        report.Diagnostics[0].Message.Should().NotStartWith("/outer/note");
+    }
+
+    [Test]
+    public async Task EnforcesSharedAggregateExpansionByteBudgetAcrossTreeMembers()
+    {
+        await using var sandbox = TestSandbox.Create("morphir-tree-gen-");
+        var treePath = Path.Combine(sandbox.Work, "aggregate-expansion");
+        var documents = DocumentTreeMother.YamlDocuments.compactedTwoMemberExpandingTree(400);
+        foreach (var pair in documents)
+        {
+            var target = Path.Combine(treePath, pair.Key.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.WriteAllText(target, pair.Value);
+        }
+
+        // Total raw bytes are ~900; each compacted member expands to ~1,500 bytes (fits 2,200 individually),
+        // while both members combined expand to ~3,000+ bytes (exceeding the shared 2,200-byte allowance).
+        const long sharedBudget = 2200;
+        var refused = ((Outcome<LoadedModel>.Failure)await LoadAsync(treePath, InputFormat.Auto, new(MaxBytes: sharedBudget))).Error;
+        refused.Diagnostics[0].Code.Should().Be("tree.file_too_large");
+
+        var accepted = await LoadAsync(treePath, InputFormat.Auto, new(MaxBytes: sharedBudget * 4));
+        accepted.Should().BeOfType<Outcome<LoadedModel>.Success>();
+    }
+
+    [Test]
     [Arguments("plain-json")]
     [Arguments("plain-yaml")]
     public async Task EnforcesReadLimitsAndCancellationOnJsonAndYamlTrees(string profile)

@@ -87,6 +87,7 @@ type TreeReadOptions =
         {
             MaxFilesValue: int
             MaxFileBytesValue: int64
+            MaxTotalBytesValue: int64
             MaxDepthValue: int
             MaxNodesValue: int
             ProfilesValue: TreeProfileSelection
@@ -96,6 +97,8 @@ type TreeReadOptions =
     member this.MaxFiles = this.MaxFilesValue
     /// <summary>The most bytes of one file that a read accepts.</summary>
     member this.MaxFileBytes = this.MaxFileBytesValue
+    /// <summary>The most aggregate decoded or expanded bytes accepted across the manifest and all members of the tree.</summary>
+    member this.MaxTotalBytes = this.MaxTotalBytesValue
     /// <summary>The deepest JSON or YAML nesting accepted for any file in the tree.</summary>
     member this.MaxDepth = this.MaxDepthValue
     /// <summary>The most decoded JSON or YAML nodes accepted across the entire tree.</summary>
@@ -127,6 +130,7 @@ type TreeReadOptions =
         {
             MaxFilesValue = maxFiles
             MaxFileBytesValue = maxFileBytes
+            MaxTotalBytesValue = Int64.MaxValue
             MaxDepthValue = maxDepth
             MaxNodesValue = maxNodes
             ProfilesValue = profiles
@@ -148,47 +152,38 @@ type TreeReadOptions =
 
     /// <summary>Returns a copy with <paramref name="maxFiles"/>. For F# and C# callers.</summary>
     member this.WithMaxFiles(maxFiles: int) : TreeReadOptions =
-        TreeReadOptions.Create(
-            maxFiles,
-            this.MaxFileBytesValue,
-            this.MaxDepthValue,
-            this.MaxNodesValue,
-            this.ProfilesValue
-        )
+        { TreeReadOptions.Create(maxFiles, this.MaxFileBytesValue, this.MaxDepthValue, this.MaxNodesValue, this.ProfilesValue) with
+            MaxTotalBytesValue = this.MaxTotalBytesValue
+        }
 
     /// <summary>Returns a copy with <paramref name="maxFileBytes"/>. For F# and C# callers.</summary>
     member this.WithMaxFileBytes(maxFileBytes: int64) : TreeReadOptions =
-        TreeReadOptions.Create(
-            this.MaxFilesValue,
-            maxFileBytes,
-            this.MaxDepthValue,
-            this.MaxNodesValue,
-            this.ProfilesValue
-        )
+        { TreeReadOptions.Create(this.MaxFilesValue, maxFileBytes, this.MaxDepthValue, this.MaxNodesValue, this.ProfilesValue) with
+            MaxTotalBytesValue = this.MaxTotalBytesValue
+        }
+
+    /// <summary>Returns a copy with <paramref name="maxTotalBytes"/>. For F# and C# callers.</summary>
+    member this.WithMaxTotalBytes(maxTotalBytes: int64) : TreeReadOptions =
+        if maxTotalBytes <= 0L then
+            raise (ArgumentOutOfRangeException(nameof maxTotalBytes, "MaxTotalBytes must be positive."))
+
+        { this with MaxTotalBytesValue = maxTotalBytes }
 
     /// <summary>Returns a copy with <paramref name="maxDepth"/>. For F# and C# callers.</summary>
     member this.WithMaxDepth(maxDepth: int) : TreeReadOptions =
-        TreeReadOptions.Create(
-            this.MaxFilesValue,
-            this.MaxFileBytesValue,
-            maxDepth,
-            this.MaxNodesValue,
-            this.ProfilesValue
-        )
+        { TreeReadOptions.Create(this.MaxFilesValue, this.MaxFileBytesValue, maxDepth, this.MaxNodesValue, this.ProfilesValue) with
+            MaxTotalBytesValue = this.MaxTotalBytesValue
+        }
 
     /// <summary>Returns a copy with <paramref name="maxNodes"/>. For F# and C# callers.</summary>
     member this.WithMaxNodes(maxNodes: int) : TreeReadOptions =
-        TreeReadOptions.Create(
-            this.MaxFilesValue,
-            this.MaxFileBytesValue,
-            this.MaxDepthValue,
-            maxNodes,
-            this.ProfilesValue
-        )
+        { TreeReadOptions.Create(this.MaxFilesValue, this.MaxFileBytesValue, this.MaxDepthValue, maxNodes, this.ProfilesValue) with
+            MaxTotalBytesValue = this.MaxTotalBytesValue
+        }
 
     /// <summary>A summary of the options.</summary>
     override this.ToString() =
-        $"TreeReadOptions(Profiles={this.ProfilesValue}, MaxFiles={this.MaxFilesValue}, MaxFileBytes={this.MaxFileBytesValue}, MaxDepth={this.MaxDepthValue}, MaxNodes={this.MaxNodesValue})"
+        $"TreeReadOptions(Profiles={this.ProfilesValue}, MaxFiles={this.MaxFilesValue}, MaxFileBytes={this.MaxFileBytesValue}, MaxTotalBytes={this.MaxTotalBytesValue}, MaxDepth={this.MaxDepthValue}, MaxNodes={this.MaxNodesValue})"
 
 /// The shared work allowance for one bounded operation.
 [<Sealed>]
@@ -243,76 +238,50 @@ type StoreError =
         Message: string
     }
 
-    static let splitDiagnosticLocation (message: string) : (string * string) option =
-        if String.IsNullOrEmpty message then
-            None
-        elif message[0] = '$' then
-            let mutable i = 1
-            let mutable inQuote = false
-            let mutable escaped = false
-            let mutable found = -1
-
-            while i < message.Length && found < 0 do
-                let c = message[i]
-
-                if inQuote then
-                    if escaped then escaped <- false
-                    elif c = '\\' then escaped <- true
-                    elif c = '"' then inQuote <- false
-                elif c = '"' then
-                    inQuote <- true
-                elif c = ':' && i + 1 < message.Length && message[i + 1] = ' ' then
-                    found <- i
-
-                i <- i + 1
-
-            if found > 0 then
-                let prefix = message.Substring(0, found)
-
-                let valid =
-                    prefix = "$"
-                    || prefix.StartsWith("$.", StringComparison.Ordinal)
-                    || prefix.StartsWith("$[", StringComparison.Ordinal)
-
-                if valid then Some(prefix, message.Substring(found + 2)) else None
-            else
-                None
-        elif message[0] = '/' then
-            let separator = message.IndexOf(": ", StringComparison.Ordinal)
-
-            if separator > 0 then
-                Some(message.Substring(0, separator), message.Substring(separator + 2))
-            else
-                None
-        else
-            None
-
     /// <summary>For C# callers: the file, as a physical path from the tree's root, or null for an error of the whole tree.</summary>
     member this.FileOrNull: string | null = Option.toObj this.File
-
-    /// <summary>
-    /// For C# callers: the nested JSONPath or YAML pointer location at the start of <see cref="Message"/>,
-    /// or null when the diagnostic has no member location prefix.
-    /// </summary>
-    member this.LocationOrNull: string | null =
-        match splitDiagnosticLocation this.Message with
-        | Some(location, _) -> location
-        | None -> null
-
-    /// <summary>
-    /// For C# callers: <see cref="Message"/> without its leading member location prefix when
-    /// <see cref="LocationOrNull"/> is present.
-    /// </summary>
-    member this.MessageWithoutLocation: string =
-        match splitDiagnosticLocation this.Message with
-        | Some(_, body) -> body
-        | None -> this.Message
 
     /// <summary>The code, the file and the message.</summary>
     override this.ToString() =
         match this.File with
         | Some file -> $"{this.Code}: {file}: {this.Message}"
         | None -> $"{this.Code}: {this.Message}"
+
+/// <summary>
+/// A structured store diagnostic that carries an optional codec member location (JSONPath or JSON Pointer)
+/// separately from <see cref="Message"/>, avoiding string splitting on punctuation inside member names.
+/// </summary>
+[<Sealed>]
+type TreeDiagnostic internal (code: string, file: string option, location: string option, position: string, message: string) =
+    /// <summary>The stable diagnostic code.</summary>
+    member _.Code = code
+    /// <summary>The file, as a physical path from the tree's root, or none for an error of the whole tree.</summary>
+    member _.File = file
+    /// <summary>For C# callers: the file, as a physical path from the tree's root, or null.</summary>
+    member _.FileOrNull: string | null = Option.toObj file
+    /// <summary>The structured codec location (JSONPath or JSON Pointer), or none when the diagnostic has none.</summary>
+    member _.Location = location
+    /// <summary>For C# callers: the structured codec location (JSONPath or JSON Pointer), or null.</summary>
+    member _.LocationOrNull: string | null = Option.toObj location
+    /// <summary>What is wrong, without any leading location prefix.</summary>
+    member _.Message =
+        if String.IsNullOrEmpty position then message else $"{message}{position}"
+
+    /// <summary>Converts to a legacy <see cref="StoreError"/> preserving the formatted location prefix in <see cref="StoreError.Message"/>.</summary>
+    member internal _.ToStoreError() : StoreError =
+        let formatted =
+            match location with
+            | Some loc -> $"{loc}{position}: {message}"
+            | None -> if String.IsNullOrEmpty position then message else $"{message}{position}"
+
+        {
+            Code = code
+            File = file
+            Message = formatted
+        }
+
+    /// <summary>The code, file, location, and message.</summary>
+    override this.ToString() = this.ToStoreError().ToString()
 
 /// <summary>A tree that a store reads or writes: a v4 tree or a classic v3 tree.</summary>
 type StoredTree =
@@ -386,7 +355,7 @@ type internal TreeModuleFile<'moduleDoc, 'typ, 'value> = {
     InlineValues: (Name * 'value) list
 }
 
-/// The helper of the store's modules: a store error.
+/// The helper of the store's modules: a store error and structured tree diagnostics.
 module internal StoreErrors =
     /// <summary>A store error.</summary>
     let error code file message : StoreError = {
@@ -394,6 +363,21 @@ module internal StoreErrors =
         File = file
         Message = message
     }
+
+    let diagnostic code file message =
+        TreeDiagnostic(code, file, None, "", message)
+
+    let located code file location message =
+        TreeDiagnostic(code, file, Some location, "", message)
+
+    let locatedWithPosition code file location position message =
+        TreeDiagnostic(code, file, Some location, position, message)
+
+    let ofStoreError (e: StoreError) =
+        TreeDiagnostic(e.Code, e.File, None, "", e.Message)
+
+    let toStoreErrors (diagnostics: TreeDiagnostic list) =
+        diagnostics |> List.map (fun d -> d.ToStoreError())
 
     let workLimit file =
         error "extension.bounded_work_limit" file "Processing exceeds the negotiated maxSessionWorkUnits."

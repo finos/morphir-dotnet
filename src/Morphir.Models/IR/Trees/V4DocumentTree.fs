@@ -1,5 +1,6 @@
 namespace Morphir.IR.Trees
 
+open System.Threading
 open Morphir.IR
 open Morphir.IR.V4
 
@@ -275,11 +276,11 @@ module V4DocumentTree =
     }
 
     /// The modules of one package in the ordinal order of their logical paths, or every error of its documents.
-    let private joinPackage shape scope logicalPath documents =
-        TreeJoin.joinPackage family shape OrderedMap.ofList scope logicalPath documents
+    let private joinPackage ct shape scope logicalPath documents =
+        TreeJoin.joinPackage ct family shape OrderedMap.ofList scope logicalPath documents
 
     /// The errors of the manifest itself, and of documents that belong to no package of it.
-    let private manifestErrors (tree: V4DocumentTree) (logicalPath: DocumentAddress -> string) =
+    let private manifestErrors (ct: CancellationToken) (tree: V4DocumentTree) (logicalPath: DocumentAddress -> string) =
         let manifest = tree.Manifest
 
         let misplacedEntryPoints =
@@ -293,16 +294,10 @@ module V4DocumentTree =
                     "The manifest has entry points, and only an Application has them."
               ]
 
-        TreeJoin.manifestErrors manifest.Dependencies misplacedEntryPoints tree.Documents logicalPath
+        TreeJoin.manifestErrors ct manifest.Dependencies misplacedEntryPoints tree.Documents logicalPath
 
-    /// <summary>
-    /// Joins a tree into a model. Modules are in the ordinal order of their <c>DocumentAddress.logicalPath</c>,
-    /// types and values in the order their module document lists them, and dependencies in the order the manifest
-    /// lists them. An inconsistent tree is refused with every error found; the remarks of this module list the
-    /// codes. C# calls this <c>Join</c>.
-    /// </summary>
-    [<CompiledName("Join")>]
-    let join (tree: V4DocumentTree) : Result<Distribution, TreeError list> =
+    let internal joinCancellable (ct: CancellationToken) (tree: V4DocumentTree) : Result<Distribution, TreeError list> =
+        ct.ThrowIfCancellationRequested()
         let manifest = tree.Manifest
         let logicalPath = DocumentAddress.logicalPath manifest.Package
         let documents = Map.toList tree.Documents
@@ -310,8 +305,10 @@ module V4DocumentTree =
 
         let dependencies shape (wrap: OrderedMap<ModulePath, 'moduleOf> -> 'package) =
             TreeJoin.joinDependencies
+                ct
                 (fun package ->
                     joinPackage
+                        ct
                         shape
                         (fun inner -> Dependency(package, inner))
                         logicalPath
@@ -323,8 +320,8 @@ module V4DocumentTree =
 
         let assemble ownResult dependencyResult build =
             TreeJoin.assemble
-                (manifestErrors tree logicalPath
-                 @ TreeJoin.documentErrors family (holdsDefinitions manifest.Kind) tree.Documents)
+                (manifestErrors ct tree logicalPath
+                 @ TreeJoin.documentErrors ct family (holdsDefinitions manifest.Kind) tree.Documents)
                 ownResult
                 dependencyResult
                 build
@@ -335,21 +332,21 @@ module V4DocumentTree =
         match manifest.Kind with
         | V4DistributionKind.LibraryKind ->
             assemble
-                (joinPackage definitions Own logicalPath own)
+                (joinPackage ct definitions Own logicalPath own)
                 (dependencies specifications specificationOf)
                 (fun ownModules dependencyMap ->
                     Library(manifest.Package, dependencyMap, definitionOf ownModules)
                 )
         | V4DistributionKind.SpecsKind ->
             assemble
-                (joinPackage specifications Own logicalPath own)
+                (joinPackage ct specifications Own logicalPath own)
                 (dependencies specifications specificationOf)
                 (fun ownModules dependencyMap ->
                     Specs(manifest.Package, dependencyMap, specificationOf ownModules)
                 )
         | V4DistributionKind.ApplicationKind ->
             assemble
-                (joinPackage definitions Own logicalPath own)
+                (joinPackage ct definitions Own logicalPath own)
                 (dependencies definitions definitionOf)
                 (fun ownModules dependencyMap ->
                     Application(
@@ -359,3 +356,13 @@ module V4DocumentTree =
                         manifest.EntryPoints
                     )
                 )
+
+    /// <summary>
+    /// Joins a tree into a model. Modules are in the ordinal order of their <c>DocumentAddress.logicalPath</c>,
+    /// types and values in the order their module document lists them, and dependencies in the order the manifest
+    /// lists them. An inconsistent tree is refused with every error found; the remarks of this module list the
+    /// codes. C# calls this <c>Join</c>.
+    /// </summary>
+    [<CompiledName("Join")>]
+    let join (tree: V4DocumentTree) : Result<Distribution, TreeError list> =
+        joinCancellable CancellationToken.None tree

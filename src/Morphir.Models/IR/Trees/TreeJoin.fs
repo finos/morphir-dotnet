@@ -1,5 +1,6 @@
 namespace Morphir.IR.Trees
 
+open System.Threading
 open Morphir.IR
 
 /// <summary>
@@ -80,13 +81,17 @@ module internal TreeJoin =
     /// fit to this check.
     /// </summary>
     let documentErrors
+        (ct: CancellationToken)
         (family: TreeFamily<'moduleDoc, 'typeDoc, 'valueDoc>)
         (holds: DocumentAddress -> bool)
         (documents: Map<DocumentAddress, TreeDocument<'moduleDoc, 'typeDoc, 'valueDoc>>)
         : TreeError list =
+        ct.ThrowIfCancellationRequested()
+
         documents
         |> Map.toList
         |> List.choose (fun (address, document) ->
+            ct.ThrowIfCancellationRequested()
             let holds = holds address
             let wanted = if holds then "a definition" else "a specification"
 
@@ -142,6 +147,7 @@ module internal TreeJoin =
     /// <summary>The modules of one package in the ordinal order of their logical paths, or every error of its
     /// documents.</summary>
     let joinPackage
+        (ct: CancellationToken)
         (family: TreeFamily<'moduleDoc, 'typeDoc, 'valueDoc>)
         (shape: PackageShape<'moduleDoc, 'typeDoc, 'valueDoc, 'typ, 'value, 'typeMap, 'valueMap, 'moduleOf>)
         (moduleMap: (ModulePath * 'moduleOf) list -> Result<'moduleMap, ModulePath>)
@@ -149,11 +155,14 @@ module internal TreeJoin =
         (logicalPath: DocumentAddress -> string)
         (documents: (ModuleDocumentAddress * TreeDocument<'moduleDoc, 'typeDoc, 'valueDoc>) list)
         : Result<'moduleMap, TreeError list> =
+        ct.ThrowIfCancellationRequested()
         let byAddress = Map.ofList documents
 
         let byLogicalPath (addressOf: 'a -> ModuleDocumentAddress) (items: 'a list) =
             items
             |> List.sortWith (fun a b ->
+                ct.ThrowIfCancellationRequested()
+
                 System.String.CompareOrdinal(
                     logicalPath (scope (addressOf a)),
                     logicalPath (scope (addressOf b))
@@ -169,6 +178,8 @@ module internal TreeJoin =
             (build: (Name * 'item) list -> Result<'map, Name>)
             (names: Name list)
             : Result<'map, TreeError list> =
+            ct.ThrowIfCancellationRequested()
+
             let listedTwice name =
                 error
                     "tree.duplicate_name"
@@ -188,6 +199,7 @@ module internal TreeJoin =
                 names
                 |> List.distinct
                 |> List.map (fun name ->
+                    ct.ThrowIfCancellationRequested()
                     let address = addressOf name
 
                     match Map.tryFind address byAddress with
@@ -231,6 +243,8 @@ module internal TreeJoin =
         let moduleDocuments =
             documents
             |> List.choose (fun (address, document) ->
+                ct.ThrowIfCancellationRequested()
+
                 match address, document with
                 | Module path, ModuleDoc m -> Some(path, m)
                 | _ -> None
@@ -243,6 +257,8 @@ module internal TreeJoin =
         let modules =
             moduleDocuments
             |> List.map (fun (path, m) ->
+                ct.ThrowIfCancellationRequested()
+
                 let types =
                     members
                         path
@@ -275,6 +291,8 @@ module internal TreeJoin =
         let listed =
             moduleDocuments
             |> List.collect (fun (path, m) ->
+                ct.ThrowIfCancellationRequested()
+
                 (family.TypeNames m
                  |> List.map (fun name -> TypeDef(path, name)))
                 @ (family.ValueNames m
@@ -286,6 +304,8 @@ module internal TreeJoin =
             documents
             |> List.map fst
             |> List.filter (fun address ->
+                ct.ThrowIfCancellationRequested()
+
                 match address with
                 | Module _ -> false
                 | TypeDef _
@@ -352,13 +372,18 @@ module internal TreeJoin =
     /// <paramref name="dependencyMap"/>, or every error.
     /// </summary>
     let joinDependencies
+        (ct: CancellationToken)
         (joinOne: PackageName -> Result<'package, TreeError list>)
         (dependencyMap: (PackageName * 'package) list -> Result<'map, PackageName>)
         (dependencies: PackageName list)
         : Result<'map, TreeError list> =
+        ct.ThrowIfCancellationRequested()
+
         dependencies
         |> List.distinct
         |> List.map (fun package ->
+            ct.ThrowIfCancellationRequested()
+
             joinOne package
             |> Result.map (fun contents -> package, contents)
         )
@@ -374,11 +399,14 @@ module internal TreeJoin =
     /// listed twice, then the family's own manifest errors, then the documents of each undeclared dependency.
     /// </summary>
     let manifestErrors
+        (ct: CancellationToken)
         (dependencies: PackageName list)
         (familyErrors: TreeError list)
         (documents: Map<DocumentAddress, 'document>)
         (logicalPath: DocumentAddress -> string)
         : TreeError list =
+        ct.ThrowIfCancellationRequested()
+
         let repeatedDependencies =
             dependencies
             |> List.countBy id
@@ -393,6 +421,8 @@ module internal TreeJoin =
             |> Map.keys
             |> List.ofSeq
             |> List.choose (fun address ->
+                ct.ThrowIfCancellationRequested()
+
                 match address with
                 | Dependency(package, _) when not (List.contains package dependencies) ->
                     Some(package, address)

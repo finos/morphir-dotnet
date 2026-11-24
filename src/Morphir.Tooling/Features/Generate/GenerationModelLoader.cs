@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.Text.Json;
-using Microsoft.FSharp.Collections;
 using Morphir.Files;
 using Morphir.IR.Model;
 using Morphir.IR.Trees;
@@ -157,13 +156,14 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
     {
         ct.ThrowIfCancellationRequested();
         var files = tree.Entries.Select(entry => VFileModule.ofBytes(entry.RelativePath, entry.Memory));
-        var vfileTree = VFileTreeModule.fromFiles(ListModule.OfSeq(files));
+        var vfileTree = VFileTree.FromFiles(files);
         var options = TreeReadOptions.Create(
-            limits.MaxEntries,
-            limits.MaxBytes,
-            limits.MaxDepth,
-            limits.MaxNodes,
-            profiles);
+                limits.MaxEntries,
+                limits.MaxBytes,
+                limits.MaxDepth,
+                limits.MaxNodes,
+                profiles)
+            .WithMaxTotalBytes(limits.MaxBytes);
 
         if (!DocumentTreeStore.TryReadModel(options, vfileTree, ct, out var loaded, out var errors))
             return StoreFailure(errors, tree.SourcePath);
@@ -234,7 +234,7 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
     private static Outcome<LoadedModel> DecodeIonTree(RetainedInput.Tree tree, ModelReadLimits limits)
     {
         var files = tree.Entries.Select(entry => VFileModule.ofBytes(entry.RelativePath, entry.Memory));
-        var result = IonIrTree.readDetailed(IonLimits(limits), VFileTreeModule.fromFiles(ListModule.OfSeq(files)));
+        var result = IonIrTree.readDetailed(IonLimits(limits), VFileTree.FromFiles(files));
         if (result.IsOk) return IonModel(result.ResultValue, tree, ModelRepresentation.IonTree);
         return result.ErrorValue switch
         {
@@ -318,7 +318,7 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         }
     }
 
-    private static Outcome<LoadedModel> StoreFailure(IReadOnlyList<StoreError> errors, string defaultPath)
+    private static Outcome<LoadedModel> StoreFailure(IReadOnlyList<TreeDiagnostic> errors, string defaultPath)
     {
         var kind = errors.Any(error => error.Code == "tree.unreadable_file")
             ? GenerationFailureKind.Operational
@@ -326,7 +326,7 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         var diagnostics = errors
             .Select(error => new GenerationDiagnostic(
                 error.Code,
-                error.MessageWithoutLocation,
+                error.Message,
                 error.FileOrNull ?? defaultPath,
                 error.LocationOrNull ?? "$"))
             .ToImmutableArray();

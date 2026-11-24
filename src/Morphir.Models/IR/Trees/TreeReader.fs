@@ -42,7 +42,7 @@ module internal TreeReader =
     open TreeLayout
     open TreeFileSource
 
-    let private error code file message = StoreErrors.error code file message
+    let private error code file message = StoreErrors.diagnostic code file message
 
     type private NodeKind =
         | TypeNode
@@ -112,7 +112,7 @@ module internal TreeReader =
         (profile: TreeProfile)
         (ownStems: string list)
         (location: string)
-        : Result<Placed option, StoreError list> =
+        : Result<Placed option, TreeDiagnostic list> =
         let segments =
             location.Split('/')
             |> List.ofArray
@@ -283,7 +283,7 @@ module internal TreeReader =
         (holds: DocumentAddress -> bool)
         (readers: TreeFileReaders<'moduleDoc, 'typ, 'value>)
         (files: (string * Morphir.Files.VFile) list)
-        : Result<TreeFound<'moduleDoc, 'typ, 'value>, StoreError list> =
+        : Result<TreeFound<'moduleDoc, 'typ, 'value>, TreeDiagnostic list> =
         let (PackageName ownPath) = own
         let ownStems = stems ownPath
         let extension = canonicalExtension ctx.Profile
@@ -373,7 +373,7 @@ module internal TreeReader =
                 | NodeFile _ -> None
             )
             |> List.map (fun (location, file, address) ->
-                readFileWith ctx location file (readers.Module(holds address))
+                readFileWithDetailed ctx location file (readers.Module(holds address))
                 |> Result.bind (fun (moduleFile, compacted) ->
                     match address with
                     | Own(Module path)
@@ -434,7 +434,7 @@ module internal TreeReader =
 
                 match kind with
                 | TypeNode ->
-                    readFileWith
+                    readFileWithDetailed
                         ctx
                         location
                         file
@@ -446,7 +446,7 @@ module internal TreeReader =
                         )
                     )
                 | ValueNode ->
-                    readFileWith
+                    readFileWithDetailed
                         ctx
                         location
                         file
@@ -575,7 +575,7 @@ module internal TreeReader =
         let fileErrors =
             overBudget
             @ (errorsOf placed
-               |> List.distinct)
+               |> List.distinctBy (fun (d: TreeDiagnostic) -> d.Code, d.File, d.Location, d.Message))
             @ errorsOf modules
             @ errorsOf nodes
             @ duplicates
@@ -606,7 +606,7 @@ module internal TreeReader =
         (own: PackageName)
         (found: TreeFound<_, _, _>)
         (errors: TreeError list)
-        : StoreError list =
+        : TreeDiagnostic list =
         let extension = canonicalExtension profile
 
         errors
@@ -637,17 +637,17 @@ module internal TreeReader =
         (holds: DocumentAddress -> bool)
         (readers: TreeFileReaders<'moduleDoc, 'typ, 'value>)
         (build: Map<DocumentAddress, TreeDocument<'moduleDoc, 'typ, 'value>> -> 'tree)
-        (join: 'tree -> Result<'joined, TreeError list>)
+        (join: System.Threading.CancellationToken -> 'tree -> Result<'joined, TreeError list>)
         (stored: 'tree -> StoredTree)
         (notices: TreeNotice list)
         (files: (string * Morphir.Files.VFile) list)
-        : Result<StoredTree * 'joined * ReadReport, StoreError list> =
+        : Result<StoredTree * 'joined * ReadReport, TreeDiagnostic list> =
         readDocuments ctx manifestLocation pathBudget own holds readers files
         |> Result.bind (fun found ->
             ctx.Cancellation.ThrowIfCancellationRequested()
             let tree = build found.Documents
 
-            match join tree with
+            match join ctx.Cancellation tree with
             | Ok joined ->
                 ctx.Cancellation.ThrowIfCancellationRequested()
                 Ok(
@@ -685,13 +685,8 @@ module internal TreeReader =
         (notices: TreeNotice list)
         (files: (string * Morphir.Files.VFile) list)
         : Result<StoredTree * ReadReport, StoreError list> =
-        let ctx =
-            createDecodeContext
-                TreeProfile.Json
-                options.MaxFileBytes
-                Morphir.IR.Files.ContextLimits.draft1.MaxDepth
-                None
-                System.Threading.CancellationToken.None
+        let ctx = createLegacyDecodeContext options.MaxFileBytes
 
-        readTreeWith ctx ManifestFile manifestCompacted pathBudget own holds readers build join stored notices files
+        readTreeWith ctx ManifestFile manifestCompacted pathBudget own holds readers build (fun _ tree -> join tree) stored notices files
         |> Result.map (fun (tree, _, report) -> tree, report)
+        |> Result.mapError StoreErrors.toStoreErrors

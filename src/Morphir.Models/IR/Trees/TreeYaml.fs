@@ -11,7 +11,7 @@ open System.Threading
 open YamlDotNet.Core
 open YamlDotNet.Core.Events
 
-exception private TreeYamlFailure of string * string
+exception private TreeYamlFailure of code: string * location: string * position: string * message: string
 
 [<RequireQualifiedAccess>]
 type private YamlAtom =
@@ -53,7 +53,7 @@ module internal TreeYaml =
             | null -> ""
             | found -> $" (line {found.Start.Line}, column {found.Start.Column})"
 
-        raise (TreeYamlFailure(code, $"{pointer path}{position}: {message}"))
+        raise (TreeYamlFailure(code, pointer path, position, message))
 
     let private numericLexeme (value: string) =
         let text =
@@ -134,7 +134,7 @@ module internal TreeYaml =
                 YamlAtom.Number(numericLexeme text)
             | _ -> YamlAtom.String text
 
-    let private readDocument
+    let private readDocumentDetailed
         contextual
         (maxDepth: int)
         (maxEvents: int)
@@ -142,12 +142,12 @@ module internal TreeYaml =
         (ct: CancellationToken)
         (file: string)
         (bytes: byte array)
-        : Result<JsonElement * int, StoreError list> =
+        : Result<JsonElement * int * int64, TreeDiagnostic list> =
         ct.ThrowIfCancellationRequested()
         let mutable activePath = []
 
-        let refused code message =
-            Error [ StoreErrors.error code (Some file) message ]
+        let refused code location position message =
+            Error [ StoreErrors.locatedWithPosition code (Some file) location position message ]
 
         try
             let utf8 = UTF8Encoding(false, true)
@@ -174,7 +174,9 @@ module internal TreeYaml =
                         raise (
                             TreeYamlFailure(
                                 "unsupported_yaml_feature",
-                                $"{pointer activePath} (line {mark.Line}, column {mark.Column}): Directives are not part of the profile."
+                                pointer activePath,
+                                $" (line {mark.Line}, column {mark.Column})",
+                                "Directives are not part of the profile."
                             )
                         )
                     | _ -> ()
@@ -366,23 +368,29 @@ module internal TreeYaml =
                         "duplicate_member"
 
                 fail path keyEvent code "Duplicate mapping key."
-            | None -> Ok(root.Clone(), nodes)
+            | None -> Ok(root.Clone(), nodes, int64 encoded.Length)
         with
-        | TreeYamlFailure(code, message) -> refused code message
+        | TreeYamlFailure(code, location, position, message) -> refused code location position message
         | :? YamlException as error ->
             refused
                 "invalid_yaml"
-                $"{pointer activePath} (line {error.Start.Line}, column {error.Start.Column}): {error.Message}"
-        | :? DecoderFallbackException -> refused "invalid_yaml" "/: Expected UTF-8 input."
+                (pointer activePath)
+                $" (line {error.Start.Line}, column {error.Start.Column})"
+                error.Message
+        | :? DecoderFallbackException -> refused "invalid_yaml" "/" "" "Expected UTF-8 input."
 
     let readLimited maxDepth maxEvents file bytes =
-        readDocument false maxDepth maxEvents Int32.MaxValue CancellationToken.None file bytes |> Result.map fst
+        readDocumentDetailed false maxDepth maxEvents Int32.MaxValue CancellationToken.None file bytes
+        |> Result.map (fun (root, _, _) -> root)
+        |> Result.mapError StoreErrors.toStoreErrors
 
     let readCounted contextual maxDepth maxNodes file bytes =
-        readDocument contextual maxDepth 1_000_000 maxNodes CancellationToken.None file bytes
+        readDocumentDetailed contextual maxDepth 1_000_000 maxNodes CancellationToken.None file bytes
+        |> Result.map (fun (root, nodes, _) -> root, nodes)
+        |> Result.mapError StoreErrors.toStoreErrors
 
-    let readCountedCancellable contextual maxDepth maxNodes ct file bytes =
-        readDocument contextual maxDepth 1_000_000 maxNodes ct file bytes
+    let readCountedDetailed contextual maxDepth maxNodes ct file bytes =
+        readDocumentDetailed contextual maxDepth 1_000_000 maxNodes ct file bytes
 
     let read maxDepth file bytes =
         readLimited maxDepth 1_000_000 file bytes

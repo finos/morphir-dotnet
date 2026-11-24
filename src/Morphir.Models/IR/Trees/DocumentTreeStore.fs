@@ -158,17 +158,27 @@ module DocumentTreeStore =
         (enforceNodes: bool)
         (ct: CancellationToken)
         (files: Morphir.Files.VFileTree)
-        : Result<LoadedTreeModel, StoreError list> =
+        : Result<LoadedTreeModel, TreeDiagnostic list> =
         ct.ThrowIfCancellationRequested()
 
         TreeFileSource.discoverWithOptions true options.MaxFiles options.Profiles files
+        |> Result.mapError (List.map StoreErrors.ofStoreError)
         |> Result.bind (fun (profile, (manifestLocation, manifestFile), others) ->
             let maxNodes = if enforceNodes then Some options.MaxNodes else None
-            let ctx = TreeFileSource.createDecodeContext profile options.MaxFileBytes options.MaxDepth maxNodes ct
+            let maxTotalBytes = if options.MaxTotalBytes < Int64.MaxValue then Some options.MaxTotalBytes else None
 
-            TreeFileSource.contentBytes options.MaxFileBytes manifestLocation manifestFile
-            |> TreeFileSource.one
-            |> Result.bind (TreeFileSource.decodeRaw ctx manifestLocation)
+            let ctx =
+                TreeFileSource.createDecodeContext
+                    profile
+                    options.MaxFileBytes
+                    maxTotalBytes
+                    options.MaxDepth
+                    maxNodes
+                    ct
+
+            TreeFileSource.contentBytes (TreeFileSource.readFileCap ctx) manifestLocation manifestFile
+            |> Result.mapError (StoreErrors.ofStoreError >> List.singleton)
+            |> Result.bind (TreeFileSource.decodeRawDetailed ctx manifestLocation)
             |> Result.bind (fun (manifestRoot, compacted) ->
                 let declaredText = TreeFileSource.declaredFormatVersion manifestRoot
                 let classic = TreeFileSource.isClassicManifest manifestRoot
@@ -176,7 +186,7 @@ module DocumentTreeStore =
                 let decodeManifestResult reader =
                     reader manifestRoot
                     |> Result.mapError (fun (e: Morphir.Json.V4.V4JsonError) -> [
-                        error e.Rule (Some manifestLocation) $"{e.Location}: {e.Message}"
+                        StoreErrors.located e.Rule (Some manifestLocation) e.Location e.Message
                     ])
 
                 let buildModel (distribution: DistributionModel) (storedTree: StoredTree) (report: ReadReport) =
@@ -190,10 +200,11 @@ module DocumentTreeStore =
                         Ok(LoadedTreeModel(versioned, profile, storedTree, report))
                     | Error _ ->
                         Error [
-                            error
+                            StoreErrors.located
                                 "version_mismatch"
                                 (Some manifestLocation)
-                                $"$.formatVersion: '{declaredText}' is not a supported formatVersion."
+                                "$.formatVersion"
+                                $"'{declaredText}' is not a supported formatVersion."
                         ]
 
                 if classic then
@@ -219,7 +230,7 @@ module DocumentTreeStore =
     /// For F# callers only: reads a tree from files in any profile allowed by <paramref name="options"/> (JSON or
     /// YAML, plain or contextual, v3.1.0 or v4.0.0), enforcing file, byte, nesting-depth, and total node limits.
     /// Refuses mixed profile files and ambiguous multi-manifest trees (including <c>manifest.ion</c>). C# callers
-    /// use <see cref="TryReadModel"/>, which returns <see cref="IReadOnlyList{StoreError}"/>.
+    /// use <see cref="TryReadModel"/>, which returns <see cref="IReadOnlyList{TreeDiagnostic}"/>.
     /// </summary>
     let readAnyProfile
         (options: TreeReadOptions)
@@ -227,6 +238,7 @@ module DocumentTreeStore =
         : Result<StoredTree * ReadReport, StoreError list> =
         readModelCore options true CancellationToken.None files
         |> Result.map (fun loaded -> loaded.Tree, loaded.Report)
+        |> Result.mapError StoreErrors.toStoreErrors
 
     /// <summary>
     /// For C# callers: reads a whole document tree (JSON or YAML, plain or contextual, v3.1.0 or v4.0.0) under
@@ -242,7 +254,7 @@ module DocumentTreeStore =
             files: Morphir.Files.VFileTree,
             ct: CancellationToken,
             [<Out; MaybeNullWhen(false)>] loaded: byref<LoadedTreeModel>,
-            [<Out; MaybeNullWhen(true)>] errors: byref<IReadOnlyList<StoreError>>
+            [<Out; MaybeNullWhen(true)>] errors: byref<IReadOnlyList<TreeDiagnostic>>
         ) : bool =
         match readModelCore options true ct files with
         | Ok model ->
@@ -251,7 +263,7 @@ module DocumentTreeStore =
             true
         | Error found ->
             loaded <- Unchecked.defaultof<_>
-            errors <- List.toArray found :> IReadOnlyList<StoreError>
+            errors <- List.toArray found :> IReadOnlyList<TreeDiagnostic>
             false
 
     /// <summary>
@@ -270,7 +282,7 @@ module DocumentTreeStore =
             maxNodes: int,
             ct: CancellationToken,
             [<Out>] document: byref<JsonElement>,
-            [<Out; MaybeNullWhen(true)>] errors: byref<IReadOnlyList<StoreError>>
+            [<Out; MaybeNullWhen(true)>] errors: byref<IReadOnlyList<TreeDiagnostic>>
         ) : bool =
         match TreeFileSource.readSingleYamlDocument file bytes maxBytes maxDepth maxNodes ct with
         | Ok root ->
@@ -279,7 +291,7 @@ module DocumentTreeStore =
             true
         | Error found ->
             document <- Unchecked.defaultof<_>
-            errors <- List.toArray found :> IReadOnlyList<StoreError>
+            errors <- List.toArray found :> IReadOnlyList<TreeDiagnostic>
             false
 
     /// <summary>

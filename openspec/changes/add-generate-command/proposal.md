@@ -6,8 +6,8 @@ Morphir .NET has an F# transpiler and JSON/Ion readers, but no CLI command that 
 
 ## What Changes
 
-- Add `morphir generate --input <file-or-directory> --target fsharp --output <directory>`, with `--input-format auto|json|ion`, repeated `--option KEY=VALUE`, and `--json` reporting. Input, target and output are explicit in this delivery; the default input format is `auto`.
-- Generate F# from classic JSON v1/v2/v3 and v4 libraries, plus their supported Ion text/binary and Ion-tree representations. V4 generation is required in this delivery, including nonempty compiled-and-executed fixtures. Do not silently migrate v4 to classic IR.
+- Add `morphir generate --input <file-or-directory> --target fsharp --output <directory>`, with `--input-format auto|json|yaml|ion`, repeated `--option KEY=VALUE`, and `--json` reporting. Input, target and output are explicit in this delivery; the default input format is `auto`.
+- Generate F# from classic JSON v1/v2/v3 and v4 libraries, YAML single-file models, v3.1.0 and v4.0.0 JSON and YAML document trees (plain and compacted), and their supported Ion text/binary and Ion-tree representations. V4 generation is required in this delivery, including nonempty compiled-and-executed fixtures. Do not silently migrate v4 to classic IR.
 - Use one behavior-oriented test corpus, compiler/execution harness and assertion approach across supported versions and formats. Version, codec, layout and optimization are case dimensions, not separate testing strategies. Represent real version differences as explicit applicability or expected-outcome data.
 - Retain the captured input alongside a transport-neutral typed model. Keep exact source versions and representation facts distinct from backend capabilities; never use JSON serialization as the bridge from Ion to F# generation.
 - Add a versioned typed-model F# generation entry point while preserving the existing strict classic-JSON file API. Use typed classic and v4 validation/emission paths with shared F# naming and artifact helpers; expose Boolean `optimize`, defaulting to true.
@@ -15,7 +15,7 @@ Morphir .NET has an F# transpiler and JSON/Ion readers, but no CLI command that 
 - Publish generated `VFileTree` output through the existing publisher, including an ownership manifest, staged writes, portable path checks and written/unchanged/removed reporting. Diagnostics identify input, rule and available model location; JSON reports remain parseable on stdout.
 - Define the settings-resolution and retained-model contracts for future `morphir.toml`/`morphir.yml` adapters and MEP invocation. Include illustrative API snippets, equivalent configuration examples and protocol mappings in `design.html`.
 
-This delivery does not implement TOML/YAML generation settings, configuration discovery or merging, MEP sessions or extension installation, YAML model input, MEP `morphir_model` envelope admission, implicit prior-compile input, generated project files, or build/execute/verify commands. Generation targets reusable Library distributions; Application packaging and Specs-only generation remain outside this delivery. V4 incomplete/native/external bodies, document literals and unrepresentable target values receive explicit diagnostics as detailed in the specs. Future integration examples in the design are clearly labeled. Unknown targets and unimplemented flags fail rather than pretending to work.
+This delivery does not implement TOML/YAML generation settings, configuration discovery or merging, MEP sessions or extension installation, MEP `morphir_model` envelope admission, implicit prior-compile input, generated project files, or build/execute/verify commands. Generation targets reusable Library distributions; Application packaging and Specs-only generation remain outside this delivery. V4 incomplete/native/external bodies, document literals and unrepresentable target values receive explicit diagnostics as detailed in the specs. Future integration examples in the design are clearly labeled. Unknown targets and unimplemented flags fail rather than pretending to work.
 
 ## Capabilities
 
@@ -26,7 +26,7 @@ This delivery does not implement TOML/YAML generation settings, configuration di
 
 ### Modified Capabilities
 
-- `morphir-fsharp-transpilation`: Add typed classic and v4 library generation for JSON/Ion inputs while keeping the existing JSON-file API and its compatibility rules.
+- `morphir-fsharp-transpilation`: Add typed classic and v4 library generation for JSON/YAML/Ion inputs while keeping the existing JSON-file API and its compatibility rules.
 
 ## Tracking
 

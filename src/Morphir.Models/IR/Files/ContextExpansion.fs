@@ -17,7 +17,7 @@ open Morphir.Json.V4
 
 exception private ContextExpansionLimit
 exception private ContextExpansionNodeLimit
-exception private ContextExpansionRefused of StoreError
+exception private ContextExpansionRefused of TreeDiagnostic
 
 /// <summary>
 /// Expands the references of a compacted document (<c>ir/name-compaction</c>). A reference is exactly the object
@@ -1134,22 +1134,25 @@ module internal ContextExpansion =
     }
 
     let private unknownAlias file slot table id =
-        StoreErrors.error
+        StoreErrors.located
             "context.unknown_alias"
             (Some file)
-            $"{slot}: The reference to '{id}' is at a position of context.{tableName table}, which does not define '{id}'."
+            slot
+            $"The reference to '{id}' is at a position of context.{tableName table}, which does not define '{id}'."
 
     let private unholdableAlias file slot table id spelling readBack =
-        StoreErrors.error
+        StoreErrors.located
             "context.invalid_entry"
             (Some file)
-            $"{slot}: context.{tableName table}.{id} is '{spelling}', and a classic v3 slot cannot hold it: its word arrays read back as '{readBack}'."
+            slot
+            $"context.{tableName table}.{id} is '{spelling}', and a classic v3 slot cannot hold it: its word arrays read back as '{readBack}'."
 
     let private invalidReference file slot =
-        StoreErrors.error
+        StoreErrors.located
             "context.invalid_reference"
             (Some file)
-            $"{slot}: Expected one $name member with a string alias."
+            slot
+            "Expected one $name member with a string alias."
 
     let rec private walk
         context
@@ -1301,7 +1304,7 @@ module internal ContextExpansion =
         location
         shape
         (document: JsonElement)
-        : Result<JsonElement * int, StoreError list> =
+        : Result<JsonElement * int * int64, TreeDiagnostic list> =
         ct.ThrowIfCancellationRequested()
 
         let problems = {
@@ -1312,7 +1315,7 @@ module internal ContextExpansion =
 
         let tooDeep () =
             Error [
-                StoreErrors.error
+                StoreErrors.diagnostic
                     "depth_limit_exceeded"
                     (Some file)
                     $"The expanded document is nested more than {limits.MaxDepth} levels deep."
@@ -1324,7 +1327,7 @@ module internal ContextExpansion =
             | Some limit, Some meter -> Some(meter.CapBytes limit)
             | _ -> byteLimit
 
-        let exhausted () = Error [ StoreErrors.workLimit (Some file) ]
+        let exhausted () = Error [ StoreErrors.ofStoreError (StoreErrors.workLimit (Some file)) ]
 
         let mutable expandedNodes = 0
 
@@ -1357,7 +1360,7 @@ module internal ContextExpansion =
         // stack that cannot hold the document's depth refuses it as too deep rather than ending the process.
         let written =
             try
-                if maxOutput = Some 0L && work.IsSome then raise ContextExpansionLimit
+                if maxOutput = Some 0L then raise ContextExpansionLimit
                 use writer =
                     new Utf8JsonWriter(
                         buffer,
@@ -1413,7 +1416,7 @@ module internal ContextExpansion =
             | ContextExpansionRefused error -> Error [ error ]
             | ContextExpansionNodeLimit ->
                 Error [
-                    StoreErrors.error
+                    StoreErrors.diagnostic
                         "tree.document_node_limit"
                         (Some file)
                         "The decoded document exceeds the available maxNodes for this exchange."
@@ -1421,7 +1424,7 @@ module internal ContextExpansion =
             | ContextExpansionLimit when maxOutput <> byteLimit -> exhausted ()
             | ContextExpansionLimit ->
                 Error [
-                    StoreErrors.error
+                    StoreErrors.diagnostic
                         "tree.file_too_large"
                         (Some file)
                         "Expanded names exceed the document byte limit."
@@ -1466,17 +1469,19 @@ module internal ContextExpansion =
                 exhausted ()
             else
                 countJsonNodesCancellable maxDepth maxNodes ct file bytes
+                |> Result.mapError (List.map StoreErrors.ofStoreError)
                 |> Result.bind (fun nodes ->
                     try
                         use expanded = JsonDocument.Parse(bytes, JsonDocumentOptions(MaxDepth = maxDepth))
-                        Ok(expanded.RootElement.Clone(), nodes)
+                        Ok(expanded.RootElement.Clone(), nodes, int64 bytes.Length)
                     with :? JsonException -> tooDeep ())
 
     let expand limits family file context document =
         expandPart limits None None None CancellationToken.None file context Projection.Complete "$" (rootOf family) document
-        |> Result.map fst
+        |> Result.map (fun (root, _, _) -> root)
+        |> Result.mapError StoreErrors.toStoreErrors
 
-    let expandCounted limits byteLimit maxNodes ct family file context document =
+    let expandCountedDetailed limits byteLimit maxNodes ct family file context document =
         expandPart limits byteLimit maxNodes None ct file context Projection.Complete "$" (rootOf family) document
 
     let expandBounded limits limit maxNodes work family file context projection document =
@@ -1492,6 +1497,8 @@ module internal ContextExpansion =
             "$"
             (rootOf family)
             document
+        |> Result.map (fun (root, nodes, _) -> root, nodes)
+        |> Result.mapError StoreErrors.toStoreErrors
 
     let expandMember limits limit maxNodes work family file context isType holdsDefinitions location element =
         let shape = memberShape family isType holdsDefinitions
@@ -1508,7 +1515,8 @@ module internal ContextExpansion =
             location
             shape
             element
-        |> Result.map fst
+        |> Result.map (fun (root, _, _) -> root)
+        |> Result.mapError StoreErrors.toStoreErrors
 
     /// Follows only the requested slot. A path token is a property name or a canonical array index.
     let resolveMemberAlias
@@ -1548,7 +1556,8 @@ module internal ContextExpansion =
                     location
                     shape
                     element
-                |> Result.map fst
+                |> Result.map (fun (root, _, _) -> root)
+                |> Result.mapError StoreErrors.toStoreErrors
             | [], _ -> refused location
             | field :: rest, JsonValueKind.Object ->
                 let child = V4JsonDecoding.memberAt location field
