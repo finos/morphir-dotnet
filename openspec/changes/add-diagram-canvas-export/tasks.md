@@ -12,7 +12,7 @@ Each task writes its tests first and confirms they fail for the stated reason, t
 ## 2. Units, paths, colours and diagnostics
 
 - [x] 2.1 Write tests for `Distance` (quarter EMU, checked arithmetic, half-even rounding, `ToEmu` within half an EMU), `Fraction`, `FractionPoint` and `Scale`, covering each exact conversion including 100.02 px, the refusal of non-finite and out-of-range values, and `Parse`, `TryParse` and `Create` with each `Create` literal. Then implement them with XML docs (design UNIT-1), taking external text as nullable.
-- [ ] 2.2 Write tests for `PathData` for each command, relative and absolute, including `S`, `T`, `H` and `V`, against every BPMN icon path, and for `WithoutArcs` staying within 0.01 px. Then implement the parser and normaliser (design PATH-1).
+- [x] 2.2 Write tests for `PathData` for each command, relative and absolute, including `S`, `T`, `H` and `V`, against every BPMN icon path, and for `WithoutArcs` staying within 0.01 px. Then implement the parser and normaliser (design PATH-1).
 - [ ] 2.3 Write tests for the authored-colour reader: hex, `rgb` and `rgba` functions, every CSS named colour ignoring case, and an unreadable value. Then implement it as an internal reader beside `Color.Parse`, which stays unchanged.
 - [ ] 2.4 Write tests for `Diagnostic.Error` and `Diagnostic.Warning`: valid codes, malformed codes, blank and null messages. Then add the factories. Verify that a C# test project with nullable analysis and warnings as errors calls them.
 

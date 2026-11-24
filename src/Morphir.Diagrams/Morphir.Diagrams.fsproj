@@ -18,6 +18,7 @@
         <ProjectReference Include="../Morphir.Knowledge.Rdf/Morphir.Knowledge.Rdf.fsproj" />
         <Compile Include="Model.fs" />
         <Compile Include="LayoutUnits.fs" />
+        <Compile Include="LayoutGeometry.fs" />
         <Compile Include="StateModel.fs" />
         <Compile Include="SwimlaneModel.fs" />
         <Compile Include="ArchitectureModel.fs" />

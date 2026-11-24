@@ -156,7 +156,14 @@ type Distance =
 
     /// A distance in CSS pixels given as SVG number text, such as 100.02. Exact for any decimal text.
     static member internal FromPixelText(text: string) =
-        { units = Units.round (nameof text) (Decimal.Parse(text, NumberStyles.Float, CultureInfo.InvariantCulture) * Units.PerPixel) }
+        Distance.FromPixelDecimal(Decimal.Parse(text, NumberStyles.Float, CultureInfo.InvariantCulture))
+
+    /// A distance in CSS pixels given exactly.
+    static member internal FromPixelDecimal(pixels: decimal) =
+        try
+            { units = Units.round (nameof pixels) (pixels * Units.PerPixel) }
+        with :? OverflowException ->
+            invalidArg (nameof pixels) $"{pixels} px is outside the range of a distance."
 
     /// The larger of two distances.
     static member Max(first: Distance, second: Distance) = if first.units >= second.units then first else second
