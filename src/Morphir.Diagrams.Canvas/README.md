@@ -79,5 +79,7 @@ element identifier, and the scene in a `json` drawing block between `%%` markers
 block reference (a space, a caret and eight letters or digits) is left out of the section, and the plugin reads it from
 the scene. A note is one file, so the renderer declares no SVG images: paths and icons become rectangles.
 
-The notes follow the format of the plugin's saved files; they have not been opened in Obsidian itself, which cannot run
-without its desktop application.
+The notes were checked in Obsidian 1.14.4 with the Excalidraw plugin 2.29.4: one note of each family opened in the
+plugin's Excalidraw view with every element, binding, text and reference, including a label left out of the text
+section, which the plugin read from the scene. The plugin wraps text to fit its shape, keeping the full text as the
+element's original text.
