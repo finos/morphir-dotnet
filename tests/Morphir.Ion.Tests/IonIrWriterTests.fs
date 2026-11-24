@@ -586,6 +586,15 @@ let tests =
                     "a repeated key with a quote and a backslash",
                     "{\"formatVersion\":4,\"a\\\"b\\\\c\":1,\"a\\\"b\\\\c\":2}",
                     "$[\"a\\\"b\\\\c\"]"
+                    "a repeated key a-b, which RFC 9535 shorthand does not allow",
+                    "{\"formatVersion\":4,\"a-b\":1,\"a-b\":2}",
+                    "$[\"a-b\"]"
+                    "a repeated key 123, which starts with a digit",
+                    "{\"formatVersion\":4,\"123\":1,\"123\":2}",
+                    "$[\"123\"]"
+                    "a repeated key _a1, which RFC 9535 shorthand allows",
+                    "{\"formatVersion\":4,\"_a1\":1,\"_a1\":2}",
+                    "$._a1"
                 ] do
                 testCase $"The location of {name} names its key without ambiguity"
                 <| fun () ->
@@ -594,6 +603,19 @@ let tests =
                     | Result.Error error ->
                         Expect.equal error.Code "duplicate_member" error.Message
                         Expect.equal error.Location (Some location) "The location"
+
+            testCase "IonIrReading.TryRead refuses null limits as an argument error"
+            <| fun () ->
+                let bytes = IonIrWriter.write Cases.emptyV3Library |> ok "Writing"
+
+                Expect.throwsT<ArgumentNullException>
+                    (fun () -> IonIrReading.TryRead(Unchecked.defaultof<IonReadLimits>, ReadOnlyMemory bytes) |> ignore)
+                    "Null limits are a caller error, not a decode failure"
+
+            testCase "IonReadLimits writes its three limits as text"
+            <| fun () ->
+                let limits: IonReadLimits = { MaxDecodedBytes = 1024; MaxDepth = 8; MaxNodes = 100 }
+                Expect.equal (limits.ToString()) "1024 bytes, depth 8, 100 nodes" "ToString"
 
             testCase "IonIrReading.TryRead gives the document, or the failure with text locations"
             <| fun () ->

@@ -82,10 +82,19 @@ and [<RequireQualifiedAccess; StructuralEquality; NoComparison>] IonData =
 
 /// <summary>Limits applied while reading. The root value counts as depth one. Containers and scalars count as nodes; annotations and field names do not.</summary>
 type IonReadLimits = {
+    /// <summary>The most bytes the input may have.</summary>
     MaxDecodedBytes: int
+    /// <summary>The deepest nesting the input may have; the root value is depth one.</summary>
     MaxDepth: int
+    /// <summary>The most values, containers and scalars, the input may hold.</summary>
     MaxNodes: int
 }
+    with
+
+    /// <summary>The three limits, such as <c>1024 bytes, depth 8, 100 nodes</c>.</summary>
+    override this.ToString() =
+        let number (value: int) = value.ToString(CultureInfo.InvariantCulture)
+        $"{number this.MaxDecodedBytes} bytes, depth {number this.MaxDepth}, {number this.MaxNodes} nodes"
 
 /// <summary>Functions for working with read limits.</summary>
 [<RequireQualifiedAccess>]

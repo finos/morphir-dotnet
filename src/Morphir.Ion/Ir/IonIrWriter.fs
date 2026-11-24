@@ -16,10 +16,12 @@ type internal JsonPathNode =
     | Index of parent: JsonPathNode * index: int
 
 module internal JsonPathNode =
-    /// A key that the path writes after a dot: ASCII letters, digits, <c>-</c> and <c>_</c>, as the v4 reader does.
+    /// A key that the path writes after a dot: an RFC 9535 member-name shorthand in ASCII, a letter or <c>_</c> and then
+    /// letters, digits and <c>_</c>. Every other key, such as <c>a-b</c> or <c>123</c>, is a bracketed name selector.
     let private isPlain (name: string) =
         name <> ""
-        && name |> Seq.forall (fun c -> Char.IsAsciiLetterOrDigit c || c = '-' || c = '_')
+        && (Char.IsAsciiLetter name[0] || name[0] = '_')
+        && name |> Seq.forall (fun c -> Char.IsAsciiLetterOrDigit c || c = '_')
 
     /// The path as text, such as <c>$.distribution[0].a</c> or <c>$["my-org/shared"]</c>, written by walking the
     /// parents once.
@@ -45,7 +47,7 @@ module internal JsonPathNode =
             match step with
             | Key(_, name) when isPlain name -> builder.Append('.').Append(name) |> ignore
             | Key(_, name) ->
-                // Any other key is a quoted bracket, as the v4 reader writes it, with its quote, backslash and control
+                // Any other key is an RFC 9535 name selector, a quoted bracket with its quote, backslash and control
                 // characters escaped, so "distribution.foo" at the root is not distribution then foo.
                 builder.Append("[\"") |> ignore
 
@@ -733,6 +735,10 @@ type IonIrReading =
             [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] failure:
                 byref<IonFailure>
         ) : bool =
+        // C# can pass null for a non-nullable reference; that is a caller error, not a decode failure.
+        if isNull (box limits) then
+            nullArg (nameof limits)
+
         match IonIr.read limits bytes with
         | Ok read ->
             document <- read

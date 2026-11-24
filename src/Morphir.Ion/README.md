@@ -8,7 +8,7 @@
 
 ## The Ion IR format
 
-`IonIr.read limits bytes` reads a single-file distribution in Ion text or binary, as a datagram or as a collapsed `morphir::` record. C# calls `IonIrReading.TryRead(bytes, out document, out failure)`, or the overload that takes `IonReadLimits`; the failure is an `IonFailure`, whose `Path` and `Location` are text or null. It builds the same IR value the JSON readers build for the corresponding document. The result is an `IrDocument`: `ClassicIr` for `formatVersion` `3.0.0` and `3.1.0`, and `V4Ir` for `4.0.0`. Each case keeps the version the header declares.
+`IonIr.read limits bytes` reads a single-file distribution in Ion text or binary, as a datagram or as a collapsed `morphir::` record. C# calls `IonIrReading.TryRead(bytes, out document, out failure)`, or the overload that takes `IonReadLimits` (null limits are an `ArgumentNullException`); the failure is an `IonFailure`, whose `Path` and `Location` are text or null. It builds the same IR value the JSON readers build for the corresponding document. The result is an `IrDocument`: `ClassicIr` for `formatVersion` `3.0.0` and `3.1.0`, and `V4Ir` for `4.0.0`. Each case keeps the version the header declares.
 
 ### Ion document trees
 
