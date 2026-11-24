@@ -24,7 +24,7 @@ Within one .NET runtime version on one operating system, equal plans and options
 
 ### Requirement: Shapes have real geometry
 Each shape SHALL be a custom shape whose name is its element reference, or its drawable identifier when it has no reference. Each SHALL carry its own enhanced geometry and view box:
-- rectangles, rounded rectangles, ellipses, diamonds, cylinders and hexagons use a geometry for that kind, which also names the kind for Impress
+- rectangles, rounded rectangles, ellipses, diamonds, cylinders and hexagons use the outline that the SVG draws for that kind
 - paths use their path data
 
 Text SHALL be editable text in the shape.
@@ -32,6 +32,13 @@ Text SHALL be editable text in the shape.
 #### Scenario: A cylinder has its own geometry
 - **WHEN** a cylinder node is rendered
 - **THEN** its custom shape carries enhanced geometry and a view box that draw the cylinder, not only a type name
+
+### Requirement: Shapes are non-primitive
+Every shape's type SHALL be `non-primitive`, because Impress replaces the geometry and text area of a preset type that it recognises with its own.
+
+#### Scenario: A rounded rectangle keeps its outline
+- **WHEN** a rounded rectangle node is rendered
+- **THEN** its enhanced geometry has the type `non-primitive` and the outline that the SVG draws
 
 ### Requirement: Paths use enhanced-path commands
 A path's moves, lines, cubic and quadratic curves and closes SHALL be the enhanced-path commands `M`, `L`, `C`, `Q` and `Z`. Arcs SHALL first be converted to cubic curves within 0.01 CSS pixels. An open path SHALL end with `N` and have no fill.
@@ -50,6 +57,13 @@ Each line SHALL be a connector. It SHALL be glued at each bound end to the glue 
 #### Scenario: A connector is glued to both shapes
 - **WHEN** the link `A --> B` is rendered
 - **THEN** the page holds a connector whose start and end shapes are the shapes of `A` and `B`
+
+### Requirement: Markers are centred on the tip
+Each marker SHALL be centred, with its view box and the bounds of its path centred on the head's tip, so that the tip lies at the line's end as in the SVG.
+
+#### Scenario: A half head sits behind its tip
+- **WHEN** a message with an upper half head is rendered
+- **THEN** its marker's view box and path bounds are centred on the tip, and the marker is centred on the line's end
 
 ### Requirement: The renderer declares its features
 The OpenDocument renderer SHALL declare these features: rounded rectangles, ellipses, diamonds, cylinders, hexagons, paths, polylines, exact routes, attached connectors, open and circle heads, message heads, wrapped text, rotated text, interleaved painting, fill opacity, dash patterns, links, SVG images and pages. It SHALL NOT declare stroke and text opacity, because OpenDocument text has no standard opacity.

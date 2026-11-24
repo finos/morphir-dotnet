@@ -30,9 +30,6 @@ type PowerPointConnectors =
         | PowerPointConnectors.Exact -> "exact"
         | PowerPointConnectors.Glued -> "glued"
 
-/// One item of a slide, in paint order, with what it inherits.
-type internal SlideItem = { Drawable: Drawable; Name: string }
-
 [<RequireQualifiedAccess>]
 module internal Ooxml =
     let a = "http://schemas.openxmlformats.org/drawingml/2006/main"
@@ -51,42 +48,6 @@ module internal Ooxml =
 
     let emu (distance: Distance) = distance.ToEmu()
 
-    /// The leaves of a page in paint order, each named by its reference, its holder's, or its identifier.
-    let items (layout: DiagramLayout) =
-        let found = ResizeArray<int * int * SlideItem>()
-
-        let rec collect (inherited: string option) (drawable: Drawable) =
-            let own =
-                drawable.Reference
-                |> Option.ofObj
-                |> Option.map (fun reference -> reference.ToString())
-
-            let name =
-                own
-                |> Option.orElse inherited
-                |> Option.defaultValue drawable.Id.Value
-
-            match drawable.Kind with
-            | DrawableKind.Element children
-            | DrawableKind.Group children ->
-                for child in children do
-                    collect
-                        (own
-                         |> Option.orElse inherited)
-                        child
-            | DrawableKind.Container container ->
-                for child in container.Children do
-                    collect None child
-            | _ ->
-                found.Add((drawable.PaintOrder, found.Count, { Drawable = drawable; Name = name }))
-
-        for drawable in layout.Drawables do
-            collect None drawable
-
-        found
-        |> Seq.sortBy (fun (order, index, _) -> order, index)
-        |> Seq.map (fun (_, _, item) -> item)
-        |> List.ofSeq
 
     let hex (color: Color) =
         String.Format(CultureInfo.InvariantCulture, "{0:X2}{1:X2}{2:X2}", color.R, color.G, color.B)
@@ -1375,7 +1336,7 @@ module internal PowerPointSlide =
         let ids = Dictionary<DrawableId, int>()
         let mutable nextId = 1
         let mutable failure: Diagnostic option = None
-        let items = Ooxml.items page
+        let items = SlideItems.ofPage page
 
         let shapes = Dictionary<DrawableId, LayoutShape>()
 

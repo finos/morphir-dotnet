@@ -22,6 +22,7 @@ public class SlideDigestTests
     [
         ("exact", () => new PowerPointRenderer()),
         ("glued", () => new PowerPointRenderer(SlidePlacement.Widescreen, PowerPointConnectors.Glued)),
+        ("impress", () => new OpenDocumentRenderer()),
     ];
 
     /// <summary>The digest of a package: each entry's name and the digest of its contents, in order.</summary>

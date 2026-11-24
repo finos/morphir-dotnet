@@ -303,16 +303,7 @@ public class PowerPointRendererTests
     [Test]
     public void ALinkOpensOnClick()
     {
-        DiagramSource.TryParse("flowchart LR\n  A\n", out var parsed, out _).ShouldBeTrue();
-        DiagramSnapshot.TryFromSource(Morphir.Knowledge.DocumentId.Create(Morphir.Knowledge.Iri.Create("https://example.org/d")), parsed, out var snapshot, out _).ShouldBeTrue();
-        DiagramSelection.TryCreate(snapshot, [DiagramElementRef.Create("node=A")], out var selection, out _).ShouldBeTrue();
-        var link = new Morphir.Knowledge.KnowledgeLink<LinkEndpoint, LinkEndpoint>(
-            Morphir.Knowledge.LinkId.Create(Morphir.Knowledge.Iri.Create("urn:link:a")), LinkEndpoint.FromDiagram(selection),
-            Morphir.Knowledge.Iri.Create("https://example.org/vocab/seeAlso"), LinkEndpoint.FromResource(Morphir.Knowledge.Iri.Create("https://example.org")));
-        DiagramAnnotations.TryWrite(DiagramAnnotationSet.Create([], [link], []), _ => null, out var dataset, out _).ShouldBeTrue();
-        var options = SvgRenderOptions.Default.WithDocument(Morphir.Knowledge.DocumentId.Create(Morphir.Knowledge.Iri.Create("https://example.org/d"))).WithMetadata(dataset, MetadataEmbedding.NQuads, Morphir.Knowledge.Rdf.NamedGraphHandling.Reject);
-
-        var package = SlideRendering.Render(new PowerPointRenderer(), DiagramExport.Layout(parsed.Diagram, options).Layout!);
+        var package = SlideRendering.Render(new PowerPointRenderer(), SlideMother.LinkedNode());
         var rid = Named(Slide(package), "node=A").Descendants(A + "hlinkClick").Single().Attribute(R + "id")!.Value;
         var rels = SlideRendering.Xml(package, "ppt/slides/_rels/slide1.xml.rels");
 

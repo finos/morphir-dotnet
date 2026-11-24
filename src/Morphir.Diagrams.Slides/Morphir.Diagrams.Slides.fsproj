@@ -21,5 +21,6 @@
         <Compile Include="SlidePlacement.fs" />
         <Compile Include="Packaging.fs" />
         <Compile Include="PowerPoint.fs" />
+        <Compile Include="OpenDocument.fs" />
     </ItemGroup>
 </Project>

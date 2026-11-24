@@ -19,6 +19,22 @@ public static class SlideMother
     public static DiagramLayout Layout(string source, SvgRenderOptions? options = null) =>
         DiagramExport.Layout(Parse(source), options ?? SvgRenderOptions.Default).Layout.ShouldNotBeNull();
 
+    /// <summary>The layout of a flowchart whose node <c>A</c> links to https://example.org through embedded metadata.</summary>
+    public static DiagramLayout LinkedNode()
+    {
+        DiagramSource.TryParse("flowchart LR\n  A\n", out var parsed, out _).ShouldBeTrue();
+        var document = Morphir.Knowledge.DocumentId.Create(Morphir.Knowledge.Iri.Create("https://example.org/d"));
+        DiagramSnapshot.TryFromSource(document, parsed, out var snapshot, out _).ShouldBeTrue();
+        DiagramSelection.TryCreate(snapshot, [DiagramElementRef.Create("node=A")], out var selection, out _).ShouldBeTrue();
+        var link = new Morphir.Knowledge.KnowledgeLink<LinkEndpoint, LinkEndpoint>(
+            Morphir.Knowledge.LinkId.Create(Morphir.Knowledge.Iri.Create("urn:link:a")), LinkEndpoint.FromDiagram(selection),
+            Morphir.Knowledge.Iri.Create("https://example.org/vocab/seeAlso"), LinkEndpoint.FromResource(Morphir.Knowledge.Iri.Create("https://example.org")));
+        DiagramAnnotations.TryWrite(DiagramAnnotationSet.Create([], [link], []), _ => null, out var dataset, out _).ShouldBeTrue();
+        var options = SvgRenderOptions.Default.WithDocument(document).WithMetadata(dataset, MetadataEmbedding.NQuads, Morphir.Knowledge.Rdf.NamedGraphHandling.Reject);
+
+        return DiagramExport.Layout(parsed.Diagram, options).Layout.ShouldNotBeNull();
+    }
+
     /// <summary>A flowchart twice as wide as it is tall, roughly.</summary>
     public const string Wide = "flowchart LR\n  A[Start] --> B[Middle] --> C[End]\n";
 

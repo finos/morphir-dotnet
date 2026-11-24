@@ -12,6 +12,7 @@ open System.Threading
 open System.Threading.Tasks
 open System.Xml
 open Morphir.Diagrams
+open Morphir.Diagrams.Layout
 open Morphir.Diagrams.Raster
 
 /// One entry of a package.
@@ -28,6 +29,49 @@ type internal PngFallback = {
     Height: int
     Density: int
 }
+
+/// One item of a slide, in paint order, named by its reference, its holder's, or its identifier.
+type internal SlideItem = { Drawable: Drawable; Name: string }
+
+/// The leaves of a page that the slide writers draw, flattening elements, groups and containers.
+[<RequireQualifiedAccess>]
+module internal SlideItems =
+    /// The leaves of a page in paint order, each named by its reference, its holder's, or its identifier.
+    let ofPage (layout: DiagramLayout) =
+        let found = ResizeArray<int * int * SlideItem>()
+
+        let rec collect (inherited: string option) (drawable: Drawable) =
+            let own =
+                drawable.Reference
+                |> Option.ofObj
+                |> Option.map (fun reference -> reference.ToString())
+
+            let name =
+                own
+                |> Option.orElse inherited
+                |> Option.defaultValue drawable.Id.Value
+
+            match drawable.Kind with
+            | DrawableKind.Element children
+            | DrawableKind.Group children ->
+                for child in children do
+                    collect
+                        (own
+                         |> Option.orElse inherited)
+                        child
+            | DrawableKind.Container container ->
+                for child in container.Children do
+                    collect None child
+            | _ ->
+                found.Add((drawable.PaintOrder, found.Count, { Drawable = drawable; Name = name }))
+
+        for drawable in layout.Drawables do
+            collect None drawable
+
+        found
+        |> Seq.sortBy (fun (order, index, _) -> order, index)
+        |> Seq.map (fun (_, _, item) -> item)
+        |> List.ofSeq
 
 /// Builds deterministic ZIP packages and PNG fallbacks for the slide renderers.
 [<RequireQualifiedAccess>]

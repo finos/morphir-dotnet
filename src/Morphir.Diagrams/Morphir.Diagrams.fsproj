@@ -13,6 +13,8 @@
     <ItemGroup>
         <!-- The F# tests check internal readers that have no public surface of their own. -->
         <InternalsVisibleTo Include="Morphir.Diagrams.FSharp.Tests" />
+        <!-- The slide writers draw each shape kind with the outline that lowering gives it. -->
+        <InternalsVisibleTo Include="Morphir.Diagrams.Slides" />
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="FSharp.Core" />
