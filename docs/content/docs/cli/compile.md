@@ -109,14 +109,16 @@ example `4.1.0-draft.1`, matches only a writer that declares that exact version.
 | `yaml` | `morphir-ir.yaml` | The canonical YAML of that JSON, as the [YAML profile](https://github.com/finos/morphir/blob/main/docs/spec/ir/schemas/v4/yaml-profile.md) defines it. A YAML reader of the profile reads back the same value. |
 | `ion` | `morphir-ir.ion` | The canonical Ion 1.0 text of the [Ion IR format](https://github.com/finos/morphir/blob/main/docs/design/draft/ir/ion.md), draft `0.1.0-draft.1`: one datagram that ends with `morphir_footer::{}`. A v3 library states `formatVersion` `3.0.0`, and v4 states `4.0.0`. |
 
-The Ion format holds IR 3 and IR 4 only. Ion with IR version `1` or `2`, or with a v4 release other than `4.0.0`, fails
-before compilation with `compile.unsupported_setting` and exit code 2. A value that is not `json`, `yaml` or `ion`
-fails with `compile.invalid_setting`. If the command cannot write the IR in the selected format, the write stage
+The Ion format carries the IR versions `3`, `3.0.0`, `3.1.0`, `4` and `4.0.0` only. Ion with any other version, such as
+`1`, `2` or `4.1.0-draft.1`, fails before compilation with `compile.unsupported_setting` and exit code 2. A value that is
+not `json`, `yaml` or `ion` fails with exit code 2: in a configuration file the configuration check reports it once,
+with `compile.configuration`, and `--ir-format` reports it with `compile.invalid_setting`. If the command cannot write the IR in the selected format, the write stage
 fails with `compile.ir_format_failed`. The task record names the format in `ir.format`, and `-o` installs the same
 file.
 
 `morphir generate --input` reads a JSON or Ion file. `morphir generate` without `--input` reads a compile record
-whose IR is JSON or Ion. It does not read a single YAML file yet.
+whose IR is JSON or Ion. It does not read a single YAML file yet: a record whose IR is YAML fails with
+`compile.record_unsupported_format` and exit code 2.
 
 ## Sources
 

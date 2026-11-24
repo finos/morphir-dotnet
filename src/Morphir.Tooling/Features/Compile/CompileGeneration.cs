@@ -88,9 +88,17 @@ public sealed class CompileGenerationStages(IGenerationBackendResolver backends,
     /// <paramref name="ir"/> is the exact bytes that <paramref name="compiled"/> published. <paramref name="passes"/> are the
     /// registered passes of the compile; the passes before the backend continue the lineage of the passes after the frontend.
     /// </summary>
+    public IAsyncEnumerable<CompileEvent> RunAsync(CompileTarget target, CompileSuccess compiled, CompileSettings settings,
+        ReadOnlyMemory<byte> ir, Transform.ModelPasses? passes = null, CancellationToken ct = default) =>
+        RunAsync(target, compiled, settings, ir, InputFormat.Auto, passes, ct);
+
+    /// <summary>
+    /// The events of the generation stages, as <see cref="RunAsync(CompileTarget, CompileSuccess, CompileSettings, ReadOnlyMemory{byte}, Transform.ModelPasses?, CancellationToken)"/>
+    /// gives them, with the format in which the model loader reads <paramref name="ir"/>: <see cref="InputFormat.Auto"/>
+    /// detects it from the bytes and the name of the published file.
+    /// </summary>
     public async IAsyncEnumerable<CompileEvent> RunAsync(CompileTarget target, CompileSuccess compiled, CompileSettings settings,
-        ReadOnlyMemory<byte> ir, Transform.ModelPasses? passes = null, [EnumeratorCancellation] CancellationToken ct = default,
-        InputFormat format = InputFormat.Auto)
+        ReadOnlyMemory<byte> ir, InputFormat format, Transform.ModelPasses? passes = null, [EnumeratorCancellation] CancellationToken ct = default)
     {
         var irPath = compiled.Publication.IrPath;
         var input = new ModelInput(irPath, format);

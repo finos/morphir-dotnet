@@ -82,6 +82,8 @@ public sealed class TaskRecordCompilePublisher(TaskStoreOptions options) : IComp
                     $"The IR could not be written to '{target}': {error.Message}", null)]);
             }
 
+            // A cancellation before the record is committed leaves the tombstone, so no record names an IR it did not finish.
+            ct.ThrowIfCancellationRequested();
             var ir = IrDescriptor.Create(RecordPath.Parse(file), IrLayout.SingleFile, request.Format, request.IrVersion);
             if (run.Complete(new CompileProduct(request.Language, ir, request.ProjectFile)) is Outcome<TaskRecord>.Failure recordFailure)
                 return Checked<PublishedCompile>.Fail(TaskDiagnostics.Of(recordFailure.Error, ct));

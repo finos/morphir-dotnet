@@ -9,7 +9,7 @@ Exposes source compilation through `morphir compile`. The command resolves setti
 Each setting SHALL come from the first source that supplies it:
 
 1. a CLI flag;
-2. the selected project configuration (`project.name`, `project.source_directory`, `project.exposed_modules`, `ir.format_version`, `frontend.language`, and `[frontend.<language>]` `project_file` and `extension`);
+2. the selected project configuration (`project.name`, `project.source_directory`, `project.exposed_modules`, `ir.format_version`, `ir.format`, `frontend.language`, and `[frontend.<language>]` `project_file` and `extension`);
 3. a documented default.
 
 `--project` and `--config` SHALL select a project through the existing project discovery.
@@ -32,6 +32,25 @@ Each setting SHALL come from the first source that supplies it:
 #### Scenario: Equivalent release spelling
 - **WHEN** `--ir-version 4.0.0` is requested
 - **THEN** it selects the same writer as `4`, and the report records `4.0.0` as requested
+
+### Requirement: The IR format selects the serialization of the written IR
+`--ir-format` and `ir.format` SHALL accept `json`, `yaml` or `ion`; the flag overrides the key, and the default is `json`. The command SHALL write `morphir-ir.json`, the IR JSON of the writer; `morphir-ir.yaml`, the canonical YAML of that JSON under the v4 YAML profile; or `morphir-ir.ion`, the canonical Ion text of the same distribution under Ion IR draft `0.1.0-draft.1`. Each format SHALL read back as the same IR value. Ion SHALL be accepted only for the format versions the Ion writer carries (`3`, `3.0.0`, `3.1.0`, `4` and `4.0.0`); any other version with Ion SHALL fail before compilation with `compile.unsupported_setting` and exit code 2. A value that is not one of the three SHALL fail with exit code 2: a configured value once, as a configuration error, and a flag value with `compile.invalid_setting`. A write the format cannot hold SHALL fail the write stage with `compile.ir_format_failed`. The JSON report SHALL give the origin of the setting as `irFormat`.
+
+#### Scenario: YAML from the configuration
+- **WHEN** `morphir.toml` sets `ir.format = "yaml"` and the command passes no `--ir-format`
+- **THEN** the compile publishes `compile.dest/morphir-ir.yaml`, the canonical YAML of the IR JSON, and the record's `ir.format` is `yaml`
+
+#### Scenario: Ion from the flag
+- **WHEN** `morphir.toml` sets `ir.format = "yaml"` and the command passes `--ir-format ion --ir-version 3`
+- **THEN** the compile publishes `compile.dest/morphir-ir.ion`, whose header states `formatVersion: "3.0.0"`, and the report gives `--ir-format` as the origin of `irFormat`
+
+#### Scenario: Ion before IR 3
+- **WHEN** the command passes `--ir-format ion --ir-version 2`
+- **THEN** it fails before compilation with `compile.unsupported_setting` and exit code 2, and publishes no IR
+
+#### Scenario: Generation from a YAML or Ion compile
+- **WHEN** `compile --ir-format yaml --target fsharp --generate-output gen` or `compile --ir-format ion --target fsharp --generate-output gen` runs
+- **THEN** generation gets the same model as from a JSON compile: the Ion bytes that were published, or for YAML the JSON that the YAML was written from
 
 ### Requirement: Sources are selected without language-specific rules
 The command SHALL choose sources in this order:
@@ -146,7 +165,7 @@ A run with only warnings SHALL succeed. With `--target`, a failure in the genera
 
 #### Scenario: Reinstall over own file
 - **WHEN** a second successful compile installs to the same `-o` directory
-- **THEN** `morphir-ir.json` is replaced and other files in that directory remain unchanged
+- **THEN** `morphir-ir.json` (or `morphir-ir.yaml` or `morphir-ir.ion` for that IR format) is replaced and other files in that directory remain unchanged
 
 ### Requirement: Compile can continue into generation
 With `--target <id>` and `--generate-output <dir>`, the command SHALL pass the compiled model in memory to the registered generation backend for that target. It SHALL use the same backend resolution, `--option` validation and owned publication as `morphir generate`. Generation SHALL NOT run when compilation fails. `--target` without `--generate-output`, or a repeated `--target`, SHALL fail with exit code 2.
@@ -160,7 +179,7 @@ With `--target <id>` and `--generate-output <dir>`, the command SHALL pass the c
 - **THEN** the command fails before generation with the exit code of `generate` for that refusal, naming the backend and capability, and leaves the generation output unchanged, while the compile output remains published
 
 ### Requirement: Unimplemented options fail explicitly
-These SHALL be rejected with exit code 2 and a diagnostic naming the option and the reason: `--types-only`, Ion or YAML `ir.format`, and `document-tree` layout. They SHALL NOT be ignored. This delivery has no option or key for Specs or Application output or for incremental or baseline compilation; an option or key for one of them that is added before the feature SHALL be rejected in the same way.
+These SHALL be rejected with exit code 2 and a diagnostic naming the option and the reason: `--types-only` and `document-tree` layout, in every IR format. They SHALL NOT be ignored. This delivery has no option or key for Specs or Application output or for incremental or baseline compilation; an option or key for one of them that is added before the feature SHALL be rejected in the same way.
 
 #### Scenario: Document tree requested
 - **WHEN** the configuration sets `ir.layout = "document-tree"`

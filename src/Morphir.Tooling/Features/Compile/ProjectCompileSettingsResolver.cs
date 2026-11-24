@@ -195,7 +195,8 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
         Setting<IrStorageFormat>? format = null;
         if (IrStorageNames.TryParseFormat(formatText.Value, out var parsedFormat))
             format = new(parsedFormat, formatText.Origin);
-        else
+        // The configuration check owns a configured value: it already reported ir.format as an error.
+        else if (!(formatText.Origin is SettingOrigin.Configuration && ReportsKey(loaded, "ir.format")))
             Error(CompileCodes.InvalidSetting,
                 $"The IR format '{formatText.Value}' from {Describe(formatText.Origin)} is not valid. Use \"json\", \"yaml\" or \"ion\".");
         if (format is { Value: IrStorageFormat.Ion } && version is not null && !IonCarries(version.Value.Version))
@@ -308,12 +309,14 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
         }, warnings);
     }
 
-    /// <summary>Whether the Ion IR format carries a format version: IR 3, or IR 4 at its baseline <c>4.0.0</c>.</summary>
-    public static bool IonCarries(Morphir.IR.Versioning.FormatVersion version)
-    {
-        var parts = Morphir.IR.Versioning.version(version).Split('.');
-        return parts[0] == "3" || parts[0] == "4" && parts.Skip(1).All(part => part == "0");
-    }
+    /// <summary>
+    /// Whether the Ion IR format carries a format version (<c>3</c>, <c>3.0.0</c>, <c>3.1.0</c>, <c>4</c> or
+    /// <c>4.0.0</c>): the check of the Ion writer itself, so the two cannot disagree.
+    /// </summary>
+    public static bool IonCarries(Morphir.IR.Versioning.FormatVersion version) => Morphir.Ion.IonIrWriting.Carries(version);
+
+    private static bool ReportsKey(LoadedCompileConfiguration loaded, string key) =>
+        loaded.Diagnostics.Any(diagnostic => diagnostic.Severity == ConfigSeverity.Error && string.Join('.', diagnostic.KeyPath) == key);
 
     private static string FormatSettingText(SettingOrigin origin) => origin switch
     {

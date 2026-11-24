@@ -160,7 +160,7 @@ public sealed class CompileRunner(
                 yield break;
             }
             var (input, format) = CompileIrFormats.GenerationInput(settings.IrFormat.Value, json, bytes);
-            await foreach (var e in generation.RunAsync(target, success, settings, input, _passes, ct, format)) yield return e;
+            await foreach (var e in generation.RunAsync(target, success, settings, input, format, _passes, ct)) yield return e;
         }
         finally
         {

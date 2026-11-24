@@ -255,6 +255,32 @@ public sealed class CompileSettingsResolverTests
     }
 
     [Test]
+    [Arguments(null)]
+    [Arguments("ion")]
+    public void AnInvalidConfiguredIrFormatGivesOneDiagnostic(string? flag)
+    {
+        using var workspace = new CompileWorkspace();
+        workspace.Write("morphir.toml", "[project]\nname = \"acme/demo\"\n\n[ir]\nformat = \"toml\"\n");
+        var result = Resolver.Resolve(new CompileOverrides { IrFormat = flag, Inputs = ["A.fs"] }, workspace.Context());
+        var errors = result.Diagnostics.Where(d => d.IsError).ToArray();
+        errors.Should().ContainSingle("the configuration check owns ir.format: {0}", string.Join("\n", errors.Select(e => e.Message)));
+        errors[0].CodeOrNull?.Value.Should().Be("compile.configuration");
+        errors[0].Message.Should().Contain("ir.format").And.Contain("morphir.toml");
+    }
+
+    [Test]
+    [Arguments("4.1.0-draft.1")]
+    [Arguments("3.99.0")]
+    public void IonIsRefusedForAVersionTheWriterDoesNotCarry(string version)
+    {
+        using var workspace = new CompileWorkspace();
+        var result = Resolver.Resolve(new CompileOverrides { PackageName = "acme/demo", Inputs = ["A.fs"], IrVersion = version, IrFormat = "ion" },
+            workspace.Context());
+        Codes(result).Should().Equal("compile.unsupported_setting");
+        result.Diagnostics.Single(d => d.IsError).Message.Should().Contain("--ir-format ion").And.Contain($"IR version {version}");
+    }
+
+    [Test]
     [Arguments("1")]
     [Arguments("2")]
     public void IonIsRefusedForIrBeforeVersionThree(string version)
