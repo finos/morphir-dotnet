@@ -324,11 +324,23 @@ module internal ClassicIonWriter =
         | Private -> "private"
 
     /// A v3 doc: the classic model holds an absent doc as the empty one.
+    /// A v3 doc. The Ion reader gives a member without <c>doc</c> the empty doc, as the reference CLI writes it, so the
+    /// empty doc is left out and an absent doc, which would read back as the empty one, is refused.
     let private docOf (documented: Documented<'t>) =
         match documented with
         | WithDocumentation(doc, _) when doc <> "" -> Some(Text doc)
-        | WithDocumentation _
-        | WithoutDocumentation _ -> None
+        | WithDocumentation _ -> None
+        | WithoutDocumentation _ ->
+            raise (
+                IonIrFailure
+                    {
+                        Code = "unrepresentable_documentation"
+                        Message =
+                            "A v3 member without documentation has no Ion spelling apart from the empty doc. Write it with the empty doc, WithDocumentation(\"\", ...)."
+                        Path = None
+                        Location = None
+                    }
+            )
 
     let private moduleMember (scope: ModulePath option) = "module", scope |> Option.map (moduleText >> Text)
 

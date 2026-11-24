@@ -92,28 +92,53 @@ let private readV4Json (json: string) =
 
 /// Named cases: a model the test builds by intent, and the reference bytes the vendored draft states for it.
 module private Cases =
-    open Morphir.IR
+    open Morphir.Models.TestSupport.DistributionBuilder
+    open Morphir.TestSupport.Fixtures
+
+    /// A classic model of the builder as the Ion writer takes it: through the classic JSON writer at IR 3, which
+    /// leaves out an absent doc, and IonIrWriter.readJson.
+    let classic (distribution: Morphir.IR.Classic.Distribution.Distribution<unit, Morphir.IR.Classic.Type<unit>>) =
+        match Morphir.Json.Classic.ClassicJsonWriter.writeTyped Morphir.Json.Classic.ClassicWireProfile.v3 false distribution with
+        | Ok json ->
+            match IonIrWriter.readJson (ReadOnlyMemory json) with
+            | Ok document -> document
+            | Result.Error error -> failwithf "%s: %s" error.Code error.Message
+        | Result.Error error -> failwithf "%s: %s" error.Rule error.Message
 
     /// The draft's empty v3 library: package example, no dependencies and no modules.
-    let emptyV3Library =
-        ClassicIr(
-            "3.0.0",
-            Morphir.IR.Classic.Distribution.Library(PackageName(Path [ Name [ "example" ] ]), Map.empty, { Modules = Map.empty })
-        )
+    let emptyV3Library = aV3Library (packageName "example") |> buildV3 |> classic
 
-    /// The fence after "the canonical empty v3 library is:" in the vendored draft, ion-draft.md.
+    /// A v3 library whose alias t has no documentation, the classic model's WithoutDocumentation.
+    let undocumentedV3Alias =
+        aV3Library (packageName "example") |> withModule (modulePath "m") (withType (name "t") (alias Sdk.int)) |> buildV3 |> classic
+
+    /// The same alias with the empty documentation, WithDocumentation("", ...).
+    let emptyDocumentedV3Alias =
+        aV3Library (packageName "example")
+        |> withModule (modulePath "m") (withType (name "t") (alias Sdk.int) >> withTypeDoc (name "t") "")
+        |> buildV3
+        |> classic
+
+    /// The fence after "the canonical empty v3 library is:" in the pinned draft.
     let draftEmptyV3Library =
-        let draft = Fixtures.text "ion-draft.md"
+        let draft = FixtureCatalog.ReadText FixtureCatalog.UpstreamIr.IonDraft
         let fence = Regex.Match(draft, "the canonical empty v3 library is:\\s*```ion\\n(.*?)```", RegexOptions.Singleline)
 
         if not fence.Success then
-            failwith "The vendored draft has no canonical empty v3 library."
+            failwith "The pinned draft has no canonical empty v3 library."
 
         fence.Groups[1].Value
 
-    /// Two type names whose cut stems in a budget of 64 have one prefix and one digest, 905bb72b.
-    let collidingTypes =
-        "commonprefixcommonprefixcommonprefixcommon-n58445", "commonprefixcommonprefixcommonprefixcommon-n91859"
+    /// A v4 library with two alias types whose cut stems in a budget of 64 have one prefix and one digest, 905bb72b.
+    let collidingStems =
+        let first, second = "commonprefixcommonprefixcommonprefixcommon-n58445", "commonprefixcommonprefixcommonprefixcommon-n91859"
+
+        V4Ir(
+            "4.0.0",
+            aV4Library (packageName "p")
+            |> withModule (modulePath "m") (withType (name first) (alias Sdk.int) >> withType (name second) (alias Sdk.int))
+            |> buildV4
+        )
 
 [<Tests>]
 let tests =
@@ -295,14 +320,7 @@ let tests =
 
             testCase "Two cut stems that share a prefix and a digest are refused, not written to one path"
             <| fun () ->
-                let first, second = Cases.collidingTypes
-
-                let alias name =
-                    $"\"{name}\":{{\"Public\":{{\"TypeAliasDefinition\":{{\"typeParams\":[],\"typeExp\":\"morphir/SDK:basics#int\"}}}}}}"
-
-                let json = v4Library "p" $"\"m\":{{\"Public\":{{\"types\":{{{alias first},{alias second}}},\"values\":{{}}}}}}"
-
-                match IonIrWriter.writeTreeFiles 64 (readV4Json json) with
+                match IonIrWriter.writeTreeFiles 64 Cases.collidingStems with
                 | Ok files -> failtestf "The tree has one file for two types: %A" (List.map fst files)
                 | Result.Error error ->
                     Expect.equal error.Code "stem_collision" error.Message
@@ -397,6 +415,50 @@ let tests =
                         |> ignore
                     )
                     "A null version is a caller error, not a decode failure"
+
+            for version in [ "3.0.1"; "3.1.1" ] do
+                testCase $"formatVersion {version} with a null distribution is refused before the distribution is read"
+                <| fun () ->
+                    let json = ReadOnlyMemory(Encoding.UTF8.GetBytes $"{{\"formatVersion\":\"{version}\",\"distribution\":null}}")
+
+                    match IonIrWriter.readJson json with
+                    | Ok _ -> failtest "Read"
+                    | Result.Error error -> Expect.equal error.Code "unsupported_format_version_minor" $"readJson: {error.Message}"
+
+                    match IonIrWriter.ofJson json with
+                    | Ok _ -> failtest "Written"
+                    | Result.Error error -> Expect.equal error.Code "unsupported_format_version_minor" $"ofJson: {error.Message}"
+
+                    match IonIrWriter.ofJsonAs (version31 ()) json with
+                    | Ok _ -> failtest "Relabelled"
+                    | Result.Error error -> Expect.equal error.Code "unsupported_format_version_minor" $"ofJsonAs: {error.Message}"
+
+                    match IonIrWriter.ofJsonTree 4000 json with
+                    | Ok _ -> failtest "Written as a tree"
+                    | Result.Error error -> Expect.equal error.Code "unsupported_format_version_minor" $"ofJsonTree: {error.Message}"
+
+            for name, json in
+                [
+                    "a supported version first", "{\"formatVersion\":3,\"formatVersion\":\"3.0.1\",\"distribution\":null}"
+                    "an unsupported version first", "{\"formatVersion\":\"3.0.1\",\"formatVersion\":3,\"distribution\":null}"
+                ] do
+                testCase $"A repeated formatVersion with {name} is refused"
+                <| fun () ->
+                    let bytes = ReadOnlyMemory(Encoding.UTF8.GetBytes json)
+
+                    match IonIrWriter.readJson bytes with
+                    | Ok _ -> failtest "Read"
+                    | Result.Error error -> Expect.equal error.Code "duplicate_format_version" error.Message
+
+                    match IonIrWriting.TryWriteJson(bytes, version31 ()) with
+                    | true, _, _ -> failtest "Relabelled"
+                    | false, _, failure -> Expect.equal failure.Code "duplicate_format_version" failure.Message
+
+            testCase "A document with no formatVersion is refused"
+            <| fun () ->
+                match IonIrWriter.readJson (ReadOnlyMemory(Encoding.UTF8.GetBytes "{\"distribution\":null}")) with
+                | Ok _ -> failtest "Read"
+                | Result.Error error -> Expect.equal error.Code "missing_format_version" error.Message
 
             testCase "TryWriteJson gives the failure of JSON that is not IR"
             <| fun () ->
@@ -532,6 +594,30 @@ let tests =
 
                 for text in [ "1"; "2"; "3.99.0"; "4.1.0-draft.1"; "5" ] do
                     Expect.isFalse (IonIrWriting.Carries(parse text)) $"{text} is not carried"
+        ]
+
+        testList "Documentation" [
+            testCase "An absent v3 doc has no Ion spelling apart from the empty one, so it is refused"
+            <| fun () ->
+                match IonIrWriter.write Cases.undocumentedV3Alias with
+                | Ok bytes -> failtestf "The absent doc was written: %s" (text bytes)
+                | Result.Error error -> Expect.equal error.Code "unrepresentable_documentation" error.Message
+
+            testCase "The empty v3 doc reads back as the empty doc, and writes the same bytes again"
+            <| fun () ->
+                let bytes = IonIrWriter.write Cases.emptyDocumentedV3Alias |> ok "Writing"
+
+                match readIon bytes with
+                | ClassicIr(_, Morphir.IR.Classic.Distribution.Library(_, _, definition)) ->
+                    let entry = definition.Modules |> Map.toList |> List.exactlyOne |> snd
+                    let alias = entry.Value.Types |> Map.toList |> List.exactlyOne |> snd
+
+                    match alias.Value with
+                    | Morphir.IR.Classic.Documented.WithDocumentation("", _) -> ()
+                    | other -> failtestf "Expected the empty doc: %A" other
+                | other -> failtestf "Expected a v3 library: %A" other
+
+                Expect.equal (readIon bytes |> IonIrWriter.write |> ok "Writing again" |> text) (text bytes) "A fixed point"
         ]
 
         testList "Refusals" [

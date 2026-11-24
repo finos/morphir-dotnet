@@ -355,22 +355,24 @@ module IonIrWriter =
         Location = Some location
     }
 
-    let private isV4Root (root: JsonElement) =
-        match root.ValueKind with
-        | JsonValueKind.Object ->
-            match root.TryGetProperty "formatVersion" with
-            | true, version when version.ValueKind = JsonValueKind.Number -> version.GetRawText() = "4"
-            | true, version when version.ValueKind = JsonValueKind.String ->
-                (version.GetString() |> nonNull).StartsWith("4", StringComparison.Ordinal)
-            | _ -> false
-        | _ -> false
+    /// The exact release the root states, before any distribution is decoded (format-version.md: recognition and
+    /// compatibility come first). A root that is not an object is left to the distribution readers to report.
+    let private rootRelease (root: JsonElement) : string option =
+        if root.ValueKind <> JsonValueKind.Object then
+            None
+        else
+            let stated = [
+                for property in root.EnumerateObject() do
+                    if property.Name = "formatVersion" then
+                        property.Value
+            ]
 
-    /// The format version a JSON document states, as it spells it: an integer's digits, or a string.
-    let private statedVersion (root: JsonElement) =
-        match root.TryGetProperty "formatVersion" with
-        | true, version when version.ValueKind = JsonValueKind.Number -> Some(version.GetRawText())
-        | true, version when version.ValueKind = JsonValueKind.String -> version.GetString() |> Option.ofObj
-        | _ -> None
+            match stated with
+            | [] -> refuse "missing_format_version" "The root has no formatVersion member."
+            | [ version ] when version.ValueKind = JsonValueKind.Number -> Some(releaseOf (version.GetRawText()))
+            | [ version ] when version.ValueKind = JsonValueKind.String -> Some(releaseOf (version.GetString() |> nonNull))
+            | [ _ ] -> refuse "invalid_format_version_type" "formatVersion is an integer or a release string."
+            | _ -> refuse "duplicate_format_version" "The root has more than one formatVersion member."
 
     /// <summary>
     /// Reads a Morphir IR JSON document into the <see cref="IrDocument"/> the Ion writer takes: v4 through
@@ -382,18 +384,18 @@ module IonIrWriter =
         try
             use parsed = JsonDocument.Parse(json, JsonDocumentOptions(MaxDepth = 1_000_000))
             let root = parsed.RootElement
+            // The release as the JSON spells it: 3 is 3.0.0 and "3.1.0" stays 3.1.0. An unsupported, missing or repeated
+            // formatVersion is refused here, before a distribution reader runs, so no caller can relabel it.
+            let release = rootRelease root
 
-            if isV4Root root then
+            match release with
+            | Some "4.0.0" ->
                 match V4Json.readDistribution root with
-                | Ok read -> Ok(V4Ir(releaseOf read.FormatVersion, read.Distribution))
+                | Ok read -> Ok(V4Ir("4.0.0", read.Distribution))
                 | Result.Error error -> Result.Error(jsonError error.Rule error.Location error.Message)
-            else
+            | _ ->
                 match ClassicJson.readDistribution root with
-                | Ok read ->
-                    // The release check sees the version as the JSON spells it: 3 is 3.0.0 and "3.1.0" stays 3.1.0, and an
-                    // unsupported release such as "3.0.1" is refused here, so no caller can relabel it.
-                    let stated = statedVersion root |> Option.defaultValue (string read.Version)
-                    Ok(ClassicIr(releaseOf stated, read.Distribution))
+                | Ok read -> Ok(ClassicIr(defaultArg release (string read.Version), read.Distribution))
                 | Result.Error error -> Result.Error(jsonError error.Rule error.Location error.Message)
         with :? JsonException as error ->
             Result.Error {
@@ -441,6 +443,15 @@ type IonIrWriting =
     /// </summary>
     static member Release(version: Morphir.IR.Versioning.FormatVersion) : string | null =
         IonIrVersions.release (Morphir.IR.Versioning.version version) |> Option.toObj
+
+    /// <summary>
+    /// The version whose JSON writer gives the IR that Ion states at <paramref name="version"/>: IR <c>3</c> for
+    /// <c>3.1.0</c>, whose v3 library the JSON profile cannot state, and the version itself otherwise.
+    /// </summary>
+    static member JsonWriterVersion(version: Morphir.IR.Versioning.FormatVersion) : Morphir.IR.Versioning.FormatVersion =
+        match IonIrVersions.release (Morphir.IR.Versioning.version version) with
+        | Some "3.1.0" -> Morphir.IR.Versioning.Classic 3
+        | _ -> version
 
     /// <summary>
     /// Reads Morphir IR JSON and writes it as one canonical Ion datagram. It sets <paramref name="ion"/> and returns

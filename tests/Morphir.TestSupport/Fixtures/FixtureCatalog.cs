@@ -374,6 +374,13 @@ public static class FixtureCatalog
             KitFeature("values.feature", "9bbb3d092e29148d5eac4e8cd63bf2f9a9d5418b38755fba9453dfc108248f8c"),
         ];
 
+        /// <summary>
+        /// The Ion IR draft of finos/morphir (<c>docs/design/draft/ir/ion.md</c>) pinned beside the Ion fixtures, whose
+        /// examples state canonical Ion bytes, such as the canonical empty v3 library.
+        /// </summary>
+        public static FixtureEntry IonDraft { get; } = new(
+            "the pinned Ion IR draft", Directory + "ion-draft.md", "ebb72938b80d65e91683d484a98444e79835d3dd7aca317397d88dd8e2915a5d", Provenance);
+
         /// <summary>The path of a document below <see cref="Directory"/>, such as <c>pairs/v3-specs.json</c>.</summary>
         public static string NameOf(FixtureEntry document) => document.RelativePath[Directory.Length..];
 
@@ -938,7 +945,7 @@ public static class FixtureCatalog
     [
         .. Kit.Files, Mep.BoundedGenerationSession, .. BoundedWasmLimits.Files, OrdersScale.Guest, .. BoundedGenerationReceipts.Files,
         .. Models.All, .. BoundedOrders.Files, BoundedOrders.ExpandedV4, .. Trees.AcmeDemo, .. Trees.Written,
-        .. UpstreamIr.Documents, .. UpstreamIr.KitFeatures, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark,
+        .. UpstreamIr.Documents, .. UpstreamIr.KitFeatures, UpstreamIr.IonDraft, Rfc8785.Text, RdfNQuads.Corpus, RdfXml.Corpus, RdfCanon.Corpus, OkfDocuments.CommonMark,
         WasmHost.Corpus, WasmHost.UnknownNamespaceModule, .. Context.Files, .. Context.Policy.Files,
         .. Context.Naming.Files, .. DiagramsMbt.Files, .. DiagramExport.Files, CssColor.NamedColors
     ];

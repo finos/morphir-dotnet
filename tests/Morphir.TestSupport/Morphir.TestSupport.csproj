@@ -61,6 +61,7 @@
     <EmbeddedResource Include="../Fixtures/MorphirIon/records/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/records/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirIon/v4/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/v4/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirIon/kit/*.feature" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/kit/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirIon/ion-draft.md" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/ion-draft.md" />
     <EmbeddedResource Include="../Fixtures/MorphirIon/mep/fixtures/plain-ir.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/mep/fixtures/plain-ir.json" />
   </ItemGroup>
 
