@@ -419,6 +419,35 @@ public sealed class GenerationDocumentTreeLoaderTests
         invalidSeqFailure.Diagnostics[0].Code.Should().Be("invalid_yaml");
         invalidSeqFailure.Diagnostics[0].Location.Should().Be("/distribution/0");
 
+        // 1b. Unclosed flow mapping followed by a block key must return structured invalid_yaml with file and location
+        // in both explicit YAML and Auto modes (never escaping as unhandled InvalidOperationException / generation-failed).
+        var unclosedFlowPath = Path.Combine(sandbox.Work, "unclosed-flow-yaml");
+        File.WriteAllText(unclosedFlowPath, DocumentTreeMother.YamlDocuments.UnclosedFlowMappingThenBlockKeyYaml);
+        foreach (var format in new[] { InputFormat.Yaml, InputFormat.Auto })
+        {
+            var unclosedFlowFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(unclosedFlowPath, format)).Error;
+            unclosedFlowFailure.Diagnostics[0].Code.Should().Be("invalid_yaml");
+            unclosedFlowFailure.Diagnostics[0].Path.Should().Be(unclosedFlowPath);
+            unclosedFlowFailure.Diagnostics[0].Location.Should().NotBeNullOrWhiteSpace();
+        }
+
+        // 1c. Invalid UTF-8 bytes after a valid YAML header must classify as YAML and report invalid_yaml (not malformed-json).
+        var invalidUtf8Path = Path.Combine(sandbox.Work, "invalid-utf8-yaml");
+        File.WriteAllBytes(invalidUtf8Path, DocumentTreeMother.YamlDocuments.InvalidUtf8AfterYamlHeaderBytes);
+        var invalidUtf8Failure = ((Outcome<LoadedModel>.Failure)await LoadAsync(invalidUtf8Path, InputFormat.Auto)).Error;
+        invalidUtf8Failure.Diagnostics[0].Code.Should().Be("invalid_yaml");
+
+        // 1d. Flow mapping with valid unquoted key + ':' and unterminated value returns invalid_yaml, while "{broken" returns malformed-json.
+        var unterminatedFlowPath = Path.Combine(sandbox.Work, "unterminated-flow-yaml");
+        File.WriteAllText(unterminatedFlowPath, DocumentTreeMother.YamlDocuments.UnterminatedFlowValueYaml);
+        var unterminatedFlowFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(unterminatedFlowPath, InputFormat.Auto)).Error;
+        unterminatedFlowFailure.Diagnostics[0].Code.Should().Be("invalid_yaml");
+
+        var brokenBracePath = Path.Combine(sandbox.Work, "broken-brace-json");
+        File.WriteAllText(brokenBracePath, DocumentTreeMother.YamlDocuments.MalformedJsonBrace);
+        var brokenBraceFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(brokenBracePath, InputFormat.Auto)).Error;
+        brokenBraceFailure.Diagnostics[0].Code.Should().Be("malformed-json");
+
         // 2. Extensionless YAML exceeding node budget must report YAML node-budget diagnostic (not malformed-json).
         var validYamlPath = Path.Combine(sandbox.Work, "budget-yaml");
         File.WriteAllText(validYamlPath, DocumentTreeMother.YamlDocuments.V4DailyRateYaml("4"));

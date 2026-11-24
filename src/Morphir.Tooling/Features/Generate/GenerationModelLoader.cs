@@ -61,8 +61,6 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
                     return Failure("unsupported-format", "YAML model input is unsupported; use JSON or Ion IR.", original.SourcePath);
                 if (IsLegacyIon(candidate))
                     return Decode(candidate, new(candidate.SourcePath, InputFormat.Ion), limits, ct);
-                if (!HasJsonExtension(candidate) && ClassifyExtensionlessAuto(candidate, limits, ct) == InputFormat.Yaml)
-                    return Failure("unsupported-format", "YAML model input is unsupported; use JSON or Ion IR.", original.SourcePath);
                 return Decode(candidate, new(candidate.SourcePath, InputFormat.Json), limits, ct);
             }
 
@@ -128,7 +126,7 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         if (HasYamlExtension(file)) return DecodeYaml(file, limits, ct);
         if (HasJsonExtension(file)) return DecodeJson(file, limits, ct);
 
-        return ClassifyExtensionlessAuto(file, limits, ct) switch
+        return ClassifyExtensionlessAuto(file, ct) switch
         {
             InputFormat.Ion => DecodeIon(file, limits),
             InputFormat.Yaml => DecodeYaml(file, limits, ct),
@@ -253,10 +251,10 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
 
     /// <summary>
     /// Parser-backed Auto classifier for extensionless non-binary single files.
-    /// Uses Ion comment/annotation scanning + bounded <see cref="IonReader"/> for Ion-annotated inputs
-    /// and O(1) root-event <see cref="DocumentTreeStore.LooksLikeYamlDocument"/> inspection for YAML.
+    /// Uses bounded, cancellable <see cref="IonReader.LooksLikeAnnotatedIonPrefix"/> inspection for Ion-annotated
+    /// inputs and O(1) prefix <see cref="DocumentTreeStore.LooksLikeYamlDocument"/> inspection for YAML.
     /// </summary>
-    private static InputFormat ClassifyExtensionlessAuto(RetainedInput.File file, ModelReadLimits limits, CancellationToken ct)
+    private static InputFormat ClassifyExtensionlessAuto(RetainedInput.File file, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         var bytes = file.Entry.Memory.Span;
@@ -271,24 +269,17 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
 
         if (content.StartsWith("morphir::"u8) || content.StartsWith("morphir_model::"u8))
         {
-            var afterAnnotations = AdvancePastChainedIonAnnotations(content, ct);
-            if (afterAnnotations < content.Length && content[afterAnnotations] == (byte)'{')
+            if (IonReader.LooksLikeAnnotatedIonPrefix(file.Entry.Memory, ct))
                 return InputFormat.Ion;
-
-            var ion = IonReader.read(IonLimits(limits), file.Entry.Memory);
-            if (ion.IsOk) return InputFormat.Ion;
 
             return DocumentTreeStore.LooksLikeYamlDocument(file.Entry.Memory, ct)
                 ? InputFormat.Yaml
                 : InputFormat.Ion;
         }
 
-        if (FirstLineContainsColonColon(content))
-        {
-            var ion = IonReader.read(IonLimits(limits), file.Entry.Memory);
-            if (ion.IsOk && !ion.ResultValue.IsEmpty && !ion.ResultValue.Head.Annotations.IsEmpty)
-                return InputFormat.Json;
-        }
+        if (FirstLineContainsColonColon(content)
+            && IonReader.LooksLikeAnnotatedIonPrefix(file.Entry.Memory, ct))
+            return InputFormat.Json;
 
         return DocumentTreeStore.LooksLikeYamlDocument(file.Entry.Memory, ct)
             ? InputFormat.Yaml
@@ -327,71 +318,6 @@ public sealed class GenerationModelLoader(BoundedModelCapture capture) : IModelL
         }
         return index;
     }
-
-    private static int AdvancePastChainedIonAnnotations(ReadOnlySpan<byte> bytes, CancellationToken ct)
-    {
-        var i = 0;
-        while (i < bytes.Length)
-        {
-            i = SkipIonTrivia(bytes, i, ct);
-            if (!TrySkipIonAnnotation(bytes, i, out var next, ct))
-                break;
-            i = next;
-        }
-        return SkipIonTrivia(bytes, i, ct);
-    }
-
-    private static bool TrySkipIonAnnotation(ReadOnlySpan<byte> bytes, int start, out int nextIndex, CancellationToken ct)
-    {
-        nextIndex = start;
-        if (start >= bytes.Length) return false;
-
-        int i;
-        if (bytes[start] == (byte)'\'')
-        {
-            i = start + 1;
-            var closed = false;
-            while (i < bytes.Length)
-            {
-                if ((i & 1023) == 0) ct.ThrowIfCancellationRequested();
-                var b = bytes[i];
-                if (b == (byte)'\\') { i += 2; continue; }
-                if (b is (byte)'\r' or (byte)'\n') return false;
-                if (b == (byte)'\'') { i++; closed = true; break; }
-                i++;
-            }
-            if (!closed) return false;
-        }
-        else if (IsIonIdentifierStart(bytes[start]))
-        {
-            i = start + 1;
-            while (i < bytes.Length && IsIonIdentifierPart(bytes[i]))
-            {
-                if ((i & 1023) == 0) ct.ThrowIfCancellationRequested();
-                i++;
-            }
-        }
-        else
-        {
-            return false;
-        }
-
-        i = SkipIonTrivia(bytes, i, ct);
-        if (!bytes[i..].StartsWith("::"u8))
-            return false;
-
-        nextIndex = i + 2;
-        return true;
-    }
-
-    private static bool IsIonIdentifierStart(byte b) =>
-        (b >= (byte)'a' && b <= (byte)'z')
-        || (b >= (byte)'A' && b <= (byte)'Z')
-        || b == (byte)'_'
-        || b == (byte)'$';
-
-    private static bool IsIonIdentifierPart(byte b) =>
-        IsIonIdentifierStart(b) || (b >= (byte)'0' && b <= (byte)'9');
 
     private static bool FirstLineContainsColonColon(ReadOnlySpan<byte> bytes)
     {

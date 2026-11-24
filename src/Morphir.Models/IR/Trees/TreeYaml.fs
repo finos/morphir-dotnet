@@ -219,7 +219,22 @@ module internal TreeYaml =
                     fail path cursor "yaml_event_limit" "The YAML event budget was exceeded."
 
                 count <- count + 1
-                cursor <- if parser.MoveNext() then parser.Current else null
+
+                cursor <-
+                    try
+                        if parser.MoveNext() then parser.Current else null
+                    with :? InvalidOperationException as error ->
+                        let mark = scanner.CurrentPosition
+
+                        let pos =
+                            if mark.Line > 0L && mark.Column > 0L then
+                                $" (line {mark.Line}, column {mark.Column})"
+                            else
+                                match cursor with
+                                | null -> ""
+                                | nonNull -> $" (line {nonNull.Start.Line}, column {nonNull.Start.Column})"
+
+                        raise (TreeYamlFailure("invalid_yaml", pointer path, pos, error.Message))
 
             let checkNode path =
                 match cursor with
@@ -445,9 +460,212 @@ module internal TreeYaml =
 
             matched && isWhitespaceOrEof span (index + token.Length)
 
+    /// Streaming, zero-copy UTF-8 prefix reader for O(1) root classification.
+    /// Decodes small bounded chunks directly from <see cref="ReadOnlyMemory{Byte}"/>, honors cancellation,
+    /// and terminates at the first invalid UTF-8 sequence or prefix byte cap so invalid body bytes never
+    /// allocate the full file or mask a valid YAML header.
+    type private PrefixUtf8TextReader(bytes: ReadOnlyMemory<byte>, startOffset: int, maxBytes: int, ct: CancellationToken) =
+        inherit TextReader()
+
+        let endPos = min bytes.Length (startOffset + maxBytes)
+        let mutable pos = startOffset
+        let mutable pendingLowSurrogate = '\u0000'
+        let mutable ended = false
+
+        let tryDecodeCodePoint (span: ReadOnlySpan<byte>) =
+            if ended || pos >= endPos then
+                -1
+            else
+                let b0 = int span[pos]
+
+                if b0 < 0x80 then
+                    pos <- pos + 1
+                    b0
+                elif b0 >= 0xC2 && b0 <= 0xDF then
+                    if pos + 1 < endPos then
+                        let b1 = int span[pos + 1]
+
+                        if (b1 &&& 0xC0) = 0x80 then
+                            pos <- pos + 2
+                            ((b0 &&& 0x1F) <<< 6) ||| (b1 &&& 0x3F)
+                        else
+                            ended <- true
+                            -1
+                    else
+                        ended <- true
+                        -1
+                elif b0 >= 0xE0 && b0 <= 0xEF then
+                    if pos + 2 < endPos then
+                        let b1 = int span[pos + 1]
+                        let b2 = int span[pos + 2]
+
+                        let validSecond =
+                            (b1 &&& 0xC0) = 0x80
+                            && (b0 <> 0xE0 || b1 >= 0xA0)
+                            && (b0 <> 0xED || b1 <= 0x9F)
+
+                        if validSecond && (b2 &&& 0xC0) = 0x80 then
+                            pos <- pos + 3
+                            ((b0 &&& 0x0F) <<< 12) ||| ((b1 &&& 0x3F) <<< 6) ||| (b2 &&& 0x3F)
+                        else
+                            ended <- true
+                            -1
+                    else
+                        ended <- true
+                        -1
+                elif b0 >= 0xF0 && b0 <= 0xF4 then
+                    if pos + 3 < endPos then
+                        let b1 = int span[pos + 1]
+                        let b2 = int span[pos + 2]
+                        let b3 = int span[pos + 3]
+
+                        let validSecond =
+                            (b1 &&& 0xC0) = 0x80
+                            && (b0 <> 0xF0 || b1 >= 0x90)
+                            && (b0 <> 0xF4 || b1 <= 0x8F)
+
+                        if validSecond && (b2 &&& 0xC0) = 0x80 && (b3 &&& 0xC0) = 0x80 then
+                            pos <- pos + 4
+
+                            ((b0 &&& 0x07) <<< 18)
+                            ||| ((b1 &&& 0x3F) <<< 12)
+                            ||| ((b2 &&& 0x3F) <<< 6)
+                            ||| (b3 &&& 0x3F)
+                        else
+                            ended <- true
+                            -1
+                    else
+                        ended <- true
+                        -1
+                else
+                    ended <- true
+                    -1
+
+        override _.Read() =
+            ct.ThrowIfCancellationRequested()
+
+            if pendingLowSurrogate <> '\u0000' then
+                let ch = int pendingLowSurrogate
+                pendingLowSurrogate <- '\u0000'
+                ch
+            else
+                let cp = tryDecodeCodePoint bytes.Span
+
+                if cp < 0 then
+                    -1
+                elif cp <= 0xFFFF then
+                    cp
+                else
+                    let adjusted = cp - 0x10000
+                    pendingLowSurrogate <- char (0xDC00 + (adjusted &&& 0x3FF))
+                    0xD800 + (adjusted >>> 10)
+
+        override _.Read(buffer: char array, index: int, count: int) =
+            ct.ThrowIfCancellationRequested()
+            let limit = min count 256
+            let span = bytes.Span
+            let mutable written = 0
+
+            if pendingLowSurrogate <> '\u0000' && written < limit then
+                buffer[index + written] <- pendingLowSurrogate
+                pendingLowSurrogate <- '\u0000'
+                written <- written + 1
+
+            let mutable keepReading = true
+
+            while keepReading && written < limit do
+                let cp = tryDecodeCodePoint span
+
+                if cp < 0 then
+                    keepReading <- false
+                elif cp <= 0xFFFF then
+                    buffer[index + written] <- char cp
+                    written <- written + 1
+                else
+                    let adjusted = cp - 0x10000
+                    buffer[index + written] <- char (0xD800 + (adjusted >>> 10))
+                    written <- written + 1
+                    let low = char (0xDC00 + (adjusted &&& 0x3FF))
+
+                    if written < limit then
+                        buffer[index + written] <- low
+                        written <- written + 1
+                    else
+                        pendingLowSurrogate <- low
+
+            written
+
+    let private isFlowIndicator (b: byte) =
+        b = byte ',' || b = byte '[' || b = byte ']' || b = byte '{' || b = byte '}'
+
+    /// Recognizes a YAML flow mapping header directly from the opening <c>{</c>, first plain or
+    /// single-quoted key, and <c>:</c> value delimiter without advancing into or lexing the value.
+    let private looksLikeYamlFlowMappingHeader
+        (span: ReadOnlySpan<byte>)
+        (startIndex: int)
+        (maxBytes: int)
+        (ct: CancellationToken)
+        : bool =
+        let endPos = min span.Length (startIndex + maxBytes)
+        let first = span[startIndex]
+
+        if first = byte '\'' then
+            let mutable k = startIndex + 1
+            let mutable closed = false
+
+            while not closed && k < endPos do
+                if (k &&& 1023) = 0 then
+                    ct.ThrowIfCancellationRequested()
+
+                if span[k] = byte '\'' then
+                    if k + 1 < endPos && span[k + 1] = byte '\'' then
+                        k <- k + 2
+                    else
+                        k <- k + 1
+                        closed <- true
+                else
+                    k <- k + 1
+
+            if not closed then
+                false
+            else
+                while k < endPos && isAsciiWhitespace span[k] do
+                    if (k &&& 1023) = 0 then
+                        ct.ThrowIfCancellationRequested()
+
+                    k <- k + 1
+
+                k < endPos && span[k] = byte ':'
+        elif isFlowIndicator first || first = byte '"' || first = byte '#' then
+            false
+        else
+            let mutable k = startIndex
+            let mutable found = false
+            let mutable stop = false
+
+            while not found && not stop && k < endPos do
+                if (k &&& 1023) = 0 then
+                    ct.ThrowIfCancellationRequested()
+
+                let b = span[k]
+
+                if isFlowIndicator b then
+                    stop <- true
+                elif b = byte ':' then
+                    let nextIdx = k + 1
+
+                    if nextIdx >= span.Length || isAsciiWhitespace span[nextIdx] || isFlowIndicator span[nextIdx] then
+                        found <- true
+                    else
+                        k <- k + 1
+                else
+                    k <- k + 1
+
+            found
+
     let looksLikeYamlDocument (bytes: ReadOnlyMemory<byte>) (ct: CancellationToken) : bool =
         ct.ThrowIfCancellationRequested()
-        let mutable span = bytes.Span
+        let span = bytes.Span
 
         if
             span.IsEmpty
@@ -459,10 +677,11 @@ module internal TreeYaml =
         then
             false
         else
-            if span.Length >= 3 && span[0] = 0xEFuy && span[1] = 0xBBuy && span[2] = 0xBFuy then
-                span <- span.Slice 3
-
-            let mutable i = 0
+            let mutable i =
+                if span.Length >= 3 && span[0] = 0xEFuy && span[1] = 0xBBuy && span[2] = 0xBFuy then
+                    3
+                else
+                    0
 
             while i < span.Length && isAsciiWhitespace span[i] do
                 if (i &&& 1023) = 0 then
@@ -483,85 +702,51 @@ module internal TreeYaml =
                     true
                 elif first = byte '[' then
                     false
-                else
-                    let fastDecision =
-                        if first = byte '{' then
-                            let mutable j = i + 1
+                elif first = byte '{' then
+                    let mutable j = i + 1
 
-                            while j < span.Length && isAsciiWhitespace span[j] do
-                                if (j &&& 1023) = 0 then
-                                    ct.ThrowIfCancellationRequested()
-
-                                j <- j + 1
-
-                            if j >= span.Length then Some false
-                            elif span[j] = byte '"' || span[j] = byte '}' then Some false
-                            elif span[j] = byte '#' then Some true
-                            elif span[j] = byte '?' && isWhitespaceOrEof span (j + 1) then Some true
-                            else None
-                        else
-                            None
-
-                    match fastDecision with
-                    | Some decided -> decided
-                    | None ->
-                        try
+                    while j < span.Length && isAsciiWhitespace span[j] do
+                        if (j &&& 1023) = 0 then
                             ct.ThrowIfCancellationRequested()
-                            let encoding = UTF8Encoding(encoderShouldEmitUTF8Identifier = false, throwOnInvalidBytes = true)
-                            let text = encoding.GetString(span.Slice(i).ToArray())
-                            use reader = new StringReader(text)
-                            let parser = Parser(reader)
 
-                            if not (parser.MoveNext()) || not (parser.Current :? StreamStart) then
+                        j <- j + 1
+
+                    if j >= span.Length then
+                        false
+                    elif span[j] = byte '"' || span[j] = byte '}' then
+                        false
+                    elif span[j] = byte '#' then
+                        true
+                    elif span[j] = byte '?' && isWhitespaceOrEof span (j + 1) then
+                        true
+                    else
+                        looksLikeYamlFlowMappingHeader span j 65_536 ct
+                else
+                    try
+                        ct.ThrowIfCancellationRequested()
+                        use reader = new PrefixUtf8TextReader(bytes, i, 65_536, ct)
+                        let parser = Parser(reader)
+
+                        if not (parser.MoveNext()) || not (parser.Current :? StreamStart) then
+                            false
+                        else
+                            ct.ThrowIfCancellationRequested()
+
+                            if not (parser.MoveNext()) then
                                 false
                             else
-                                ct.ThrowIfCancellationRequested()
+                                match parser.Current with
+                                | :? DocumentStart as docStart when not docStart.IsImplicit -> true
+                                | :? DocumentStart ->
+                                    ct.ThrowIfCancellationRequested()
 
-                                if not (parser.MoveNext()) then
-                                    false
-                                else
-                                    match parser.Current with
-                                    | :? DocumentStart as docStart when not docStart.IsImplicit -> true
-                                    | :? DocumentStart ->
-                                        ct.ThrowIfCancellationRequested()
-
-                                        if not (parser.MoveNext()) then
-                                            false
-                                        else
-                                            match parser.Current with
-                                            | :? MappingStart as mapping when mapping.Style = MappingStyle.Block -> true
-                                            | :? MappingStart as mapping when mapping.Style = MappingStyle.Flow ->
-                                                ct.ThrowIfCancellationRequested()
-
-                                                if not (parser.MoveNext()) then
-                                                    false
-                                                else
-                                                    match parser.Current with
-                                                    | :? Scalar as scalar when
-                                                        scalar.Style = ScalarStyle.Plain
-                                                        || scalar.Style = ScalarStyle.SingleQuoted
-                                                        ->
-                                                        // Advance past the first flow key to its value. When YAML synthesizes
-                                                        // an implicit empty null value (for example truncated "{broken"), step
-                                                        // one more event so EOF triggers YamlException (false) instead of
-                                                        // misclassifying truncated JSON-like input as YAML.
-                                                        ct.ThrowIfCancellationRequested()
-
-                                                        if not (parser.MoveNext()) then
-                                                            false
-                                                        else
-                                                            match parser.Current with
-                                                            | :? Scalar as value when
-                                                                value.Style = ScalarStyle.Plain
-                                                                && value.Value.Length = 0
-                                                                && value.Start = value.End
-                                                                ->
-                                                                ct.ThrowIfCancellationRequested()
-                                                                parser.MoveNext()
-                                                            | _ -> true
-                                                    | _ -> false
-                                            | _ -> false
-                                    | _ -> false
-                        with
-                        | :? YamlException
-                        | :? DecoderFallbackException -> false
+                                    if not (parser.MoveNext()) then
+                                        false
+                                    else
+                                        match parser.Current with
+                                        | :? MappingStart as mapping when mapping.Style = MappingStyle.Block -> true
+                                        | _ -> false
+                                | _ -> false
+                    with
+                    | :? YamlException
+                    | :? InvalidOperationException -> false

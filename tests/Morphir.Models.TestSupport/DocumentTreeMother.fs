@@ -1165,6 +1165,41 @@ module YamlDocuments =
     [<CompiledName("MalformedDistributionSequenceYaml")>]
     let malformedDistributionSequenceYaml = "formatVersion: 4\ndistribution: [broken\n"
 
+    /// A malformed YAML document with an unclosed flow mapping followed by a block key,
+    /// which triggers <see cref="System.InvalidOperationException"/> inside YamlDotNet unless caught at the parser boundary.
+    [<CompiledName("UnclosedFlowMappingThenBlockKeyYaml")>]
+    let unclosedFlowMappingThenBlockKeyYaml = "formatVersion: 4\ndistribution: {key: value\nfoo: bar\n"
+
+    /// A YAML flow mapping header with an unterminated single-quoted value, which Auto must classify as YAML (<c>invalid_yaml</c>).
+    [<CompiledName("UnterminatedFlowValueYaml")>]
+    let unterminatedFlowValueYaml = "{formatVersion: 'unterminated"
+
+    /// A valid YAML mapping header followed by invalid UTF-8 bytes in the body, which Auto must classify as YAML (<c>invalid_yaml</c>).
+    [<CompiledName("InvalidUtf8AfterYamlHeaderBytes")>]
+    let invalidUtf8AfterYamlHeaderBytes: byte array =
+        Array.append (System.Text.Encoding.UTF8.GetBytes "formatVersion: 4\ndistribution: ") [| 0xFFuy; 0xFEuy; 0x0Auy |]
+
+    /// A simple custom plain YAML mapping (<c>custom: value</c>) used to verify extensionless <c>validate</c> parity.
+    [<CompiledName("CustomMappingYaml")>]
+    let customMappingYaml = "custom: value\n"
+
+    /// The standard Amazon Ion 1.0 binary version marker (IVM) bytes.
+    [<CompiledName("BinaryIonVersionMarker")>]
+    let binaryIonVersionMarker: byte array = [| 0xE0uy; 0x01uy; 0x00uy; 0xEAuy |]
+
+    /// Generates a large valid plain YAML body of approximately <paramref name="approxBytes"/> bytes for O(1) prefix-classification tests.
+    [<CompiledName("LargePlainYamlBytes")>]
+    let largePlainYamlBytes (approxBytes: int) : byte array =
+        let header = "formatVersion: 4\ndistribution:\n"
+        let line = "  entry: \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"\n"
+        let sb = System.Text.StringBuilder(max approxBytes (header.Length + line.Length))
+        sb.Append(header) |> ignore
+
+        while sb.Length < approxBytes do
+            sb.Append(line) |> ignore
+
+        System.Text.Encoding.UTF8.GetBytes(sb.ToString())
+
     /// A YAML document carrying an undeclared <c>$schema</c> URI without any MEP marker.
     [<CompiledName("UndeclaredSchemaYaml")>]
     let undeclaredSchemaYaml =

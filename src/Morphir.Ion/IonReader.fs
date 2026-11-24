@@ -5,6 +5,7 @@ open System.Globalization
 open System.IO
 open System.Runtime.CompilerServices
 open System.Runtime.InteropServices
+open System.Threading
 open Eleven19.IonDotnet
 open Eleven19.IonDotnet.Builders
 
@@ -311,3 +312,64 @@ module IonReader =
                 memory.Write(buffer, 0, count)
 
         read limits (ReadOnlyMemory<byte>(memory.GetBuffer(), 0, int memory.Length))
+
+    /// <summary>
+    /// For C# callers: inspects a bounded prefix of <paramref name="bytes"/> to determine whether the input begins with
+    /// an annotated Ion top-level value (such as <c>morphir::{...}</c>, <c>morphir::bare</c>, or
+    /// <c>custom::"hello: world"</c>), without decoding or copying the full document body.
+    /// Returns <c>false</c> for YAML mappings whose keys contain <c>::</c> (such as <c>morphir::[key]: ignored</c> or
+    /// <c>custom:: "ignored"\n$schema: ...</c>). C# calls this <c>LooksLikeAnnotatedIonPrefix</c>.
+    /// </summary>
+    [<CompiledName("LooksLikeAnnotatedIonPrefix")>]
+    let looksLikeAnnotatedIonPrefix (bytes: ReadOnlyMemory<byte>, cancellationToken: CancellationToken) : bool =
+        cancellationToken.ThrowIfCancellationRequested()
+
+        let trimmed =
+            let span = bytes.Span
+
+            if span.Length >= 3 && span[0] = 0xEFuy && span[1] = 0xBBuy && span[2] = 0xBFuy then
+                bytes.Slice(3)
+            else
+                bytes
+
+        if trimmed.IsEmpty then
+            false
+        else
+            let prefixLimit = 65_536
+            let prefix = if trimmed.Length > prefixLimit then trimmed.Slice(0, prefixLimit) else trimmed
+
+            try
+                let stream =
+                    match MemoryMarshal.TryGetArray prefix with
+                    | true, segment ->
+                        new MemoryStream(segment.Array, segment.Offset, segment.Count, false)
+                    | _ -> new MemoryStream(prefix.ToArray(), false)
+
+                use stream = stream
+                use reader = IonReaderBuilder.Build(stream)
+                cancellationToken.ThrowIfCancellationRequested()
+                let firstType = reader.MoveNext()
+
+                if firstType = IonType.None then
+                    false
+                elif reader.GetTypeAnnotationSymbols() |> Seq.isEmpty then
+                    false
+                elif firstType = IonType.Struct then
+                    true
+                else
+                    // For non-struct annotated values (such as morphir::bare, custom::"hello: world", or
+                    // YAML keys like morphir::[key]: ignored), probe a bounded number of subsequent top-level
+                    // Ion tokens so trailing YAML ':' delimiters fail Ion parsing and return false.
+                    let mutable steps = 0
+                    let mutable current = firstType
+
+                    while current <> IonType.None && steps < 4 do
+                        cancellationToken.ThrowIfCancellationRequested()
+                        current <- reader.MoveNext()
+                        steps <- steps + 1
+
+                    true
+            with
+            | :? OperationCanceledException -> reraise ()
+            | :? OutOfMemoryException -> reraise ()
+            | _ -> false

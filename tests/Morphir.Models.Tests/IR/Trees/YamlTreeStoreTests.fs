@@ -890,22 +890,73 @@ let tests =
                 Expect.equal (classicErr.ToString()) $"{classicErr.Rule} ({classicErr.Location}): {classicErr.Message}" "ClassicJsonError.ToString format"
             }
 
+            test "TryReadYamlDocument turns YamlDotNet InvalidOperationException into structured invalid_yaml" {
+                let bytes = ReadOnlyMemory(Encoding.UTF8.GetBytes YamlDocs.unclosedFlowMappingThenBlockKeyYaml)
+                let mutable root = Unchecked.defaultof<JsonElement>
+                let mutable errors = Unchecked.defaultof<System.Collections.Generic.IReadOnlyList<TreeDiagnostic>>
+
+                let ok =
+                    DocumentTreeStore.tryReadYamlDocument (
+                        "broken-flow.yaml",
+                        bytes,
+                        1_048_576L,
+                        64,
+                        10_000,
+                        CancellationToken.None,
+                        &root,
+                        &errors
+                    )
+
+                Expect.isFalse ok "Unclosed flow mapping followed by block key must fail cleanly"
+                Expect.equal errors.Count 1 "Exactly one structured diagnostic"
+                Expect.equal errors[0].Code "invalid_yaml" "Reports invalid_yaml instead of throwing InvalidOperationException"
+                Expect.equal errors[0].File "broken-flow.yaml" "Preserves input file path"
+                Expect.isNonEmpty errors[0].Location "Preserves logical location"
+            }
+
             test "LooksLikeYamlDocument classifies YAML root framing and mappings without masking body errors or malformed JSON" {
                 let check (text: string) =
                     DocumentTreeStore.looksLikeYamlDocument (ReadOnlyMemory(Encoding.UTF8.GetBytes text), CancellationToken.None)
 
                 Expect.isTrue (check YamlDocs.minimalV4PlainYaml) "Plain block mapping"
                 Expect.isTrue (check YamlDocs.malformedDistributionSequenceYaml) "Block mapping with later malformed sequence"
+                Expect.isTrue (check YamlDocs.unclosedFlowMappingThenBlockKeyYaml) "Block mapping with unclosed flow mapping body"
                 Expect.isTrue (check YamlDocs.mepCrOnlyCommentEnvelopeYaml) "CR-only leading comment"
                 Expect.isTrue (check YamlDocs.mepFlowMappingEnvelopeYaml) "Unquoted flow mapping"
+                Expect.isTrue (check YamlDocs.unterminatedFlowValueYaml) "Flow mapping with unterminated value still classifies as YAML"
                 Expect.isTrue (check YamlDocs.flowColonColonParenKeyWithUndeclaredSchemaYaml) "Flow mapping with ::(key)"
                 Expect.isTrue (check YamlDocs.v4DailyRateYamlWithMorphirBracketKey) "Block mapping starting with morphir::[key]:"
                 Expect.isTrue (check YamlDocs.v4DailyRateYamlWithCustomDoubleColonQuotedValue) "Block mapping starting with custom:: \"ignored\""
+                Expect.isTrue (DocumentTreeStore.looksLikeYamlDocument (ReadOnlyMemory YamlDocs.invalidUtf8AfterYamlHeaderBytes, CancellationToken.None)) "Invalid UTF-8 after valid YAML header still classifies as YAML"
+
+                let mutable utf8Root = Unchecked.defaultof<JsonElement>
+                let mutable utf8Errors = Unchecked.defaultof<System.Collections.Generic.IReadOnlyList<TreeDiagnostic>>
+                let utf8Ok =
+                    DocumentTreeStore.tryReadYamlDocument (
+                        "invalid-utf8.yaml",
+                        ReadOnlyMemory YamlDocs.invalidUtf8AfterYamlHeaderBytes,
+                        1_048_576L,
+                        64,
+                        10_000,
+                        CancellationToken.None,
+                        &utf8Root,
+                        &utf8Errors
+                    )
+                Expect.isFalse utf8Ok "Invalid UTF-8 fails in full YAML read"
+                Expect.equal utf8Errors[0].Code "invalid_yaml" "Invalid UTF-8 reports invalid_yaml"
+
+                // O(1) / low allocation check on a 4 MB YAML body (after warm-up).
+                let largeYaml = ReadOnlyMemory(YamlDocs.largePlainYamlBytes (4 * 1024 * 1024))
+                let allocatedBefore = GC.GetAllocatedBytesForCurrentThread()
+                let largeIsYaml = DocumentTreeStore.looksLikeYamlDocument (largeYaml, CancellationToken.None)
+                let allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore
+                Expect.isTrue largeIsYaml "4 MB YAML body classifies as YAML"
+                Expect.isLessThan allocatedBytes 131_072L "LooksLikeYamlDocument must inspect only a bounded prefix in O(1) memory"
 
                 Expect.isFalse (check YamlDocs.trailingCommaV4DailyRateJson) "Trailing-comma JSON object stays JSON"
                 Expect.isFalse (check YamlDocs.malformedJsonBrace) "Truncated {broken stays JSON"
                 Expect.isFalse (check YamlDocs.emptyJsonObject) "Empty JSON object stays JSON"
-                Expect.isFalse (DocumentTreeStore.looksLikeYamlDocument (ReadOnlyMemory [| 0xE0uy; 0x01uy; 0x00uy; 0xEAuy |], CancellationToken.None)) "Binary Ion stays non-YAML"
+                Expect.isFalse (DocumentTreeStore.looksLikeYamlDocument (ReadOnlyMemory YamlDocs.binaryIonVersionMarker, CancellationToken.None)) "Binary Ion stays non-YAML"
 
                 use cts = new CancellationTokenSource()
                 cts.Cancel()

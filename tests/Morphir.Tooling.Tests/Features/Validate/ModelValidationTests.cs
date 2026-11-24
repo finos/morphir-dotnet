@@ -266,11 +266,18 @@ public sealed class ModelValidationTests
         yamlReport.ExitCode.Should().Be(2);
         yamlReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-format");
 
-        var extensionlessYaml = Path.Combine(sandbox.Work, "extensionless-mep");
-        await File.WriteAllTextAsync(extensionlessYaml, Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.MepCrOnlyCommentEnvelopeYaml);
-        var extensionlessReport = await Validation(registry).RunAsync(new ValidateOverrides(extensionlessYaml, "auto"), new InvocationContext(sandbox.Work), default);
-        extensionlessReport.ExitCode.Should().Be(2);
-        extensionlessReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-format");
+        // Released validate parity: extensionless comment-led YAML and custom: value stay malformed-json (not unsupported-format).
+        var extensionlessCommentYaml = Path.Combine(sandbox.Work, "extensionless-mep");
+        await File.WriteAllTextAsync(extensionlessCommentYaml, Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.MepCrOnlyCommentEnvelopeYaml);
+        var extensionlessCommentReport = await Validation(registry).RunAsync(new ValidateOverrides(extensionlessCommentYaml, "auto"), new InvocationContext(sandbox.Work), default);
+        extensionlessCommentReport.ExitCode.Should().Be(2);
+        extensionlessCommentReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("malformed-json");
+
+        var extensionlessCustomYaml = Path.Combine(sandbox.Work, "extensionless-custom");
+        await File.WriteAllTextAsync(extensionlessCustomYaml, Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.CustomMappingYaml);
+        var extensionlessCustomReport = await Validation(registry).RunAsync(new ValidateOverrides(extensionlessCustomYaml, "auto"), new InvocationContext(sandbox.Work), default);
+        extensionlessCustomReport.ExitCode.Should().Be(2);
+        extensionlessCustomReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("malformed-json");
 
         var jsonSuffixedYaml = Path.Combine(sandbox.Work, "yaml-content.json");
         await File.WriteAllTextAsync(jsonSuffixedYaml, Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.V4DailyRateYaml("4"));
