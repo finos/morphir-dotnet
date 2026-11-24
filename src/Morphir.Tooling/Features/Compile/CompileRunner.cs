@@ -117,8 +117,10 @@ public sealed class CompileRunner(
             }
 
             yield return new CompileEvent.StageStarted(CompileStage.Write);
+            byte[] json = [];
             var writeRun = await Guard(CompileStage.Write,
-                () => Task.FromResult(writer.Writer.Write(writer.Target, PublishedLayout, compiled.Package.Model)), ct);
+                () => Task.FromResult(CompileIrFormats.Encode(settings.IrFormat.Value,
+                    writer.Writer.Write(writer.Target, PublishedLayout, compiled.Package.Model), written => json = written)), ct);
             foreach (var e in Report(CompileStage.Write, writeRun)) yield return e;
             if (!writeRun.Passed(out var bytes))
             {
@@ -128,7 +130,8 @@ public sealed class CompileRunner(
 
             yield return new CompileEvent.StageStarted(CompileStage.Publish);
             var publishRun = await Guard(CompileStage.Publish, () => publication.PublishAsync(new CompilePublishRequest(
-                compiled.Frontend.Language.Value, writer.Target.Version, sources.Selection.ProjectFileOrNull, bytes), ct), ct);
+                compiled.Frontend.Language.Value, writer.Target.Version, sources.Selection.ProjectFileOrNull, bytes)
+            { Format = settings.IrFormat.Value }, ct), ct);
             foreach (var e in Report(CompileStage.Publish, publishRun)) yield return e;
             if (!publishRun.Passed(out var published))
             {
@@ -156,7 +159,8 @@ public sealed class CompileRunner(
                 { Sources = sources, Frontend = success.Frontend, Compiled = success }), settings);
                 yield break;
             }
-            await foreach (var e in generation.RunAsync(target, success, settings, bytes, _passes, ct)) yield return e;
+            var (input, format) = CompileIrFormats.GenerationInput(settings.IrFormat.Value, json, bytes);
+            await foreach (var e in generation.RunAsync(target, success, settings, input, _passes, ct, format)) yield return e;
         }
         finally
         {

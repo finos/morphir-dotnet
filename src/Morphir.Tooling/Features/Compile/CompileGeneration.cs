@@ -89,10 +89,11 @@ public sealed class CompileGenerationStages(IGenerationBackendResolver backends,
     /// registered passes of the compile; the passes before the backend continue the lineage of the passes after the frontend.
     /// </summary>
     public async IAsyncEnumerable<CompileEvent> RunAsync(CompileTarget target, CompileSuccess compiled, CompileSettings settings,
-        ReadOnlyMemory<byte> ir, Transform.ModelPasses? passes = null, [EnumeratorCancellation] CancellationToken ct = default)
+        ReadOnlyMemory<byte> ir, Transform.ModelPasses? passes = null, [EnumeratorCancellation] CancellationToken ct = default,
+        InputFormat format = InputFormat.Auto)
     {
         var irPath = compiled.Publication.IrPath;
-        var input = new ModelInput(irPath, InputFormat.Auto);
+        var input = new ModelInput(irPath, format);
         var options = target.Options.WithConfigured(settings.ConfiguredBackendOptions);
         var generationSettings = new GenerationSettings(input, target.Target, options, new PublicationPolicy(target.OutputDirectory), Limits);
         var gate = new StagedPublisher(publisher);

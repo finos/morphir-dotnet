@@ -143,6 +143,21 @@ public sealed class CompileCommandTests
         origin.GetProperty("flag").GetString().Should().Be("--ir-version");
     }
 
+    [Test]
+    [Category("PlatformSpecific")]
+    public async Task TheIrFormatFlagSelectsTheFormatAndIsTheOriginInTheReport()
+    {
+        var project = Project();
+        using var _ = project.Workspace;
+        var run = await Compile(project, "--json=document --ir-format yaml");
+        run.Exit.Should().Be(0, run.Output.Text);
+        using var report = JsonDocument.Parse(run.Output.Text);
+        report.RootElement.GetProperty("output").GetString().Should().EndWith("morphir-ir.yaml");
+        var origin = report.RootElement.GetProperty("origins").GetProperty("irFormat");
+        origin.GetProperty("kind").GetString().Should().Be("cli");
+        origin.GetProperty("flag").GetString().Should().Be("--ir-format");
+    }
+
     // cli-model-compilation, Scenario: Warnings from every stage in a successful report
     [Test]
     [Category("PlatformSpecific")]
@@ -421,6 +436,9 @@ public sealed class CompileCommandTests
     [Arguments("", 0)]
     [Arguments("--ir-version 4.1.0-draft.1", 2)]
     [Arguments("--types-only", 2)]
+    [Arguments("--ir-format toml", 2)]
+    [Arguments("--ir-format ion --ir-version 2", 2)]
+    [Arguments("--ir-format ion", 0)]
     [Arguments("--input src/Rates.fs --project-file src/Acme.CarRental.fsproj", 2)]
     [Arguments("--input src/Rates.fs", 0)]
     public async Task ExitCodesFollowTheGenerationConvention(string arguments, int exit)

@@ -4,6 +4,7 @@ using FluentAssertions;
 using Morphir.Compilation;
 using FormatVersion = Morphir.IR.Versioning.FormatVersion;
 using Morphir.Tooling.Features.Compile;
+using Morphir.Tooling.Features.TaskRecords;
 
 namespace Morphir.Tooling.Tests.Features.Compile;
 
@@ -211,16 +212,76 @@ public sealed class CompileSettingsResolverTests
     }
 
     [Test]
-    [Arguments("yaml", "YAML IR is not implemented")]
-    [Arguments("ion", "Ion IR output is not implemented")]
-    public void AnUnimplementedIrFormatIsRefusedNamingTheKeyAndFile(string format, string reason)
+    [Arguments("json", IrStorageFormat.Json)]
+    [Arguments("yaml", IrStorageFormat.Yaml)]
+    [Arguments("ion", IrStorageFormat.Ion)]
+    public void TheConfiguredIrFormatAppliesWithItsOrigin(string format, IrStorageFormat expected)
     {
         using var workspace = new CompileWorkspace();
         workspace.Write("morphir.toml", $"[project]\nname = \"acme/demo\"\n\n[ir]\nformat = \"{format}\"\n");
+        var settings = Passed(Resolver.Resolve(new CompileOverrides(), workspace.Context()));
+        settings.IrFormat.Value.Should().Be(expected);
+        settings.IrFormat.Origin.Should().BeOfType<SettingOrigin.Configuration>().Which.Key.Should().Be("ir.format");
+        settings.Origins().Should().Contain(("irFormat", settings.IrFormat.Origin));
+    }
+
+    [Test]
+    public void TheIrFormatFlagOverridesTheConfiguration()
+    {
+        using var workspace = new CompileWorkspace();
+        workspace.Write("morphir.toml", "[project]\nname = \"acme/demo\"\n\n[ir]\nformat = \"yaml\"\n");
+        var settings = Passed(Resolver.Resolve(new CompileOverrides { IrFormat = "ion" }, workspace.Context()));
+        settings.IrFormat.Value.Should().Be(IrStorageFormat.Ion);
+        settings.IrFormat.Origin.Should().Be(new SettingOrigin.CommandLine("--ir-format"));
+    }
+
+    [Test]
+    public void WithoutAFormatTheIrIsJson()
+    {
+        using var workspace = new CompileWorkspace();
+        var settings = Passed(Resolver.Resolve(new CompileOverrides { PackageName = "acme/demo", Inputs = ["A.fs"] }, workspace.Context()));
+        settings.IrFormat.Value.Should().Be(IrStorageFormat.Json);
+        settings.IrFormat.Origin.Should().Be(SettingOrigin.Default.Instance);
+    }
+
+    [Test]
+    public void AnUnknownIrFormatFlagIsInvalid()
+    {
+        using var workspace = new CompileWorkspace();
+        var result = Resolver.Resolve(new CompileOverrides { PackageName = "acme/demo", IrFormat = "toml" }, workspace.Context());
+        Codes(result).Should().Equal("compile.invalid_setting");
+        result.Diagnostics.Single(d => d.IsError).Message.Should().Contain("toml").And.Contain("--ir-format")
+            .And.Contain("json").And.Contain("yaml").And.Contain("ion");
+    }
+
+    [Test]
+    [Arguments("1")]
+    [Arguments("2")]
+    public void IonIsRefusedForIrBeforeVersionThree(string version)
+    {
+        using var workspace = new CompileWorkspace();
+        workspace.Write("morphir.toml", $"[project]\nname = \"acme/demo\"\n\n[ir]\nformat = \"ion\"\nformat_version = {version}\n");
         var result = Resolver.Resolve(new CompileOverrides(), workspace.Context());
         Codes(result).Should().Equal("compile.unsupported_setting");
-        result.Diagnostics.Single(d => d.IsError).Message.Should()
-            .Contain($"ir.format = \"{format}\"").And.Contain("morphir.toml").And.Contain(reason);
+        result.Diagnostics.Single(d => d.IsError).Message.Should().Contain("ir.format = \"ion\"").And.Contain("morphir.toml")
+            .And.Contain($"IR version {version}").And.Contain("3").And.Contain("4");
+    }
+
+    [Test]
+    [Arguments("3", IrStorageFormat.Ion)]
+    [Arguments("4.0.0", IrStorageFormat.Ion)]
+    [Arguments("1", IrStorageFormat.Yaml)]
+    public void AnIrFormatAppliesToTheVersionsItCarries(string version, IrStorageFormat format)
+    {
+        using var workspace = new CompileWorkspace();
+        var settings = Passed(Resolver.Resolve(new CompileOverrides
+        {
+            PackageName = "acme/demo",
+            Inputs = ["A.fs"],
+            IrVersion = version,
+            IrFormat = format.ToString().ToLowerInvariant(),
+        }, workspace.Context()));
+        settings.IrFormat.Value.Should().Be(format);
     }
 
     [Test]

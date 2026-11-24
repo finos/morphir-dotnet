@@ -24,7 +24,11 @@ public interface ICompilePublisher
 /// <param name="IrVersion">The format version of the written IR.</param>
 /// <param name="ProjectFile">The absolute project file that supplied the sources, or null.</param>
 /// <param name="Ir">The exact bytes that the writer wrote.</param>
-public sealed record CompilePublishRequest(string Language, FormatVersion IrVersion, string? ProjectFile, ReadOnlyMemory<byte> Ir);
+public sealed record CompilePublishRequest(string Language, FormatVersion IrVersion, string? ProjectFile, ReadOnlyMemory<byte> Ir)
+{
+    /// <summary>The serialization of <see cref="Ir"/>, which names the published file and the record's <c>ir.format</c>.</summary>
+    public IrStorageFormat Format { get; init; } = IrStorageFormat.Json;
+}
 
 /// <summary>A started compile run that holds the task's exclusive lock until it is disposed.</summary>
 public interface ICompilePublication : IDisposable
@@ -34,14 +38,15 @@ public interface ICompilePublication : IDisposable
 }
 
 /// <summary>
-/// Publishes through the compile task record store (REC-1): <c>&lt;out&gt;/[&lt;member&gt;/]compile.dest/morphir-ir.json</c>,
+/// Publishes through the compile task record store (REC-1): <c>&lt;out&gt;/[&lt;member&gt;/]compile.dest/morphir-ir.json</c>
+/// (<c>.yaml</c> or <c>.ion</c> for those formats),
 /// the schema-1 record <c>compile.json</c> beside it, and the <c>-o</c> install through the <c>installed</c> ledger.
 /// The run holds <c>compile.lock</c> from <see cref="BeginAsync"/> until the publication is disposed, so a reader
 /// such as <c>generate</c> waits for the run and then reads its IR.
 /// </summary>
 public sealed class TaskRecordCompilePublisher(TaskStoreOptions options) : ICompilePublisher
 {
-    /// <summary>The file name of the published IR in <c>compile.dest</c>.</summary>
+    /// <summary>The file name of the published JSON IR in <c>compile.dest</c>. See <see cref="CompileIrFormats.FileName"/>.</summary>
     public const string IrFile = "morphir-ir.json";
 
     /// <summary>A publisher whose waiting line and warnings go to stderr.</summary>
@@ -65,7 +70,8 @@ public sealed class TaskRecordCompilePublisher(TaskStoreOptions options) : IComp
         public async Task<Checked<PublishedCompile>> PublishAsync(CompilePublishRequest request, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            var target = Path.Combine(run.Dest, IrFile);
+            var file = CompileIrFormats.FileName(request.Format);
+            var target = Path.Combine(run.Dest, file);
             try
             {
                 await File.WriteAllBytesAsync(target, request.Ir, ct);
@@ -76,7 +82,7 @@ public sealed class TaskRecordCompilePublisher(TaskStoreOptions options) : IComp
                     $"The IR could not be written to '{target}': {error.Message}", null)]);
             }
 
-            var ir = IrDescriptor.Create(RecordPath.Parse(IrFile), IrLayout.SingleFile, IrStorageFormat.Json, request.IrVersion);
+            var ir = IrDescriptor.Create(RecordPath.Parse(file), IrLayout.SingleFile, request.Format, request.IrVersion);
             if (run.Complete(new CompileProduct(request.Language, ir, request.ProjectFile)) is Outcome<TaskRecord>.Failure recordFailure)
                 return Checked<PublishedCompile>.Fail(TaskDiagnostics.Of(recordFailure.Error, ct));
 
