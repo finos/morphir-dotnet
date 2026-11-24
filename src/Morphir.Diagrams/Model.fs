@@ -69,6 +69,30 @@ type Diagnostic
         | Some location -> $"{location.Start} {code} {message}"
         | None -> $"{code} {message}"
 
+    static member private Checked(code: string | null, message: string | null, severity) =
+        let part (text: string) =
+            text.Length > 0 && text |> Seq.forall (fun c -> (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c = '-')
+
+        match code, message with
+        | null, _ -> invalidArg (nameof code) "A diagnostic code is required."
+        | code, _ when not (code.Split('/').Length = 2 && Array.forall part (code.Split '/')) ->
+            invalidArg (nameof code) $"The code '{code}' must be a prefix and a name separated by one slash, each of lowercase letters, digits and hyphens."
+        | code, message ->
+            match message with
+            | null -> invalidArg (nameof message) "A diagnostic message is required."
+            | message when String.IsNullOrWhiteSpace message -> invalidArg (nameof message) "A diagnostic message must not be blank."
+            | message -> Diagnostic(code, severity, message, None)
+
+    /// An error with a code such as `my-renderer/failed` and a message, for renderers in other assemblies. The code is
+    /// a prefix and a name separated by one slash, each of lowercase letters, digits and hyphens; use your own prefix.
+    /// Throws an argument error for another code or a blank message.
+    static member Error(code: string | null, message: string | null) =
+        Diagnostic.Checked(code, message, DiagnosticSeverity.Error)
+
+    /// A warning with a code such as `my-renderer/approximated` and a message. The rules of Error apply.
+    static member Warning(code: string | null, message: string | null) =
+        Diagnostic.Checked(code, message, DiagnosticSeverity.Warning)
+
 /// A case-sensitive, nonblank identity within a diagram.
 [<CustomEquality; CustomComparison>]
 type DiagramId =
