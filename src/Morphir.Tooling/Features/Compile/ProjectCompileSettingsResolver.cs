@@ -9,6 +9,7 @@ using Morphir.Configuration;
 using Morphir.Configuration.IO;
 using Morphir.IR.Model;
 using Morphir.Tooling.Features.Generate;
+using Morphir.Tooling.Features.TaskRecords;
 using Morphir.Tooling.Infrastructure;
 using ConfigSeverity = Morphir.Configuration.DiagnosticSeverity;
 using Severity = Morphir.Compilation.DiagnosticSeverity;
@@ -149,7 +150,6 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
 
         foreach (var (key, value, reason) in new[]
                  {
-                     (new[] { "ir", "layout" }, "document-tree", "The document-tree layout is not implemented. Use \"single-file\"."),
                      (new[] { "ir", "format" }, "yaml", "YAML IR is not implemented. Use \"json\"."),
                      (new[] { "ir", "format" }, "ion", "Ion IR output is not implemented. Use \"json\"."),
                  })
@@ -188,6 +188,13 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             version = new(parsedVersion, versionText.Origin);
         else
             Error(CompileCodes.InvalidSetting, $"The IR version from {Describe(versionText.Origin)} is not valid. {versionFailure}");
+
+        // IR layout: --ir-layout, else ir.layout, else the deprecated ir.mode, else single-file.
+        var layout = ResolveLayout(overrides, config, warnings, Error);
+        if (layout is { Value: IrLayout.DocumentTree } tree && version is { } requested && !HasDocumentTrees(requested.Value.Version))
+            Error(CompileCodes.UnsupportedSetting,
+                $"The layout document-tree from {Describe(tree.Origin)} is not supported for IR version {requested.Value.Text} from {Describe(requested.Origin)}. "
+                + "Document trees exist only for IR 3 (3.1.0) and IR 4. Use \"single-file\", or IR version 3 or 4.");
 
         // Exposed modules.
         Setting<ImmutableArray<string>>? exposed = config.Strings("project", "exposed_modules");
@@ -268,7 +275,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             else output = new(Path.GetFullPath(outputText, working), new SettingOrigin.CommandLine("--output"));
         }
 
-        if (errors.Count > 0 || package is null || version is null || sources is null || place is null)
+        if (errors.Count > 0 || package is null || version is null || layout is null || sources is null || place is null)
             return Checked<CompileSettings>.Fail(warnings.Concat(errors));
 
         return Checked<CompileSettings>.Of(new CompileSettings
@@ -276,6 +283,7 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             Language = language,
             Package = package,
             IrVersion = version,
+            IrLayout = layout,
             ExposedModules = exposed,
             Extension = extension,
             InstalledExtensionId = installedId,
@@ -293,6 +301,51 @@ public sealed class ProjectCompileSettingsResolver(ICompileConfigurationLoader l
             WorkingDirectory = working,
         }, warnings);
     }
+
+    /// <summary>
+    /// The layout of the IR (CLI-1): <c>--ir-layout</c>, else <c>ir.layout</c>, else the deprecated <c>ir.mode</c>
+    /// (<c>classic</c> is <c>single-file</c>, <c>vfs</c> is <c>document-tree</c>), else <c>single-file</c>. A configured
+    /// <c>ir.mode</c> always gives a warning, as the <c>morphir.toml</c> specification says. Null when the value is not valid.
+    /// </summary>
+    private static Setting<IrLayout>? ResolveLayout(CompileOverrides overrides, ConfigurationView config, List<Diagnostic> warnings,
+        Action<DiagnosticCode, string> error)
+    {
+        var configured = config.String("ir", "layout") is { Origin: SettingOrigin.Configuration } fromLayout ? fromLayout : null;
+        var mode = config.String("ir", "mode") is { Origin: SettingOrigin.Configuration } fromMode ? fromMode : null;
+        var selected = overrides.IrLayout is { } cli
+            ? new Setting<string>(cli, new SettingOrigin.CommandLine("--ir-layout"))
+            : configured;
+        if (mode is not null)
+            warnings.Add(Diagnostic.Create(Severity.Warning, CompileCodes.DeprecatedSetting,
+                $"The setting ir.mode = \"{mode.Value}\" in {Describe(mode.Origin)} is deprecated. Use ir.layout = \"single-file\" or \"document-tree\"."
+                + (selected is null ? "" : $" The layout from {Describe(selected.Origin)} is used, and ir.mode is ignored."), null));
+
+        if (selected is not null)
+        {
+            if (IrStorageNames.TryParseLayout(selected.Value, out var parsed)) return new(parsed, selected.Origin);
+            error(CompileCodes.InvalidSetting,
+                $"The IR layout '{selected.Value}' from {Describe(selected.Origin)} is not valid. Use \"single-file\" or \"document-tree\".");
+            return null;
+        }
+        switch (mode?.Value)
+        {
+            case null: return new(IrLayout.SingleFile, SettingOrigin.Default.Instance);
+            case "classic": return new(IrLayout.SingleFile, mode.Origin);
+            case "vfs": return new(IrLayout.DocumentTree, mode.Origin);
+            default:
+                error(CompileCodes.InvalidSetting,
+                    $"The IR mode '{mode.Value}' from {Describe(mode.Origin)} is not valid. Use ir.layout = \"single-file\" or \"document-tree\".");
+                return null;
+        }
+    }
+
+    /// <summary>
+    /// Whether the document-tree specifications define a tree for a version: not for classic IR 1 or 2. A version that no
+    /// writer declares is refused by the writer registry.
+    /// </summary>
+    private static bool HasDocumentTrees(Morphir.IR.Versioning.FormatVersion version) =>
+        !Morphir.Compilation.FormatVersion.SameVersion(version, Morphir.IR.Versioning.FormatVersion.NewClassic(1))
+        && !Morphir.Compilation.FormatVersion.SameVersion(version, Morphir.IR.Versioning.FormatVersion.NewClassic(2));
 
     /// <summary>
     /// The key <c>[codegen.&lt;target&gt;].extension</c> of a target, for messages, as TOML writes it: a dotted target id

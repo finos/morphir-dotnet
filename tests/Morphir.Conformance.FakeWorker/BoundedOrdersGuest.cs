@@ -250,7 +250,7 @@ internal sealed class BoundedOrdersGuest(string mode)
                 return Continue(run, Document("final", final));
             case 4:
                 var order = run.Order!;
-                var reference = Text(ReadBody(delivery, "final", run.Final!), "Reference");
+                var reference = ReferenceName(ReadBody(delivery, "final", run.Final!));
                 Require(reference == $"{Package}:{Module}#{order.Name}", "The final value must reference the earlier value.");
                 if (mode == "stage-before-read")
                 {
@@ -341,8 +341,20 @@ internal sealed class BoundedOrdersGuest(string mode)
     private static JsonElement DefinitionBody(JsonElement definition) =>
         definition.GetProperty("Public").GetProperty("ExpressionBody").GetProperty("body");
 
-    private static string RenderLiteral(JsonElement body) =>
-        body.GetProperty("Literal").GetProperty("IntegerLiteral").GetInt64().ToString(CultureInfo.InvariantCulture) + "\n";
+    // A v4 body in its short form, as the pinned fixture spells it, or with the attributes that a compile writes:
+    // "Reference": { "attributes": ..., "fqname": ... } and "Literal": { "attributes": ..., "literal": ... }.
+    private static string ReferenceName(JsonElement body)
+    {
+        var reference = body.GetProperty("Reference");
+        return reference.ValueKind == JsonValueKind.Object ? Text(reference, "fqname") : reference.GetString()!;
+    }
+
+    private static string RenderLiteral(JsonElement body)
+    {
+        var literal = body.GetProperty("Literal");
+        if (literal.TryGetProperty("literal", out var attributed)) literal = attributed;
+        return literal.GetProperty("IntegerLiteral").GetInt64().ToString(CultureInfo.InvariantCulture) + "\n";
+    }
 
     private static string Digest(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
 

@@ -4,6 +4,7 @@ using FluentAssertions;
 using Morphir.Compilation;
 using FormatVersion = Morphir.IR.Versioning.FormatVersion;
 using Morphir.Tooling.Features.Compile;
+using Morphir.Tooling.Features.TaskRecords;
 
 namespace Morphir.Tooling.Tests.Features.Compile;
 
@@ -201,13 +202,100 @@ public sealed class CompileSettingsResolverTests
     }
 
     [Test]
-    public void TheDocumentTreeLayoutIsRefusedNamingTheKeyAndFile()
+    public void TheDefaultLayoutIsASingleFile()
+    {
+        using var workspace = new CompileWorkspace();
+        workspace.Write("morphir.toml", "[project]\nname = \"acme/demo\"\n");
+        var settings = Passed(Resolver.Resolve(new CompileOverrides(), workspace.Context()));
+        settings.IrLayout.Value.Should().Be(IrLayout.SingleFile);
+        settings.IrLayout.Origin.Should().Be(SettingOrigin.Default.Instance);
+        settings.Origins().Should().Contain(("irLayout", SettingOrigin.Default.Instance));
+    }
+
+    [Test]
+    public void TheConfiguredDocumentTreeLayoutResolvesWithItsKey()
+    {
+        using var workspace = new CompileWorkspace();
+        var file = workspace.Write("morphir.toml", "[project]\nname = \"acme/demo\"\n\n[ir]\nlayout = \"document-tree\"\n");
+        var result = Resolver.Resolve(new CompileOverrides(), workspace.Context());
+        var settings = Passed(result);
+        result.Diagnostics.Should().BeEmpty();
+        settings.IrLayout.Value.Should().Be(IrLayout.DocumentTree);
+        settings.IrLayout.Origin.Should().BeOfType<SettingOrigin.Configuration>().Which.Key.Should().Be("ir.layout");
+    }
+
+    [Test]
+    public void TheCommandLineLayoutOverridesTheConfiguredLayout()
     {
         using var workspace = new CompileWorkspace();
         workspace.Write("morphir.toml", "[project]\nname = \"acme/demo\"\n\n[ir]\nlayout = \"document-tree\"\n");
+        var settings = Passed(Resolver.Resolve(new CompileOverrides { IrLayout = "single-file" }, workspace.Context()));
+        settings.IrLayout.Value.Should().Be(IrLayout.SingleFile);
+        settings.IrLayout.Origin.Should().Be(new SettingOrigin.CommandLine("--ir-layout"));
+    }
+
+    [Test]
+    [Arguments("classic", IrLayout.SingleFile)]
+    [Arguments("vfs", IrLayout.DocumentTree)]
+    public void TheDeprecatedModeGivesTheLayoutWithAWarning(string mode, IrLayout layout)
+    {
+        using var workspace = new CompileWorkspace();
+        workspace.Write("morphir.toml", $"[project]\nname = \"acme/demo\"\n\n[ir]\nmode = \"{mode}\"\n");
         var result = Resolver.Resolve(new CompileOverrides(), workspace.Context());
+        var settings = Passed(result);
+        settings.IrLayout.Value.Should().Be(layout);
+        settings.IrLayout.Origin.Should().BeOfType<SettingOrigin.Configuration>().Which.Key.Should().Be("ir.mode");
+        var warning = result.Diagnostics.Single();
+        warning.Severity.Should().Be(DiagnosticSeverity.Warning);
+        warning.CodeOrNull!.Value.Should().Be("compile.deprecated_setting");
+        warning.Message.Should().Contain("ir.mode").And.Contain("ir.layout").And.Contain("morphir.toml");
+    }
+
+    [Test]
+    public void AnExplicitLayoutWinsOverTheDeprecatedModeAndTheModeStillWarns()
+    {
+        using var workspace = new CompileWorkspace();
+        workspace.Write("morphir.toml", "[project]\nname = \"acme/demo\"\n\n[ir]\nlayout = \"single-file\"\nmode = \"vfs\"\n");
+        var result = Resolver.Resolve(new CompileOverrides(), workspace.Context());
+        var settings = Passed(result);
+        settings.IrLayout.Value.Should().Be(IrLayout.SingleFile);
+        settings.IrLayout.Origin.Should().BeOfType<SettingOrigin.Configuration>().Which.Key.Should().Be("ir.layout");
+        result.Diagnostics.Single().CodeOrNull!.Value.Should().Be("compile.deprecated_setting");
+    }
+
+    [Test]
+    public void AnInvalidCommandLineLayoutFails()
+    {
+        using var workspace = new CompileWorkspace();
+        var result = Resolver.Resolve(new CompileOverrides { IrLayout = "folder", PackageName = "acme/demo" }, workspace.Context());
+        Codes(result).Should().Equal("compile.invalid_setting");
+        result.Diagnostics.Single(d => d.IsError).Message.Should().Contain("folder").And.Contain("--ir-layout")
+            .And.Contain("single-file").And.Contain("document-tree");
+    }
+
+    [Test]
+    [Arguments("1")]
+    [Arguments("2")]
+    [Arguments("2.0.0")]
+    public void TheDocumentTreeLayoutIsRefusedForClassicIrOneAndTwo(string version)
+    {
+        using var workspace = new CompileWorkspace();
+        var result = Resolver.Resolve(new CompileOverrides { IrVersion = version, IrLayout = "document-tree", PackageName = "acme/demo" },
+            workspace.Context());
         Codes(result).Should().Equal("compile.unsupported_setting");
-        result.Diagnostics.Single(d => d.IsError).Message.Should().Contain("ir.layout").And.Contain("morphir.toml");
+        result.Diagnostics.Single(d => d.IsError).Message.Should().Contain("document-tree").And.Contain(version).And.Contain("--ir-layout");
+    }
+
+    [Test]
+    [Arguments("3")]
+    [Arguments("4")]
+    [Arguments("4.0.0")]
+    public void TheDocumentTreeLayoutIsAcceptedForIrThreeAndFour(string version)
+    {
+        using var workspace = new CompileWorkspace();
+        var settings = Passed(Resolver.Resolve(new CompileOverrides { IrVersion = version, IrLayout = "document-tree", PackageName = "acme/demo" },
+            workspace.Context()));
+        settings.IrLayout.Value.Should().Be(IrLayout.DocumentTree);
     }
 
     [Test]

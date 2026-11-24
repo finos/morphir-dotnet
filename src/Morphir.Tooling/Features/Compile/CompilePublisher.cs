@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 using System.Collections.Immutable;
 using Morphir.Compilation;
+using Morphir.Files;
+using Morphir.IR.Trees;
 using Morphir.Tooling.Features.Generate;
 using Morphir.Tooling.Features.TaskRecords;
 using Severity = Morphir.Compilation.DiagnosticSeverity;
@@ -21,10 +23,65 @@ public interface ICompilePublisher
 
 /// <summary>What a successful compile publishes.</summary>
 /// <param name="Language">The source language, for example <c>fsharp</c>.</param>
-/// <param name="IrVersion">The format version of the written IR.</param>
 /// <param name="ProjectFile">The absolute project file that supplied the sources, or null.</param>
-/// <param name="Ir">The exact bytes that the writer wrote.</param>
-public sealed record CompilePublishRequest(string Language, FormatVersion IrVersion, string? ProjectFile, ReadOnlyMemory<byte> Ir);
+/// <param name="Ir">The written IR, in the layout of the settings, with its format version.</param>
+public sealed record CompilePublishRequest(string Language, string? ProjectFile, CompileIrOutput Ir);
+
+/// <summary>
+/// The written IR of one compile, in one of its layouts: one file or a JSON document tree. Each case has the format
+/// version that its files declare, which the record names.
+/// </summary>
+public abstract record CompileIrOutput
+{
+    private CompileIrOutput(FormatVersion version) => Version = version;
+
+    /// <summary>The format version that the files of the IR declare.</summary>
+    public FormatVersion Version { get; }
+
+    /// <summary>The exact bytes that the writer wrote, published as <c>compile.dest/morphir-ir.json</c>.</summary>
+    public sealed record SingleFile(FormatVersion Version, ReadOnlyMemory<byte> Bytes) : CompileIrOutput(Version);
+
+    /// <summary>
+    /// The files of a document tree (<c>DocumentTreeStore.Write</c>), published as <c>compile.dest/morphir-ir</c>: an
+    /// IR 4 tree declares the version of the writer, and a classic tree declares <c>3.1.0</c> in every file.
+    /// </summary>
+    public sealed record DocumentTree(FormatVersion Version, VFileTree Tree) : CompileIrOutput(Version);
+
+    /// <summary>Calls the function for this layout.</summary>
+    public TResult Match<TResult>(Func<SingleFile, TResult> singleFile, Func<DocumentTree, TResult> documentTree) => this switch
+    {
+        SingleFile file => singleFile(file),
+        DocumentTree tree => documentTree(tree),
+        _ => throw new System.Diagnostics.UnreachableException(),
+    };
+}
+
+/// <summary>Splits the written single-file IR into the document tree of the same model (IR 3 and IR 4).</summary>
+internal static class CompileDocumentTree
+{
+    /// <summary>The depth of JSON that the written IR may have; the codecs guard their own recursion.</summary>
+    private const int MaxDepth = 4096;
+
+    /// <summary>The version that every file of a classic tree declares (the parent's v3 tree specification).</summary>
+    private static readonly FormatVersion ClassicTreeVersion = Morphir.IR.Versioning.parse("3.1.0").ResultValue;
+
+    /// <summary>
+    /// The tree of the model that <paramref name="written"/> holds: the bytes that the writer of <paramref name="version"/>
+    /// wrote. The model is read back with the single-file codecs, so the tree holds exactly the written model, and is split
+    /// with <c>V4DocumentTree.split</c> or <c>ClassicDocumentTree.split</c>. A refusal gives one
+    /// <see cref="CompileCodes.TreeWriteFailed"/> error for each problem.
+    /// </summary>
+    public static Checked<CompileIrOutput> Split(ReadOnlyMemory<byte> written, FormatVersion version)
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(written, new System.Text.Json.JsonDocumentOptions { MaxDepth = MaxDepth });
+        if (!StoredModel.TryReadSingleFile(document.RootElement, out var model, out var problems)
+            || !model.TryConvert(ModelLayout.DocumentTree, out var tree, out problems)
+            || !StoredModel.TryGetWritten(DocumentTreeStore.Write(StoredModel.WriteOptions(false), tree.Tree), out var files, out problems))
+            return Checked<CompileIrOutput>.Fail(problems.Select(problem => Diagnostic.Create(Severity.Error, CompileCodes.TreeWriteFailed,
+                $"The written IR could not be split into a document tree: {problem}", null)));
+        return Checked<CompileIrOutput>.Pass(new CompileIrOutput.DocumentTree(tree.IrVersion == "3" ? ClassicTreeVersion : version, files));
+    }
+}
 
 /// <summary>A started compile run that holds the task's exclusive lock until it is disposed.</summary>
 public interface ICompilePublication : IDisposable
@@ -34,7 +91,8 @@ public interface ICompilePublication : IDisposable
 }
 
 /// <summary>
-/// Publishes through the compile task record store (REC-1): <c>&lt;out&gt;/[&lt;member&gt;/]compile.dest/morphir-ir.json</c>,
+/// Publishes through the compile task record store (REC-1): <c>&lt;out&gt;/[&lt;member&gt;/]compile.dest/morphir-ir.json</c>
+/// (or the document tree <c>compile.dest/morphir-ir</c>),
 /// the schema-1 record <c>compile.json</c> beside it, and the <c>-o</c> install through the <c>installed</c> ledger.
 /// The run holds <c>compile.lock</c> from <see cref="BeginAsync"/> until the publication is disposed, so a reader
 /// such as <c>generate</c> waits for the run and then reads its IR.
@@ -43,6 +101,9 @@ public sealed class TaskRecordCompilePublisher(TaskStoreOptions options) : IComp
 {
     /// <summary>The file name of the published IR in <c>compile.dest</c>.</summary>
     public const string IrFile = "morphir-ir.json";
+
+    /// <summary>The directory name of a published document tree in <c>compile.dest</c>.</summary>
+    public const string IrDirectory = "morphir-ir";
 
     /// <summary>A publisher whose waiting line and warnings go to stderr.</summary>
     public TaskRecordCompilePublisher() : this(new TaskStoreOptions()) { }
@@ -65,18 +126,29 @@ public sealed class TaskRecordCompilePublisher(TaskStoreOptions options) : IComp
         public async Task<Checked<PublishedCompile>> PublishAsync(CompilePublishRequest request, CancellationToken ct)
         {
             ct.ThrowIfCancellationRequested();
-            var target = Path.Combine(run.Dest, IrFile);
+            var (name, layout) = request.Ir.Match(_ => (IrFile, IrLayout.SingleFile), _ => (IrDirectory, IrLayout.DocumentTree));
+            var target = Path.Combine(run.Dest, name);
+            string? failure;
             try
             {
-                await File.WriteAllBytesAsync(target, request.Ir, ct);
+                failure = await request.Ir.Match(
+                    async file =>
+                    {
+                        await File.WriteAllBytesAsync(target, file.Bytes, ct);
+                        return (string?)null;
+                    },
+                    tree => Task.FromResult(VFileTreeModule.MatchPublish<string?>(new PublishOptions(target, ManifestMode.NoManifest), tree.Tree,
+                        _ => null, TreeWriteErrorModule.describe)));
             }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException)
             {
-                return Checked<PublishedCompile>.Fail([Diagnostic.Create(Severity.Error, CompileCodes.PublishFailed,
-                    $"The IR could not be written to '{target}': {error.Message}", null)]);
+                failure = error.Message;
             }
+            if (failure is not null)
+                return Checked<PublishedCompile>.Fail([Diagnostic.Create(Severity.Error, CompileCodes.PublishFailed,
+                    $"The IR could not be written to '{target}': {failure}", null)]);
 
-            var ir = IrDescriptor.Create(RecordPath.Parse(IrFile), IrLayout.SingleFile, IrStorageFormat.Json, request.IrVersion);
+            var ir = IrDescriptor.Create(RecordPath.Parse(name), layout, IrStorageFormat.Json, request.Ir.Version);
             if (run.Complete(new CompileProduct(request.Language, ir, request.ProjectFile)) is Outcome<TaskRecord>.Failure recordFailure)
                 return Checked<PublishedCompile>.Fail(TaskDiagnostics.Of(recordFailure.Error, ct));
 

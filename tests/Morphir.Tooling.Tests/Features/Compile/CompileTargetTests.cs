@@ -133,6 +133,31 @@ public sealed class CompileTargetTests
     }
 
     [Test]
+    public async Task TheBackendOfADocumentTreeCompileGetsTheSingleFileOfTheTreeModel()
+    {
+        using var workspace = Project();
+        var recorder = new RecordingBackend("fsharp", new BackendCapability(ModelFamily.V4, Morphir.Extensions.SourceFormatVersions.Create("4"), DistributionKind.Library));
+        var run = await Compile(workspace, $"--json=document {Inputs} --ir-layout document-tree --target fsharp --generate-output gen",
+            services => services.AddSingleton<IGenerationBackendResolver>(new RegisteredBackendResolver([recorder])));
+        run.Exit.Should().Be(0, run.Output.Text);
+        using var report = JsonDocument.Parse(run.Output.Text);
+        var tree = report.RootElement.GetProperty("output").GetString()!;
+        Directory.Exists(tree).Should().BeTrue();
+
+        var single = await Compile(workspace, $"--json=document {Inputs}");
+        single.Exit.Should().Be(0, single.Output.Text);
+        using var singleReport = JsonDocument.Parse(single.Output.Text);
+        var file = singleReport.RootElement.GetProperty("output").GetString()!;
+
+        var model = recorder.Requests.Should().ContainSingle().Subject.Model;
+        model.Representation.Should().Be(ModelRepresentation.Json);
+        var original = model.Original.Should().BeOfType<RetainedInput.File>().Subject;
+        original.SourcePath.Should().Be(tree);
+        original.Entry.RelativePath.Should().Be(TaskRecordCompilePublisher.IrFile, "the backend gets the single file under its single-file name");
+        original.Entry.CopyBytes().Should().Equal(File.ReadAllBytes(file), "the tree is the split of the bytes that the writer wrote");
+    }
+
+    [Test]
     public async Task GenerationStagesAppearOnlyWhenATargetRuns()
     {
         using var workspace = Project();

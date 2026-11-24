@@ -85,7 +85,8 @@ public sealed class CompileGenerationStages(IGenerationBackendResolver backends,
 
     /// <summary>
     /// The events of the generation stages, ending with the run's <see cref="CompileEvent.Completed"/> event.
-    /// <paramref name="ir"/> is the exact bytes that <paramref name="compiled"/> published. <paramref name="passes"/> are the
+    /// <paramref name="ir"/> is the exact bytes that the writer wrote: the published file, or, for a document tree, the single
+    /// file that the published tree is the split of, so a tree gives the backend the same model. <paramref name="passes"/> are the
     /// registered passes of the compile; the passes before the backend continue the lineage of the passes after the frontend.
     /// </summary>
     public async IAsyncEnumerable<CompileEvent> RunAsync(CompileTarget target, CompileSuccess compiled, CompileSettings settings,
@@ -104,7 +105,9 @@ public sealed class CompileGenerationStages(IGenerationBackendResolver backends,
                 "input-limit", $"The written IR has {ir.Length} bytes, more than the generation input limit of {Limits.MaxBytes} bytes.", irPath)));
         else
         {
-            var original = new RetainedInput.File(irPath, new RetainedEntry(Path.GetFileName(irPath), ir.Span));
+            // A document tree is a directory; the backend gets the single file of the same model under its single-file name.
+            var entry = settings.IrLayout.Value == TaskRecords.IrLayout.DocumentTree ? TaskRecordCompilePublisher.IrFile : Path.GetFileName(irPath);
+            var original = new RetainedInput.File(irPath, new RetainedEntry(entry, ir.Span));
             var loaded = GenerationModelLoader.Decode(original, input, Limits, ct);
             run = loaded switch
             {
