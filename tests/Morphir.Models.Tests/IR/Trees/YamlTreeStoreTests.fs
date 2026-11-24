@@ -285,20 +285,7 @@ let tests =
 
                 // Mid-decode cancellation: cancel the token when a module file stream opens.
                 use cts = new CancellationTokenSource()
-                let moduleLocation = "pkg/acme/orders/domain/module.yaml"
-                let moduleBytes = Encoding.UTF8.GetBytes((Driver.texts yamlTree)[moduleLocation])
-
-                let cancellingTree =
-                    VFileTree.toFileMap yamlTree
-                    |> Map.add
-                        moduleLocation
-                        (VFile.ofStream
-                            moduleLocation
-                            (StreamSource(fun () ->
-                                cts.Cancel()
-                                new MemoryStream(moduleBytes, writable = false) :> Stream
-                            )))
-                    |> VFileTree.fromFileMap
+                let cancellingTree = YamlDocs.v4YamlOrdersTreeWithOnOpenModule (fun () -> cts.Cancel())
 
                 Expect.throwsT<OperationCanceledException>
                     (fun () ->
@@ -713,6 +700,15 @@ let tests =
                 Expect.isNonEmpty compactedYaml.CompactedFiles "Contextual YAML tree has compacted files"
                 Expect.all compactedYaml.CompactedFiles (fun path -> path.EndsWith(".yaml", StringComparison.Ordinal)) "Compacted YAML files report physical .yaml relative paths"
                 Expect.contains (List.ofSeq compactedYaml.CompactedFiles) "pkg/acme/orders/domain/order.value.yaml" "Compacted YAML member physical path is reported"
+
+                // When two inline values live inside one compacted module.json envelope, CompactedFiles deduplicates
+                // the physical path once while ReadReport.CompactedFiles keeps all 3 logical document addresses.
+                let inlineLoaded = tryReadModelOk TreeReadOptions.Defaults (YamlDocs.compactedInlineTwoValuesModuleTree ())
+                Expect.equal
+                    (List.ofSeq inlineLoaded.CompactedFiles)
+                    [ "pkg/acme/orders/domain/module.json" ]
+                    "Physical compacted paths are deduplicated when multiple inline members share one module envelope"
+                Expect.equal inlineLoaded.Report.CompactedFiles.Length 3 "ReadReport retains all 3 logical compacted document addresses"
             }
 
             test "Enforces expansion byte and node limits incrementally on compacted documents" {

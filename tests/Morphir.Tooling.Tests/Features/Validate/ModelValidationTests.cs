@@ -278,6 +278,12 @@ public sealed class ModelValidationTests
         jsonSuffixedReport.ExitCode.Should().Be(2);
         jsonSuffixedReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-format");
 
+        var jsonSuffixedDoubleColonYaml = Path.Combine(sandbox.Work, "yaml-double-colon.json");
+        await File.WriteAllTextAsync(jsonSuffixedDoubleColonYaml, Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.FormatVersionDoubleColonYaml);
+        var jsonSuffixedDoubleColonReport = await Validation(registry).RunAsync(new ValidateOverrides(jsonSuffixedDoubleColonYaml, "auto"), new InvocationContext(sandbox.Work), default);
+        jsonSuffixedDoubleColonReport.ExitCode.Should().Be(2);
+        jsonSuffixedDoubleColonReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-format");
+
         foreach (var profile in new[] { "plain-json", "plain-yaml" })
         {
             var treeDir = Path.Combine(sandbox.Work, profile);

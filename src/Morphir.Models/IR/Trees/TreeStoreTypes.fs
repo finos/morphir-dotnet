@@ -308,7 +308,7 @@ type LoadedTreeModel internal
     ) =
     let notices =
         report.Notices
-        |> List.map string
+        |> List.map (fun notice -> notice.ToString())
         |> List.toArray
         :> System.Collections.Generic.IReadOnlyList<string>
 

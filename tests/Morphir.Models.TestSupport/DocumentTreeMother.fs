@@ -1182,6 +1182,37 @@ module YamlDocuments =
     let flowColonColonKeyWithUndeclaredSchemaYaml =
         "{custom::key: ignored, \"$schema\": \"https://example.com/unknown.schema.json\", context: {}, document: {}}\n"
 
+    /// A block YAML document whose first plain key contains <c>::(key)</c>, followed by an undeclared <c>$schema</c>.
+    [<CompiledName("BlockColonColonParenKeyWithUndeclaredSchemaYaml")>]
+    let blockColonColonParenKeyWithUndeclaredSchemaYaml =
+        "custom::(key): ignored\n$schema: \"https://example.com/unknown.schema.json\"\ncontext: {}\ndocument: {}\n"
+
+    /// A flow YAML mapping whose first plain key contains <c>::(key)</c>, followed by an undeclared <c>$schema</c>.
+    [<CompiledName("FlowColonColonParenKeyWithUndeclaredSchemaYaml")>]
+    let flowColonColonParenKeyWithUndeclaredSchemaYaml =
+        "{custom::(key): ignored, \"$schema\": \"https://example.com/unknown.schema.json\", context: {}, document: {}}\n"
+
+    /// A block YAML document whose first plain key starts with <c>morphir::key:</c>, followed by an undeclared <c>$schema</c>.
+    [<CompiledName("BlockMorphirColonColonKeyWithUndeclaredSchemaYaml")>]
+    let blockMorphirColonColonKeyWithUndeclaredSchemaYaml =
+        "morphir::key: ignored\n$schema: \"https://example.com/unknown.schema.json\"\ncontext: {}\ndocument: {}\n"
+
+    /// An Ion-annotated string literal containing <c>: </c> inside quotes, which Auto must NOT classify as YAML.
+    [<CompiledName("IonAnnotatedQuotedStringWithColonSpace")>]
+    let ionAnnotatedQuotedStringWithColonSpace = "custom::\"hello: world\"\n"
+
+    /// An Ion document using stacked <c>morphir::v4::</c> annotations.
+    [<CompiledName("IonStackedMorphirAnnotationStub")>]
+    let ionStackedMorphirAnnotationStub = "morphir::v4::{}\n"
+
+    /// An Ion document using a bare <c>morphir::bare</c> symbol annotation.
+    [<CompiledName("IonBareMorphirAnnotationStub")>]
+    let ionBareMorphirAnnotationStub = "morphir::bare\n"
+
+    /// A single-line YAML mapping whose key ends with a colon (<c>formatVersion:</c>) separated by <c>:: </c>.
+    [<CompiledName("FormatVersionDoubleColonYaml")>]
+    let formatVersionDoubleColonYaml = "formatVersion:: ignored\n"
+
     /// The <see cref="FixtureCatalog.Models.V4DailyRate"/> JSON document with an invalid trailing comma
     /// before the closing brace, which JSON must refuse as <c>malformed-json</c> and never silently decode as YAML.
     [<CompiledName("TrailingCommaV4DailyRateJson")>]
@@ -1422,6 +1453,45 @@ module YamlDocuments =
             |> VFileTree.fromFileMap
 
         tree, yamlPath, ymlPath
+
+    /// Builds a v4 plain YAML Orders tree whose <c>pkg/acme/orders/domain/module.yaml</c> file invokes
+    /// <paramref name="onOpenModule"/> before returning its bytes, used to test mid-decode cancellation.
+    let v4YamlOrdersTreeWithOnOpenModule (onOpenModule: unit -> unit) : VFileTree =
+        let moduleLocation = "pkg/acme/orders/domain/module.yaml"
+        let docs = BoundedOrders.catalogDocuments "v4" "plain-yaml"
+        let moduleBytes = FixtureCatalog.ReadBytes docs[moduleLocation]
+
+        docs
+        |> Map.map (fun location fixture ->
+            if location = moduleLocation then
+                VFile.ofStream
+                    location
+                    (StreamSource(fun () ->
+                        onOpenModule ()
+                        new System.IO.MemoryStream(moduleBytes, writable = false) :> System.IO.Stream
+                    ))
+            else
+                VFile.ofBytes location (System.ReadOnlyMemory(FixtureCatalog.ReadBytes fixture))
+        )
+        |> VFileTree.fromFileMap
+
+    /// A valid v4 JSON document tree whose single compacted <c>pkg/acme/orders/domain/module.json</c> envelope
+    /// holds two inline value definitions (<c>alpha</c> and <c>beta</c>), used to verify physical path deduplication
+    /// in <see cref="LoadedTreeModel.CompactedFiles"/> while preserving all logical entries in <c>ReadReport</c>.
+    let compactedInlineTwoValuesModuleTree () : VFileTree =
+        let manifest =
+            """{"formatVersion":4,"distribution":"Library","package":"acme/orders","pathBudget":4000}"""
+
+        let valueDef =
+            """{"Public":{"ExpressionBody":{"inputTypes":{},"outputType":{"$name":"i"},"body":{"Literal":{"IntegerLiteral":1}}}}}"""
+
+        let compactedModule =
+            $"{{\"$schema\":\"{MorphirFile.Draft1Schema}\",\"context\":{{\"fqNames\":{{\"i\":\"morphir/SDK:basics#int\"}}}},\"document\":{{\"formatVersion\":4,\"path\":\"domain\",\"values\":{{\"alpha\":{valueDef},\"beta\":{valueDef}}}}}}}"
+
+        Driver.ofTexts [
+            "manifest.json", manifest
+            "pkg/acme/orders/domain/module.json", compactedModule
+        ]
 
     /// For C# callers: returns the files (relative path -> UTF-8 bytes) of the v4 bounded Orders tree for
     /// <paramref name="profile"/> with an unknown <c>UnknownBodyTag</c> inside <c>order.value</c>.

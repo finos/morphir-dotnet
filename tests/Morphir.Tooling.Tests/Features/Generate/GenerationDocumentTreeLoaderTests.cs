@@ -425,19 +425,45 @@ public sealed class GenerationDocumentTreeLoaderTests
         var nodeBudgetFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(validYamlPath, InputFormat.Auto, new(MaxNodes: 1))).Error;
         nodeBudgetFailure.Diagnostics[0].Code.Should().Be("tree.document_node_limit");
 
-        // 3. Extensionless YAML with undeclared $schema (including plain block/flow keys containing '::')
-        // must report context.undeclared_schema (not malformed-json).
+        // 3. Extensionless YAML with undeclared $schema (including plain block/flow keys containing '::', '::(key)', or 'morphir::key')
+        // must report context.undeclared_schema in both Auto and explicit YAML modes (not malformed-json or malformed_ion).
         foreach (var (name, content) in new[]
         {
             ("bad-schema-yaml", DocumentTreeMother.YamlDocuments.UndeclaredSchemaYaml),
             ("block-colon-colon-yaml", DocumentTreeMother.YamlDocuments.BlockColonColonKeyWithUndeclaredSchemaYaml),
             ("flow-colon-colon-yaml", DocumentTreeMother.YamlDocuments.FlowColonColonKeyWithUndeclaredSchemaYaml),
+            ("block-colon-colon-paren-yaml", DocumentTreeMother.YamlDocuments.BlockColonColonParenKeyWithUndeclaredSchemaYaml),
+            ("flow-colon-colon-paren-yaml", DocumentTreeMother.YamlDocuments.FlowColonColonParenKeyWithUndeclaredSchemaYaml),
+            ("block-morphir-colon-colon-yaml", DocumentTreeMother.YamlDocuments.BlockMorphirColonColonKeyWithUndeclaredSchemaYaml),
         })
         {
             var badSchemaPath = Path.Combine(sandbox.Work, name);
             File.WriteAllText(badSchemaPath, content);
-            var badSchemaFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(badSchemaPath, InputFormat.Auto)).Error;
-            badSchemaFailure.Diagnostics[0].Code.Should().Be("context.undeclared_schema", $"{name} should route to YAML and report context.undeclared_schema");
+            foreach (var format in new[] { InputFormat.Auto, InputFormat.Yaml })
+            {
+                var badSchemaFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(badSchemaPath, format)).Error;
+                badSchemaFailure.Diagnostics[0].Code.Should().Be("context.undeclared_schema", $"{name} should route to YAML and report context.undeclared_schema in {format} mode");
+            }
+        }
+
+        // 3b. Ion-annotated quoted string containing ': ' inside quotes is NOT classified as YAML in Auto mode.
+        var ionQuotedColonPath = Path.Combine(sandbox.Work, "ion-quoted-colon");
+        File.WriteAllText(ionQuotedColonPath, DocumentTreeMother.YamlDocuments.IonAnnotatedQuotedStringWithColonSpace);
+        var ionQuotedColonFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(ionQuotedColonPath, InputFormat.Auto)).Error;
+        ionQuotedColonFailure.Diagnostics[0].Code.Should().Be("malformed-json");
+
+        // 3c. Ion annotation markers (morphir::v4::{}, morphir::bare, morphir_model::{}) remain Ion in Auto mode.
+        foreach (var (name, content, expectedCode) in new[]
+        {
+            ("ion-stacked", DocumentTreeMother.YamlDocuments.IonStackedMorphirAnnotationStub, "invalid_document"),
+            ("ion-bare", DocumentTreeMother.YamlDocuments.IonBareMorphirAnnotationStub, "invalid_document"),
+            ("ion-mep", FixtureCatalog.ReadText(FixtureCatalog.UpstreamIr.RichModelIon), "unsupported-profile"),
+        })
+        {
+            var ionPath = Path.Combine(sandbox.Work, name);
+            File.WriteAllText(ionPath, content);
+            var ionFailure = ((Outcome<LoadedModel>.Failure)await LoadAsync(ionPath, InputFormat.Auto)).Error;
+            ionFailure.Diagnostics[0].Code.Should().Be(expectedCode, $"{name} should stay Ion in Auto mode");
         }
 
         // 4. Extensionless malformed JSON (trailing comma in v4 daily-rate JSON) must fail as malformed-json, NOT silently decode as YAML.

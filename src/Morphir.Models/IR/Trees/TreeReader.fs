@@ -655,6 +655,7 @@ module internal TreeReader =
                 let compactedLocations =
                     (if manifestCompacted then [ manifestLocation ] else [])
                     @ (sortedCompacted |> List.map fst)
+                    |> List.distinct
 
                 Ok(
                     stored tree,
