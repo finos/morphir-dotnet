@@ -223,8 +223,6 @@ type LayoutVisitor() =
 /// An immutable registry of renderers by file extension. Nothing is discovered by reflection.
 [<Sealed>]
 type DiagramRenderers private (renderers: ImmutableList<DiagramRenderer>) =
-    static let empty = DiagramRenderers(ImmutableList.Empty)
-
     /// The renderers, in the order they were registered.
     member _.Renderers: IReadOnlyList<DiagramRenderer> = renderers
 
@@ -271,4 +269,4 @@ type DiagramRenderers private (renderers: ImmutableList<DiagramRenderer>) =
         $"renderers for {extensions}"
 
     /// The empty registry.
-    static member Empty = empty
+    static member Empty = DiagramRenderers(ImmutableList.Empty)

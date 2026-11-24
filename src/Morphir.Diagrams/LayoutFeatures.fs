@@ -157,9 +157,6 @@ type LayoutFeature =
 /// An immutable set of layout features.
 [<Sealed>]
 type LayoutFeatures private (bits: int64) =
-    static let none = LayoutFeatures 0L
-    static let all = LayoutFeatures((1L <<< LayoutFeature.All.Count) - 1L)
-
     member internal _.Bits = bits
 
     /// Whether the set holds the feature.
@@ -219,15 +216,15 @@ type LayoutFeatures private (bits: int64) =
         member this.GetEnumerator() = (this.Items :> IEnumerable).GetEnumerator()
 
     /// The empty set.
-    static member None = none
+    static member None = LayoutFeatures 0L
 
     /// Every feature.
-    static member All = all
+    static member All = LayoutFeatures((1L <<< LayoutFeature.All.Count) - 1L)
 
     /// A set of the given features.
     static member Of([<ParamArray>] features: LayoutFeature array) =
         ArgumentNullException.ThrowIfNull features
-        features |> Array.fold (fun (set: LayoutFeatures) feature -> set.Add feature) none
+        features |> Array.fold (fun (set: LayoutFeatures) feature -> set.Add feature) (LayoutFeatures 0L)
 
 /// Walks drawables.
 module internal Drawables =

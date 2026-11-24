@@ -189,10 +189,6 @@ type Distance =
 /// A number from 0 to 1 inclusive, such as an anchor across a box or along a line.
 [<Sealed>]
 type Fraction private (value: float) =
-    static let zero = Fraction 0.0
-    static let half = Fraction 0.5
-    static let one = Fraction 1.0
-
     /// The number, from 0 to 1.
     member _.Value = value
 
@@ -206,13 +202,13 @@ type Fraction private (value: float) =
     override _.GetHashCode() = value.GetHashCode()
 
     /// Zero.
-    static member Zero = zero
+    static member Zero = Fraction 0.0
 
     /// One half.
-    static member Half = half
+    static member Half = Fraction 0.5
 
     /// One.
-    static member One = one
+    static member One = Fraction 1.0
 
     /// A fraction, or the reason the number is not one. For F# callers.
     static member Parse(value: float) : Result<Fraction, Diagnostic> =
@@ -274,8 +270,6 @@ type FractionPoint private (x: Fraction, y: Fraction) =
 /// A finite factor greater than 0.
 [<Sealed>]
 type Scale private (value: float) =
-    static let one = Scale 1.0
-
     /// The factor.
     member _.Value = value
 
@@ -289,7 +283,7 @@ type Scale private (value: float) =
     override _.GetHashCode() = value.GetHashCode()
 
     /// The factor 1.
-    static member One = one
+    static member One = Scale 1.0
 
     /// A scale, or the reason the number is not one. For F# callers.
     static member Parse(value: float) : Result<Scale, Diagnostic> =

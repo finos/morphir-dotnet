@@ -13,25 +13,33 @@ open System.Text.RegularExpressions
 open Morphir.Knowledge
 open Morphir.Knowledge.Rdf
 
-/// An sRGB colour with an opacity from 0 to 1.
-[<Sealed>]
-type Color internal (r: int, g: int, b: int, opacity: decimal) =
-    static let hex =
+// The types of this file hold no static let. A type with one gets a static constructor that runs the file's
+// initialisation, and the file's initialisation builds instances of these types, so two threads that first touch the
+// file through different doors (a type and a module value) could each wait for the other; the runtime then breaks the
+// deadlock and one of them reads static data before it is set. Data lives in modules, and helpers are static members.
+
+/// The colour syntaxes that Color reads.
+module internal ColorSyntax =
+    let hex =
         Regex(@"\A#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})\z", RegexOptions.CultureInvariant)
 
-    static let functional =
+    let functional =
         Regex(
             @"\Argba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*(\d*\.?\d+)\s*)?\)\z",
             RegexOptions.CultureInvariant
         )
 
-    static let failure text =
+    let failure text =
         Diagnostic(
             "theme/invalid-color",
             DiagnosticSeverity.Error,
             $"Cannot read colour '{text}'. Use #rgb, #rrggbb, rgb(r, g, b) or rgba(r, g, b, a).",
             None
         )
+
+/// An sRGB colour with an opacity from 0 to 1.
+[<Sealed>]
+type Color internal (r: int, g: int, b: int, opacity: decimal) =
 
     /// Red channel, from 0 to 255.
     member _.R = r
@@ -108,13 +116,13 @@ type Color internal (r: int, g: int, b: int, opacity: decimal) =
     /// Reads `#rgb`, `#rrggbb`, `rgb(r, g, b)` or `rgba(r, g, b, a)`. For F# callers.
     static member Parse(text: string | null) : Result<Color, Diagnostic> =
         match text with
-        | null -> Error(failure "")
-        | text when text.Length > 64 -> Error(failure (text.Substring(0, 64)))
+        | null -> Error(ColorSyntax.failure "")
+        | text when text.Length > 64 -> Error(ColorSyntax.failure (text.Substring(0, 64)))
         | text ->
             let trimmed = text.Trim()
             let channel (value: string) = Int32.Parse(value, CultureInfo.InvariantCulture)
 
-            if hex.IsMatch trimmed then
+            if ColorSyntax.hex.IsMatch trimmed then
                 let digits =
                     if trimmed.Length = 4 then
                         String(trimmed.Substring(1).ToCharArray() |> Array.collect (fun c -> [| c; c |]))
@@ -126,10 +134,10 @@ type Color internal (r: int, g: int, b: int, opacity: decimal) =
 
                 Ok(Color(part 0, part 2, part 4, 1m))
             else
-                let found = functional.Match trimmed
+                let found = ColorSyntax.functional.Match trimmed
 
                 if not found.Success then
-                    Error(failure trimmed)
+                    Error(ColorSyntax.failure trimmed)
                 else
                     let r, g, b =
                         channel found.Groups[1].Value, channel found.Groups[2].Value, channel found.Groups[3].Value
@@ -145,7 +153,7 @@ type Color internal (r: int, g: int, b: int, opacity: decimal) =
 
                     match opacity with
                     | Some opacity when r <= 255 && g <= 255 && b <= 255 && opacity <= 1m -> Ok(Color(r, g, b, opacity))
-                    | _ -> Error(failure trimmed)
+                    | _ -> Error(ColorSyntax.failure trimmed)
 
     /// Reads colour text. For C# callers.
     static member TryParse
@@ -251,7 +259,7 @@ type ColorFamily =
     static member All: IReadOnlyList<ColorFamily> = ColorFamilies.All
 
 and [<AbstractClass; Sealed>] internal ColorFamilies private () =
-    static let all: IReadOnlyList<ColorFamily> =
+    static member All: IReadOnlyList<ColorFamily> =
         ImmutableArray.Create(
             ColorFamily.Frontend,
             ColorFamily.Backend,
@@ -261,8 +269,6 @@ and [<AbstractClass; Sealed>] internal ColorFamilies private () =
             ColorFamily.MessageBus,
             ColorFamily.External
         )
-
-    static member All = all
 
 /// The fill, stroke and text colour of one family.
 [<Sealed>]
@@ -426,7 +432,7 @@ type ThemeMode =
 /// A named theme with a dark and a light palette.
 [<Sealed>]
 type DiagramTheme internal (name: string, dark: ThemePalette, light: ThemePalette) =
-    static let validate (name: string | null) (dark: ThemePalette) (light: ThemePalette) =
+    static member private Problems(name: string | null, dark: ThemePalette, light: ThemePalette) =
         ArgumentNullException.ThrowIfNull dark
         ArgumentNullException.ThrowIfNull light
 
@@ -466,7 +472,7 @@ type DiagramTheme internal (name: string, dark: ThemePalette, light: ThemePalett
     static member Validate
         (name: string | null, dark: ThemePalette, light: ThemePalette)
         : Result<DiagramTheme, ImmutableArray<Diagnostic>> =
-        match validate name dark light, name with
+        match DiagramTheme.Problems(name, dark, light), name with
         | [], NonNull name -> Ok(DiagramTheme(name, dark, light))
         | diagnostics, _ -> Error(ImmutableArray.CreateRange diagnostics)
 
@@ -502,15 +508,14 @@ type DiagramTheme internal (name: string, dark: ThemePalette, light: ThemePalett
 
             invalidArg parameter (errors |> Seq.map _.Message |> String.concat " ")
 
-/// The built-in themes. Each has a hand-tuned dark and light palette.
-[<AbstractClass; Sealed>]
-type DiagramThemes private () =
-    static let color (value: int) =
+/// The palettes of the built-in themes.
+module internal BuiltInThemes =
+    let color (value: int) =
         Color((value >>> 16) &&& 0xff, (value >>> 8) &&& 0xff, value &&& 0xff, 1m)
 
-    static let rgba r g b opacity = Color(r, g, b, opacity)
+    let rgba r g b opacity = Color(r, g, b, opacity)
 
-    static let palette background text muted mask arrow frame families =
+    let palette background text muted mask arrow frame families =
         let families =
             families
             |> List.map (fun (family, fill, stroke) -> family, FamilyColors(fill, color stroke, None))
@@ -519,7 +524,7 @@ type DiagramThemes private () =
         ThemePalette(color background, color text, color muted, color mask, color arrow, color frame, families)
 
     /// Fills are the accent of each family at the theme's opacity.
-    static let accents opacity background text muted mask arrow frame (strokes: (int * int) list) =
+    let accents opacity background text muted mask arrow frame (strokes: (int * int) list) =
         let families =
             List.zip (List.ofSeq ColorFamily.All) strokes
             |> List.map (fun (family, (fill, stroke)) ->
@@ -529,7 +534,7 @@ type DiagramThemes private () =
 
         palette background text muted mask arrow frame families
 
-    static let archify =
+    let archify =
         DiagramTheme(
             "Archify",
             palette
@@ -570,7 +575,7 @@ type DiagramThemes private () =
     // arrows and frames in a second accent. Fills are faint so that shapes read as flat outlines. Light strokes
     // are the dark accents darkened until they pass 4.5:1 on the background, the white mask and their own fill;
     // light arrows and frames pass 3:1.
-    static let monokai =
+    let monokai =
         DiagramTheme(
             "Monokai",
             accents
@@ -609,7 +614,7 @@ type DiagramThemes private () =
                 ]
         )
 
-    static let cobalt =
+    let cobalt =
         DiagramTheme(
             "Cobalt",
             accents
@@ -648,7 +653,7 @@ type DiagramThemes private () =
                 ]
         )
 
-    static let solarized =
+    let solarized =
         DiagramTheme(
             "Solarized",
             accents
@@ -687,7 +692,7 @@ type DiagramThemes private () =
                 ]
         )
 
-    static let gruvbox =
+    let gruvbox =
         DiagramTheme(
             "Gruvbox",
             accents
@@ -726,7 +731,7 @@ type DiagramThemes private () =
                 ]
         )
 
-    static let ocean =
+    let ocean =
         DiagramTheme(
             "Ocean",
             accents
@@ -765,7 +770,7 @@ type DiagramThemes private () =
                 ]
         )
 
-    static let darcula =
+    let darcula =
         DiagramTheme(
             "Darcula",
             accents
@@ -804,7 +809,7 @@ type DiagramThemes private () =
                 ]
         )
 
-    static let material =
+    let material =
         DiagramTheme(
             "Material",
             accents
@@ -843,35 +848,38 @@ type DiagramThemes private () =
                 ]
         )
 
-    static let all: IReadOnlyList<DiagramTheme> =
+    let all: IReadOnlyList<DiagramTheme> =
         ImmutableArray.Create(archify, monokai, cobalt, solarized, gruvbox, ocean, darcula, material)
 
+/// The built-in themes. Each has a hand-tuned dark and light palette.
+[<AbstractClass; Sealed>]
+type DiagramThemes private () =
     /// The classic preset of archify v3.2 by tt-a1i (MIT), as diagrams.mbt adapts it. The default.
-    static member Archify = archify
+    static member Archify = BuiltInThemes.archify
 
     /// Pink services, green clients and yellow decisions with cyan arrows on olive charcoal, with a hand-tuned light variant.
-    static member Monokai = monokai
+    static member Monokai = BuiltInThemes.monokai
 
     /// Yellow services, orange decisions and aqua clients with blue arrows on deep blue, with a hand-tuned light variant.
-    static member Cobalt = cobalt
+    static member Cobalt = BuiltInThemes.cobalt
 
     /// Blue services, green clients and yellow decisions with cyan arrows on blue-green or cream, with a hand-tuned light variant.
-    static member Solarized = solarized
+    static member Solarized = BuiltInThemes.solarized
 
     /// Orange services, aqua clients and yellow decisions with blue arrows on brown-grey or parchment, with a hand-tuned light variant.
-    static member Gruvbox = gruvbox
+    static member Gruvbox = BuiltInThemes.gruvbox
 
     /// Blue services, green clients and yellow decisions with teal arrows on deep blue-teal or pale blue, with a hand-tuned light variant.
-    static member Ocean = ocean
+    static member Ocean = BuiltInThemes.ocean
 
     /// Orange services, green clients and yellow decisions with blue arrows on charcoal or light grey, with a hand-tuned light variant.
-    static member Darcula = darcula
+    static member Darcula = BuiltInThemes.darcula
 
     /// Purple services, cyan clients and yellow decisions with teal arrows on blue-grey or near-white, with a hand-tuned light variant.
-    static member Material = material
+    static member Material = BuiltInThemes.material
 
     /// Every built-in theme, Archify first.
-    static member All = all
+    static member All = BuiltInThemes.all
 
 /// How a rendered SVG embeds a dataset in its metadata element.
 [<RequireQualifiedAccess>]
@@ -932,8 +940,6 @@ type SvgRenderOptions
         bridges: bool,
         trace: RailroadTrace option
     ) =
-    static let defaults = SvgRenderOptions(DiagramThemes.Archify, ThemeMode.Auto, None, None, ConnectorStyle.Elbow, false, None)
-
     internal new(theme, mode, document, metadata) =
         SvgRenderOptions(theme, mode, document, metadata, ConnectorStyle.Elbow, false, None)
 
@@ -1004,7 +1010,7 @@ type SvgRenderOptions
         $"{theme.Name} theme, {mode.WireValue} mode{carried}"
 
     /// Archify in Auto mode, with no document and no metadata.
-    static member Default = defaults
+    static member Default = SvgRenderOptions(DiagramThemes.Archify, ThemeMode.Auto, None, None, ConnectorStyle.Elbow, false, None)
 
     /// Options with a theme and a mode.
     static member Create(theme: DiagramTheme, mode: ThemeMode) =
