@@ -1111,7 +1111,7 @@ let tests =
                         "$.Literal.DocumentLiteral"
                         """{ "Hole": { "reason": { "DeletedDuringRefactor": { "tx-id": "\uD800" } } } }""",
                         "invalid_type",
-                        "$.Hole.reason.DeletedDuringRefactor.tx-id"
+                        "$.Hole.reason.DeletedDuringRefactor[\"tx-id\"]"
                     ] do
                     testCase json
                     <| fun () ->
