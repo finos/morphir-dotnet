@@ -1,0 +1,320 @@
+/// The canonical YAML writer. The vendored kit states the canonical YAML and the canonical JSON of each case, so the
+/// kit decides the bytes; the profile's reader, TreeYaml, decides that the text means the JSON it came from.
+module Morphir.IR.Tests.Trees.CanonicalYamlTests
+
+open System
+open System.IO
+open System.Text
+open System.Text.Json
+open System.Text.RegularExpressions
+open Expecto
+open Morphir.IR.Trees
+
+let private fixtures =
+    Path.Combine(__SOURCE_DIRECTORY__, "..", "..", "..", "Fixtures", "MorphirIon")
+
+let private jsonOptions = JsonDocumentOptions(MaxDepth = 4096)
+
+let private element (json: string) =
+    use document = JsonDocument.Parse(json, jsonOptions)
+    document.RootElement.Clone()
+
+let private yaml (json: string) = CanonicalYaml.write (element json)
+
+/// A JSON value as text that keeps member order and number lexemes, so two values compare as the profile does.
+let rec private exact (value: JsonElement) : string =
+    match value.ValueKind with
+    | JsonValueKind.Object ->
+        value.EnumerateObject()
+        |> Seq.map (fun property -> JsonSerializer.Serialize property.Name + ":" + exact property.Value)
+        |> String.concat ","
+        |> sprintf "{%s}"
+    | JsonValueKind.Array ->
+        value.EnumerateArray()
+        |> Seq.map exact
+        |> String.concat ","
+        |> sprintf "[%s]"
+    | JsonValueKind.String -> JsonSerializer.Serialize(value.GetString())
+    | _ -> value.GetRawText()
+
+/// Reads canonical YAML with the profile's reader. Its root must be a mapping.
+let private readBack (text: string) =
+    match TreeYaml.read 4096 "document.yaml" (Encoding.UTF8.GetBytes text) with
+    | Ok root -> root
+    | Error errors -> failtestf "The reader refused the canonical YAML: %A\n%s" errors text
+
+/// One kit case that states both a canonical YAML and a canonical JSON spelling.
+type private KitPair = { Name: string; Yaml: string; Json: string }
+
+let private docstring =
+    Regex(
+        "its canonical YAML spelling is:[ ]*\\n([ ]*)\"\"\"yaml\\n(.*?)\\n[ ]*\"\"\"",
+        RegexOptions.Singleline ||| RegexOptions.CultureInvariant
+    )
+
+let private inlineYaml =
+    Regex(@"its canonical YAML spelling is (?!:)(.+)$", RegexOptions.Multiline ||| RegexOptions.CultureInvariant)
+
+let private canonicalJson =
+    Regex(@"its canonical JSON spelling is (.+)$", RegexOptions.Multiline ||| RegexOptions.CultureInvariant)
+
+let private cells (row: string) =
+    row.Trim().Trim('|').Split('|')
+    |> Array.map (fun cell -> cell.Trim())
+    |> List.ofArray
+
+/// The YAML and JSON pairs of a feature file: a scenario's docstring or one-line YAML with its JSON step, and the
+/// YAML and JSON rows of an outline's examples.
+let private pairsOf (file: string) : KitPair list =
+    let text = File.ReadAllText(Path.Combine(fixtures, "kit", file)).Replace("\r\n", "\n")
+
+    let scenarios =
+        Regex.Split(text, @"\n(?=  Scenario)")
+        |> Array.filter (fun block -> block.StartsWith "  Scenario")
+
+    [
+        for scenario in scenarios do
+            let title = (scenario.Split('\n')[0]).Trim()
+
+            let yamlText =
+                let block = docstring.Match scenario
+
+                if block.Success then
+                    let margin = block.Groups[1].Value.Length
+
+                    block.Groups[2].Value.Split('\n')
+                    |> Array.map (fun line -> if line.Length >= margin then line.Substring margin else line.TrimStart())
+                    |> String.concat "\n"
+                    |> Some
+                else
+                    let line = inlineYaml.Match scenario
+                    if line.Success then Some(line.Groups[1].Value.Trim()) else None
+
+            match yamlText, canonicalJson.Match scenario with
+            | Some yaml, json when json.Success ->
+                yield {
+                    Name = $"{file}: {title}"
+                    Yaml = yaml
+                    Json = json.Groups[1].Value.Trim()
+                }
+            | _ -> ()
+
+            // An outline's examples: one row for each format.
+            let rows =
+                scenario.Split('\n')
+                |> Array.map (fun line -> line.Trim())
+                |> Array.filter (fun line -> line.StartsWith "|")
+                |> Array.map cells
+                |> List.ofArray
+
+            match rows with
+            | header :: body when List.contains "format" header && List.contains "spelling" header ->
+                let formatAt = List.findIndex ((=) "format") header
+                let spellingAt = List.findIndex ((=) "spelling") header
+
+                let spelling format =
+                    body
+                    |> List.tryFind (fun row -> row[formatAt] = format)
+                    |> Option.map (fun row -> row[spellingAt])
+
+                match spelling "YAML", spelling "JSON" with
+                | Some yaml, Some json ->
+                    yield {
+                        Name = $"{file}: {title} (examples)"
+                        Yaml = yaml
+                        Json = json
+                    }
+                | _ -> ()
+            | _ -> ()
+    ]
+
+let private kitPairs =
+    [ "definitions.feature"; "distributions.feature"; "names.feature"; "patterns-and-literals.feature"; "types.feature"; "values.feature" ]
+    |> List.collect pairsOf
+
+let private pairFiles =
+    Directory.GetFiles(Path.Combine(fixtures, "pairs"), "*.json")
+    |> Array.sort
+    |> List.ofArray
+
+[<Tests>]
+let tests =
+    testList "Canonical YAML" [
+        testList "Kit spellings" [
+            test "The kit states canonical YAML for many cases" {
+                Expect.isGreaterThan kitPairs.Length 40 "The parser finds the kit's YAML and JSON pairs"
+            }
+
+            for pair in kitPairs do
+                test pair.Name {
+                    Expect.equal (yaml pair.Json) (pair.Yaml + "\n") "The canonical YAML of the canonical JSON"
+                }
+        ]
+
+        testList "Rule 1: the root" [
+            test "A scalar root is the scalar and a line feed" {
+                Expect.equal (yaml "\"value-in-USD\"") "value-in-USD\n" "A plain string"
+                Expect.equal (yaml "4") "4\n" "A number"
+                Expect.equal (yaml "\"4\"") "\"4\"\n" "A string that reads as a number"
+            }
+
+            test "A sequence root follows rule 3" {
+                Expect.equal (yaml "[1, \"a\"]") "[1, a]\n" "A flow sequence"
+                Expect.equal (yaml "[{\"a\": 1}, 2]") "- a: 1\n- 2\n" "A block sequence"
+                Expect.equal (yaml "[]") "[]\n" "An empty sequence"
+            }
+
+            test "A mapping root is a block mapping" {
+                Expect.equal (yaml "{\"a\": {\"b\": 1}}") "a:\n  b: 1\n" "Two-space indentation"
+                Expect.equal (yaml "{}") "{}\n" "An empty mapping"
+            }
+        ]
+
+        testList "Rule 2: mappings" [
+            test "Members keep their order, and empty containers are inline" {
+                Expect.equal
+                    (yaml "{\"z\": 1, \"a\": {}, \"m\": [], \"b\": {\"c\": [1]}}")
+                    "z: 1\na: {}\nm: []\nb:\n  c: [1]\n"
+                    "The writer's order"
+            }
+
+            test "A key is a scalar under rule 4" {
+                Expect.equal (yaml "{\"$meta\": 1}") "$meta: 1\n" "A key such as $meta is plain"
+                Expect.equal (yaml "{\"true\": 1, \"a: b\": 2}") "\"true\": 1\n\"a: b\": 2\n" "Keys that need quotes"
+            }
+        ]
+
+        testList "Rule 3: sequences" [
+            test "A sequence with no mapping at any depth is flow" {
+                Expect.equal (yaml "{\"just\": [[\"value\", \"a\"]]}") "just: [[value, a]]\n" "Nested flow"
+            }
+
+            test "A sequence with a mapping at any depth is block, and a mapping item starts on its line" {
+                Expect.equal
+                    (yaml "{\"Tuple\": [{\"Variable\": \"x\"}, {\"Literal\": {\"IntegerLiteral\": 1}}]}")
+                    "Tuple:\n  - Variable: x\n  - Literal:\n      IntegerLiteral: 1\n"
+                    "values-0005"
+
+                Expect.equal (yaml "{\"a\": [[{\"b\": 1}], 2]}") "a:\n  - - b: 1\n  - 2\n" "A nested block sequence"
+                Expect.equal (yaml "{\"a\": [{}, []]}") "a:\n  - {}\n  - []\n" "Empty items stay inline"
+            }
+        ]
+
+        testList "Rule 4: strings" [
+            test "An FQName is plain except in a flow sequence" {
+                Expect.equal (yaml "{\"a\": \"morphir/SDK:basics#int\"}") "a: morphir/SDK:basics#int\n" "A mapping value"
+
+                Expect.equal
+                    (yaml "{\"Reference\": [\"morphir/SDK:list#list\", \"a\"]}")
+                    "Reference: [\"morphir/SDK:list#list\", a]\n"
+                    "A flow item"
+            }
+
+            for text in
+                [
+                    ""
+                    "true"; "True"; "TRUE"; "false"; "False"; "FALSE"; "null"; "Null"; "NULL"; "~"
+                    "42"; "-7"; "+1"; "1e3"; "1.5"; ".5"; "0x1F"; "0o17"; ".inf"; "-.inf"; ".nan"; ".NaN"
+                    "- a"; "?"; ":a"; ",a"; "[a"; "]a"; "{a"; "}a"; "#a"; "&a"; "*a"; "!a"; "|a"; ">a"; "'a"; "\"a"; "%a"; "@a"; "`a"
+                    " a"; "a "; "a:"; "a: b"; "a #b"; "a\nb"; "a\tb"; "a\u0001b"; "..."
+                ] do
+                test $"{JsonSerializer.Serialize text} is double-quoted" {
+                    let json = JsonSerializer.Serialize(dict [ "k", text ])
+                    let written = yaml json
+                    Expect.stringStarts written "k: \"" "Quoted"
+                    Expect.equal (exact (readBack written)) (exact (element json)) "It reads back as the same string"
+                }
+
+            for text in [ "a"; "a:b"; "a#b"; "morphir/SDK"; "value-in-USD"; "yes"; "2026-01-15"; "é😀"; "a b" ] do
+                test $"{JsonSerializer.Serialize text} is plain" {
+                    let json = JsonSerializer.Serialize(dict [ "k", text ])
+                    let written = yaml json
+                    Expect.equal written $"k: {text}\n" "Plain"
+                    Expect.equal (exact (readBack written)) (exact (element json)) "It reads back as the same string"
+                }
+
+            test "Inside a flow sequence, flow indicators force quotes" {
+                Expect.equal
+                    (yaml "{\"a\": [\"x,y\", \"x:y\", \"x#y\", \"[x\", \"x}\", \"plain\"]}")
+                    "a: [\"x,y\", \"x:y\", \"x#y\", \"[x\", \"x}\", plain]\n"
+                    "Flow restrictions"
+            }
+
+            test "A multi-line string is double-quoted with JSON escapes, never a block scalar" {
+                Expect.equal (yaml "{\"doc\": \"one\\ntwo \\\"q\\\" \\\\\"}") "doc: \"one\\ntwo \\\"q\\\" \\\\\"\n" "Escapes"
+            }
+        ]
+
+        testList "Rule 5: numbers, booleans and null" [
+            test "Numbers keep their lexeme" {
+                let json = "{\"a\": 1.50, \"b\": 1e3, \"c\": -0, \"d\": 123456789012345678901234567890, \"e\": 1.5E+2}"
+                let written = yaml json
+                Expect.equal written "a: 1.50\nb: 1e3\nc: -0\nd: 123456789012345678901234567890\ne: 1.5E+2\n" "The lexemes"
+                Expect.equal (exact (readBack written)) (exact (element json)) "The reader keeps them"
+            }
+
+            test "Booleans and null are true, false and null" {
+                Expect.equal (yaml "{\"a\": true, \"b\": false, \"c\": null}") "a: true\nb: false\nc: null\n" "Keywords"
+            }
+        ]
+
+        testList "Rule 6: output" [
+            test "The text ends with one line feed and has no markers, tags, anchors or comments" {
+                for path in pairFiles do
+                    let written = yaml (File.ReadAllText path)
+                    Expect.stringEnds written "\n" "A line feed"
+                    Expect.isFalse (written.EndsWith "\n\n") "Only one"
+                    Expect.isFalse (written.StartsWith "---" || written.Contains "\n---" || written.Contains "\n...") "No markers"
+                    Expect.isFalse (Regex.IsMatch(written, @"(^|[ \[,])[!&*]\w")) "No tags, anchors or aliases"
+            }
+        ]
+
+        testList "Round trip" [
+            for path in pairFiles do
+                test $"{Path.GetFileName path} reads back as its JSON" {
+                    let json = element (File.ReadAllText path)
+                    let written = CanonicalYaml.write json
+                    Expect.equal (exact (readBack written)) (exact json) "TreeYaml reads the same value"
+                }
+
+            for pair in kitPairs do
+                if pair.Json.TrimStart().StartsWith "{" then
+                    test $"{pair.Name} reads back as its JSON" {
+                        Expect.equal (exact (readBack (yaml pair.Json))) (exact (element pair.Json)) "The same value"
+                    }
+        ]
+
+        testList "Bytes and trees" [
+            test "Bytes are UTF-8 with no byte-order mark" {
+                match CanonicalYaml.ofJson (ReadOnlyMemory(Encoding.UTF8.GetBytes "{\"a\": \"é\"}")) with
+                | Ok bytes -> Expect.sequenceEqual bytes (Encoding.UTF8.GetBytes "a: é\n") "The bytes"
+                | Error message -> failtest message
+            }
+
+            test "Text that is not JSON is refused" {
+                match CanonicalYamlWriter.TryWriteJson(ReadOnlyMemory(Encoding.UTF8.GetBytes "{")) with
+                | true, _, _ -> failtest "Not JSON"
+                | false, _, failure -> Expect.isNotEmpty failure "The parser's message"
+            }
+
+            test "A JSON tree becomes a YAML tree with the .yaml extension" {
+                let files = [
+                    "manifest.json", ReadOnlyMemory(Encoding.UTF8.GetBytes "{\"formatVersion\": 4}")
+                    "pkg/p/m/module.json", ReadOnlyMemory(Encoding.UTF8.GetBytes "{\"doc\": \"x\"}")
+                    "pkg/p/m/a.type.json", ReadOnlyMemory(Encoding.UTF8.GetBytes "{\"TypeAliasDefinition\": {}}")
+                ]
+
+                match CanonicalYaml.ofJsonTree files with
+                | Ok written ->
+                    Expect.sequenceEqual
+                        (written |> List.map (fun (location, bytes) -> location, Encoding.UTF8.GetString bytes))
+                        [
+                            "manifest.yaml", "formatVersion: 4\n"
+                            "pkg/p/m/module.yaml", "doc: x\n"
+                            "pkg/p/m/a.type.yaml", "TypeAliasDefinition: {}\n"
+                        ]
+                        "Each file at its YAML location"
+                | Error message -> failtest message
+            }
+        ]
+    ]
