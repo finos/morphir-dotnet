@@ -80,7 +80,7 @@ System/global defaults SHALL exclude their entire project and workspace subtrees
 - **THEN** those fields do not alter discovered project ownership or the owning workspace output root
 
 ### Requirement: Environment mapping is deterministic
-MORPHIR_ values SHALL use double underscores for nesting, retain single underscores, lowercase segments, and type booleans, integers, and JSON arrays/objects. Reserved operational variables SHALL NOT become ordinary keys. A shorter scalar path SHALL win over a conflicting nested environment path.
+MORPHIR_ values SHALL use double underscores for nesting, retain single underscores, lowercase segments, and type booleans, integers, and JSON arrays/objects. Reserved operational variables, including the containment controls MORPHIR_DISCOVERY_BOUNDARY and MORPHIR_ISOLATED, SHALL NOT become ordinary keys. A shorter scalar path SHALL win over a conflicting nested environment path.
 
 #### Scenario: Canonical field name
 - **WHEN** MORPHIR_IR__FORMAT_VERSION is 4
@@ -89,6 +89,10 @@ MORPHIR_ values SHALL use double underscores for nesting, retain single undersco
 #### Scenario: Environment iteration order
 - **WHEN** MORPHIR_IR and MORPHIR_IR__STRICT_MODE are supplied in either enumeration order
 - **THEN** the shorter ir scalar wins in both resolutions
+
+#### Scenario: Containment controls are not configuration
+- **WHEN** MORPHIR_DISCOVERY_BOUNDARY and MORPHIR_ISOLATED are supplied
+- **THEN** resolved configuration has no discovery_boundary or isolated key from the environment
 
 ### Requirement: Profile selection is explicit and ordered
 Profiles SHALL be selected by explicit options, present MORPHIR_PROFILES, base active controls, then base defaults. No implicit profile SHALL be active. Explicit disabling or an empty environment selector SHALL suppress includes and file loading.
@@ -155,10 +159,3 @@ Resolution SHALL validate known values and report structured source/key diagnost
 #### Scenario: In-memory resolution
 - **WHEN** two hosts supply identical documents, source order, environment, and profile options
 - **THEN** both receive identical effective values, origins, and diagnostics
-
-### Requirement: Legacy configuration entry points remain compatible
-Existing cache-only configuration entry points SHALL remain available with their documented legacy behavior until an explicit compatibility migration is provided. New document-aware behavior SHALL be accessible through additive entry points.
-
-#### Scenario: Existing CI caller
-- **WHEN** an existing caller uses the cache-only resolver with CI mode On
-- **THEN** its existing TOML CI-overlay behavior remains available without opting into named profiles
