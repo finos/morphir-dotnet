@@ -185,50 +185,14 @@ let interceptingDirectoryProvider
 
 /// A valid flat v4 library tree containing <paramref name="moduleCount"/> modules under <c>pkg/acme/flat/</c>.
 let flatPackageTreeProvider (moduleCount: int) =
-    let manifest =
-        """{"formatVersion":4,"distribution":"Library","package":"acme/flat","pathBudget":240,"dependencies":[]}"""
-
-    let files =
-        seq {
-            yield "manifest.json", Morphir.Files.VFile.ofText "manifest.json" manifest
-
-            for i in 0 .. moduleCount - 1 do
-                let name = sprintf "mod-%04d" i
-                let location = $"pkg/acme/flat/{name}/module.json"
-                let content = $"{{\"formatVersion\":4,\"path\":\"{name}\",\"access\":\"Public\",\"types\":[],\"values\":[]}}"
-                yield location, Morphir.Files.VFile.ofText location content
-        }
-        |> Map.ofSeq
-        |> Morphir.Files.VFileTree.fromFileMap
-
-    Morphir.Files.VFileProviders.asFileProvider files
+    DocumentTreeMother.flatPackageTree moduleCount
+    |> Morphir.Files.VFileProviders.asFileProvider
 
 /// An in-memory v4 plain JSON tree with <paramref name="moduleCount"/> modules nested under four shared
 /// 100-character directory segments so logical paths overflow an entry-count-scaled discovery cache reservation.
 let longPathFlatPackageTreeProvider (moduleCount: int) =
-    let seg1 = System.String('a', 100)
-    let seg2 = System.String('b', 100)
-    let seg3 = System.String('c', 100)
-    let seg4 = System.String('d', 100)
-    let prefix = $"{seg1}/{seg2}/{seg3}/{seg4}"
-    let manifest =
-        """{"formatVersion":4,"distribution":"Library","package":"acme/flat","pathBudget":4000,"dependencies":[]}"""
-
-    let files =
-        seq {
-            yield "manifest.json", Morphir.Files.VFile.ofText "manifest.json" manifest
-
-            for i in 0 .. moduleCount - 1 do
-                let name = sprintf "mod-%04d" i
-                let modulePath = $"{prefix}/{name}"
-                let location = $"pkg/acme/flat/{modulePath}/module.json"
-                let content = $"{{\"formatVersion\":4,\"path\":\"{modulePath}\",\"access\":\"Public\",\"types\":[],\"values\":[]}}"
-                yield location, Morphir.Files.VFile.ofText location content
-        }
-        |> Map.ofSeq
-        |> Morphir.Files.VFileTree.fromFileMap
-
-    Morphir.Files.VFileProviders.asFileProvider files
+    DocumentTreeMother.longPathFlatPackageTree moduleCount
+    |> Morphir.Files.VFileProviders.asFileProvider
 
 /// A frozen bounded orders tree with one named file replaced by an undeclared contextual envelope $schema.
 let ordersTreeWithUndeclaredSchema (version: string) (profile: string) (targetFile: string) =

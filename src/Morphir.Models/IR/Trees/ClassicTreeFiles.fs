@@ -659,3 +659,87 @@ module internal ClassicTreeFiles =
                 None
         else
             None
+
+    /// Grammar-aware, O(N), cancellable scan of a single Classic IR document (v1, v2, or v3 Library) for
+    /// decimal literals in expression or pattern positions that lose precision, scale, or sign under
+    /// single-document Classic JSON serialization. Skips opaque attributes, type definitions, and type expressions.
+    let findLossyDecimalInSingleDocument
+        (ct: System.Threading.CancellationToken)
+        (document: JsonElement)
+        : string option =
+        let checkModule (modEntry: JsonElement) =
+            let mutable modAccess = Unchecked.defaultof<JsonElement>
+
+            let foundModAccess =
+                match tryReadPair modEntry with
+                | ValueSome(struct (_, second)) ->
+                    modAccess <- second
+                    true
+                | ValueNone ->
+                    modEntry.ValueKind = JsonValueKind.Object
+                    && modEntry.TryGetProperty("def", &modAccess)
+
+            if not foundModAccess || modAccess.ValueKind <> JsonValueKind.Object then
+                None
+            else
+                let mutable modDef = Unchecked.defaultof<JsonElement>
+                let mutable valuesElem = Unchecked.defaultof<JsonElement>
+
+                if
+                    modAccess.TryGetProperty("value", &modDef)
+                    && modDef.ValueKind = JsonValueKind.Object
+                    && modDef.TryGetProperty("values", &valuesElem)
+                    && valuesElem.ValueKind = JsonValueKind.Array
+                then
+                    let mutable lossy: string option = None
+                    let mutable enumerator = valuesElem.EnumerateArray()
+
+                    while lossy.IsNone && enumerator.MoveNext() do
+                        ct.ThrowIfCancellationRequested()
+
+                        match tryReadPair enumerator.Current with
+                        | ValueSome(struct (_, valAccessEntry)) ->
+                            lossy <- findLossyDecimalInValueEntry ct valAccessEntry
+                        | ValueNone -> ()
+
+                    lossy
+                else
+                    None
+
+        if document.ValueKind <> JsonValueKind.Object then
+            None
+        else
+            let mutable distElem = Unchecked.defaultof<JsonElement>
+
+            if
+                not (document.TryGetProperty("distribution", &distElem))
+                || distElem.ValueKind <> JsonValueKind.Array
+            then
+                None
+            else
+                let count, kindElem, _pkgElem, _depsElem, pkgDefElem, _ = readUpTo6 distElem
+
+                if
+                    count = 4
+                    && kindElem.ValueKind = JsonValueKind.String
+                    && (kindElem.GetString() = "Library" || kindElem.GetString() = "library")
+                    && pkgDefElem.ValueKind = JsonValueKind.Object
+                then
+                    let mutable modulesElem = Unchecked.defaultof<JsonElement>
+
+                    if
+                        pkgDefElem.TryGetProperty("modules", &modulesElem)
+                        && modulesElem.ValueKind = JsonValueKind.Array
+                    then
+                        let mutable lossy: string option = None
+                        let mutable enumerator = modulesElem.EnumerateArray()
+
+                        while lossy.IsNone && enumerator.MoveNext() do
+                            ct.ThrowIfCancellationRequested()
+                            lossy <- checkModule enumerator.Current
+
+                        lossy
+                    else
+                        None
+                else
+                    None

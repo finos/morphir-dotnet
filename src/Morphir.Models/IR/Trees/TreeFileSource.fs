@@ -789,9 +789,24 @@ module internal TreeFileSource =
                 |> Result.bind (expandSingleYamlEnvelope ctx file maxBytes maxNodes ct plainBytes)
         )
 
+    let private isClassicSingleDocument (document: JsonElement) : bool =
+        let mutable version = Unchecked.defaultof<JsonElement>
+        let mutable number = 0
+
+        document.ValueKind = JsonValueKind.Object
+        && document.TryGetProperty("formatVersion", &version)
+        && match version.ValueKind with
+           | JsonValueKind.Number ->
+               version.TryGetInt32(&number) && number >= 1 && number <= 3
+           | JsonValueKind.String ->
+               match nonNull (version.GetString()) with
+               | "3" -> true
+               | text -> text.StartsWith("3.", StringComparison.Ordinal)
+           | _ -> false
+
     /// <summary>
-    /// Verifies that a single YAML document carries no envelope, context, <c>$meta</c>, or unknown classic v3
-    /// members that single-document JSON cannot preserve losslessly.
+    /// Verifies that a single YAML document carries no envelope, context, <c>$meta</c>, unknown classic v3
+    /// members, or lossy classic decimal literals that single-document JSON cannot preserve losslessly.
     /// </summary>
     let verifyLosslessSingleYamlDocument
         (file: string)
@@ -829,19 +844,29 @@ module internal TreeFileSource =
                                     (Some file)
                                     "single-document YAML contains '$meta', which single-document JSON cannot preserve"
                             ]
-                        elif MorphirFile.isClassic envelope.Document then
+                        elif isClassicSingleDocument envelope.Document then
                             expandSingleYamlEnvelope ctx file maxBytes maxNodes ct plainBytes envelope
                             |> Result.bind (fun expanded ->
-                                match Morphir.Json.Classic.ClassicJson.readDistributionStrict expanded with
-                                | Result.Ok _ -> Ok()
-                                | Result.Error err when err.Rule = "unknown_member" ->
+                                match ClassicTreeFiles.findLossyDecimalInSingleDocument ct expanded with
+                                | Some lexeme ->
                                     Error [
                                         StoreErrors.diagnostic
                                             "data.lossy_conversion"
                                             (Some file)
-                                            $"single-document YAML contains unrepresentable member at {err.Location}: {err.Message}"
+                                            $"single-document YAML contains Classic decimal literal '{lexeme}' that loses precision, scale, or sign under single-document Classic JSON serialization"
                                     ]
-                                | Result.Error _ -> Ok()
+                                | None when MorphirFile.isClassic expanded ->
+                                    match Morphir.Json.Classic.ClassicJson.readDistributionStrict expanded with
+                                    | Result.Ok _ -> Ok()
+                                    | Result.Error err when err.Rule = "unknown_member" ->
+                                        Error [
+                                            StoreErrors.diagnostic
+                                                "data.lossy_conversion"
+                                                (Some file)
+                                                $"single-document YAML contains unrepresentable member at {err.Location}: {err.Message}"
+                                        ]
+                                    | Result.Error _ -> Ok()
+                                | None -> Ok()
                             )
                         else
                             Ok()

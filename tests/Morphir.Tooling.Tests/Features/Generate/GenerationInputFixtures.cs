@@ -465,40 +465,24 @@ internal static class GenerationInputFixtures
         return WriteIon(directory, "text", text);
     }
 
-    public static string PlainV4MultiModuleTree(string directory, int moduleCount)
-    {
-        Directory.CreateDirectory(directory);
-        File.WriteAllText(Path.Combine(directory, "manifest.json"),
-            """{"formatVersion":4,"distribution":"Library","package":"acme/orders","pathBudget":240,"dependencies":[]}""");
-        for (var i = 0; i < moduleCount; i++)
-        {
-            var modName = $"mod-{i:D2}";
-            var modDir = Path.Combine(directory, "pkg", "acme", "orders", modName);
-            Directory.CreateDirectory(modDir);
-            File.WriteAllText(Path.Combine(modDir, "module.json"),
-                $$"""{"formatVersion":4,"path":"{{modName}}","access":"Public","types":[],"values":[]}""");
-        }
-        return directory;
-    }
+    public static string PlainV4MultiModuleTree(string directory, int moduleCount) =>
+        WriteTreeToDirectory(directory, DocumentTreeMother.FlatOrdersPackageTree(moduleCount));
 
-    public static string PlainV4LongPathMultiModuleTree(string directory, int moduleCount)
+    public static string PlainV4LongPathMultiModuleTree(string directory, int moduleCount) =>
+        WriteTreeToDirectory(directory, DocumentTreeMother.LongPathFlatPackageTree(moduleCount));
+
+    private static string WriteTreeToDirectory(string directory, Morphir.Files.VFileTree tree)
     {
         Directory.CreateDirectory(directory);
-        File.WriteAllText(Path.Combine(directory, "manifest.json"),
-            """{"formatVersion":4,"distribution":"Library","package":"acme/flat","pathBudget":4000,"dependencies":[]}""");
-        var seg1 = new string('a', 100);
-        var seg2 = new string('b', 100);
-        var seg3 = new string('c', 100);
-        var seg4 = new string('d', 100);
-        var prefix = $"{seg1}/{seg2}/{seg3}/{seg4}";
-        for (var i = 0; i < moduleCount; i++)
+        foreach (var entry in tree.FilesByLocation)
         {
-            var modName = $"mod-{i:D4}";
-            var modulePath = $"{prefix}/{modName}";
-            var modDir = Path.Combine(directory, "pkg", "acme", "flat", seg1, seg2, seg3, seg4, modName);
-            Directory.CreateDirectory(modDir);
-            File.WriteAllText(Path.Combine(modDir, "module.json"),
-                $$"""{"formatVersion":4,"path":"{{modulePath}}","access":"Public","types":[],"values":[]}""");
+            var path = Path.Combine(directory, entry.Key.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            if (!entry.Value.TryOpenRead(out var source, out var error))
+                throw new InvalidOperationException($"Failed to read fixture entry '{entry.Key}': {error}");
+            using (source)
+            using (var dest = File.Create(path))
+                source.CopyTo(dest);
         }
         return directory;
     }

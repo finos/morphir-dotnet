@@ -626,6 +626,46 @@ let v3LibraryWithANonFiniteFloat: StoredTree =
             }
     | V4Tree _ -> failwith "v3Library is a classic tree."
 
+let private writeV4Tree (pathBudget: int) (tree: StoredTree) : VFileTree =
+    match DocumentTreeStore.write { WriteOptions.defaults with PathBudget = pathBudget } tree with
+    | Result.Error errors ->
+        let joined = errors |> List.map string |> String.concat "; "
+        failwith $"Failed to write document tree fixture: {joined}"
+    | Ok written -> written
+
+let private flatLibraryTree (pkg: string) (pathBudget: int) (formatName: int -> string) (moduleCount: int) : VFileTree =
+    let builder =
+        [ 0 .. moduleCount - 1 ]
+        |> List.fold (fun lib i -> withModule (modulePath (formatName i)) id lib) (aV4Library (packageName pkg))
+
+    builder
+    |> buildV4
+    |> treeOf
+    |> writeV4Tree pathBudget
+
+/// <summary>A valid flat v4 library tree containing <paramref name="moduleCount"/> modules under <c>pkg/acme/flat/</c>.</summary>
+[<CompiledName("FlatPackageTree")>]
+let flatPackageTree (moduleCount: int) : VFileTree =
+    flatLibraryTree "acme/flat" 240 (sprintf "mod-%04d") moduleCount
+
+/// <summary>A valid flat v4 library tree containing <paramref name="moduleCount"/> modules under <c>pkg/acme/orders/</c>.</summary>
+[<CompiledName("FlatOrdersPackageTree")>]
+let flatOrdersPackageTree (moduleCount: int) : VFileTree =
+    flatLibraryTree "acme/orders" 240 (sprintf "mod-%02d") moduleCount
+
+/// <summary>
+/// A valid v4 library tree with <paramref name="moduleCount"/> modules nested under four shared
+/// 100-character directory segments so logical paths overflow an entry-count-scaled discovery cache reservation.
+/// </summary>
+[<CompiledName("LongPathFlatPackageTree")>]
+let longPathFlatPackageTree (moduleCount: int) : VFileTree =
+    let seg1 = System.String('a', 100)
+    let seg2 = System.String('b', 100)
+    let seg3 = System.String('c', 100)
+    let seg4 = System.String('d', 100)
+    let prefix = $"{seg1}/{seg2}/{seg3}/{seg4}"
+    flatLibraryTree "acme/flat" WriteOptions.DefaultPathBudget (fun i -> sprintf "%s/mod-%04d" prefix i) moduleCount
+
 /// <summary>
 /// One tree of files for each refusal of a read, each named for what is wrong with it. Each is a tree that the store
 /// writes when it is asked for, with one change. The files of <see cref="acmeDemo"/> are <c>manifest.json</c>,

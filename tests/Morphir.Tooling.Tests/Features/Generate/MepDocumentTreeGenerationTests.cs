@@ -1958,6 +1958,152 @@ public sealed class MepDocumentTreeGenerationTests
     }
 
     [Test]
+    [Arguments("-0.00", false)]
+    [Arguments("1.00000000000000000000000000000", false)]
+    [Arguments("-0.00", true)]
+    [Arguments("1.00000000000000000000000000000", true)]
+    public async Task SingleFileClassicYamlWithLossyDecimalIsRefusedAsLossyBeforeDraft1Dispatch(string lexeme, bool inPattern)
+    {
+        using var sandbox = TestSandbox.Create();
+        var (projectRoot, outputDir) = GenerationInputFixtures.WriteDraft1Project(
+            sandbox.PathOf("project"), sandbox.PathOf("generated"), sandbox.PathOf("draft1.wasm"), "acme/orders");
+
+        const string decimalTypeYaml = "[\"Reference\", {}, [[[\"morphir\"], [\"s\", \"d\", \"k\"]], [[\"decimal\"]], [\"decimal\"]], []]";
+        const string intTypeYaml = "[\"Reference\", {}, [[[\"morphir\"], [\"s\", \"d\", \"k\"]], [[\"basics\"]], [\"int\"]], []]";
+        var inputPath = sandbox.PathOf("input", "model.yaml");
+        Directory.CreateDirectory(Path.GetDirectoryName(inputPath)!);
+        var valueYaml = inPattern
+            ? $$"""
+              inputTypes:
+                - - [x]
+                  - {}
+                  - {{decimalTypeYaml}}
+              outputType: {{intTypeYaml}}
+              body:
+                - PatternMatch
+                - {}
+                - - Variable
+                  - {}
+                  - [x]
+                - - - - LiteralPattern
+                      - {}
+                      - [DecimalLiteral, "{{lexeme}}"]
+                    - - Literal
+                      - {}
+                      - [WholeNumberLiteral, 1]
+                  - - - WildcardPattern
+                      - {}
+                    - - Literal
+                      - {}
+                      - [WholeNumberLiteral, 0]
+              """
+            : $$"""
+              inputTypes: []
+              outputType: {{decimalTypeYaml}}
+              body:
+                - Literal
+                - {}
+                - [DecimalLiteral, "{{lexeme}}"]
+              """;
+        File.WriteAllText(inputPath,
+            $"""
+            formatVersion: "3.1.0"
+            distribution:
+              - Library
+              - [[acme], [orders]]
+              - []
+              - modules:
+                  - - [[domain]]
+                    - access: Public
+                      value:
+                        types: []
+                        values:
+                          - - [order]
+                            - access: Public
+                              value:
+                                doc: ""
+                                value:
+            {string.Join('\n', valueYaml.Replace("\r\n", "\n").Split('\n').Select(line => "                        " + line))}
+            """);
+
+        var guest = new Draft1OnlyChannelGuest();
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: inputPath, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var failure = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Failure>().Which.Error;
+        failure.Kind.Should().Be(GenerationFailureKind.Semantic);
+        failure.Diagnostics.Should().Contain(d => d.Code == "data.lossy_conversion" && d.Message.Contains(lexeme, StringComparison.Ordinal));
+        guest.GenerateCalls.Should().Be(0);
+    }
+
+    [Test]
+    public async Task SingleFileClassicYamlWithLosslessDecimalAndOpaqueAttributeConvertsToDraft1()
+    {
+        using var sandbox = TestSandbox.Create();
+        var (projectRoot, outputDir) = GenerationInputFixtures.WriteDraft1Project(
+            sandbox.PathOf("project"), sandbox.PathOf("generated"), sandbox.PathOf("draft1.wasm"), "acme/orders");
+
+        const string decimalTypeYaml = "[\"Reference\", [\"Literal\", {}, [\"DecimalLiteral\", \"-0.00\"]], [[[\"morphir\"], [\"s\", \"d\", \"k\"]], [[\"decimal\"]], [\"decimal\"]], []]";
+        var inputPath = sandbox.PathOf("input", "model.yaml");
+        Directory.CreateDirectory(Path.GetDirectoryName(inputPath)!);
+        File.WriteAllText(inputPath,
+            $$"""
+            formatVersion: "3.1.0"
+            distribution:
+              - Library
+              - [[acme], [orders]]
+              - []
+              - modules:
+                  - - [[domain]]
+                    - access: Public
+                      value:
+                        types: []
+                        values:
+                          - - [order]
+                            - access: Public
+                              value:
+                                doc: ""
+                                value:
+                                  inputTypes: []
+                                  outputType: {{decimalTypeYaml}}
+                                  body:
+                                    - Literal
+                                    - ["Literal", {}, ["DecimalLiteral", "-0.00"]]
+                                    - [DecimalLiteral, "-1.50"]
+            """);
+
+        var guest = new Draft1OnlyChannelGuest();
+        var connector = new MepBackendExtensionConnector(null, (_, _) => (guest.OpenChannel(), "", ""));
+        var resolver = new RecordGenerationSettingsResolver(new CliGenerationSettingsResolver(),
+            new FileSystemCompileConfigurationLoader(),
+            new TaskStoreOptions { Diagnostics = TextWriter.Null, PollInterval = TimeSpan.FromMilliseconds(10) });
+
+        var outcome = await GenerateHandler.Handle(
+            new GenerateRequest(new GenerateOverrides(Input: inputPath, Target: "text", Output: outputDir) { Project = projectRoot },
+                new InvocationContext(projectRoot) { Environment = SandboxEnvironment(sandbox) }),
+            resolver, new GenerationModelLoader(new BoundedModelCapture()),
+            new RegisteredBackendResolver([]), new GenerationPublisher(), connector, [], default);
+
+        var success = outcome.Should().BeOfType<Outcome<GenerationSuccess>.Success>(outcome.ToString()).Which.Value;
+        var converted = success.Diagnostics.Should().ContainSingle(d => d.Code == "extension.model_converted").Which;
+        converted.Data!.Value.GetProperty("from").GetProperty("codec").GetString().Should().Be("morphir-yaml");
+        converted.Data.Value.GetProperty("to").GetProperty("codec").GetString().Should().Be("morphir-json");
+        guest.GenerateCalls.Should().Be(1);
+        guest.ReceivedIrVersion.Should().Be("3.1.0");
+        guest.ReceivedDecodedJson.Should().NotBeNull();
+        guest.ReceivedDecodedJson.Should().Contain("""["DecimalLiteral","-1.50"]""");
+        guest.ReceivedDecodedJson.Should().Contain("""["Literal",{},["DecimalLiteral","-0.00"]]""");
+    }
+
+    [Test]
     public async Task NegotiatedExplicitTreeRouteServesFirstInventoryPageForLongPathTreeWhenDiscoveryCacheOverflows()
     {
         using var sandbox = TestSandbox.Create();
