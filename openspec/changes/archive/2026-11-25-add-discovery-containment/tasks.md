@@ -77,7 +77,9 @@ Depends on group 1, and on group 5 for the Tooling configuration tests. Follow T
 
 ## 7. Integration verification
 
-- [ ] 7.1 Run `./build.ps1 --target TestAll` locally on Windows with `~/.morphir` present, and in CI on all three platforms. Verify that it is green, that the tripwire passes in every process-heavy assembly, and that `WorkspaceDiscoveryTests`/`ConfigResolverTests` no longer exist.
+- [x] 7.1 Run `./build.ps1 --target TestAll` locally on Windows with `~/.morphir` present, and in CI on all three platforms. Verify that it is green, that the tripwire passes in every process-heavy assembly, and that `WorkspaceDiscoveryTests`/`ConfigResolverTests` no longer exist.
+  - Done on 2026-11-25 on Windows 11 ARM64 with `~/.morphir` present. 55 of the 56 unit and black-box suites passed. So did the build tests (536 of 536) and the packages lane (36 of 36). The tripwire held in every assembly that has it, and neither legacy test exists. CI for #497 passed on ubuntu, windows and macOS.
+  - One suite failed: `Morphir.Diagrams.Canvas.Tests`. Its Excalidraw digests differ on Windows ARM64 only; the suite came in later with #707 and does not touch discovery. It is tracked in #710.
 - [x] 7.2 Reproduce both #494 bugs in the original sandbox commands and confirm that they are fixed: no `RootPrimary` for the global home, and backslash `MORPHIR_HOME` exits 0. Run `openspec validate add-discovery-containment --strict` and verify that it passes.
 
 ## Workflow follow-up
