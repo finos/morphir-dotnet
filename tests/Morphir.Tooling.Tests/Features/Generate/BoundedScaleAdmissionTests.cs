@@ -161,6 +161,9 @@ public sealed class BoundedScaleAdmissionTests
     [Category("PlatformSpecific")]
     public async Task ProductionOrdersScaleProfileAdmitsExactMaxFrameBytesAndRefusesOneByteOverThroughRealWasmAdapter()
     {
+        if (Morphir.Tooling.Features.Extensions.WasmRuntime.Process.Platform == "win-x64")
+            Skip.Test("win_x64_trap_unsupported: guest instantiation is unavailable; #609.");
+
         var profile = BoundedGenerationProfile.OrdersScale;
         var reader = RecordedGenerationAdmission.ReaderLimits(profile, ModelReadLimits.Default);
         var offer = RecordedGenerationAdmission.Offer(profile, reader, wasm: true);

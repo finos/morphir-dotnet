@@ -15,7 +15,7 @@ open Morphir.Toolchain
 let private parentRoot = Path.Combine(AppContext.BaseDirectory, "ParentContracts")
 let private parentCommit = "65bbbc961d9eb962ad941a859c9d09fba058f5a0"
 let private parentPreview4Root = Path.Combine(AppContext.BaseDirectory, "ParentContractsPreview4")
-let private parentPreview4Commit = "13c29d962c5907a1ce1da8395f060947b24772ee"
+let private parentPreview4Commit = "cfef5ca72ddd459feb4b9329e8f8deceac4bfea4"
 
 let private schemaFamilies = System.Collections.Concurrent.ConcurrentDictionary<string, Map<string, JsonSchema>>()
 
