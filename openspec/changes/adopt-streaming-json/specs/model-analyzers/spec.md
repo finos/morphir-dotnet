@@ -3,7 +3,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: validate output is a table or one JSON report
-Without `--json`, `morphir validate` SHALL write the diagnostics as a TUI-styled table on stdout, with severity, code, location, message and extension id, followed by a one-line summary. Its report SHALL have `success`, `exitCode`, `input`, the input's family and format version, the analyzers that ran and did not run, and `diagnostics`. With `--json=document`, it SHALL write that report as one JSON document to stdout; with `--json`, the report SHALL be the `completed` record's. Logs SHALL go to stderr only.
+Without `--json`, `morphir validate` SHALL write the diagnostics on stdout as a TUI-styled table (severity, code, location, message, extension id) and a one-line summary. Its report SHALL have `success`, `exitCode`, `input`, the input's family and format version, the analyzers that ran and did not run, and `diagnostics`. `--json=document` SHALL write it as one JSON document to stdout; `--json` SHALL make it the `completed` record's report. Logs SHALL go to stderr only.
 
 #### Scenario: JSON report is pipeable
 - **WHEN** a user runs `morphir validate --input model.json --json=document | jq .exitCode`

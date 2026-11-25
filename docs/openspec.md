@@ -9,9 +9,9 @@ recorded schema. Follow this repository's contribution and approval rules.
 ## Bootstrap
 
 Install [mise](https://mise.jdx.dev/), then run `mise install`. OpenSpec is pinned
-to 1.17.0. mise also installs the pinned
+to 2.2.0. mise also installs the pinned
 [`mission-control-tools`](https://github.com/moonrockz/mission-control/tree/main/apps/tools)
-0.1.2 binary, which checks the shared bundle and generates the agent skills. mise
+0.1.3 binary, which checks the shared bundle and generates the agent skills. mise
 checks each download against its GitHub asset digest and its artifact
 attestation. Existing project runtime pins remain in place.
 
@@ -34,16 +34,21 @@ mise exec -- openspec instructions design --change <change-name>
 
 No schema override is needed. The design instructions target `design.html`.
 Use the generated core skills to propose, explore, apply, update, sync specs and
-archive changes. Skills are checked in for portable/Codex agents, Claude,
-Copilot, Cursor, Grok, Gemini and OpenCode. `mise run openspec:setup` regenerates
-them using an isolated core profile without changing personal OpenSpec settings.
+archive changes. The `openspec` skill answers questions about OpenSpec and
+sends a request to the skill that does the work. The skills are checked in once,
+in `.agents/skills/`, which Codex, Copilot, Cursor, Gemini and OpenCode read.
+`.claude/skills/` and `.grok/skills/` hold links to them. On Windows, run
+`git config --global core.symlinks true` before you clone, or each link checks
+out as a small text file. `mise run openspec:setup` regenerates the skills in
+this repository using an isolated core profile without changing personal
+OpenSpec settings.
 
 Keep project-specific context and rules in `openspec/config.yaml` and AGENTS.md.
 Existing skills outside the generated OpenSpec set are preserved.
 
 ## Update the shared bundle
 
-`openspec/extensions.lock.json` (format 2) records `mission-control-tools` 0.1.2
+`openspec/extensions.lock.json` (format 2) records `mission-control-tools` 0.1.3
 and SHA-256 hashes for the seven managed files. Git attributes preserve LF line
 endings so Windows checkouts keep those hashes. Keep the schema, templates and
 notices identical to the bundle in the binary. Do not patch them locally.
