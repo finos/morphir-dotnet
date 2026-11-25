@@ -880,7 +880,12 @@ module ClassicJsonWriter =
             use json =
                 new Utf8JsonWriter(
                     buffer,
-                    JsonWriterOptions(Indented = indented, IndentSize = 2, MaxDepth = MaxWriteDepth)
+                    JsonWriterOptions(
+                        Indented = indented,
+                        IndentSize = 2,
+                        NewLine = "\n",
+                        MaxDepth = MaxWriteDepth
+                    )
                 )
 
             try

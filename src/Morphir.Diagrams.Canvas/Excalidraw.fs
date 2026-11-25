@@ -236,7 +236,7 @@ type internal ExcalidrawScene(layout: DiagramLayout) =
 /// Writes Excalidraw scenes.
 [<RequireQualifiedAccess>]
 module internal ExcalidrawWriting =
-    let options = JsonWriterOptions(Indented = true, Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping)
+    let options = JsonWriterOptions(Indented = true, NewLine = "\n", Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping)
 
     // Numbers are written as decimals of at most four places, with no trailing zeros.
     let private decimalOf (text: string) = Decimal.Parse(text, Globalization.CultureInfo.InvariantCulture)
