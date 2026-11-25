@@ -251,4 +251,122 @@ public sealed class ModelValidationTests
         SHA256.HashData(await File.ReadAllBytesAsync(model)).Should().Equal(before);
         Directory.GetFileSystemEntries(sandbox.Work, "*", SearchOption.AllDirectories).Should().BeEquivalentTo(entries);
     }
+
+    [Test]
+    [Category("PlatformSpecific")]
+    public async Task AutoModeRefusesYamlSingleFilesAndJsonYamlDocumentTreesAndRunsNoAnalyzer()
+    {
+        await using var sandbox = Morphir.TestSupport.TestSandbox.Create("morphir-validate-guard-");
+        var analyzer = new FakeAnalyzer("acme.lint", () => []);
+        var registry = new AnalyzerRegistry([analyzer]);
+
+        var yamlFile = Path.Combine(sandbox.Work, "model.yaml");
+        await File.WriteAllTextAsync(yamlFile, Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.V4DailyRateYaml("4.0.0"));
+        var yamlReport = await Validation(registry).RunAsync(new ValidateOverrides(yamlFile), new InvocationContext(sandbox.Work), default);
+        yamlReport.ExitCode.Should().Be(2);
+        yamlReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-format");
+
+        // Released validate parity: extensionless comment-led YAML and custom: value stay malformed-json (not unsupported-format).
+        var extensionlessCommentYaml = Path.Combine(sandbox.Work, "extensionless-mep");
+        await File.WriteAllTextAsync(extensionlessCommentYaml, Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.MepCrOnlyCommentEnvelopeYaml);
+        var extensionlessCommentReport = await Validation(registry).RunAsync(new ValidateOverrides(extensionlessCommentYaml, "auto"), new InvocationContext(sandbox.Work), default);
+        extensionlessCommentReport.ExitCode.Should().Be(2);
+        extensionlessCommentReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("malformed-json");
+
+        var extensionlessCustomYaml = Path.Combine(sandbox.Work, "extensionless-custom");
+        await File.WriteAllTextAsync(extensionlessCustomYaml, Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.CustomMappingYaml);
+        var extensionlessCustomReport = await Validation(registry).RunAsync(new ValidateOverrides(extensionlessCustomYaml, "auto"), new InvocationContext(sandbox.Work), default);
+        extensionlessCustomReport.ExitCode.Should().Be(2);
+        extensionlessCustomReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("malformed-json");
+
+        var jsonSuffixedYaml = Path.Combine(sandbox.Work, "yaml-content.json");
+        await File.WriteAllTextAsync(jsonSuffixedYaml, Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.V4DailyRateYaml("4"));
+        var jsonSuffixedReport = await Validation(registry).RunAsync(new ValidateOverrides(jsonSuffixedYaml, "auto"), new InvocationContext(sandbox.Work), default);
+        jsonSuffixedReport.ExitCode.Should().Be(2);
+        jsonSuffixedReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-format");
+
+        var jsonSuffixedDoubleColonYaml = Path.Combine(sandbox.Work, "yaml-double-colon.json");
+        await File.WriteAllTextAsync(jsonSuffixedDoubleColonYaml, Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.FormatVersionDoubleColonYaml);
+        var jsonSuffixedDoubleColonReport = await Validation(registry).RunAsync(new ValidateOverrides(jsonSuffixedDoubleColonYaml, "auto"), new InvocationContext(sandbox.Work), default);
+        jsonSuffixedDoubleColonReport.ExitCode.Should().Be(2);
+        jsonSuffixedDoubleColonReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-format");
+
+        var jsonSuffixedDoubleColonQuotedYaml = Path.Combine(sandbox.Work, "yaml-double-colon-quoted.json");
+        await File.WriteAllTextAsync(jsonSuffixedDoubleColonQuotedYaml, Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.FormatVersionDoubleColonQuotedYaml);
+        var jsonSuffixedDoubleColonQuotedReport = await Validation(registry).RunAsync(new ValidateOverrides(jsonSuffixedDoubleColonQuotedYaml, "auto"), new InvocationContext(sandbox.Work), default);
+        jsonSuffixedDoubleColonQuotedReport.ExitCode.Should().Be(2);
+        jsonSuffixedDoubleColonQuotedReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-format");
+
+        var ionTextWithYamlSuffix = Path.Combine(sandbox.Work, "ion-model.yaml");
+        await File.WriteAllBytesAsync(ionTextWithYamlSuffix, Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes(Morphir.TestSupport.Fixtures.FixtureCatalog.UpstreamIr.V3DailyRateIon));
+        var ionTextWithYamlSuffixReport = await Validation(registry).RunAsync(new ValidateOverrides(ionTextWithYamlSuffix, "auto"), new InvocationContext(sandbox.Work), default);
+        ionTextWithYamlSuffixReport.ExitCode.Should().Be(2);
+        ionTextWithYamlSuffixReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-format");
+
+        foreach (var profile in new[] { "plain-json", "plain-yaml" })
+        {
+            var treeDir = Path.Combine(sandbox.Work, profile);
+            var documents = Morphir.Models.TestSupport.DocumentTreeMother.BoundedOrders.CatalogDocuments("v4", profile);
+            foreach (var pair in documents)
+            {
+                var target = Path.Combine(treeDir, pair.Key.Replace('/', Path.DirectorySeparatorChar));
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                await File.WriteAllBytesAsync(target, Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes(pair.Value));
+            }
+            var treeReport = await Validation(registry).RunAsync(new ValidateOverrides(treeDir), new InvocationContext(sandbox.Work), default);
+            treeReport.ExitCode.Should().Be(2);
+            treeReport.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-format");
+        }
+
+        analyzer.Runs.Should().Be(0);
+    }
+
+    [Test]
+    [Category("PlatformSpecific")]
+    public void ValidateIonTreePathReportsCancellationWhenCancelledDuringFailedDecode()
+    {
+        using var cts = new CancellationTokenSource();
+        var badIonTree = new RetainedInput.Tree(
+            "/virtual/broken-ion-tree",
+            [new RetainedEntry("manifest.ion", System.Text.Encoding.UTF8.GetBytes(Morphir.Models.TestSupport.DocumentTreeMother.YamlDocuments.MalformedIonManifest))]);
+
+        var outcome = GenerationModelLoader.DecodeLegacy(
+            badIonTree,
+            new ModelInput(badIonTree.SourcePath, InputFormat.Ion),
+            ModelReadLimits.Default,
+            cts.Token,
+            (tree, limits) =>
+            {
+                var failed = GenerationModelLoader.DecodeIonTree(tree, limits);
+                failed.Should().BeOfType<Outcome<LoadedModel>.Failure>();
+                cts.Cancel();
+                return failed;
+            });
+
+        var failure = outcome.Should().BeOfType<Outcome<LoadedModel>.Failure>().Subject.Error;
+        failure.Kind.Should().Be(GenerationFailureKind.Cancelled);
+        failure.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("cancelled");
+
+        var report = ValidationReport.Failed(Native, badIonTree.SourcePath, failure);
+        report.ExitCode.Should().Be(130);
+    }
+
+    [Test]
+    [Category("PlatformSpecific")]
+    [Arguments("rich-model.ion")]
+    [Arguments("rich-model")]
+    public async Task AutoModeClassifiesIonMepWrapperAsUnsupportedProfileRatherThanYaml(string fileName)
+    {
+        await using var sandbox = Morphir.TestSupport.TestSandbox.Create("morphir-validate-ion-mep-");
+        var analyzer = new FakeAnalyzer("acme.lint", () => []);
+        var registry = new AnalyzerRegistry([analyzer]);
+
+        var ionPath = Path.Combine(sandbox.Work, fileName);
+        await File.WriteAllBytesAsync(ionPath, Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes(Morphir.TestSupport.Fixtures.FixtureCatalog.UpstreamIr.RichModelIon));
+
+        var report = await Validation(registry).RunAsync(new ValidateOverrides(ionPath, "auto"), new InvocationContext(sandbox.Work), default);
+        report.ExitCode.Should().Be(2);
+        report.Diagnostics.Should().ContainSingle().Which.Code.Should().Be("unsupported-profile");
+        analyzer.Runs.Should().Be(0);
+    }
 }

@@ -23,6 +23,7 @@
     <!-- Kit startup reads provenance metadata alongside the fixture files. -->
     <EmbeddedResource Include="../Fixtures/MepWasm/PROVENANCE.md" LogicalName="Morphir.TestSupport.Provenance/MepWasm/PROVENANCE.md" />
     <EmbeddedResource Include="../Fixtures/MepWasm/fixtures/wasm/env-open-socket.wasm" LogicalName="Morphir.TestSupport.Fixtures/MepWasm/fixtures/wasm/env-open-socket.wasm" />
+    <EmbeddedResource Include="../Fixtures/MepWasm/fixtures/wasm/extism-echo.wasm" LogicalName="Morphir.TestSupport.Fixtures/MepWasm/fixtures/wasm/extism-echo.wasm" />
     <EmbeddedResource Include="../Fixtures/MorphirBoundedGenerationReceipts/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirBoundedGenerationReceipts/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirBoundedGenerationReceipts/fixtures/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirBoundedGenerationReceipts/fixtures/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirIR/*.json;../Fixtures/MorphirIR/*.txt" LogicalName="Morphir.TestSupport.Fixtures/MorphirIR/%(Filename)%(Extension)" />
@@ -60,7 +61,13 @@
     <EmbeddedResource Include="../Fixtures/MorphirIon/pairs/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/pairs/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirIon/records/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/records/%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirIon/v4/*.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/v4/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirIon/kit/*.feature" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/kit/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirIon/ion-draft.md" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/ion-draft.md" />
+    <EmbeddedResource Include="../Fixtures/MorphirIon/trees/inputs/v4-escaped-names.input.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/trees/inputs/v4-escaped-names.input.json" />
+    <EmbeddedResource Include="../Fixtures/MorphirIon/pairs/*.ion" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/pairs/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../Fixtures/MorphirIon/trees/**/*.ion" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/trees/$([System.String]::Copy('%(RecursiveDir)').Replace('\', '/'))%(Filename)%(Extension)" />
     <EmbeddedResource Include="../Fixtures/MorphirIon/mep/fixtures/plain-ir.json" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/mep/fixtures/plain-ir.json" />
+    <EmbeddedResource Include="../Fixtures/MorphirIon/mep/fixtures/rich-model.ion" LogicalName="Morphir.TestSupport.Fixtures/MorphirIon/mep/fixtures/rich-model.ion" />
   </ItemGroup>
 
   <!-- The child process of ChildProcess tests and of ConsoleInterrupt: see ProcessHelper. -->

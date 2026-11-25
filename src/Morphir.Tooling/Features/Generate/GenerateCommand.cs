@@ -11,10 +11,10 @@ namespace Morphir.Tooling.Features.Generate;
 /// <summary>CLI binding and presentation only. Target selection belongs to registered providers.</summary>
 public sealed class GenerateCommand : Command, IMorphirParseErrorHandler
 {
-    private readonly Option<string?> _input = new("--input") { Description = "Model file or Ion tree. Without it, the IR of the most recent morphir compile of the project" };
+    private readonly Option<string?> _input = new("--input") { Description = "Model file or document tree (JSON, YAML or Ion). Without it, the IR of the most recent morphir compile of the project" };
     private readonly Option<string?> _target = new("--target") { Description = "Registered generation target" };
     private readonly Option<string?> _output = new("--output") { Description = "Owned output directory" };
-    private readonly Option<string?> _format = new("--input-format") { Description = "auto, json or ion" };
+    private readonly Option<string?> _format = new("--input-format") { Description = "auto, json, yaml or ion" };
     private readonly Option<string[]> _options = new("--option") { Description = "Backend KEY=VALUE option, repeatable", AllowMultipleArgumentsPerToken = false, Arity = ArgumentArity.OneOrMore };
     private readonly Option<string> _json = JsonOutputOption.Create();
     private readonly Option<string?> _project = new("--project") { Description = "Project directory, workspace member path or project name, for input from a prior compile and its configuration" };

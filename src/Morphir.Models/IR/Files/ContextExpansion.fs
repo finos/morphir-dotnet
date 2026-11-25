@@ -5,16 +5,19 @@ open Morphir.Compat
 #endif
 
 open System
+open System.Collections.Generic
 open System.IO
 open System.Runtime.CompilerServices
 open System.Text
 open System.Text.Json
+open System.Threading
 open Morphir.IR
 open Morphir.IR.Trees
 open Morphir.Json.V4
 
 exception private ContextExpansionLimit
-exception private ContextExpansionRefused of StoreError
+exception private ContextExpansionNodeLimit
+exception private ContextExpansionRefused of TreeDiagnostic
 
 /// <summary>
 /// Expands the references of a compacted document (<c>ir/name-compaction</c>). A reference is exactly the object
@@ -35,9 +38,16 @@ exception private ContextExpansionRefused of StoreError
 /// inside it is left for the decoder to refuse as the wrong type.
 /// </remarks>
 module internal ContextExpansion =
+    [<RequireQualifiedAccess>]
+    type private DepthAccounting =
+        | ContainerOnly
+        | IncludeScalars
+
     // Count one node per container or scalar value, excluding property names and closing tokens.
     // The original parser still supplies the syntax diagnostic for malformed input.
-    let countJsonNodes maxDepth nodeLimit file (bytes: ReadOnlyMemory<byte>) =
+    let private countJsonNodesWith (depthAccounting: DepthAccounting) maxDepth nodeLimit (ct: CancellationToken) file (bytes: ReadOnlyMemory<byte>) =
+        ct.ThrowIfCancellationRequested()
+
         match nodeLimit with
         | None -> Ok 0
         | Some maxNodes ->
@@ -47,14 +57,22 @@ module internal ContextExpansion =
                     if span.Length >= 3 && span[0] = 0xEFuy && span[1] = 0xBBuy && span[2] = 0xBFuy then
                         span.Slice 3
                     else span
-                let mutable reader = Utf8JsonReader(json, JsonReaderOptions(MaxDepth = maxDepth + 1))
+                let readerMaxDepth =
+                    if maxDepth >= Int32.MaxValue then Int32.MaxValue
+                    else maxDepth + 1
+                let mutable reader = Utf8JsonReader(json, JsonReaderOptions(MaxDepth = readerMaxDepth))
                 let mutable nodes = 0
                 let mutable refusal = None
 
                 while refusal.IsNone && reader.Read() do
+                    ct.ThrowIfCancellationRequested()
+
                     match reader.TokenType with
                     | JsonTokenType.PropertyName | JsonTokenType.EndObject | JsonTokenType.EndArray -> ()
                     | JsonTokenType.StartObject | JsonTokenType.StartArray when reader.CurrentDepth >= maxDepth ->
+                        refusal <- Some(StoreErrors.error "depth_limit_exceeded" (Some file)
+                            $"The file is nested more than {maxDepth} levels deep.")
+                    | _ when depthAccounting = DepthAccounting.IncludeScalars && reader.CurrentDepth >= maxDepth ->
                         refusal <- Some(StoreErrors.error "depth_limit_exceeded" (Some file)
                             $"The file is nested more than {maxDepth} levels deep.")
                     | _ when nodes >= maxNodes ->
@@ -66,6 +84,12 @@ module internal ContextExpansion =
                 | Some error -> Error [ error ]
                 | None -> Ok nodes
             with :? JsonException -> Ok 0
+
+    let countJsonNodesCancellable maxDepth nodeLimit (ct: CancellationToken) file (bytes: ReadOnlyMemory<byte>) =
+        countJsonNodesWith DepthAccounting.IncludeScalars maxDepth nodeLimit ct file bytes
+
+    let countJsonNodes maxDepth nodeLimit file (bytes: ReadOnlyMemory<byte>) =
+        countJsonNodesWith DepthAccounting.ContainerOnly maxDepth nodeLimit CancellationToken.None file bytes
 
     /// The table that a position resolves through.
     type Table =
@@ -1033,31 +1057,35 @@ module internal ContextExpansion =
         | FqNamesTable -> "fqNames"
 
     /// The classic word array of a name.
-    let private writeClassicName (writer: Utf8JsonWriter) (Name words) =
+    let private writeClassicName (checkNode: unit -> unit) (writer: Utf8JsonWriter) (Name words) =
+        checkNode ()
         writer.WriteStartArray()
 
         for word in words do
+            checkNode ()
             writer.WriteStringValue word
 
         writer.WriteEndArray()
 
     /// The classic array of a path: one word array per name.
-    let private writeClassicPath (writer: Utf8JsonWriter) (Path names) =
+    let private writeClassicPath (checkNode: unit -> unit) (writer: Utf8JsonWriter) (Path names) =
+        checkNode ()
         writer.WriteStartArray()
 
         for name in names do
-            writeClassicName writer name
+            writeClassicName checkNode writer name
 
         writer.WriteEndArray()
 
     /// The classic triple of an FQName: package path, module path and local name.
-    let private writeClassicFqName (writer: Utf8JsonWriter) (fqName: FQName) =
+    let private writeClassicFqName (checkNode: unit -> unit) (writer: Utf8JsonWriter) (fqName: FQName) =
         let (PackageName package) = fqName.PackagePath
         let (ModulePath modulePath) = fqName.ModulePath
+        checkNode ()
         writer.WriteStartArray()
-        writeClassicPath writer package
-        writeClassicPath writer modulePath
-        writeClassicName writer fqName.LocalName
+        writeClassicPath checkNode writer package
+        writeClassicPath checkNode writer modulePath
+        writeClassicName checkNode writer fqName.LocalName
         writer.WriteEndArray()
 
     /// How a reference resolved.
@@ -1076,6 +1104,7 @@ module internal ContextExpansion =
     /// is written for an unknown id or an unholdable spelling.
     /// </summary>
     let private resolve
+        (checkNode: unit -> unit)
         (context: FileContext)
         (writer: Utf8JsonWriter)
         (table, spelling)
@@ -1084,19 +1113,20 @@ module internal ContextExpansion =
         let write
             (entries: Map<string, TableEntry<'v>>)
             (print: 'v -> string)
-            (classic: Utf8JsonWriter -> 'v -> unit)
+            (classic: (unit -> unit) -> Utf8JsonWriter -> 'v -> unit)
             =
             match Map.tryFind id entries with
             | Some entry ->
                 match spelling with
                 | CanonicalString ->
+                    checkNode ()
                     writer.WriteStringValue entry.Spelling
                     Resolved
                 | ClassicArrays ->
                     let readBack = print entry.Value
 
                     if readBack = entry.Spelling then
-                        classic writer entry.Value
+                        classic checkNode writer entry.Value
                         Resolved
                     else
                         Unholdable(entry.Spelling, readBack)
@@ -1118,28 +1148,32 @@ module internal ContextExpansion =
     }
 
     let private unknownAlias file slot table id =
-        StoreErrors.error
+        StoreErrors.located
             "context.unknown_alias"
             (Some file)
-            $"{slot}: The reference to '{id}' is at a position of context.{tableName table}, which does not define '{id}'."
+            slot
+            $"The reference to '{id}' is at a position of context.{tableName table}, which does not define '{id}'."
 
     let private unholdableAlias file slot table id spelling readBack =
-        StoreErrors.error
+        StoreErrors.located
             "context.invalid_entry"
             (Some file)
-            $"{slot}: context.{tableName table}.{id} is '{spelling}', and a classic v3 slot cannot hold it: its word arrays read back as '{readBack}'."
+            slot
+            $"context.{tableName table}.{id} is '{spelling}', and a classic v3 slot cannot hold it: its word arrays read back as '{readBack}'."
 
     let private invalidReference file slot =
-        StoreErrors.error
+        StoreErrors.located
             "context.invalid_reference"
             (Some file)
-            $"{slot}: Expected one $name member with a string alias."
+            slot
+            "Expected one $name member with a string alias."
 
     let rec private walk
         context
         (problems: Problems)
         file
         bounded
+        checkNode
         checkSize
         copy
         (writer: Utf8JsonWriter)
@@ -1160,7 +1194,7 @@ module internal ContextExpansion =
                 problems.Malformed.Add location
                 copy element
             | Some id ->
-                match resolve context writer reference id with
+                match resolve checkNode context writer reference id with
                 | Resolved -> ()
                 | Unknown ->
                     if bounded then
@@ -1183,6 +1217,7 @@ module internal ContextExpansion =
         | _ ->
             match element.ValueKind with
             | JsonValueKind.Object ->
+                checkNode ()
                 writer.WriteStartObject()
 
                 for property in element.EnumerateObject() do
@@ -1193,6 +1228,7 @@ module internal ContextExpansion =
                         && (property.Name = "def"
                             || property.Name = "spec")
                     then
+                        checkNode ()
                         writer.WriteNullValue()
                     elif
                         projection = Projection.ModuleInventory
@@ -1201,9 +1237,11 @@ module internal ContextExpansion =
                         && property.Value.ValueKind = JsonValueKind.Object
                     then
                         // Inventory codecs inspect these keys. Bodies remain in the original module.
+                        checkNode ()
                         writer.WriteStartObject()
 
                         for memberKey in property.Value.EnumerateObject() do
+                            checkNode ()
                             writer.WriteNull memberKey.Name
                             checkSize 0L
 
@@ -1216,6 +1254,7 @@ module internal ContextExpansion =
                                 problems
                                 file
                                 bounded
+                                checkNode
                                 checkSize
                                 copy
                                 writer
@@ -1229,6 +1268,7 @@ module internal ContextExpansion =
 
                 writer.WriteEndObject()
             | JsonValueKind.Array ->
+                checkNode ()
                 writer.WriteStartArray()
 
                 element.EnumerateArray()
@@ -1240,6 +1280,7 @@ module internal ContextExpansion =
                             problems
                             file
                             bounded
+                            checkNode
                             checkSize
                             copy
                             writer
@@ -1266,17 +1307,21 @@ module internal ContextExpansion =
     /// <c>depth_limit_exceeded</c>.
     /// </summary>
     let private expandPart
+        (depthAccounting: DepthAccounting)
         (limits: ContextLimits)
         byteLimit
         maxNodes
         (work: BoundedTreeWorkBudget option)
+        (ct: CancellationToken)
         (file: string)
         (context: FileContext)
         projection
         location
         shape
         (document: JsonElement)
-        : Result<JsonElement * int, StoreError list> =
+        : Result<JsonElement * int * int64, TreeDiagnostic list> =
+        ct.ThrowIfCancellationRequested()
+
         let problems = {
             Unknown = ResizeArray()
             Unholdable = ResizeArray()
@@ -1285,7 +1330,7 @@ module internal ContextExpansion =
 
         let tooDeep () =
             Error [
-                StoreErrors.error
+                StoreErrors.diagnostic
                     "depth_limit_exceeded"
                     (Some file)
                     $"The expanded document is nested more than {limits.MaxDepth} levels deep."
@@ -1297,25 +1342,52 @@ module internal ContextExpansion =
             | Some limit, Some meter -> Some(meter.CapBytes limit)
             | _ -> byteLimit
 
-        let exhausted () = Error [ StoreErrors.workLimit (Some file) ]
+        let exhausted () = Error [ StoreErrors.ofStoreError (StoreErrors.workLimit (Some file)) ]
+
+        let mutable expandedNodes = 0
+
+        let checkNode () =
+            ct.ThrowIfCancellationRequested()
+
+            match maxNodes with
+            | Some limit when expandedNodes >= limit -> raise ContextExpansionNodeLimit
+            | _ -> expandedNodes <- expandedNodes + 1
+
+        let countSubtreeNodes (root: JsonElement) =
+            let stack = Stack<JsonElement>()
+            stack.Push root
+
+            while stack.Count > 0 do
+                let current = stack.Pop()
+                checkNode ()
+
+                match current.ValueKind with
+                | JsonValueKind.Object ->
+                    for prop in current.EnumerateObject() do
+                        stack.Push prop.Value
+                | JsonValueKind.Array ->
+                    for item in current.EnumerateArray() do
+                        stack.Push item
+                | _ -> ()
 
         // A spelling is at most three levels deeper than the reference it replaces (a classic FQName), so the writer
         // has room for that; the parse below checks the limit itself. The walk recurses once for each level, and a
         // stack that cannot hold the document's depth refuses it as too deep rather than ending the process.
         let written =
             try
-                if maxOutput = Some 0L && work.IsSome then raise ContextExpansionLimit
+                if maxOutput = Some 0L then raise ContextExpansionLimit
+                let writerMaxDepth =
+                    if limits.MaxDepth >= Int32.MaxValue - 8 then Int32.MaxValue
+                    else limits.MaxDepth + 8
                 use writer =
                     new Utf8JsonWriter(
                         buffer,
-                        JsonWriterOptions(
-                            MaxDepth =
-                                limits.MaxDepth
-                                + 8
-                        )
+                        JsonWriterOptions(MaxDepth = writerMaxDepth)
                     )
 
                 let checkSize additionalBytes =
+                    ct.ThrowIfCancellationRequested()
+
                     match maxOutput with
                     | Some limit when
                         writer.BytesCommitted
@@ -1326,6 +1398,9 @@ module internal ContextExpansion =
                     | _ -> ()
 
                 let copy (value: JsonElement) =
+                    if Option.isSome maxNodes || ct.CanBeCanceled then
+                        countSubtreeNodes value
+
                     if Option.isSome maxOutput then
                         // The checked input already owns the original token. Budget it before attaching it
                         // to the output, without escaping an entire opaque subtree again.
@@ -1340,6 +1415,7 @@ module internal ContextExpansion =
                     problems
                     file
                     maxOutput.IsSome
+                    checkNode
                     checkSize
                     copy
                     writer
@@ -1352,10 +1428,17 @@ module internal ContextExpansion =
                 Ok()
             with
             | ContextExpansionRefused error -> Error [ error ]
+            | ContextExpansionNodeLimit ->
+                Error [
+                    StoreErrors.diagnostic
+                        "tree.document_node_limit"
+                        (Some file)
+                        "The decoded document exceeds the available maxNodes for this exchange."
+                ]
             | ContextExpansionLimit when maxOutput <> byteLimit -> exhausted ()
             | ContextExpansionLimit ->
                 Error [
-                    StoreErrors.error
+                    StoreErrors.diagnostic
                         "tree.file_too_large"
                         (Some file)
                         "Expanded names exceed the document byte limit."
@@ -1399,45 +1482,57 @@ module internal ContextExpansion =
             if work |> Option.exists (fun meter -> not (meter.TryCharge(BoundedTreeWorkBudget.Blocks(int64 bytes.Length)))) then
                 exhausted ()
             else
-                countJsonNodes maxDepth maxNodes file bytes
+                countJsonNodesWith depthAccounting maxDepth maxNodes ct file bytes
+                |> Result.mapError (List.map StoreErrors.ofStoreError)
                 |> Result.bind (fun nodes ->
                     try
                         use expanded = JsonDocument.Parse(bytes, JsonDocumentOptions(MaxDepth = maxDepth))
-                        Ok(expanded.RootElement.Clone(), nodes)
+                        Ok(expanded.RootElement.Clone(), nodes, int64 bytes.Length)
                     with :? JsonException -> tooDeep ())
 
     let expand limits family file context document =
-        expandPart limits None None None file context Projection.Complete "$" (rootOf family) document
-        |> Result.map fst
+        expandPart DepthAccounting.ContainerOnly limits None None None CancellationToken.None file context Projection.Complete "$" (rootOf family) document
+        |> Result.map (fun (root, _, _) -> root)
+        |> Result.mapError StoreErrors.toStoreErrors
+
+    let expandCountedDetailed limits byteLimit maxNodes ct family file context document =
+        expandPart DepthAccounting.IncludeScalars limits byteLimit maxNodes None ct file context Projection.Complete "$" (rootOf family) document
 
     let expandBounded limits limit maxNodes work family file context projection document =
         expandPart
+            DepthAccounting.ContainerOnly
             limits
             (Some limit)
             maxNodes
             work
+            CancellationToken.None
             file
             context
             projection
             "$"
             (rootOf family)
             document
+        |> Result.map (fun (root, nodes, _) -> root, nodes)
+        |> Result.mapError StoreErrors.toStoreErrors
 
     let expandMember limits limit maxNodes work family file context isType holdsDefinitions location element =
         let shape = memberShape family isType holdsDefinitions
 
         expandPart
+            DepthAccounting.ContainerOnly
             limits
             (Some limit)
             maxNodes
             work
+            CancellationToken.None
             file
             context
             Projection.Complete
             location
             shape
             element
-        |> Result.map fst
+        |> Result.map (fun (root, _, _) -> root)
+        |> Result.mapError StoreErrors.toStoreErrors
 
     /// Follows only the requested slot. A path token is a property name or a canonical array index.
     let resolveMemberAlias
@@ -1466,17 +1561,20 @@ module internal ContextExpansion =
                 && hasMember "$name" element
                 ->
                 expandPart
+                    DepthAccounting.ContainerOnly
                     ContextLimits.draft1
                     (Some limit)
                     None
                     None
+                    CancellationToken.None
                     file
                     context
                     Projection.Complete
                     location
                     shape
                     element
-                |> Result.map fst
+                |> Result.map (fun (root, _, _) -> root)
+                |> Result.mapError StoreErrors.toStoreErrors
             | [], _ -> refused location
             | field :: rest, JsonValueKind.Object ->
                 let child = V4JsonDecoding.memberAt location field

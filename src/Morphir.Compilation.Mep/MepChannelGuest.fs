@@ -166,6 +166,9 @@ type MepChannelGuest
             | Error failure -> return MepChannelStart.Failed failure
         }
 
+    /// Shared refusal message when a byte-call guest does not agree to bounded model access.
+    static member internal ModelAccessNotAgreedMessage = "The extension did not agree to bounded model access."
+
     /// Initializes the byte-call session with an exact model-access offer.
     static member internal StartModelAccessAsync
         (channel: ISingleMessageChannel, host: PeerInfo, offer: ModelAccessSupport, deadline: TimeSpan,
@@ -176,7 +179,7 @@ type MepChannelGuest
             match initialized with
             | Ok guest when (guest :> IMepGuestSession).Session.Capabilities.ModelAccess.IsNone ->
                 do! guest.TerminateModelAccessAsync()
-                return Error(MepGuestFailure.Unavailable "The extension did not agree to bounded model access.")
+                return Error(MepGuestFailure.Unavailable MepChannelGuest.ModelAccessNotAgreedMessage)
             | _ -> return initialized
         }
 

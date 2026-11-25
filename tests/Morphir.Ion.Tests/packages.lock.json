@@ -152,11 +152,36 @@
           "YamlDotNet": "[16.3.0, )"
         }
       },
+      "morphir.models.testsupport": {
+        "type": "Project",
+        "dependencies": {
+          "FSharp.Core": "[10.1.403, )",
+          "FsCheck": "[2.16.6, )",
+          "Morphir.Files": "[1.0.0, )",
+          "Morphir.Models": "[1.0.0, )",
+          "Morphir.TestSupport": "[1.0.0, )"
+        }
+      },
+      "morphir.testsupport": {
+        "type": "Project",
+        "dependencies": {
+          "YamlDotNet": "[16.3.0, )"
+        }
+      },
       "Eleven19.IonDotnet": {
         "type": "CentralTransitive",
         "requested": "[0.1.4, )",
         "resolved": "0.1.4",
         "contentHash": "3kI2OE1a2XY/so02kTtpXoma4AAgSFmFjW5L9nRGLUbUarOdAZEWBAE5KRHpdPErLXszpznegwqQgQtEAL4/ZA=="
+      },
+      "FsCheck": {
+        "type": "CentralTransitive",
+        "requested": "[2.16.6, )",
+        "resolved": "2.16.6",
+        "contentHash": "8yQlt7HgoigIXIoe7ZouNh551rypxp4WtQnqBlpB9a7gf4IkpdMSnEzsnJS/gFmeNtIf9hEJ37celeCq/6FuHA==",
+        "dependencies": {
+          "FSharp.Core": "4.2.3"
+        }
       },
       "YamlDotNet": {
         "type": "CentralTransitive",

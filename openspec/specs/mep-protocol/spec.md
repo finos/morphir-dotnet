@@ -89,12 +89,23 @@ A session SHALL accept only `morphir.extension.describe` and `morphir.initialize
 - **WHEN** a host sends `morphir.extension.info` after a successful `morphir.shutdown`
 - **THEN** the reply is `-32014`
 
-### Requirement: Only protocol version 0.2.0-draft.1 is spoken
-A host SHALL offer only `0.2.0-draft.1`, and a guest SHALL claim and accept only that version, by exact match. When the offered versions and the claimed versions have no common member, `initialize` SHALL fail with `-32011` and the session SHALL stay uninitialized. The legacy protocol `0.1` SHALL NOT be offered or accepted.
+### Requirement: Protocol versions 0.2.0-draft.1 and 0.2.0-draft.2 are matched exactly
+A host SHALL offer `0.2.0-draft.1` for single-document `modelTransport` sessions, and MAY offer `0.2.0-draft.2` alongside `0.2.0-draft.1` when initiating a bounded document-tree `modelAccess` session. Guests SHALL claim and accept protocol versions by exact match. When the offered versions and the claimed versions have no common member, `initialize` SHALL fail with `-32011` and the session SHALL stay uninitialized. The legacy protocol `0.1` SHALL NOT be offered or accepted.
 
 #### Scenario: Legacy-only host
 - **WHEN** a host initializes with `protocolVersions: ["0.1"]`
 - **THEN** the guest replies `-32011`, and a later `initialize` with `0.2.0-draft.1` succeeds
+
+#### Scenario: Bounded document-tree session on 0.2.0-draft.2
+- **WHEN** a host initializes a document-tree generation session offering `0.2.0-draft.2` with a `modelAccess` tuple (`morphir-json` or `morphir-yaml`, `plain` or `https://morphir.finos.org/schemas/ir-context/0.1.0-draft.1/document.schema.json`, IR `3.1.0` or `4.0.0`)
+- **THEN** a guest claiming `0.2.0-draft.2` and supporting that tuple negotiates `0.2.0-draft.2` with intersected limits, while a `0.2.0-draft.1`-only guest falls back to `0.2.0-draft.1` single-document host conversion when lossless conversion is proven and the run is not `orders-scale`
+
+### Requirement: 0.2.0-draft.1 payload layout remains strictly single-document
+In MEP `0.2.0-draft.1`, `ModelPayload.layout` SHALL remain `"single-document"`. Multi-document trees SHALL use `0.2.0-draft.2` `modelAccess`. Any `0.2.0-draft.1` conversion from Ion, YAML, or a tree SHALL prove losslessness (failing with `data.lossy_conversion` before dispatch otherwise), preserve `modelId`, derive `revision` from converted SHA-256, and report `extension.model_converted`.
+
+#### Scenario: Document-tree layout refused on 0.2.0-draft.1
+- **WHEN** a `0.2.0-draft.1` `ModelPayload` declares `layout: "document-tree"`
+- **THEN** decoding fails and the payload is not admitted
 
 ### Requirement: A request needs an advertised capability
 After initialization, a request for a capability that the guest did not advertise SHALL get `-32013`. A host SHALL check the initialized capabilities and SHALL NOT send such a request.

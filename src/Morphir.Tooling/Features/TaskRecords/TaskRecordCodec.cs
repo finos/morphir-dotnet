@@ -306,8 +306,23 @@ internal static class RecordFile
 
     /// <param name="afterWait">Runs after each wait for another handle, before the record is checked again. Tests
     /// use it to release or change the record without timing.</param>
-    internal static void Write(string path, TaskRecord record, Action? afterWait)
+    internal static void Write(string path, TaskRecord record, Action? afterWait) =>
+        Write(path, record, afterWait, CancellationToken.None, beforeReplace: null);
+
+    /// <param name="ct">Checked before the record is staged and immediately before each attempt to replace the record: a
+    /// cancellation throws <see cref="OperationCanceledException"/>, removes the staged record and leaves the record.</param>
+    /// <param name="beforeReplace">Runs before each attempt to replace the record, for tests.</param>
+    internal static void Write(string path, TaskRecord record, Action? afterWait, CancellationToken ct, Action? beforeReplace) =>
+        Write(path, record, afterWait, ct, beforeReplace, PathRemoval.Default);
+
+    /// <param name="cleanup">Removes the staged record when the write fails or is cancelled. Tests replace it.</param>
+    /// <param name="refusals">Receives the staged record when the file system refuses its removal, with its reason, for the
+    /// caller to report after its own cleanup (<see cref="CleanupWarnings"/>); the failure or the cancellation of the write
+    /// stands.</param>
+    internal static void Write(string path, TaskRecord record, Action? afterWait, CancellationToken ct, Action? beforeReplace,
+        PathRemoval cleanup, ICollection<CleanupRefusal>? refusals = null)
     {
+        ct.ThrowIfCancellationRequested();
         var directory = Path.GetDirectoryName(path)!;
         Directory.CreateDirectory(directory);
         var temporary = Path.Combine(directory, "." + Path.GetFileName(path) + "." + Guid.NewGuid().ToString("N") + ".tmp");
@@ -319,7 +334,12 @@ internal static class RecordFile
                 stream.Flush(flushToDisk: true);
             }
             var before = Snapshot(path);
-            var replaced = FileReplacement.Replace(() => File.Move(temporary, path, overwrite: true), () =>
+            var replaced = FileReplacement.Replace(() =>
+            {
+                beforeReplace?.Invoke();
+                ct.ThrowIfCancellationRequested();
+                File.Move(temporary, path, overwrite: true);
+            }, () =>
             {
                 afterWait?.Invoke();
                 var now = Snapshot(path);
@@ -327,9 +347,14 @@ internal static class RecordFile
             });
             if (!replaced) throw new IOException($"The task record {path} changed while its replacement waited for another handle");
         }
-        finally
+        catch
         {
-            if (File.Exists(temporary)) File.Delete(temporary);
+            // A replaced record moved the staged one; only a failed or cancelled write still has it. Its removal never
+            // hides the failure or the cancellation.
+            if (!cleanup.TryRemove(temporary, out var reason)) refusals?.Add(new CleanupRefusal(temporary, reason));
+            // A cancellation that comes with a failed replacement is the outcome, not the failure (exit code 130).
+            ct.ThrowIfCancellationRequested();
+            throw;
         }
     }
 
@@ -338,5 +363,133 @@ internal static class RecordFile
     {
         try { return File.ReadAllBytes(path); }
         catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException) { return null; }
+    }
+}
+
+/// <summary>
+/// Removes a file or a directory that another handle may hold for a short time. On Windows a virus scanner or a search
+/// indexer opens a file just after it is written, without delete sharing, so a delete that another handle refuses waits
+/// and tries again, up to <see cref="FileReplacement.Attempts"/> times. It throws only for a cancellation of the token
+/// that a caller gives it, so the failure or the cancellation of the work that it cleans up after stands;
+/// <see cref="TryRemove"/> says whether the path is gone.
+/// </summary>
+/// <param name="Delete">Deletes the file or the directory with its content.</param>
+/// <param name="IsTransient">Whether a failure of the delete is one that another handle causes, which a later attempt can pass.</param>
+/// <param name="Wait">Waits between attempts.</param>
+internal sealed record PathRemoval(Action<string> Delete, Func<Exception, bool> IsTransient, Action<TimeSpan> Wait)
+{
+    /// <summary>The removal of the file system: <see cref="DeletePath"/>, the handle check of <see cref="FileReplacement"/>, and a sleep.</summary>
+    public static PathRemoval Default { get; } = new(DeletePath, FileReplacement.IsHeldByAnotherHandle, Thread.Sleep);
+
+    /// <summary>Deletes a directory with its content, or a file.</summary>
+    public static void DeletePath(string path)
+    {
+        if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
+        else File.Delete(path);
+    }
+
+    /// <summary>
+    /// Removes what is at <paramref name="path"/>, as far as the file system lets it. True when nothing is there after. A
+    /// cancellation of <paramref name="ct"/> during a wait throws <see cref="OperationCanceledException"/>; a cleanup after a
+    /// failure or a cancellation gives no token, so it always runs to its end.
+    /// </summary>
+    public bool TryRemove(string path, CancellationToken ct = default) => TryRemove(path, out _, ct);
+
+    /// <summary>
+    /// Removes what is at <paramref name="path"/>, as <see cref="TryRemove(string, CancellationToken)"/> does, and gives the
+    /// failure of the last attempt when the path is still there: the file system's own reason, whatever the number of attempts.
+    /// </summary>
+    public bool TryRemove(string path, [System.Diagnostics.CodeAnalysis.NotNullWhen(false)] out Exception? failure, CancellationToken ct = default)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                if (Exists(path)) Delete(path);
+                failure = Exists(path) ? new IOException($"{path} is still there after it was deleted") : null;
+                return failure is null;
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                if (attempt >= FileReplacement.Attempts || !IsTransient(error))
+                {
+                    // A cancellation during the last attempt is the outcome, not the removal that gives up after it.
+                    ct.ThrowIfCancellationRequested();
+                    failure = error;
+                    return false;
+                }
+                Wait(TimeSpan.FromMilliseconds(Math.Min(20 << (attempt - 1), 500)));
+                ct.ThrowIfCancellationRequested();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether something may be at <paramref name="path"/>. Only a lookup that finds no such file or directory says no: a
+    /// lookup that the file system denies (a parent without search permission, for example) may hide what is there, so
+    /// the removal tries and keeps the file system's reason. <see cref="File.Exists"/> would say no to both.
+    /// </summary>
+    private static bool Exists(string path)
+    {
+        try
+        {
+            File.GetAttributes(path);
+            return true;
+        }
+        catch (Exception error) when (error is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return false;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            return true;
+        }
+    }
+}
+
+/// <summary>A path that a cleanup could not remove, and the file system's reason.</summary>
+internal sealed record CleanupRefusal(string Path, Exception Reason);
+
+/// <summary>
+/// The warnings of cleanup refusals. A caller collects every refusal of its cleanup and writes them after its last
+/// removal, so each warning tells what <c>compile.json</c> holds then. A warning that the writer refuses is dropped.
+/// </summary>
+internal static class CleanupWarnings
+{
+    /// <summary>Writes one warning for each refusal, <paramref name="when"/> the cleanup ran (for example "after the publication failed").</summary>
+    public static void Write(TextWriter writer, IReadOnlyList<CleanupRefusal> refusals, string record, string when)
+    {
+        if (refusals.Count == 0) return;
+        var state = RecordState(record);
+        foreach (var refusal in refusals)
+        {
+            try
+            {
+                writer.WriteLine($"warning: {refusal.Path} could not be removed {when} ({refusal.Reason.Message}). {state}; the next compile removes it.");
+            }
+            catch (Exception error) when (error is not (OutOfMemoryException or AccessViolationException))
+            {
+                // Any writer failure loses the warning only; the failure or the cancellation of the run stands.
+            }
+        }
+    }
+
+    /// <summary>What the record at <paramref name="record"/> holds now. A read that fails never changes the outcome.</summary>
+    public static string RecordState(string record)
+    {
+        try
+        {
+            return RecordFile.Read(record) switch
+            {
+                RecordReading.Found { Record.Tombstone: true } => "compile.json is a tombstone",
+                RecordReading.Found => "compile.json is a completed record",
+                RecordReading.Unreadable => "compile.json cannot be read",
+                _ => "there is no compile.json",
+            };
+        }
+        catch (Exception error) when (error is not (OutOfMemoryException or AccessViolationException))
+        {
+            return "compile.json cannot be read";
+        }
     }
 }

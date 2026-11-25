@@ -29,6 +29,21 @@ public class FixtureCatalogTests
     }
 
     [Test]
+    public void TheKitStatesCanonicalYamlAndJsonSpellingsAsReferenceData()
+    {
+        var spellings = FixtureCatalog.Kit.CanonicalSpellings;
+        spellings.Count.Should().BeGreaterThan(40, "the pinned kit features state many YAML and JSON pairs");
+        spellings.Select(spelling => spelling.Name).Should().OnlyHaveUniqueItems();
+        spellings.Select(spelling => spelling.Feature).Distinct().Should().BeSubsetOf(
+            FixtureCatalog.UpstreamIr.KitFeatures.Select(feature => Path.GetFileName(feature.RelativePath)));
+        spellings.Should().OnlyContain(spelling => spelling.Id.StartsWith(spelling.Feature.Replace(".feature", "-"), StringComparison.Ordinal)
+            && spelling.Yaml.Length > 0 && !spelling.Yaml.EndsWith('\n') && spelling.Json.Length > 0);
+        spellings.Should().Contain(spelling => spelling.Title.EndsWith(" (examples)", StringComparison.Ordinal),
+            "an outline's YAML and JSON example rows are pairs too");
+        spellings.Should().Contain(spelling => spelling.Yaml.Contains('\n'), "a doc string gives a YAML of several lines");
+    }
+
+    [Test]
     public void EachFileOfTheCatalogMatchesItsHash()
     {
         foreach (var entry in FixtureCatalog.All)

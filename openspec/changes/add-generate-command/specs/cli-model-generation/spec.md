@@ -8,7 +8,7 @@ Generate source artifacts from a retained Morphir model through a compatible bac
 
 ### Requirement: Explicit generation invocation
 
-The CLI SHALL expose `morphir generate` with `--input`, `--target` and `--output`. This delivery SHALL require all three after settings resolution. `--input-format` SHALL accept `auto`, `json` or `ion` and default to `auto`. The command SHALL accept repeated `--option KEY=VALUE` and `--json`.
+The CLI SHALL expose `morphir generate` with `--input`, `--target` and `--output`. This delivery SHALL require all three after settings resolution. `--input-format` SHALL accept `auto`, `json`, `yaml` or `ion` and default to `auto`. The command SHALL accept repeated `--option KEY=VALUE` and `--json`.
 
 #### Scenario: Generate from a model file
 

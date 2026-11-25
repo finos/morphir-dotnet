@@ -113,6 +113,110 @@ public sealed class CompileTargetTests
     }
 
     [Test]
+    [Arguments("ion", "4")]
+    [Arguments("ion", "3")]
+    [Arguments("yaml", "4")]
+    public async Task CompileWithATargetGeneratesFromAnIrFormat(string format, string version)
+    {
+        using var workspace = Project();
+        var combined = await Compile(workspace, $"--json=document {Inputs} --ir-version {version} --ir-format {format} --target fsharp --generate-output gen");
+        combined.Exit.Should().Be(0, combined.Output.Text);
+        using (var report = JsonDocument.Parse(combined.Output.Text))
+            report.RootElement.GetProperty("output").GetString().Should().EndWith($"morphir-ir.{format}");
+
+        var separate = await Compile(workspace, $"--json=document {Inputs} --ir-version {version}");
+        separate.Exit.Should().Be(0, separate.Output.Text);
+        using var compiled = JsonDocument.Parse(separate.Output.Text);
+        var generated = await Generate(compiled.RootElement.GetProperty("output").GetString()!, "fsharp", workspace.PathOf("gen2"));
+        generated.Success.Should().BeTrue(generated.ToJson());
+
+        Tree(workspace.PathOf("gen")).Should().NotBeEmpty().And.Equal(Tree(workspace.PathOf("gen2")), "the format does not change the model");
+    }
+
+    [Test]
+    [Arguments("yaml", "4", "manifest.yaml")]
+    [Arguments("yaml", "3", "manifest.yaml")]
+    [Arguments("ion", "4", "manifest.ion")]
+    [Arguments("ion", "3", "manifest.ion")]
+    [Arguments("ion", "3.1.0", "manifest.ion")]
+    public async Task CompileWithATargetGeneratesFromDocumentTreeFormats(string format, string version, string manifestName)
+    {
+        using var workspace = Project();
+        var combined = await Compile(workspace, $"--json=document {Inputs} --ir-version {version} --ir-layout document-tree --ir-format {format} --target fsharp --generate-output gen");
+        combined.Exit.Should().Be(0, combined.Output.Text);
+        using (var report = JsonDocument.Parse(combined.Output.Text))
+        {
+            var treePath = report.RootElement.GetProperty("output").GetString()!;
+            treePath.Should().EndWith("morphir-ir");
+            File.Exists(Path.Combine(treePath, manifestName)).Should().BeTrue();
+        }
+
+        var oracleVersion = version == "3.1.0" ? "3" : version;
+        var separate = await Compile(workspace, $"--json=document {Inputs} --ir-version {oracleVersion}");
+        separate.Exit.Should().Be(0, separate.Output.Text);
+        using var compiled = JsonDocument.Parse(separate.Output.Text);
+        var generated = await Generate(compiled.RootElement.GetProperty("output").GetString()!, "fsharp", workspace.PathOf("gen2"));
+        generated.Success.Should().BeTrue(generated.ToJson());
+
+        Tree(workspace.PathOf("gen")).Should().NotBeEmpty().And.Equal(Tree(workspace.PathOf("gen2")), "the document-tree format does not change the generated files");
+    }
+
+    [Test]
+    [Arguments("yaml", ModelRepresentation.Yaml, "morphir-ir.yaml")]
+    [Arguments("ion", ModelRepresentation.IonText, "morphir-ir.ion")]
+    public async Task TheBackendOfAFormattedDocumentTreeCompileGetsTheFormattedSingleFile(
+        string format, ModelRepresentation expectedRepresentation, string expectedEntry)
+    {
+        using var workspace = Project();
+        var capabilityVersion = format == "ion" ? "4.0.0" : "4";
+        var recorder = new RecordingBackend("fsharp", new BackendCapability(ModelFamily.V4, Morphir.Extensions.SourceFormatVersions.Create(capabilityVersion), DistributionKind.Library));
+        var run = await Compile(workspace, $"--json=document {Inputs} --ir-layout document-tree --ir-format {format} --target fsharp --generate-output gen",
+            services => services.AddSingleton<IGenerationBackendResolver>(new RegisteredBackendResolver([recorder])));
+        run.Exit.Should().Be(0, run.Output.Text);
+        using var report = JsonDocument.Parse(run.Output.Text);
+        var tree = report.RootElement.GetProperty("output").GetString()!;
+        Directory.Exists(tree).Should().BeTrue();
+
+        var single = await Compile(workspace, $"--json=document {Inputs} --ir-format {format}");
+        single.Exit.Should().Be(0, single.Output.Text);
+        using var singleReport = JsonDocument.Parse(single.Output.Text);
+        var file = singleReport.RootElement.GetProperty("output").GetString()!;
+
+        var model = recorder.Requests.Should().ContainSingle().Subject.Model;
+        model.Representation.Should().Be(expectedRepresentation);
+        var original = model.Original.Should().BeOfType<RetainedInput.File>().Subject;
+        original.SourcePath.Should().Be(tree);
+        original.Entry.RelativePath.Should().Be(expectedEntry);
+        original.Entry.CopyBytes().Should().Equal(File.ReadAllBytes(file), "the backend receives the formatted single-file bytes matching the tree model");
+    }
+
+    [Test]
+    public async Task SingleFileYamlCompileWithATargetPassesYamlRepresentationToBackend()
+    {
+        using var workspace = Project();
+        var recorder = new RecordingBackend("fsharp", new BackendCapability(ModelFamily.V4, Morphir.Extensions.SourceFormatVersions.Create("4"), DistributionKind.Library));
+        var run = await Compile(workspace, $"--json=document {Inputs} --ir-format yaml --target fsharp --generate-output gen",
+            services => services.AddSingleton<IGenerationBackendResolver>(new RegisteredBackendResolver([recorder])));
+        run.Exit.Should().Be(0, run.Output.Text);
+        var model = recorder.Requests.Should().ContainSingle().Subject.Model;
+        model.Representation.Should().Be(ModelRepresentation.Yaml);
+    }
+
+    [Test]
+    public void TheReleasedRunAsyncTakesDefaultForItsOptionalArguments()
+    {
+        // A compile check: each call binds to the released six-parameter overload, with no CS0121 ambiguity.
+        Func<CompileGenerationStages, CompileTarget, CompileSuccess, CompileSettings, ReadOnlyMemory<byte>, IAsyncEnumerable<CompileEvent>>[] calls =
+        [
+            (stages, target, success, settings, ir) => stages.RunAsync(target, success, settings, ir),
+            (stages, target, success, settings, ir) => stages.RunAsync(target, success, settings, ir, default),
+            (stages, target, success, settings, ir) => stages.RunAsync(target, success, settings, ir, default, default),
+            (stages, target, success, settings, ir) => stages.RunAsync(target, success, settings, ir, null, CancellationToken.None),
+        ];
+        calls.Should().HaveCount(4);
+    }
+
+    [Test]
     public async Task TheBackendGetsTheExactWrittenBytesAsAJsonFileInput()
     {
         using var workspace = Project();
@@ -130,6 +234,31 @@ public sealed class CompileTargetTests
         var original = model.Original.Should().BeOfType<RetainedInput.File>().Subject;
         original.SourcePath.Should().Be(ir);
         original.Entry.CopyBytes().Should().Equal(File.ReadAllBytes(ir), "the backend sees the bytes that were published");
+    }
+
+    [Test]
+    public async Task TheBackendOfADocumentTreeCompileGetsTheSingleFileOfTheTreeModel()
+    {
+        using var workspace = Project();
+        var recorder = new RecordingBackend("fsharp", new BackendCapability(ModelFamily.V4, Morphir.Extensions.SourceFormatVersions.Create("4"), DistributionKind.Library));
+        var run = await Compile(workspace, $"--json=document {Inputs} --ir-layout document-tree --target fsharp --generate-output gen",
+            services => services.AddSingleton<IGenerationBackendResolver>(new RegisteredBackendResolver([recorder])));
+        run.Exit.Should().Be(0, run.Output.Text);
+        using var report = JsonDocument.Parse(run.Output.Text);
+        var tree = report.RootElement.GetProperty("output").GetString()!;
+        Directory.Exists(tree).Should().BeTrue();
+
+        var single = await Compile(workspace, $"--json=document {Inputs}");
+        single.Exit.Should().Be(0, single.Output.Text);
+        using var singleReport = JsonDocument.Parse(single.Output.Text);
+        var file = singleReport.RootElement.GetProperty("output").GetString()!;
+
+        var model = recorder.Requests.Should().ContainSingle().Subject.Model;
+        model.Representation.Should().Be(ModelRepresentation.Json);
+        var original = model.Original.Should().BeOfType<RetainedInput.File>().Subject;
+        original.SourcePath.Should().Be(tree);
+        original.Entry.RelativePath.Should().Be(TaskRecordCompilePublisher.IrFile, "the backend gets the single file under its single-file name");
+        original.Entry.CopyBytes().Should().Equal(File.ReadAllBytes(file), "the tree is the split of the bytes that the writer wrote");
     }
 
     [Test]

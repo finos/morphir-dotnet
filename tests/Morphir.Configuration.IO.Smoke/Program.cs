@@ -13,7 +13,7 @@ static void Check(bool condition, string message)
 }
 static ConfigurationDocument Document(SourceInput input) => input.Content is SourceContent.Available available
     ? available.Item : throw new InvalidOperationException($"Reader rejected {input.Source.Path}");
-static ConfigValue At(ConfigValue tree, params string[] path) => ConfigTree.tryFind(List(path), tree).Value;
+static ConfigValue At(ConfigValue tree, params string[] path) => ConfigTree.tryFind(List(path), tree)!.Value;
 static ResolutionInput Input(IEnumerable<SourceInput> sources, ProfileSelection selection) =>
     new(List(sources), MapModule.Empty<string, string>(), DocumentDefaults.emptyValue,
         new ProfileOptions(selection, 32, 4096), ProjectScope.Root, FSharpOption<OwningWorkspace>.None, List<string>([]));
@@ -331,7 +331,7 @@ try
         var memoryDiscovery = ProjectSystem.Discover(memoryTree, discoveryRoot + "/packages/app/src/input.elm");
         var nativeDiscovery = ProjectSystem.Discover(nativeTree, discoveryRoot + "/packages/app/src/input.elm");
         Check(memoryDiscovery.Discovery.Equals(nativeDiscovery.Discovery) && memoryDiscovery.Selection.Equals(nativeDiscovery.Selection), "Native/mounted discovery evidence differs");
-        Check(nativeDiscovery.Discovery.Location == discoveryRoot && nativeDiscovery.Selection.Projects.Single().Name.Value == "App", "Workspace/member selection failed");
+        Check(nativeDiscovery.Discovery.Location == discoveryRoot && nativeDiscovery.Selection.Projects.Single().Name!.Value == "App", "Workspace/member selection failed");
         var memberSources = nativeDiscovery.Selection.Projects.Single().Location.Sources;
         Check(memberSources.All(s => s.Source.Role == SourceRole.MemberPrimary
             && Document(s).Source.Role == SourceRole.MemberPrimary), "Discovery returned root identities for member documents");
@@ -344,7 +344,7 @@ try
         var memoryLoaded = ProjectSystem.Load(memoryTree, memoryDiscovery.Discovery, memoryDiscovery.Selection.Projects.Single(), new ProjectLoadOptions { Isolated = true });
         Check(nativeLoaded.Equals(memoryLoaded), "Native/mounted loading evidence differs");
         Check(At(nativeLoaded.Effective, "custom", "value").Equals(ConfigValue.NewString("profile")), "Isolated active profile did not win");
-        Check(nativeLoaded.OwningWorkspace.Value.OutputDirectory.Value == discoveryRoot + "/generated", "Workspace output ownership lost");
+        Check(nativeLoaded.OwningWorkspace!.Value.OutputDirectory!.Value == discoveryRoot + "/generated", "Workspace output ownership lost");
         Check(!nativeLoaded.Diagnostics.Any(d => d.Severity == DiagnosticSeverity.Error), "Discovery load failed validation");
         foreach (var isolated in new[] { false, true })
         {
@@ -356,7 +356,7 @@ try
                 var memorySelected = ProjectSystem.Load(memoryTree, memoryDiscovery.Discovery, memoryDiscovery.Selection.Projects.Single(), options);
                 Check(nativeSelected.Equals(memorySelected), "Selected personal ownership differs across hosts");
                 var output = memberPersonal && isolated ? "generated" : "shared";
-                Check(nativeSelected.OwningWorkspace.Value.OutputDirectory.Value == discoveryRoot + "/" + output, "Selected personal file escaped its output ownership");
+                Check(nativeSelected.OwningWorkspace!.Value.OutputDirectory!.Value == discoveryRoot + "/" + output, "Selected personal file escaped its output ownership");
                 Check(At(nativeSelected.Effective, "project", "source_directory").Equals(ConfigValue.NewString("src")), "Selected workspace personal file supplied member identity");
                 if (memberPersonal)
                     Check(nativeSelected.Diagnostics.Any(d => d.Code == "config.member_output"), "Selected member output attempt lost its diagnostic");

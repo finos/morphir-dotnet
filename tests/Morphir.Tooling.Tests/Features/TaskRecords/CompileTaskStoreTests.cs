@@ -27,6 +27,60 @@ public sealed class CompileTaskStoreTests : IDisposable
         return run.Complete(new CompileProduct("fsharp", RecordWorkspace.SingleFileIr(), projectFile)).ShouldSucceed();
     }
 
+    /// <summary>A stderr that keeps what is written, and runs <paramref name="onWrite"/> before each write.</summary>
+    private sealed class RecordingWriter(StringWriter inner, Action onWrite) : TextWriter
+    {
+        public override System.Text.Encoding Encoding => System.Text.Encoding.UTF8;
+        public override void Write(char value) { onWrite(); inner.Write(value); }
+        public override void Write(string? value) { onWrite(); inner.Write(value); }
+        public override void WriteLine(string? value) { onWrite(); inner.WriteLine(value); }
+    }
+
+    private static bool LockIsFree(string path)
+    {
+        try
+        {
+            using var taken = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+    }
+
+    [Test]
+    public async Task ARunWhoseCompleteLeftAStagedRecordWarnsWhenItIsDisposedAndStillHoldsTheLock()
+    {
+        var warnings = new StringWriter();
+        var location = _workspace.Out.Task(MemberPath.Root, TaskId.Compile);
+        bool? lockHeldAtWarning = null;
+        var store = new CompileTaskStore(_workspace.Out, MemberPath.Root, new TaskStoreOptions
+        {
+            Diagnostics = new RecordingWriter(warnings, () => lockHeldAtWarning ??= !LockIsFree(location.Lock)),
+            MorphirHome = _workspace.MorphirHome,
+            PollInterval = TimeSpan.FromMilliseconds(10),
+            // The staged record stays where the file system refuses its removal.
+            Removal = new PathRemoval(path =>
+            {
+                if (Path.GetFileName(path).StartsWith(".compile.json.", StringComparison.Ordinal))
+                    throw new UnauthorizedAccessException("Access to the path is denied.");
+                PathRemoval.DeletePath(path);
+            }, _ => false, _ => { }),
+            BeforeRecordReplace = () => throw new IOException("The record could not be renamed."),
+        });
+
+        var run = (await store.BeginAsync(default)).ShouldSucceed();
+        run.Complete(new CompileProduct("fsharp", RecordWorkspace.SingleFileIr(), null)).Should().BeOfType<Outcome<TaskRecord>.Failure>();
+        warnings.ToString().Should().BeEmpty("a caller can still report the refusal with its own cleanup");
+        run.Dispose();
+
+        var staged = Directory.EnumerateFiles(Path.GetDirectoryName(location.Record)!, ".compile.json.*").Should().ContainSingle().Subject;
+        warnings.ToString().Should().Contain(staged).And.Contain("Access to the path is denied.").And.Contain("there is no compile.json");
+        lockHeldAtWarning.Should().BeTrue("compile.json is read for the warning while the run still holds compile.lock");
+        LockIsFree(location.Lock).Should().BeTrue();
+    }
+
     [Test]
     public async Task AWorkspaceMemberWritesItsIrAndRecordUnderItsMemberPath()
     {

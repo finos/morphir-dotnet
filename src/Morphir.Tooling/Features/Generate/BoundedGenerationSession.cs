@@ -23,7 +23,7 @@ internal static class BoundedGenerationSession
         if (limits.MaxSessionWorkUnits <= 0)
             return await AbortAsync(Operational("extension.bounded_work_limit", "The negotiated maxSessionWorkUnits must be positive."));
         var work = new BoundedTreeWorkBudget(limits.MaxSessionWorkUnits);
-        var (bound, bindFailure) = MepGenerationSnapshot.BindForHost(snapshot, start, work).Match(
+        var (bound, bindFailure) = MepGenerationSnapshot.BindForHost(snapshot, start, work, deadline.Token).Match(
             static value => ((MepGenerationSnapshot?)value, (GenerationFailure?)null),
             static errors => (null, StoreFailure(errors)));
         if (bound is null) return await AbortAsync(bindFailure!);

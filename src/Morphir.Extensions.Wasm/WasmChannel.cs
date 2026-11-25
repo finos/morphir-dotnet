@@ -105,6 +105,8 @@ public sealed class WasmChannel : ISingleMessageChannel, IDisposable, IAsyncDisp
             if (state != ChannelState.Open || calling)
                 return "The WASM adapter cannot apply model-access limits outside an idle session.";
 
+            // Configured WASM guests enforce ModelAccessLimits.MaxFrameBytes on the whole Content-Length frame
+            // (header included), matching hostSession.frameLimits.counted and the documented WASM contract.
             var refusal = store.ApplyModelAccessLimits(limits.MaxFrameBytes, limits.MaxGuestStateBytes);
             modelAccessLimitsApplied = refusal is null;
             return refusal;

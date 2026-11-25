@@ -51,15 +51,23 @@ internal static class InstalledExtensionConnector
     /// use: it checks the runtime, the locked digest and the profile. The module was rehashed against the lock when
     /// it was captured.
     /// </summary>
-    private static ISingleMessageChannel OpenModule(CapturedExtension captured, IWasmModuleLoader? loader)
+    private static ISingleMessageChannel OpenModule(CapturedExtension captured, IWasmModuleLoader? loader,
+        SessionLimits? limits = null,
+        Func<WasmModuleSource, SessionLimits?, (ISingleMessageChannel? Channel, string Code, string Message)>? openChannel = null)
     {
         var module = captured.Module ?? throw new Refused("extension.unavailable", "The installed extension is not a WASM module.");
-        if (loader is null)
+        if (loader is null && openChannel is null)
             throw new Refused("extension.runtime_unavailable", "This host has no WASM runtime, so it cannot run the installed WASM extension.");
         if (!ModuleDigest.TryParse(module.Digest.Value, out var digest))
             throw new Refused("extension.digest_mismatch", "The locked digest of the installed WASM module is not a SHA-256.");
         var source = new WasmModuleSource(captured.Record.ExtensionId.Value, module.ModulePath, null, digest);
-        if (!ConfiguredWasmModule.TryOpen(loader, source, out var channel, out var code, out var message))
+        if (openChannel is not null)
+        {
+            var (opened, openCode, openMessage) = openChannel(source, limits);
+            if (opened is null) throw new Refused(openCode, openMessage);
+            return opened;
+        }
+        if (!ConfiguredWasmModule.TryOpen(loader, source, out var channel, out var code, out var message, limits))
             throw new Refused(code, message);
         return channel!;
     }
@@ -109,9 +117,13 @@ internal static class InstalledExtensionConnector
     }
 
     internal static async Task<Outcome<IExternalGenerationBackend>> BackendAsync(BackendExtensionRequest request, CancellationToken ct) =>
-        await BackendAsync(request, null, ct);
+        await BackendAsync(request, null, null, ct);
 
-    internal static async Task<Outcome<IExternalGenerationBackend>> BackendAsync(BackendExtensionRequest request, IWasmModuleLoader? wasmLoader, CancellationToken ct)
+    internal static async Task<Outcome<IExternalGenerationBackend>> BackendAsync(BackendExtensionRequest request, IWasmModuleLoader? wasmLoader, CancellationToken ct) =>
+        await BackendAsync(request, wasmLoader, null, ct);
+
+    internal static async Task<Outcome<IExternalGenerationBackend>> BackendAsync(BackendExtensionRequest request, IWasmModuleLoader? wasmLoader,
+        Func<WasmModuleSource, SessionLimits?, (ISingleMessageChannel? Channel, string Code, string Message)>? openChannel, CancellationToken ct)
     {
         CapturedExtension? captured = null;
         MepGenerationBackend? guest = null;
@@ -130,7 +142,7 @@ internal static class InstalledExtensionConnector
                 HostVersion = MepExtensionCommand.HostVersion
             };
             var connected = wasm
-                ? await MepGenerationBackend.ConnectChannelAsync(options, OpenModule(captured, wasmLoader), ct)
+                ? await MepGenerationBackend.ConnectChannelAsync(options, OpenModule(captured, wasmLoader, null, openChannel), ct)
                 : await MepGenerationBackend.ConnectAsync(options, ct);
             if (connected is Outcome<MepGenerationBackend>.Failure failure)
             {
@@ -149,6 +161,87 @@ internal static class InstalledExtensionConnector
             return new Outcome<IExternalGenerationBackend>.Failure(GenerationFailure.One(GenerationFailureKind.Operational,
                 error is Refused refused ? refused.Code : "extension.unavailable", error.Message));
         }
+    }
+
+    internal static async Task<Outcome<ModelAccessConnection>> ModelAccessAsync(BackendExtensionRequest request, ModelAccessSupport offer,
+        IWasmModuleLoader? wasmLoader,
+        Func<WasmModuleSource, SessionLimits?, (ISingleMessageChannel? Channel, string Code, string Message)>? openChannel,
+        CancellationToken ct)
+    {
+        CapturedExtension? captured = null;
+        IModelAccessGuest? guest = null;
+        ISingleMessageChannel? wasmChannel = null;
+        try
+        {
+            var environment = EnvironmentOf(request.Environment);
+            captured = await CaptureAsync(request.InstalledId!, environment, null, ct);
+            var deadline = TimeSpan.FromMilliseconds(offer.Limits.MaxCallMilliseconds);
+            Outcome<IModelAccessGuest> started;
+            if (captured.IsWasm)
+            {
+                var wasmOffer = RecordedGenerationAdmission.ClampForWasm(request.BoundedProfile, offer);
+                var wasmLimits = RecordedGenerationAdmission.WasmLimits(request.BoundedProfile, wasmOffer.Limits);
+                wasmChannel = OpenModule(captured, wasmLoader, wasmLimits, openChannel);
+                var host = new PeerInfo(PeerKind.Cli, MepExtensionCommand.HostName, MepExtensionCommand.HostVersion);
+                started = (await MepChannelGuest.StartModelAccessAsync(wasmChannel, host, wasmOffer, deadline, ct))
+                    .Match<MepChannelGuest, MepGuestFailure, Outcome<IModelAccessGuest>>(
+                        value => new Outcome<IModelAccessGuest>.Success(value),
+                        error => new Outcome<IModelAccessGuest>.Failure(
+                            GenerationFailure.One(GenerationFailureKind.Operational, error.Code, error.Message)));
+            }
+            else
+            {
+                var options = MepGuestOptions.Create(captured.Activation.EntryPointPath, captured.Record.Arguments,
+                    request.WorkingDirectory, deadline, Console.Error, MepExtensionCommand.HostName, MepExtensionCommand.HostVersion, environment);
+                started = (await MepGuestProcess.StartModelAccessAsync(options, offer, ct))
+                    .Match<MepGuestProcess, MepGuestFailure, Outcome<IModelAccessGuest>>(
+                        value => new Outcome<IModelAccessGuest>.Success(value),
+                        error => new Outcome<IModelAccessGuest>.Failure(
+                            GenerationFailure.One(GenerationFailureKind.Operational, error.Code, error.Message)));
+            }
+
+            if (started is Outcome<IModelAccessGuest>.Failure failed)
+            {
+                await ((IAsyncDisposable)captured).DisposeAsync();
+                return new Outcome<ModelAccessConnection>.Failure(failed.Error);
+            }
+            guest = ((Outcome<IModelAccessGuest>.Success)started).Value;
+
+            Check(captured.Record, guest.Session);
+            var session = guest.Session;
+            return new Outcome<ModelAccessConnection>.Success(new ModelAccessConnection(
+                new OwnedModelAccessGuest(guest, captured),
+                wasmChannel,
+                tuple => ModelAccessObservation(session, tuple)));
+        }
+        catch (Exception error) when (error is not (OutOfMemoryException or AccessViolationException))
+        {
+            if (captured is not null)
+                await AsyncOwnership.RunAsync(captured, async () => { if (guest is not null) await ((IAsyncDisposable)guest).DisposeAsync(); return true; });
+            if (error is OperationCanceledException) throw;
+            return new Outcome<ModelAccessConnection>.Failure(GenerationFailure.One(GenerationFailureKind.Operational,
+                error is Refused refused ? refused.Code : "extension.unavailable", error.Message));
+        }
+    }
+
+    private static JsonElement ModelAccessObservation(NegotiatedSession session, ModelAccessTuple tuple)
+    {
+        using var bytes = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(bytes))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("role", "backend"); writer.WriteString("extensionId", session.Extension.Id);
+            writer.WriteString("version", session.Extension.Version); writer.WriteString("mepVersion", session.ProtocolVersion.Value);
+            writer.WritePropertyName("modelTuple"); JsonSerializer.Serialize(writer, tuple, MepJson.Default.ModelAccessTuple);
+            writer.WriteStartArray("checks");
+            writer.WriteStartObject(); writer.WriteString("check", "integrity"); writer.WriteString("status", "passed");
+            writer.WriteString("reason", "VERIFY-B manifest, tree structure, lengths and executable declarations checked while acquiring the package lifetime; no fresh full-file hash claimed."); writer.WriteEndObject();
+            writer.WriteStartObject(); writer.WriteString("check", "capability"); writer.WriteString("status", "passed");
+            writer.WriteString("reason", "Actual negotiated session agrees with the installed claims and the operation completed using this tuple."); writer.WriteEndObject();
+            writer.WriteEndArray(); writer.WriteEndObject();
+        }
+        using var document = JsonDocument.Parse(bytes.ToArray());
+        return document.RootElement.Clone();
     }
 
     private static JsonElement Observation(string role, NegotiatedSession session, ModelTransportTuple tuple)
@@ -205,5 +298,25 @@ internal static class InstalledExtensionConnector
             return outcome;
         }
         public ValueTask DisposeAsync() => new(AsyncOwnership.RunAsync(lifetime, async () => { await guest.DisposeAsync(); return true; }));
+    }
+
+    private sealed class OwnedModelAccessGuest(IModelAccessGuest guest, CapturedExtension lifetime) : IModelAccessGuest
+    {
+        public NegotiatedSession Session => guest.Session;
+        public bool IsClosed => guest.IsClosed;
+        public HostSession HostSession => guest.HostSession;
+        public string Transport => guest.Transport;
+        public Task<MepGuestReply> SendAsync(Method method, JsonElement parameters, CancellationToken cancellation) =>
+            guest.SendAsync(method, parameters, cancellation);
+        public Task<Microsoft.FSharp.Core.FSharpResult<CapabilityClaimSet, MepGuestFailure>> DescribeAsync(CancellationToken cancellation) =>
+            guest.DescribeAsync(cancellation);
+        public Task TerminateModelAccessAsync() => guest.TerminateModelAccessAsync();
+        public Task<Microsoft.FSharp.Core.FSharpResult<Microsoft.FSharp.Core.Unit, MepGuestFailure>> CloseModelAccessAsync(CancellationToken cancellation) =>
+            guest.CloseModelAccessAsync(cancellation);
+        public ValueTask DisposeAsync() => new(AsyncOwnership.RunAsync(lifetime, async () =>
+        {
+            await ((IAsyncDisposable)guest).DisposeAsync();
+            return true;
+        }));
     }
 }

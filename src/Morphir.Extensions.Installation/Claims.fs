@@ -12,16 +12,15 @@ type internal ReleaseClaims = {
     Extension: ExtensionInfo
     ProtocolVersions: ProtocolVersion list
     HostRequirements: Comparator list
+    SchemaVersion: ExtensionSchemaVersion
+    HasModelAccess: bool
 }
 
 module internal Claims =
     open SharedJson
 
-    let private schemaUrl =
-        "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/claims.schema.json"
-
     // Array elements use the path of their array, as the published member tables require.
-    let knownPaths =
+    let private baseKnownPaths =
         set [
             "protocolVersions"
             "extension"
@@ -78,6 +77,48 @@ module internal Claims =
             "requires.host"
             "critical"
         ]
+
+    let private modelAccessKnownPaths =
+        set [
+            "capabilities.modelAccess"
+            "capabilities.modelAccess.tuples"
+            "capabilities.modelAccess.tuples.protocolVersion"
+            "capabilities.modelAccess.tuples.accessVersion"
+            "capabilities.modelAccess.tuples.operation"
+            "capabilities.modelAccess.tuples.irVersion"
+            "capabilities.modelAccess.tuples.profile"
+            "capabilities.modelAccess.tuples.codec"
+            "capabilities.modelAccess.tuples.layout"
+            "capabilities.modelAccess.tuples.contextualEncoding"
+            "capabilities.modelAccess.limits"
+            "capabilities.modelAccess.limits.maxFrameBytes"
+            "capabilities.modelAccess.limits.maxEncodedBytesPerExchange"
+            "capabilities.modelAccess.limits.maxDecodedBytesPerExchange"
+            "capabilities.modelAccess.limits.maxDocumentsPerBatch"
+            "capabilities.modelAccess.limits.maxDepth"
+            "capabilities.modelAccess.limits.maxNodes"
+            "capabilities.modelAccess.limits.maxDiagnosticsPerExchange"
+            "capabilities.modelAccess.limits.maxOutstandingRequests"
+            "capabilities.modelAccess.limits.maxGuestStateBytes"
+            "capabilities.modelAccess.limits.maxHostCacheBytes"
+            "capabilities.modelAccess.limits.maxArtifactChunkBytes"
+            "capabilities.modelAccess.limits.maxArtifactBytes"
+            "capabilities.modelAccess.limits.maxTotalArtifactBytes"
+            "capabilities.modelAccess.limits.maxSessionDiskBytes"
+            "capabilities.modelAccess.limits.maxSessionWorkUnits"
+            "capabilities.modelAccess.limits.maxRounds"
+            "capabilities.modelAccess.limits.maxCallMilliseconds"
+            "capabilities.modelAccess.limits.maxSessionMilliseconds"
+        ]
+
+    let private preview4KnownPaths = Set.union baseKnownPaths modelAccessKnownPaths
+
+    let knownPathsFor =
+        function
+        | ExtensionSchemaVersion.Preview3 -> baseKnownPaths
+        | ExtensionSchemaVersion.Preview4 -> preview4KnownPaths
+
+    let knownPaths = preview4KnownPaths
 
     let readCritical path known items =
         match optional "critical" items with
@@ -300,7 +341,104 @@ module internal Claims =
             "guarantees", Value.Array(List.map Value.String guarantees)
         ]
 
-    let private capabilities path types value =
+    let private modelAccessLimitNames = [
+        "maxFrameBytes"
+        "maxEncodedBytesPerExchange"
+        "maxDecodedBytesPerExchange"
+        "maxDocumentsPerBatch"
+        "maxDepth"
+        "maxNodes"
+        "maxDiagnosticsPerExchange"
+        "maxOutstandingRequests"
+        "maxGuestStateBytes"
+        "maxHostCacheBytes"
+        "maxArtifactChunkBytes"
+        "maxArtifactBytes"
+        "maxTotalArtifactBytes"
+        "maxSessionDiskBytes"
+        "maxSessionWorkUnits"
+        "maxRounds"
+        "maxCallMilliseconds"
+        "maxSessionMilliseconds"
+    ]
+
+    let private modelAccess path value =
+        let items = members path value
+
+        let tuples =
+            required path "tuples" items
+            |> array $"{path}.tuples"
+            |> List.mapi (fun index tuple ->
+                let tuplePath = $"{path}.tuples[{index + 1}]"
+                let tupleItems = members tuplePath tuple
+
+                let names = [
+                    "protocolVersion"
+                    "accessVersion"
+                    "operation"
+                    "irVersion"
+                    "profile"
+                    "codec"
+                    "layout"
+                    "contextualEncoding"
+                ]
+
+                let projection = fields tuplePath names names [] tupleItems
+
+                let operation =
+                    required tuplePath "operation" tupleItems
+                    |> text $"{tuplePath}.operation"
+
+                if operation <> "morphir.backend.generateModel" then
+                    invalid $"{tuplePath}.operation" "Unknown model access operation."
+
+                Value.Object projection
+            )
+
+        let limitsPath = $"{path}.limits"
+
+        let limits =
+            required path "limits" items
+            |> members limitsPath
+
+        let projectedLimits = [
+            for name in modelAccessLimitNames do
+                let number = required limitsPath name limits
+
+                match number with
+                | Value.Number spelling when
+                    match Int64.TryParse(spelling, Globalization.NumberStyles.None, Globalization.CultureInfo.InvariantCulture) with
+                    | true, parsed -> parsed > 0L && parsed <= 9007199254740991L
+                    | false, _ -> false
+                    ->
+                    yield name, number
+                | _ -> invalid $"{limitsPath}.{name}" "Expected a positive integer."
+        ]
+
+        let projected =
+            Value.Object [
+                "tuples", Value.Array tuples
+                "limits", Value.Object projectedLimits
+            ]
+
+        let typed =
+            try
+                System.Text.Json.JsonSerializer.Deserialize(
+                    JsonText.toBytes projected,
+                    MepJson.Default.ModelAccessSupport
+                )
+            with
+            | :? System.Text.Json.JsonException as error ->
+                invalid path $"Invalid modelAccess claims: {error.Message}"
+
+        match Option.ofObj typed with
+        | None -> invalid path "Invalid modelAccess claims."
+        | Some support ->
+            match ModelAccess.validateSupport support with
+            | Ok _ -> projected
+            | Error message -> invalid path message
+
+    let private capabilities (allowModelAccess: bool) path types value =
         let items = members path value
 
         for kind in types do
@@ -308,6 +446,7 @@ module internal Claims =
             |> ignore
 
         let projected = ResizeArray<string * Value>()
+        let mutable hasModelAccess = false
 
         for name, value in items do
             let location = $"{path}.{name}"
@@ -324,6 +463,12 @@ module internal Claims =
 
                     Some(Value.Object [])
                 | "modelTransport" -> Some(modelTransport location value)
+                | "modelAccess" ->
+                    if not allowModelAccess then
+                        invalid location "capabilities.modelAccess requires extension contract 0.1.0-preview.4 and is not permitted under 0.1.0-preview.3."
+
+                    hasModelAccess <- true
+                    Some(modelAccess location value)
                 | "streaming"
                 | "incremental"
                 | "cancellation"
@@ -334,9 +479,9 @@ module internal Claims =
             | Some parsed -> projected.Add(name, parsed)
             | None -> ()
 
-        Value.Object(List.ofSeq projected)
+        Value.Object(List.ofSeq projected), hasModelAccess
 
-    let private readAt path known value =
+    let private readAt (schemaVersion: ExtensionSchemaVersion) path known value =
         let items = members path value
 
         for forbidden in [ "claimsVersion"; "statementVersion" ] do
@@ -432,9 +577,9 @@ module internal Claims =
                 identity
             @ [ "types", Value.Array(List.map Value.String types) ]
 
-        let capProjection =
+        let capProjection, hasModelAccess =
             required path "capabilities" items
-            |> capabilities $"{path}.capabilities" types
+            |> capabilities (ExtensionSchemas.supportsModelAccess schemaVersion) $"{path}.capabilities" types
 
         let critical = readCritical path known items
 
@@ -494,9 +639,11 @@ module internal Claims =
             Extension = extension
             ProtocolVersions = protocolVersions
             HostRequirements = requirements
+            SchemaVersion = schemaVersion
+            HasModelAccess = hasModelAccess
         }
 
-    let readEmbedded path value =
+    let readEmbeddedFor (schemaVersion: ExtensionSchemaVersion) path value =
         let items = members path value
 
         if
@@ -508,7 +655,10 @@ module internal Claims =
                 $"{path}.$schema"
                 "Embedded claims have no schema or version member."
 
-        readAt path knownPaths value
+        readAt schemaVersion path (knownPathsFor schemaVersion) value
+
+    let readEmbedded path value =
+        readEmbeddedFor ExtensionSchemaVersion.Preview4 path value
 
     let readStandalone (bytes: byte array) : Result<ReleaseClaims, InstallationFailure> =
         match SharedJson.read "claims.json" bytes with
@@ -516,8 +666,8 @@ module internal Claims =
         | Ok value ->
             protect (fun () ->
                 let items = members "claims.json" value
-                schema "claims.json" schemaUrl items
-                readAt "claims.json" (Set.add "$schema" knownPaths) value
+                let schemaVersion = ExtensionSchemas.readVersion "claims.json" "claims" items
+                readAt schemaVersion "claims.json" (Set.add "$schema" (knownPathsFor schemaVersion)) value
             )
 
     let equivalent (left: ReleaseClaims) (right: ReleaseClaims) =
@@ -541,32 +691,39 @@ module internal Claims =
             for kind,capability in members "session.capabilities" actual do
                 let rule = if List.contains kind ["frontend";"backend";"workspace";"validator";"transform"] then 3 else 4
                 let known = optional kind staticFields |> Option.defaultWith(fun () -> mismatch rule kind; Value.Null)
-                if kind <> "modelTransport" && not (List.contains kind ["frontend";"backend";"workspace";"validator";"transform"]) then
+                if kind = "modelTransport" || kind = "modelAccess" then
+                    let declared = members kind known
+                    let actual = members kind capability
+                    for name,value in actual do
+                        let expected = optional name declared |> Option.defaultWith(fun () -> mismatch 4 $"{kind}.{name}"; Value.Null)
+                        match name with
+                        | "tuples" ->
+                            let allowed = array name expected
+                            for item in array name value do
+                                if not (allowed |> List.exists(fun candidate -> difference name candidate item |> Option.isNone)) then mismatch 4 $"{kind}.{name}"
+                        | "guarantees" when kind = "modelTransport" ->
+                            let allowed = array name expected
+                            for item in array name value do
+                                if not (allowed |> List.exists(fun candidate -> difference name candidate item |> Option.isNone)) then mismatch 4 $"{kind}.{name}"
+                        | "limits" ->
+                            let allowed = members name expected
+                            for limit,bound in members name value do
+                                let number = function
+                                    | Value.Number text ->
+                                        match Int64.TryParse(text, Globalization.NumberStyles.None, Globalization.CultureInfo.InvariantCulture) with
+                                        | true, parsed -> parsed
+                                        | false, _ -> mismatch 4 $"{kind}.limits.{limit}"; 0L
+                                    | _ -> mismatch 4 $"{kind}.limits.{limit}"; 0L
+                                let actual = number bound
+                                let maximum = required name limit allowed |> number
+                                if actual <= 0L || actual > maximum then mismatch 4 $"{kind}.limits.{limit}"
+                        | _ -> mismatch 4 $"{kind}.{name}"
+                elif not (List.contains kind ["frontend";"backend";"workspace";"validator";"transform"]) then
                     if difference kind known capability |> Option.isSome then mismatch 4 kind
-                elif kind <> "modelTransport" then
+                else
                     let declared = members kind known
                     for name,value in members kind capability do
                         match optional name declared with
                         | Some expected when difference name expected value |> Option.isNone -> ()
                         | _ -> mismatch 4 $"capabilities.{kind}.{name}"
-                else
-                    let declared = members kind known
-                    let actual = members kind capability
-                    for name,value in actual do
-                        let expected = optional name declared |> Option.defaultWith(fun () -> mismatch 4 $"modelTransport.{name}"; Value.Null)
-                        match name with
-                        | "tuples" | "guarantees" ->
-                            let allowed = array name expected
-                            for item in array name value do
-                                if not (allowed |> List.exists(fun candidate -> difference name candidate item |> Option.isNone)) then mismatch 4 $"modelTransport.{name}"
-                        | "limits" ->
-                            let allowed = members name expected
-                            for limit,bound in members name value do
-                                let number = function
-                                    | Value.Number text -> Int32.Parse(text,Globalization.CultureInfo.InvariantCulture)
-                                    | _ -> mismatch 4 $"modelTransport.limits.{limit}"; 0
-                                let actual = number bound
-                                let maximum = required name limit allowed |> number
-                                if actual <= 0 || actual > maximum then mismatch 4 $"modelTransport.limits.{limit}"
-                        | _ -> mismatch 4 $"modelTransport.{name}"
         )

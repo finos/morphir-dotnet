@@ -91,11 +91,24 @@ type BoundedTreeEncoding =
     | ContextualDraft1
     | ContextualDraft1Streaming
 
+    /// <summary>Stable encoding label without reflection.</summary>
+    override this.ToString() =
+        match this with
+        | Plain -> "plain"
+        | ContextualDraft1 -> "contextual-draft.1"
+        | ContextualDraft1Streaming -> "contextual-draft.1-streaming"
+
 /// The physical syntax admitted at the snapshot manifest.
 [<RequireQualifiedAccess>]
 type BoundedTreeSyntax =
     | Json
     | Yaml
+
+    /// <summary>Stable syntax label without reflection.</summary>
+    override this.ToString() =
+        match this with
+        | Json -> "json"
+        | Yaml -> "yaml"
 
 [<RequireQualifiedAccess>]
 type internal BoundedTreeManifest =
@@ -114,6 +127,7 @@ type BoundedTreeSnapshot =
             DocumentDepthLimit: int
             DocumentNodeLimit: int option
             Work: BoundedTreeWorkBudget option
+            Cancellation: System.Threading.CancellationToken
             Encoding: BoundedTreeEncoding
             Profile: TreeFileSource.Profile
             Manifest: BoundedTreeManifest
@@ -194,6 +208,10 @@ type BoundedTreeSnapshot =
     member snapshot.WithWorkBudget(work: BoundedTreeWorkBudget) =
         { snapshot with Work = Some work }
 
+    /// Bind a cancellation token to reads and discovery without replacing the snapshot or its cursors.
+    member snapshot.WithCancellation(cancellationToken: System.Threading.CancellationToken) =
+        { snapshot with Cancellation = cancellationToken }
+
 type private ModuleInventory = {
     Path: ModulePath
     Access: Morphir.IR.V4.Access option
@@ -206,6 +224,7 @@ type private ModuleInventory = {
 
 type private BoundedTreeFile = {
     Input: MorphirFile<JsonElement>
+    UnrepresentableEnvelopeMember: string option
     Bytes: byte array
     ContextLimits: ContextLimits
     Nodes: int
@@ -259,12 +278,12 @@ module internal BoundedTreeReader =
                 let encoded = ReadOnlyMemory bytes
                 ContextExpansion.countJsonNodes limits.MaxDepth nodeLimit location encoded
                 |> Result.bind (fun nodes ->
-                    MorphirFile.readEnvelopeWithOrder order limits location encoded
-                    |> Result.bind (fun input ->
+                    MorphirFile.readEnvelopeWithOrderAndInspect order limits location encoded
+                    |> Result.bind (fun (input, unrepresentable) ->
                         if encoding = BoundedTreeEncoding.Plain && input.Context.IsSome then
                             plainOnly location
                         else
-                            Ok(input, nodes)))
+                            Ok(input, unrepresentable, nodes)))
             | TreeFileSource.Yaml when encoding = BoundedTreeEncoding.Plain ->
                 TreeYaml.readCounted false limits.MaxDepth (defaultArg nodeLimit Int32.MaxValue) location bytes
                 |> Result.bind (fun (document, nodes) ->
@@ -278,13 +297,16 @@ module internal BoundedTreeReader =
                                 Schema = None
                                 Context = None
                                 Document = document
-                            }, nodes)
+                            },
+                            None,
+                            nodes
+                        )
                 )
             | TreeFileSource.Yaml ->
                 TreeYaml.readCounted true limits.MaxDepth (defaultArg nodeLimit Int32.MaxValue) location bytes
                 |> Result.bind (fun (root, nodes) ->
-                    MorphirFile.readEnvelopeRoot order limits location root
-                    |> Result.map (fun input -> input, nodes))
+                    MorphirFile.readEnvelopeRootAndInspect order limits location root
+                    |> Result.map (fun (input, unrepresentable) -> input, unrepresentable, nodes))
 
         TreeFileSource.snapshotLocation work source expected logical
         |> TreeFileSource.one
@@ -299,9 +321,10 @@ module internal BoundedTreeReader =
                 |> TreeFileSource.one
                 |> Result.bind (fun bytes ->
                     parse profile location bytes
-                    |> Result.map (fun (document, nodes) ->
+                    |> Result.map (fun (document, unrepresentable, nodes) ->
                         profile, location, {
                             Input = document
+                            UnrepresentableEnvelopeMember = unrepresentable
                             Bytes = bytes
                             ContextLimits = limits
                             Nodes = nodes
@@ -414,6 +437,7 @@ module internal BoundedTreeReader =
                             DocumentDepthLimit = ContextLimits.draft1.MaxDepth
                             DocumentNodeLimit = None
                             Work = None
+                            Cancellation = System.Threading.CancellationToken.None
                             Encoding = encoding
                             Profile = profile
                             Manifest = manifest
@@ -688,9 +712,11 @@ module internal BoundedTreeReader =
 
                     let next previous =
                         try
-                            snapshot.Source.NextModule snapshot.Work pathBudget prefix previous
+                            snapshot.Source.NextModule snapshot.Work snapshot.Cancellation pathBudget prefix previous
                             |> TreeFileSource.one
-                        with ex ->
+                        with
+                        | :? OperationCanceledException -> reraise ()
+                        | ex ->
                             refuse "tree.unreadable_file" (Some prefix) ex.Message
 
                     let rec collect remaining previous reversed =
@@ -1464,7 +1490,13 @@ module internal BoundedTreeReader =
             InventoryByteLimit = max requested snapshot.InventoryByteLimit
         }
 
-    let readExpandedDocument documentId outputBytes snapshot =
+    let internal withDepthAndCancellation depthLimit cancellationToken (snapshot: BoundedTreeSnapshot) =
+        { snapshot with
+            DocumentDepthLimit = min depthLimit snapshot.DocumentDepthLimit
+            Cancellation = cancellationToken
+        }
+
+    let internal readExpandedDocumentWithSource rejectUnrepresentableEnvelope documentId outputBytes snapshot =
         if
             outputBytes
             <= 0L
@@ -1490,23 +1522,64 @@ module internal BoundedTreeReader =
                             (Some location)
                             "Expanded names exceed the document byte limit."
                     else
-                        Ok
+                        Ok(
+                            location,
                             {
                                 File = output
                                 Bytes = ReadOnlyMemory(Encoding.UTF8.GetBytes text)
                             }
+                        )
+
+            let checkEnvelope location (file: BoundedTreeFile) =
+                if rejectUnrepresentableEnvelope then
+                    match file.UnrepresentableEnvelopeMember with
+                    | Some memberName ->
+                        refuse
+                            "data.lossy_conversion"
+                            (Some location)
+                            $"Converting document tree to single-document JSON would drop '{memberName}' in {location}; lossy conversion is refused by default."
+                    | None -> Ok()
+                else
+                    Ok()
 
             let expand location file =
-                expandRoot
-                    outputBytes
-                    (family snapshot)
-                    location
-                    ContextExpansion.Projection.Complete
-                    file
+                checkEnvelope location file
+                |> Result.bind (fun () ->
+                    expandRoot
+                        outputBytes
+                        (family snapshot)
+                        location
+                        ContextExpansion.Projection.Complete
+                        file
+                )
 
             let root location file =
                 expand location file
                 |> Result.bind (serialize location)
+
+            let checkClassicInlineDecimal location definitions suffix item =
+                match rejectUnrepresentableEnvelope, snapshot.Manifest, suffix with
+                | true, BoundedTreeManifest.Classic _, ".value" ->
+                    match ClassicTreeFiles.findLossyDecimalInInlineValue snapshot.Cancellation definitions item with
+                    | Some lexeme ->
+                        refuse
+                            "data.lossy_conversion"
+                            (Some location)
+                            $"Converting Classic document tree to single-document JSON would lose precision, scale, or sign on decimal literal '{lexeme}' in {location}; lossy conversion is refused by default."
+                    | None -> Ok()
+                | _ -> Ok()
+
+            let checkClassicSplitDecimal location definitions suffix document =
+                match rejectUnrepresentableEnvelope, snapshot.Manifest, suffix with
+                | true, BoundedTreeManifest.Classic _, ".value" ->
+                    match ClassicTreeFiles.findLossyDecimalInSplitValue snapshot.Cancellation definitions document with
+                    | Some lexeme ->
+                        refuse
+                            "data.lossy_conversion"
+                            (Some location)
+                            $"Converting Classic document tree to single-document JSON would lose precision, scale, or sign on decimal literal '{lexeme}' in {location}; lossy conversion is refused by default."
+                    | None -> Ok()
+                | _ -> Ok()
 
             let moduleFile own address location definitions inventory file =
                 let directory = TreeLayout.directoryOf own address
@@ -1527,6 +1600,9 @@ module internal BoundedTreeReader =
                             let memberLocation = V4JsonDecoding.memberAt fieldLocation property.Name
 
                             requireInlineOnly snapshot.Work snapshot.Source logical
+                            |> Result.bind (fun () ->
+                                checkClassicInlineDecimal location definitions suffix property.Value
+                            )
                             |> Result.bind (fun () ->
                                 decodeInlineBody
                                     snapshot
@@ -1559,13 +1635,20 @@ module internal BoundedTreeReader =
             let split location definitions suffix name file =
                 expand location file
                 |> Result.bind (fun document ->
-                    decodeSplitBody snapshot location definitions suffix name document
+                    checkClassicSplitDecimal location definitions suffix document
+                    |> Result.bind (fun () ->
+                        decodeSplitBody snapshot location definitions suffix name document
+                    )
                     |> Result.bind (fun _ -> serialize location document)
                 )
 
             withScopedDocument documentId snapshot.ByteLimit snapshot.DocumentNodeLimit (withInventoryBudget outputBytes snapshot) root moduleFile split
 
-    let writeExpandedTree limits stageFile snapshot =
+    let readExpandedDocument documentId outputBytes snapshot =
+        readExpandedDocumentWithSource false documentId outputBytes snapshot
+        |> Result.map snd
+
+    let internal writeExpandedTreeWithSources rejectUnrepresentableEnvelope limits (stageFile: string -> BoundedTreeExportDocument -> Result<unit, StoreError list>) snapshot =
         if
             limits.MaxDocumentBytes
             <= 0L
@@ -1588,16 +1671,17 @@ module internal BoundedTreeReader =
                     let mutable remaining = limits.MaxTotalBytes
 
                     let stage documentId =
-                        readExpandedDocument
+                        readExpandedDocumentWithSource
+                            rejectUnrepresentableEnvelope
                             documentId
                             (min remaining limits.MaxDocumentBytes)
                             snapshot
-                        |> Result.bind (fun file ->
+                        |> Result.bind (fun (sourceLocation, file) ->
                             remaining <-
                                 remaining
                                 - int64 file.Bytes.Length
 
-                            stageFile file
+                            stageFile sourceLocation file
                         )
 
                     let writePages selection stageEntry =
@@ -1654,6 +1738,219 @@ module internal BoundedTreeReader =
                             )
                     )
                 )
+
+    let writeExpandedTree limits stageFile snapshot =
+        writeExpandedTreeWithSources false limits (fun _ doc -> stageFile doc) snapshot
+
+    let private openDetectedManifestCore
+        (byteLimit: int64)
+        (depthLimit: int)
+        (nodeLimit: int option)
+        (workBudget: BoundedTreeWorkBudget option)
+        (cancellationToken: System.Threading.CancellationToken)
+        (source: TreeFileSource.SnapshotSource)
+        afterManifest
+        : Result<BoundedTreeSnapshot, StoreError list> =
+        if byteLimit <= 0L then
+            refuse "tree.invalid_limit" None "A document byte limit must be positive."
+        elif depthLimit <= 0 then
+            refuse "tree.invalid_limit" None "A document depth limit must be positive."
+        else
+            cancellationToken.ThrowIfCancellationRequested()
+            let effectiveDepth = min ContextLimits.draft1.MaxDepth depthLimit
+            let revision = source.Revision()
+
+            atRevision
+                source
+                revision
+                (fun () ->
+                    readRoot
+                        BoundedTreeEncoding.ContextualDraft1
+                        effectiveDepth
+                        nodeLimit
+                        byteLimit
+                        workBudget
+                        source
+                        None
+                        Int32.MaxValue
+                        "manifest"
+                    |> Result.bind (fun (profile, location, file) ->
+                        let decode document =
+                            if TreeFileSource.isClassicManifest document then
+                                ClassicTreeFiles.readManifest document
+                                |> Result.map BoundedTreeManifest.Classic
+                            else
+                                V4TreeFiles.readManifest document
+                                |> Result.map BoundedTreeManifest.V4
+
+                        expandRoot
+                            byteLimit
+                            (MorphirFile.familyOf file.Input.Document)
+                            location
+                            ContextExpansion.Projection.Complete
+                            file
+                        |> Result.bind (decodeAt location decode)
+                        |> Result.bind (validateManifest location)
+                        |> Result.bind (fun manifest ->
+                            let candidate: BoundedTreeSnapshot = {
+                                Source = source
+                                Revision = revision
+                                Identity = obj ()
+                                CursorKey = newCursorKey ()
+                                ByteLimit = byteLimit
+                                InventoryByteLimit = byteLimit
+                                DocumentDepthLimit = effectiveDepth
+                                DocumentNodeLimit = nodeLimit
+                                Work = workBudget
+                                Cancellation = cancellationToken
+                                Encoding = BoundedTreeEncoding.ContextualDraft1
+                                Profile = profile
+                                Manifest = manifest
+                            }
+
+                            afterManifest file candidate
+                        )
+                    )
+                )
+
+    /// Opens a bounded snapshot by inspecting only the manifest document so discovery and member reads remain lazy.
+    let openTreeFromManifest
+        (byteLimit: int64)
+        (depthLimit: int)
+        (nodeLimit: int option)
+        (workBudget: BoundedTreeWorkBudget option)
+        (cancellationToken: System.Threading.CancellationToken)
+        (source: TreeFileSource.SnapshotSource)
+        : Result<BoundedTreeSnapshot, StoreError list> =
+        openDetectedManifestCore
+            byteLimit
+            depthLimit
+            nodeLimit
+            workBudget
+            cancellationToken
+            source
+            (fun file candidate ->
+                Ok {
+                    candidate with
+                        Encoding =
+                            if file.Input.Context.IsSome then
+                                BoundedTreeEncoding.ContextualDraft1
+                            else
+                                BoundedTreeEncoding.Plain
+                        DocumentNodeLimit = None
+                        Work = None
+                        Cancellation = System.Threading.CancellationToken.None
+                }
+            )
+
+    let openTreeDetectedBounded
+        (byteLimit: int64)
+        (depthLimit: int)
+        (nodeLimit: int option)
+        (workBudget: BoundedTreeWorkBudget option)
+        (cancellationToken: System.Threading.CancellationToken)
+        (source: TreeFileSource.SnapshotSource)
+        : Result<BoundedTreeSnapshot, StoreError list> =
+        openDetectedManifestCore
+            byteLimit
+            depthLimit
+            nodeLimit
+            workBudget
+            cancellationToken
+            source
+            (fun file candidate ->
+                let mutable foundContextual = file.Input.Context.IsSome
+
+                let checkDocument documentId =
+                    cancellationToken.ThrowIfCancellationRequested()
+
+                    let inspectFile (doc: BoundedTreeFile) =
+                        if doc.Input.Context.IsSome then
+                            foundContextual <- true
+
+                        Ok()
+
+                    withScopedDocument
+                        documentId
+                        candidate.ByteLimit
+                        candidate.DocumentNodeLimit
+                        candidate
+                        (fun _ doc -> inspectFile doc)
+                        (fun _ _ _ _ _ doc -> inspectFile doc)
+                        (fun _ _ _ _ doc -> inspectFile doc)
+
+                let scanPages selection handleEntry =
+                    let mutable continuation = None
+                    let mutable pending = true
+                    let mutable result = Ok()
+
+                    while pending && Result.isOk result do
+                        cancellationToken.ThrowIfCancellationRequested()
+
+                        match pageInventory selection 64 continuation candidate with
+                        | Error errors -> result <- Error errors
+                        | Ok page ->
+                            result <-
+                                page.Entries
+                                |> List.fold
+                                    (fun prior entry ->
+                                        prior
+                                        |> Result.bind (fun () -> handleEntry entry)
+                                    )
+                                    (Ok())
+
+                            continuation <- page.Continuation
+                            pending <- continuation.IsSome
+
+                    result
+
+                let scanModule (item: BoundedTreeModule) =
+                    let moduleId = item.DocumentId
+
+                    checkDocument moduleId
+                    |> Result.bind (fun () ->
+                        scanPages
+                            moduleId
+                            (function
+                            | BoundedTreeInventoryEntry.MemberEntry(memberInfo, _) when
+                                memberInfo.DocumentId = moduleId
+                                ->
+                                Ok()
+                            | BoundedTreeInventoryEntry.MemberEntry(memberInfo, _) ->
+                                checkDocument memberInfo.DocumentId
+                            | _ -> invalidDocumentSelection ())
+                    )
+
+                scanPages
+                    "root"
+                    (function
+                    | BoundedTreeInventoryEntry.ModuleEntry item -> scanModule item
+                    | _ -> invalidDocumentSelection ())
+                |> Result.map (fun () ->
+                    { candidate with
+                        Encoding =
+                            if foundContextual then
+                                BoundedTreeEncoding.ContextualDraft1
+                            else
+                                BoundedTreeEncoding.Plain
+                        DocumentNodeLimit = None
+                        Work = None
+                        Cancellation = System.Threading.CancellationToken.None
+                    }
+                )
+            )
+
+    let openTreeDetected
+        byteLimit
+        (source: TreeFileSource.SnapshotSource)
+        : Result<BoundedTreeSnapshot, StoreError list> =
+        openTreeDetectedBounded
+            byteLimit
+            ContextLimits.draft1.MaxDepth
+            None
+            None
+            System.Threading.CancellationToken.None
+            source
 
     let readMember address snapshot =
         readMemberWithArtifact address snapshot

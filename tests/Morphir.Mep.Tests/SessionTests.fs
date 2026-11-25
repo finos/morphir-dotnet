@@ -283,6 +283,44 @@ let boundedGenerationNegotiationTests =
                 Expect.equal support.Limits.MaxNodes 120 "The lower host limit"
                 Expect.equal support.Limits.MaxDepth 12 "The lower guest limit"
 
+            testCase "contextual JSON and YAML tuples negotiate across 4.0.0 and 3.1.0 on draft.2" <| fun _ ->
+                let request = JsonNode.Parse boundedInitialize |> nonNull
+                let reply = JsonNode.Parse boundedGuestResult |> nonNull
+                let offered = ((request["params"] |> nonNull)["modelAccess"] |> nonNull)
+                let supported = (((reply["result"] |> nonNull)["capabilities"] |> nonNull)["modelAccess"] |> nonNull)
+                let hostTuples = (offered["tuples"] |> nonNull).AsArray()
+                let guestTuples = (supported["tuples"] |> nonNull).AsArray()
+                let template = (hostTuples[0] |> nonNull).DeepClone()
+                hostTuples.Clear()
+                guestTuples.Clear()
+
+                let contextualSchema = "https://morphir.finos.org/schemas/ir-context/0.1.0-draft.1/document.schema.json"
+                let cases =
+                    [ ("morphir-json", contextualSchema, "4.0.0")
+                      ("morphir-yaml", contextualSchema, "4.0.0")
+                      ("morphir-json", contextualSchema, "3.1.0")
+                      ("morphir-yaml", contextualSchema, "3.1.0") ]
+
+                for codec, encoding, irVersion in cases do
+                    let item = template.DeepClone()
+                    item["codec"] <- JsonValue.Create codec
+                    item["contextualEncoding"] <- JsonValue.Create encoding
+                    item["irVersion"] <- JsonValue.Create irVersion
+                    hostTuples.Add(item)
+                    guestTuples.Add(item.DeepClone())
+
+                let actual = boundedReply (boundedGuestFrom reply) (request.ToJsonString())
+                let agreed = (((actual["result"] |> nonNull)["capabilities"] |> nonNull)["modelAccess"] |> nonNull)
+                let support = decode MepJson.Default.ModelAccessSupport agreed
+                Expect.equal support.Tuples.Count 4 "All four contextual tuples agreed"
+                Expect.sequenceEqual
+                    (support.Tuples |> Seq.map (fun t -> t.Codec, t.ContextualEncoding, t.IrVersion.Value))
+                    [ (ModelAccessCodec.MorphirJson, ModelAccessEncoding.ContextualDraft1, "4.0.0")
+                      (ModelAccessCodec.MorphirYaml, ModelAccessEncoding.ContextualDraft1, "4.0.0")
+                      (ModelAccessCodec.MorphirJson, ModelAccessEncoding.ContextualDraft1, "3.1.0")
+                      (ModelAccessCodec.MorphirYaml, ModelAccessEncoding.ContextualDraft1, "3.1.0") ]
+                    "Codec, contextual encoding, and IR version preserved in host order"
+
             testCase "the host refuses selections outside observed guest support or empty agreements" <| fun _ ->
                 let offer =
                     decode MepJson.Default.InitializeParams ((JsonNode.Parse boundedInitialize |> nonNull)["params"] |> nonNull)

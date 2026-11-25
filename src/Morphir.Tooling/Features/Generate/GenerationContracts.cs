@@ -9,8 +9,25 @@ using Morphir.IR.Model;
 namespace Morphir.Tooling.Features.Generate;
 
 public enum GenerationFailureKind { Semantic, Invocation, Operational, Cancelled }
-public enum InputFormat { Auto, Json, Ion }
-public enum ModelRepresentation { Json, IonText, IonBinary, IonTree }
+
+public enum InputFormat
+{
+    Auto = 0,
+    Json = 1,
+    Ion = 2,
+    Yaml = 3,
+}
+
+public enum ModelRepresentation
+{
+    Json = 0,
+    IonText = 1,
+    IonBinary = 2,
+    IonTree = 3,
+    Yaml = 4,
+    JsonTree = 5,
+    YamlTree = 6,
+}
 
 /// <summary>A zero-based position: a line, and a character in UTF-16 code units, as in MEP and LSP.</summary>
 public sealed record DiagnosticPosition(int Line, int Character);
@@ -25,7 +42,12 @@ public sealed record DiagnosticRange(DiagnosticPosition Start, DiagnosticPositio
 /// </summary>
 public sealed record GenerationDiagnostic(string Code, string Message, string? Path = null, string? Location = null, string Severity = "error",
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    DiagnosticRange? Range = null);
+    DiagnosticRange? Range = null)
+{
+    /// <summary>Optional structured diagnostic data; omitted from JSON when null.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Data { get; init; }
+}
 public sealed record GenerationFailure(GenerationFailureKind Kind, ImmutableArray<GenerationDiagnostic> Diagnostics)
 {
     public string? Backend { get; init; }
@@ -229,6 +251,13 @@ public sealed record ModelDescriptor(SourceFormatVersion Version, ModelFamily Fa
     public static ModelDescriptor From(VersionedModel model) => new(model.SourceVersion, model.Family, model.Kind);
 }
 
+/// <summary>
+/// Original source model identity and tuple metadata preserved across host-side conversion so MEP 0.2.0-draft.1
+/// envelopes keep the original <c>modelId</c> and <c>extension.model_converted</c> reports the true source codec
+/// and digest rather than an intermediate representation.
+/// </summary>
+public sealed record ModelConversionOrigin(string ModelId, string Profile, string Codec, string IrVersion, string Revision, string PayloadSha256);
+
 public sealed record LoadedModel(VersionedModel Model, ModelDescriptor Descriptor, ModelRepresentation Representation, RetainedInput Original)
 {
     /// <summary>
@@ -236,6 +265,12 @@ public sealed record LoadedModel(VersionedModel Model, ModelDescriptor Descripto
     /// the model is the input of the pipeline.
     /// </summary>
     public Morphir.Tooling.Features.Transform.ModelLineage? Lineage { get; init; }
+
+    /// <summary>
+    /// Original identity and tuple metadata when the model is being converted from a multi-document tree or another
+    /// representation that differs from <see cref="Representation"/>.
+    /// </summary>
+    public ModelConversionOrigin? ConversionOrigin { get; init; }
 }
 
 public sealed record BackendCapability(ModelFamily Family, NonEmptySet<SourceFormatVersion> Versions, DistributionKind Kind)
@@ -274,7 +309,11 @@ public sealed record BackendDescriptor
 }
 
 /// <summary>Backends receive no output directory, configuration reader or publication service.</summary>
-public sealed record BackendGenerationRequest(LoadedModel Model, TargetId Target, ValidatedBackendOptions Options);
+public sealed record BackendGenerationRequest(LoadedModel Model, TargetId Target, ValidatedBackendOptions Options)
+{
+    /// <summary>The caller's admitted read limits, carried into any retained-input conversion verification.</summary>
+    public ModelReadLimits ReadLimits { get; init; } = ModelReadLimits.Default;
+}
 public sealed record GenerationArtifacts(VFileTree Tree, ImmutableArray<GenerationDiagnostic> Diagnostics)
 {
     /// <summary>

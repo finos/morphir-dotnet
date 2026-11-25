@@ -32,9 +32,13 @@ public sealed class RecordGenerationSettingsTests
 
     private static readonly CompileOverrides Ordered = new() { Inputs = ["src/Rates.fs", "src/Pricing.fs"] };
 
-    private static async Task<CompileResult> Compile(CompileWorkspace workspace, IFrontend? frontend = null, string version = "4") =>
+    private static async Task<CompileResult> Compile(CompileWorkspace workspace, IFrontend? frontend = null, string version = "4",
+        string? layout = null, string? format = null) =>
         CompileHandler.Fold(await CompileRunners.Events(CompileRunners.Create([frontend ?? FSharpFrontend.Registration]),
-            Ordered with { IrVersion = version }, workspace.Context()));
+            Ordered with { IrVersion = version, IrLayout = layout, IrFormat = format }, workspace.Context()));
+
+    /// <summary>The car-rental project of these tests with <c>ir.layout = "folder"</c>, which is not a layout.</summary>
+    private static ProjectToml CarRentalWithAnInvalidLayout => ProjectToml.AProject("acme/car-rental").WithFrontend("fsharp").WithLayout("folder");
 
     private static InvocationContext Invocation(CompileWorkspace workspace) =>
         new(workspace.Root) { Environment = workspace.Context().Environment };
@@ -54,6 +58,56 @@ public sealed class RecordGenerationSettingsTests
     private static string RecordIr(CompileWorkspace workspace) => workspace.PathOf(".morphir/out/compile.dest/morphir-ir.json");
 
     [Test]
+    public async Task RecordedGenerationTakesTheLayoutThatCompileOverrodeFromTheRecord()
+    {
+        using var workspace = Project();
+        workspace.Write("morphir.toml", CarRentalWithAnInvalidLayout.Build());
+        (await Compile(workspace, layout: "document-tree")).ExitCode.Should().Be(0, "--ir-layout overrides ir.layout, with a warning");
+
+        var resolved = await Resolver().ResolveAsync(FromRecord(), Invocation(workspace), default);
+
+        var settings = resolved.Should().BeOfType<Outcome<GenerationSettings>.Success>("the record decides the layout").Subject.Value;
+        using (settings.InputLease)
+        {
+            settings.Input.Path.Should().Be(workspace.PathOf(".morphir/out/compile.dest/morphir-ir"));
+            settings.InputLease.Should().BeOfType<RecordGenerationSettingsResolver.RecordLease>()
+                .Which.Output.Ir.Layout.Should().Be(IrLayout.DocumentTree);
+        }
+    }
+
+    [Test]
+    public async Task RecordedGenerationStillRefusesADuplicateLayoutKey()
+    {
+        using var workspace = Project();
+        (await Compile(workspace)).ExitCode.Should().Be(0);
+        var file = workspace.Write(MalformedConfiguration.DuplicateLayoutJson5File, MalformedConfiguration.DuplicateLayoutJson5);
+
+        var resolved = await Resolver().ResolveAsync(FromRecord() with { Config = file }, Invocation(workspace), default);
+
+        var failure = resolved.Should().BeOfType<Outcome<GenerationSettings>.Failure>("a duplicate key makes the whole file invalid").Subject;
+        failure.Error.Diagnostics.Should().Contain(diagnostic => diagnostic.Code == "compile.configuration"
+            && diagnostic.Message.Contains("config.duplicate_key"));
+    }
+
+    [Test]
+    public async Task AnExplicitInputWithItsConfigurationStillRefusesAnInvalidLayout()
+    {
+        using var workspace = Project();
+        (await Compile(workspace)).ExitCode.Should().Be(0);
+        var configuration = workspace.Write("morphir.toml", ProjectToml.OrdersWithAnInvalidLayout.Build());
+
+        var resolved = await Resolver().ResolveAsync(
+            new GenerateOverrides(Input: RecordIr(workspace), Target: "fsharp", Output: workspace.PathOf("gen")) { Config = configuration },
+            Invocation(workspace), default);
+
+        var failure = resolved.Should().BeOfType<Outcome<GenerationSettings>.Failure>(
+            "only a run that reads the compile record takes its layout from the record").Subject;
+        // The run with --input reports the configuration's own errors of the key, as it does for every other key.
+        failure.Error.Diagnostics.Should().Contain(diagnostic => diagnostic.Code == "compile.configuration"
+            && diagnostic.Message.Contains("ir.layout"));
+    }
+
+    [Test]
     public async Task GenerateWithoutAnInputUsesTheIrAndVersionOfTheCompileRecord()
     {
         using var workspace = Project();
@@ -64,6 +118,63 @@ public sealed class RecordGenerationSettingsTests
         generated.SourceVersion.Should().Be("3", "the record's ir.version is v3");
         generated.OutputDirectory.Should().Be(workspace.PathOf("gen"));
         generated.Publication.Artifacts.Should().NotBeEmpty();
+    }
+
+    [Test]
+    public async Task GenerateWithoutAnInputReadsTheIonIrOfTheCompileRecord()
+    {
+        using var workspace = Project();
+        (await Compile(workspace, format: "ion")).ExitCode.Should().Be(0);
+
+        var generated = (await Generate(workspace, FromRecord())).ShouldSucceed();
+        generated.InputPath.Should().Be(workspace.PathOf(".morphir/out/compile.dest/morphir-ir.ion"));
+        generated.Publication.Artifacts.Should().NotBeEmpty();
+    }
+
+    [Test]
+    public async Task GenerateWithoutAnInputReadsTheYamlIrOfTheCompileRecord()
+    {
+        using var workspace = Project();
+        (await Compile(workspace, format: "yaml")).ExitCode.Should().Be(0);
+
+        var generated = (await Generate(workspace, FromRecord())).ShouldSucceed();
+        generated.InputPath.Should().Be(workspace.PathOf(".morphir/out/compile.dest/morphir-ir.yaml"));
+        generated.Representation.Should().Be(nameof(ModelRepresentation.Yaml));
+        generated.Publication.Artifacts.Should().NotBeEmpty();
+    }
+
+    [Test]
+    [Arguments("yaml", "4", "4", nameof(ModelRepresentation.YamlTree))]
+    [Arguments("yaml", "3", "3.1.0", nameof(ModelRepresentation.YamlTree))]
+    [Arguments("ion", "4", "4", nameof(ModelRepresentation.IonTree))]
+    [Arguments("ion", "3", "3", nameof(ModelRepresentation.IonTree))]
+    [Arguments("ion", "3.1.0", "3.1.0", nameof(ModelRepresentation.IonTree))]
+    public async Task GenerateWithoutAnInputReadsFormattedDocumentTreesOfTheCompileRecord(
+        string format, string compileVersion, string expectedVersion, string expectedRepresentation)
+    {
+        using var workspace = Project();
+        var compiled = await Compile(workspace, version: compileVersion, layout: "document-tree", format: format);
+        compiled.ExitCode.Should().Be(0, string.Join("\n", compiled.Diagnostics.Select(d => d.Diagnostic)));
+
+        var generated = (await Generate(workspace, FromRecord())).ShouldSucceed();
+        generated.InputPath.Should().Be(workspace.PathOf(".morphir/out/compile.dest/morphir-ir"));
+        generated.SourceVersion.Should().Be(expectedVersion);
+        generated.Representation.Should().Be(expectedRepresentation);
+        generated.Publication.Artifacts.Should().NotBeEmpty();
+    }
+
+    [Test]
+    [Arguments("yaml", "json")]
+    [Arguments("ion", "yaml")]
+    public async Task GenerateWithoutAnInputRefusesMismatchedInputFormatAgainstFormattedTreeRecord(string compiledFormat, string requestedInputFormat)
+    {
+        using var workspace = Project();
+        (await Compile(workspace, layout: "document-tree", format: compiledFormat)).ExitCode.Should().Be(0);
+
+        var outcome = await Generate(workspace, FromRecord() with { InputFormat = requestedInputFormat });
+        var failure = outcome.ShouldFail("generate.input_format_conflict");
+        failure.Kind.Should().Be(GenerationFailureKind.Invocation);
+        Directory.Exists(workspace.PathOf("gen")).Should().BeFalse();
     }
 
     [Test]

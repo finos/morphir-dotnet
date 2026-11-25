@@ -145,38 +145,46 @@ module IonIrTree =
 
     /// Every file that has a location, in tree order, with the directories above it. A file with no path, or an
     /// empty one, has no location, and a directory whose path is empty or <c>.</c> adds no segment, as in
-    /// <c>VFileTree</c>, where a tree's own path is <c>.</c>.
-    let rec private collect (parent: string list) (content: TreeNode list) : TreeFile list =
-        content
-        |> List.collect (fun node ->
-            match node with
-            | TreeNode.File file ->
-                match file.Path with
-                | Some path when path <> "" ->
-                    let segments =
-                        parent
-                        @ segmentsOf path
+    /// <c>VFileTree</c>, where a tree's own path is <c>.</c>. Runs iteratively on the heap so deep directory trees
+    /// cannot overflow a small thread stack before <see cref="IonIr.withRoom"/> runs.
+    let private collect (parent: string list) (content: TreeNode list) : TreeFile list =
+        let collected = Collections.Generic.List<TreeFile>()
+        let stack = Collections.Generic.Stack<string list * TreeNode list>()
+        stack.Push(List.rev parent, content)
 
-                    [
-                        {
-                            Location = String.Join("/", segments)
-                            Segments = segments
-                            File = file
-                        }
-                    ]
-                | _ -> []
-            | TreeNode.Directory directory ->
-                collect
-                    (if
-                         directory.Path = ""
-                         || directory.Path = "."
-                     then
-                         parent
-                     else
-                         parent
-                         @ segmentsOf directory.Path)
-                    directory.Content
-        )
+        while stack.Count > 0 do
+            let revParent, nodes = stack.Pop()
+
+            match nodes with
+            | [] -> ()
+            | node :: rest ->
+                if not rest.IsEmpty then
+                    stack.Push(revParent, rest)
+
+                match node with
+                | TreeNode.File file ->
+                    match file.Path with
+                    | Some path when path <> "" ->
+                        let segments = List.rev revParent @ segmentsOf path
+
+                        collected.Add
+                            {
+                                Location = String.Join("/", segments)
+                                Segments = segments
+                                File = file
+                            }
+                    | _ -> ()
+                | TreeNode.Directory directory ->
+                    if not directory.Content.IsEmpty then
+                        let nextRevParent =
+                            if directory.Path = "" || directory.Path = "." then
+                                revParent
+                            else
+                                List.rev (segmentsOf directory.Path) @ revParent
+
+                        stack.Push(nextRevParent, directory.Content)
+
+        List.ofSeq collected
 
     let private fileKindOf (name: string) =
         if name = "module.ion" then
@@ -1352,3 +1360,175 @@ module IonIrTree =
                     Path = Some path
                     Location = None
                 }
+
+    let private verifyTreeFileBytes
+        (limits: IonReadLimits)
+        (location: string)
+        (file: Morphir.Files.VFile)
+        : Result<ReadOnlyMemory<byte>, string * string> =
+        match IonSources.readContent limits file.Content with
+        | Ok bytes -> Ok bytes
+        | Result.Error cause -> Result.Error("file_read_failed", $"Could not read Ion tree file '{location}': {cause.Message}")
+
+    let private verifyNodeValue (isClassic: bool) (location: string) (value: IonValue) : Result<unit, string * string> =
+        IonIr.verifyTopLevelElementLossless isClassic location value
+        |> Result.bind (fun () ->
+            match value.Data with
+            | IonData.Struct fields ->
+                let forbidden =
+                    fields
+                    |> List.tryPick (fun (symbol, _) ->
+                        match symbol with
+                        | IonSymbol.Text("pathBudget" | "version" | "created" | "$meta" | "critical" | "ionVersion" | "formatVersion" as name) ->
+                            Some name
+                        | _ -> None
+                    )
+
+                match forbidden with
+                | Some name ->
+                    Result.Error(
+                        "data.lossy_conversion",
+                        $"Ion tree file '{location}' carries unconsumed metadata member '{name}' that JSON IR cannot preserve."
+                    )
+                | None -> Ok()
+            | _ -> Ok()
+        )
+
+    /// <summary>
+    /// Verifies that a retained Ion IR document tree contains no ignored files, unconsumed manifest/header members,
+    /// annotations not consumed by the decoder at their grammar position, symbol-zero fields, or dropped metadata
+    /// that would be silently lost when converting to single-document JSON IR. Resource/parse limit failures report
+    /// their own error <paramref name="code"/> rather than <c>data.lossy_conversion</c>. For C# callers.
+    /// </summary>
+    [<CompiledName("TryVerifyLosslessJsonConversion")>]
+    let tryVerifyLosslessJsonConversion
+        (
+            limits: IonReadLimits,
+            source: VFileTree,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] code: byref<string>,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] reason: byref<string>
+        ) : bool =
+        let check =
+            let files =
+                collect [] source.Content
+                |> List.sortWith (fun a b -> String.CompareOrdinal(a.Location, b.Location))
+
+            let classified = files |> List.map (fun file -> file, classify file)
+
+            let ignoredOrInvalid =
+                classified
+                |> List.tryPick (fun (file, result) ->
+                    match result with
+                    | Ok IgnoredFile ->
+                        Some(
+                            "data.lossy_conversion",
+                            $"Ion tree contains ignored file '{file.Location}' that single-document JSON IR cannot preserve."
+                        )
+                    | Result.Error message -> Some("invalid_tree_path", $"{file.Location}: {message}")
+                    | Ok ManifestFile
+                    | Ok(NodeFileEntry _) -> None
+                )
+
+            match ignoredOrInvalid with
+            | Some problem -> Result.Error problem
+            | None ->
+                let manifestOpt =
+                    classified
+                    |> List.tryPick (fun (file, result) ->
+                        match result with
+                        | Ok ManifestFile -> Some file
+                        | _ -> None
+                    )
+
+                match manifestOpt with
+                | None -> Result.Error("missing_manifest", "The Ion tree has no manifest.ion at its root.")
+                | Some manifestFile ->
+                    let nodeFiles =
+                        classified
+                        |> List.choose (fun (_, result) ->
+                            match result with
+                            | Ok(NodeFileEntry node) -> Some node.Source
+                            | _ -> None
+                        )
+
+                    // One tree-wide budget covers every file, and the entire parse + recursive verification pass
+                    // runs inside withRoom so a short caller stack retries cleanly on a deep stack with a fresh budget.
+                    IonIr.withRoom
+                        (fun err -> Result.Error(err.Code, err.Message))
+                        (fun () ->
+                            let budget = IonReadBudget limits
+
+                            let readValues (file: TreeFile) =
+                                verifyTreeFileBytes budget.Limits file.Location file.File
+                                |> Result.bind (fun bytes ->
+                                    match IonReader.readWithBudgetOrThrowOnShortStack budget bytes with
+                                    | Ok values -> Ok values
+                                    | Result.Error err -> Result.Error(IonReadError.code err, IonReadError.describe err)
+                                )
+
+                            readValues manifestFile
+                            |> Result.bind (fun values ->
+                                match values with
+                                | [] -> Result.Error("invalid_document", "manifest.ion has no morphir:: header.")
+                                | header :: rest ->
+                                    IonIr.verifyHeaderLossless true manifestFile.Location header
+                                    |> Result.bind (fun isClassic ->
+                                        let trailingCheck =
+                                            match rest with
+                                            | [] -> Ok()
+                                            | _ ->
+                                                let trailing, hasFooter =
+                                                    match List.last rest with
+                                                    | { Annotations = [ IonSymbol.Text "morphir_footer" ]; Data = IonData.Struct [] } ->
+                                                        List.take (rest.Length - 1) rest, true
+                                                    | { Annotations = [ IonSymbol.Text "morphir_footer" ]; Data = _ } ->
+                                                        rest, false
+                                                    | _ -> rest, true
+
+                                                if not hasFooter then
+                                                    Result.Error(
+                                                        "data.lossy_conversion",
+                                                        $"Ion tree manifest '{manifestFile.Location}' carries non-empty footer metadata that JSON IR cannot preserve."
+                                                    )
+                                                else
+                                                    trailing
+                                                    |> List.fold
+                                                        (fun state item ->
+                                                            state
+                                                            |> Result.bind (fun () ->
+                                                                IonIr.verifyTopLevelElementLossless isClassic manifestFile.Location item
+                                                            )
+                                                        )
+                                                        (Ok())
+
+                                        trailingCheck |> Result.map (fun () -> isClassic)
+                                    )
+                            )
+                            |> Result.bind (fun isClassic ->
+                                nodeFiles
+                                |> List.fold
+                                    (fun state file ->
+                                        state
+                                        |> Result.bind (fun () ->
+                                            readValues file
+                                            |> Result.bind (fun values ->
+                                                values
+                                                |> List.fold
+                                                    (fun inner item -> inner |> Result.bind (fun () -> verifyNodeValue isClassic file.Location item))
+                                                    (Ok())
+                                            )
+                                        )
+                                    )
+                                    (Ok())
+                            )
+                        )
+
+        match check with
+        | Ok() ->
+            code <- Unchecked.defaultof<_>
+            reason <- Unchecked.defaultof<_>
+            true
+        | Result.Error(errorCode, message) ->
+            code <- errorCode
+            reason <- message
+            false

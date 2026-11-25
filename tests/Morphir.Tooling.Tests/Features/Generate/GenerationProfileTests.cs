@@ -19,22 +19,23 @@ public sealed class GenerationProfileTests : IDisposable
     [Arguments("yaml")]
     [Arguments("yml")]
     [Arguments("unknown")]
-    public async Task YamlModelReportsItsFormatBoundary(string extension)
+    public async Task InvalidYamlModelReportsCodecFailure(string extension)
     {
         var path = Path.Combine(_root, "model." + extension);
         File.WriteAllText(path, "formatVersion: 4\ndistribution: {}\n");
         var error = await Refused(path);
-        error.Diagnostics[0].Code.Should().Be("unsupported-format");
-        error.Diagnostics[0].Message.Should().Contain("YAML");
+        error.Diagnostics[0].Code.Should().NotBe("unsupported-format");
+        error.Diagnostics[0].Code.Should().NotBe("malformed-json");
     }
     [Test]
     [Arguments("manifest.json")]
     [Arguments("manifest.yaml")]
     [Arguments("manifest.yml")]
-    public async Task JsonAndYamlTreesReportTheirBoundary(string name)
+    public async Task InvalidJsonAndYamlTreesReportCodecFailure(string name)
     {
         File.WriteAllText(Path.Combine(_root, name), "{}");
-        (await Refused(_root)).Diagnostics[0].Code.Should().Be("unsupported-format");
+        var error = await Refused(_root);
+        error.Diagnostics[0].Code.Should().Be("missing_format_version");
     }
     [Test]
     [Arguments("{\"envelopeVersion\":\"0.1.0\",\"payload\":{}}")]

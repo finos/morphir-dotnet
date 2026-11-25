@@ -85,6 +85,32 @@ let vfileTreeConstructorTests =
             Expect.equal (VFileTree.fileCount tree) 2 "should have 2 files"
             Expect.equal (VFileTree.directoryCount tree) 0 "should have 0 directories"
         }
+
+        test "fromFiles and FromFiles construct 10,000 entries linearly without quadratic allocation" {
+            let count = 10_000
+            let files =
+                [|
+                    for i in 0 .. count - 1 ->
+                        VFile.ofBytes $"dir/entry-{i:D5}.txt" System.ReadOnlyMemory<byte>.Empty
+                |]
+
+            // Also include a duplicate path at the end to verify order and toFileMap last-wins semantics.
+            let filesWithDup =
+                Array.append files [| VFile.ofText "dir/entry-00000.txt" "override" |]
+
+            let before = System.GC.GetAllocatedBytesForCurrentThread()
+            let tree = VFileTree.FromFiles(filesWithDup)
+            let allocated = System.GC.GetAllocatedBytesForCurrentThread() - before
+
+            Expect.isLessThan allocated (16L * 1024L * 1024L) $"FromFiles allocated {allocated} bytes for {filesWithDup.Length} entries (expected < 16 MiB)"
+            Expect.equal (VFileTree.fileCount tree) filesWithDup.Length "preserves every entry in tree content"
+
+            let byLocation = VFileTree.toFileMap tree
+            Expect.equal byLocation.Count count "toFileMap deduplicates repeated path"
+            Expect.equal (VFile.readText byLocation["dir/entry-00000.txt"]) (Ok "override") "last entry wins on duplicate path"
+            Expect.equal (List.head (VFileTree.allFiles tree)).Path (Some "dir/entry-00000.txt") "preserves insertion order"
+            Expect.equal (List.last (VFileTree.allFiles tree)).Path (Some "dir/entry-00000.txt") "preserves trailing duplicate order"
+        }
     ]
 
 [<Tests>]

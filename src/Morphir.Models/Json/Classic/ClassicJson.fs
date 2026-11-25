@@ -15,22 +15,30 @@ open Morphir.IR.Classic.Distribution
 open Morphir.IR.Classic.Documented
 
 /// <summary>Why a classic IR JSON document could not be read.</summary>
-type ClassicJsonError = {
-    /// <summary>A stable rule identifier, such as <c>unsupported-version</c>.</summary>
-    Rule: string
-    /// <summary>The JSON location of the problem.</summary>
-    Location: string
-    /// <summary>A readable description.</summary>
-    Message: string
-}
+type ClassicJsonError =
+    {
+        /// <summary>A stable rule identifier, such as <c>unsupported-version</c>.</summary>
+        Rule: string
+        /// <summary>The JSON location of the problem.</summary>
+        Location: string
+        /// <summary>A readable description.</summary>
+        Message: string
+    }
+
+    /// <summary>The rule, location, and message.</summary>
+    override this.ToString() = $"{this.Rule} ({this.Location}): {this.Message}"
 
 /// <summary>A complete classic IR document. Attributes stay JSON values.</summary>
-type ClassicDocument = {
-    /// <summary>The classic major version: 1, 2 or 3.</summary>
-    Version: int
-    /// <summary>The distribution.</summary>
-    Distribution: Distribution<JsonElement, JsonElement>
-}
+type ClassicDocument =
+    {
+        /// <summary>The classic major version: 1, 2 or 3.</summary>
+        Version: int
+        /// <summary>The distribution.</summary>
+        Distribution: Distribution<JsonElement, JsonElement>
+    }
+
+    /// <summary>A readable summary of the classic document.</summary>
+    override this.ToString() = $"ClassicDocument(v{this.Version})"
 
 exception internal ClassicJsonFailure of ClassicJsonError
 
@@ -989,28 +997,11 @@ module internal ClassicJsonDecoder =
 /// The members of a classic v3 document that the classic model has no place for. The decoder reads the members it
 /// knows and passes over any other, so a document it accepts can hold content that a write would drop. This walk
 /// follows the classic v3 shapes of a document the decoder has accepted and refuses the first object member that no
-/// shape names, with unknown_member at that member's JSON location (the decoder's dotted form, as
-/// V4JsonDecoding.memberAt spells it). Attributes are carried as they are, so it does not enter them. It raises
+/// shape names, with unknown_member at that member's JSON location (the RFC 9535 form of
+/// JsonPaths.memberAt, as V4JsonDecoding.memberAt spells it). Attributes are carried as they are, so it does not enter them. It raises
 /// ClassicJsonFailure, as the decoder does.
 module internal ClassicMembers =
-    let private memberAt (location: string) (name: string) =
-        if
-            name <> ""
-            && name
-               |> Seq.forall (fun c ->
-                   Char.IsAsciiLetterOrDigit c
-                   || c = '-'
-                   || c = '_'
-               )
-        then
-            location
-            + "."
-            + name
-        else
-            location
-            + "[\""
-            + name
-            + "\"]"
+    let private memberAt (location: string) (name: string) = Morphir.Json.JsonPaths.memberAt location name
 
     let private itemAt (location: string) (index: int) =
         location
@@ -1262,9 +1253,31 @@ module ClassicJson =
     /// <summary>
     /// Reads a v1, v2 or v3 Library, or a Specs distribution at 3.1.0, including dependency specifications.
     /// </summary>
+    /// <summary>Reads a complete classic distribution document from <paramref name="root"/>.</summary>
     /// <remarks>The result keeps no reference to the document that holds <paramref name="root"/>.</remarks>
     let readDistribution (root: JsonElement) : Result<ClassicDocument, ClassicJsonError> =
         guarded (fun () -> ClassicJsonDecoder.document (root.Clone()))
+
+    /// <summary>
+    /// For C# callers: reads a complete classic distribution document from <paramref name="root"/>, setting either
+    /// <paramref name="document"/> or <paramref name="error"/>. C# calls this <c>TryReadDistribution</c>.
+    /// </summary>
+    [<CompiledName("TryReadDistribution")>]
+    let tryReadDistribution
+        (
+            root: JsonElement,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(false)>] document: byref<ClassicDocument>,
+            [<System.Runtime.InteropServices.Out; System.Diagnostics.CodeAnalysis.MaybeNullWhen(true)>] error: byref<ClassicJsonError>
+        ) : bool =
+        match readDistribution root with
+        | Result.Ok loaded ->
+            document <- loaded
+            error <- Unchecked.defaultof<_>
+            true
+        | Result.Error failure ->
+            document <- Unchecked.defaultof<_>
+            error <- failure
+            false
 
     /// <summary>
     /// Reads as <see cref="readDistribution"/> does, and refuses a v3 document with a member that the classic model

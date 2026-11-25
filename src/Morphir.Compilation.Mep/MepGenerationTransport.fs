@@ -33,16 +33,20 @@ type MepGenerationTransport =
     // see this type before its initialiser has finished, and the init check then throws (FailStaticInit). With no
     // static field the type has no initialiser to meet. The tuples are records, so each call gives an equal value.
     static let v4 () = json "4.0.0"
+    static let classic31 () = json "3.1.0"
     static let classic () = json "3.0.0"
 
     /// <summary>The JSON IR 4.0.0 tuple: an IR v4 model with formatVersion 4 or "4.0.0".</summary>
     static member V4Tuple = v4 ()
 
+    /// <summary>The JSON IR 3.1.0 tuple: a classic model with formatVersion "3.1.0".</summary>
+    static member Classic31Tuple = classic31 ()
+
     /// <summary>The JSON IR 3.0.0 tuple: a classic model with formatVersion 3 or "3.0.0".</summary>
     static member ClassicTuple = classic ()
 
-    /// <summary>The tuples a host offers, IR 4.0.0 first.</summary>
-    static member Tuples: IReadOnlyList<ModelTransportTuple> = [| v4 (); classic () |]
+    /// <summary>The tuples a host offers, IR 4.0.0, 3.1.0, then 3.0.0.</summary>
+    static member Tuples: IReadOnlyList<ModelTransportTuple> = [| v4 (); classic31 (); classic () |]
 
     /// <summary>
     /// The tuple that a model of the family and declared format version needs, for C# callers: true and the tuple, or
@@ -71,6 +75,8 @@ type MepGenerationTransport =
                     || version = "3.0.0"
                 then
                     Some(classic ())
+                elif version = "3.1.0" then
+                    Some(classic31 ())
                 else
                     None
 
@@ -82,9 +88,71 @@ type MepGenerationTransport =
             tuple <- Unchecked.defaultof<_>
             false
 
+    /// <summary>
+    /// Serializes a typed <see cref="VersionedModel"/> losslessly to canonical single-document UTF-8 JSON for
+    /// MEP 0.2.0-draft.1 host conversion (IR 4 via <c>V4JsonWriter</c>, classic IR 3 via <c>ClassicJsonWriter</c>).
+    /// For C# callers: sets either <paramref name="bytes"/> or structured <paramref name="errorCode"/> and
+    /// <paramref name="error"/> so resource-limit refusals remain distinct from lossy conversions.
+    /// </summary>
+    static member TryWriteSingleDocumentJson
+        (
+            model: VersionedModel,
+            [<Out; MaybeNullWhen(false)>] bytes: byref<byte array>,
+            [<Out; MaybeNullWhen(true)>] errorCode: byref<string>,
+            [<Out; MaybeNullWhen(true)>] error: byref<string>
+        ) : bool =
+        let result =
+            match model.Distribution with
+            | DistributionModel.V4 distribution ->
+                Morphir.Json.V4.V4JsonWriter.writeDistribution false distribution
+                |> Result.mapError (fun problem -> problem.Rule, $"{problem.Location}: {problem.Message}")
+            | DistributionModel.Classic distribution ->
+                let profile =
+                    match distribution with
+                    | Morphir.IR.Classic.Distribution.Library _ when model.SourceVersion.Text = "3.1.0" ->
+                        { Morphir.Json.Classic.ClassicWireProfile.v3 with Release = Some "3.1.0" }
+                    | Morphir.IR.Classic.Distribution.Library _ -> Morphir.Json.Classic.ClassicWireProfile.v3
+                    | Morphir.IR.Classic.Distribution.Specs _ -> Morphir.Json.Classic.ClassicWireProfile.v3_1_0
+
+                Morphir.Json.Classic.ClassicJsonWriter.writeJsonAttributes profile false distribution
+                |> Result.mapError (fun problem -> problem.Rule, $"{problem.Location}: {problem.Message}")
+
+        match result with
+        | Ok written ->
+            bytes <- written
+            errorCode <- Unchecked.defaultof<_>
+            error <- Unchecked.defaultof<_>
+            true
+        | Error(code, failure) ->
+            bytes <- Unchecked.defaultof<_>
+            errorCode <- code
+            error <- failure
+            false
+
+    /// <summary>
+    /// Serializes a typed <see cref="VersionedModel"/> losslessly to canonical single-document UTF-8 JSON for
+    /// MEP 0.2.0-draft.1 host conversion (IR 4 via <c>V4JsonWriter</c>, classic IR 3 via <c>ClassicJsonWriter</c>).
+    /// For C# callers: sets either <paramref name="bytes"/> or <paramref name="error"/>.
+    /// </summary>
+    static member TryWriteSingleDocumentJson
+        (
+            model: VersionedModel,
+            [<Out; MaybeNullWhen(false)>] bytes: byref<byte array>,
+            [<Out; MaybeNullWhen(true)>] error: byref<string>
+        ) : bool =
+        let mutable code = Unchecked.defaultof<string>
+        let mutable detail = Unchecked.defaultof<string>
+
+        if MepGenerationTransport.TryWriteSingleDocumentJson(model, &bytes, &code, &detail) then
+            error <- Unchecked.defaultof<_>
+            true
+        else
+            error <- $"{code} at {detail}"
+            false
+
 /// A negotiated generation view over one caller-owned tree snapshot.
 [<Sealed>]
-type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelAccessStart, work: BoundedTreeWorkBudget) =
+type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelAccessStart, work: BoundedTreeWorkBudget, cancellationToken: System.Threading.CancellationToken) =
     static let refuse code message : Result<'value, StoreError list> =
         Result.Error [
             {
@@ -147,13 +215,11 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
             | Dependency(_, ValueDef(_, name)) -> ModelInventoryEntry.Value(entry name)
             | _ -> invalidOp "A member inventory entry must identify a type or value."
 
-    /// Bind the announced snapshot and selected input tuple to the admitted reader.
-    static member Bind
-        (
-            snapshot: BoundedTreeSnapshot,
-            start: ModelAccessStart,
-            work: BoundedTreeWorkBudget
-        ) : Result<MepGenerationSnapshot, StoreError list> =
+    /// <summary>
+    /// Derives the exact MEP 0.2.0-draft.2 <see cref="ModelAccessTuple"/> that describes an admitted snapshot's
+    /// IR version, syntax and file-local contextual encoding. For C# and F# callers.
+    /// </summary>
+    static member TupleFor(snapshot: BoundedTreeSnapshot) : ModelAccessTuple =
         let codec =
             match snapshot.Syntax with
             | BoundedTreeSyntax.Json -> ModelAccessCodec.MorphirJson
@@ -165,7 +231,7 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
             | BoundedTreeEncoding.ContextualDraft1
             | BoundedTreeEncoding.ContextualDraft1Streaming -> ModelAccessEncoding.ContextualDraft1
 
-        let expected = {
+        {
             ProtocolVersion = ModelAccess.protocolVersion
             AccessVersion = ModelAccess.accessVersion
             Operation = ModelOperation.GenerateModel
@@ -175,6 +241,16 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
             Layout = "document-tree"
             ContextualEncoding = encoding
         }
+
+    /// Bind the announced snapshot and selected input tuple to the admitted reader with cancellation support.
+    static member Bind
+        (
+            snapshot: BoundedTreeSnapshot,
+            start: ModelAccessStart,
+            work: BoundedTreeWorkBudget,
+            cancellationToken: System.Threading.CancellationToken
+        ) : Result<MepGenerationSnapshot, StoreError list> =
+        let expected = MepGenerationSnapshot.TupleFor snapshot
 
         if
             start.Input
@@ -193,8 +269,22 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
         elif start.Limits.MaxDepth <= 0 || start.Limits.MaxNodes <= 0 then
             refuse "tree.invalid_limit" "The negotiated maxDepth and maxNodes must be positive."
         else
-            let restricted = snapshot.WithDocumentLimits(start.Limits.MaxDepth, start.Limits.MaxNodes).WithWorkBudget(work)
-            Ok(MepGenerationSnapshot(restricted, start, work))
+            let restricted =
+                snapshot
+                    .WithDocumentLimits(start.Limits.MaxDepth, start.Limits.MaxNodes)
+                    .WithWorkBudget(work)
+                    .WithCancellation(cancellationToken)
+
+            Ok(MepGenerationSnapshot(restricted, start, work, cancellationToken))
+
+    /// Bind the announced snapshot and selected input tuple to the admitted reader.
+    static member Bind
+        (
+            snapshot: BoundedTreeSnapshot,
+            start: ModelAccessStart,
+            work: BoundedTreeWorkBudget
+        ) : Result<MepGenerationSnapshot, StoreError list> =
+        MepGenerationSnapshot.Bind(snapshot, start, work, System.Threading.CancellationToken.None)
 
     /// Bind a delivery-only view using its negotiated work allowance.
     static member Bind(snapshot: BoundedTreeSnapshot, start: ModelAccessStart) : Result<MepGenerationSnapshot, StoreError list> =
@@ -203,11 +293,21 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
         else
             MepGenerationSnapshot.Bind(snapshot, start, BoundedTreeWorkBudget(start.Limits.MaxSessionWorkUnits))
 
+    /// Bind the delivery view for a host using a shared work budget and cancellation token.
+    static member BindForHost
+        (
+            snapshot: BoundedTreeSnapshot,
+            start: ModelAccessStart,
+            work: BoundedTreeWorkBudget,
+            cancellationToken: System.Threading.CancellationToken
+        ) : Result<MepGenerationSnapshot, IReadOnlyList<StoreError>> =
+        MepGenerationSnapshot.Bind(snapshot, start, work, cancellationToken)
+        |> Result.mapError (fun errors -> List.toArray errors :> IReadOnlyList<StoreError>)
+
     /// Bind the delivery view for a host using a shared work budget.
     static member BindForHost(snapshot: BoundedTreeSnapshot, start: ModelAccessStart, work: BoundedTreeWorkBudget)
         : Result<MepGenerationSnapshot, IReadOnlyList<StoreError>> =
-        MepGenerationSnapshot.Bind(snapshot, start, work)
-        |> Result.mapError (fun errors -> List.toArray errors :> IReadOnlyList<StoreError>)
+        MepGenerationSnapshot.BindForHost(snapshot, start, work, System.Threading.CancellationToken.None)
 
     member private _.PrepareAdvanceCounted
         (
@@ -239,6 +339,8 @@ type MepGenerationSnapshot private (snapshot: BoundedTreeSnapshot, start: ModelA
 
             while index < requests.Count
                   && failure.IsNone do
+                cancellationToken.ThrowIfCancellationRequested()
+
                 let next =
                     match work.TryCharge 1L, requests[index] with
                     | false, _ -> exhausted ()

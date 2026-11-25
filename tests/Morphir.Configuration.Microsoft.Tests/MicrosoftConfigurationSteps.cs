@@ -79,8 +79,8 @@ public sealed class MicrosoftConfigurationSteps
         _configuration["custom:nested:enabled"].Should().Be("true");
         var canonical = _configuration.GetMorphirConfiguration();
         canonical.Should().BeSameAs(_canonical);
-        ConfigTree.tryFind(ListModule.OfSeq(new[] { "custom", "integer" }), canonical.Effective).Value.Should().BeOfType<ConfigValue.Integer>();
-        ConfigTree.tryFind(ListModule.OfSeq(new[] { "custom", "text" }), canonical.Effective).Value.Should().BeOfType<ConfigValue.String>();
+        ConfigTree.tryFind(ListModule.OfSeq(new[] { "custom", "integer" }), canonical.Effective)!.Value.Should().BeOfType<ConfigValue.Integer>();
+        ConfigTree.tryFind(ListModule.OfSeq(new[] { "custom", "text" }), canonical.Effective)!.Value.Should().BeOfType<ConfigValue.String>();
         canonical.Origins[ListModule.OfSeq(new[] { "custom", "integer" })].Source.Path.Should().Be("lower.json");
     }
 

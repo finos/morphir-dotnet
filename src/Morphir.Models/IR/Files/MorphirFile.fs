@@ -10,6 +10,7 @@ open System.Diagnostics.CodeAnalysis
 open System.Runtime.InteropServices
 open System.Text.Json
 open Morphir.IR.Trees
+open Morphir.Json.V4
 
 /// <summary>
 /// A Morphir file as it is stored: a plain document, or an envelope (<c>ir/name-compaction</c>) whose document uses
@@ -75,8 +76,11 @@ module MorphirFile =
             String.Equals(url.OriginalString, schema, StringComparison.Ordinal)
         )
 
-    let private error code file message : StoreError =
-        StoreErrors.error code (Some file) message
+    let private diagnostic code file message : TreeDiagnostic =
+        StoreErrors.diagnostic code (Some file) message
+
+    let private locatedDiagnostic code file location message : TreeDiagnostic =
+        StoreErrors.locatedLegacy code (Some file) location message message
 
     /// <summary>
     /// The IR family of a document by its <c>formatVersion</c>: classic v3 for the string <c>"3"</c> or one that starts
@@ -141,13 +145,13 @@ module MorphirFile =
         with :? JsonException ->
             false
 
-    let private envelope
+    let private envelopeDetailed
         orderPolicy
         (limits: ContextLimits)
         file
         (root: JsonElement)
-        : Result<MorphirFile<JsonElement>, StoreError list> =
-        let members, duplicates = NameContext.membersOnce file "The envelope" root
+        : Result<MorphirFile<JsonElement>, TreeDiagnostic list> =
+        let members, duplicates = NameContext.membersOnceDetailed file "The envelope" "$" root
 
         let find name =
             members
@@ -172,9 +176,10 @@ module MorphirFile =
                 |> String.concat ", "
 
             Error [
-                error
+                locatedDiagnostic
                     "context.undeclared_schema"
                     file
+                    (V4JsonDecoding.memberAt "$" "$schema")
                     $"The envelope's $schema is '{schemaText}', and this reader declares only {urls}."
             ]
         | Some schema ->
@@ -184,32 +189,37 @@ module MorphirFile =
                 match orderPolicy, find "context", find "document", find "$schema" with
                 | ContextOrder.Bounded, _, _, _ -> []
                 | _, Some contextAt, Some documentAt, _ when documentAt < contextAt -> [
-                    error
+                    locatedDiagnostic
                         "context.after_document"
                         file
+                        "$.document"
                         "The document comes before the context; the context must come first."
                   ]
                 | ContextOrder.Streaming, _, Some documentAt, Some schemaAt when
                     documentAt < schemaAt
                       ->
                       [
-                          error
+                          locatedDiagnostic
                               "context.after_document"
                               file
+                              "$.document"
                               "The document comes before $schema; a streaming reader needs the envelope and context first."
                       ]
                 | _ -> []
 
             let missing = [
                 for name in [ "context"; "document" ] do
+                    let loc = V4JsonDecoding.memberAt "$" name
+
                     match find name with
                     | Some index when (memberAt index).ValueKind = JsonValueKind.Object -> ()
                     | Some _ ->
-                        error
+                        locatedDiagnostic
                             "context.invalid_envelope"
                             file
+                            loc
                             $"The envelope's {name} is not an object."
-                    | None -> error "context.invalid_envelope" file $"The envelope has no {name}."
+                    | None -> locatedDiagnostic "context.invalid_envelope" file loc $"The envelope has no {name}."
             ]
 
             let critical, criticalProblems =
@@ -225,9 +235,10 @@ module MorphirFile =
                     then
                         [],
                         [
-                            error
+                            locatedDiagnostic
                                 "context.invalid_envelope"
                                 file
+                                "$.critical"
                                 "The envelope's critical is not a list of strings."
                         ]
                     else
@@ -237,24 +248,26 @@ module MorphirFile =
                             not (List.contains path NameContext.recognizedCritical)
                         )
                         |> List.map (fun path ->
-                            error
+                            locatedDiagnostic
                                 "context.unknown_critical"
                                 file
+                                "$.critical"
                                 $"The envelope marks '{path}' critical, and this reader does not recognize it."
                         )
                 | Some _ ->
                     [],
                     [
-                        error
+                        locatedDiagnostic
                             "context.invalid_envelope"
                             file
+                            "$.critical"
                             "The envelope's critical is not a list of strings."
                     ]
 
             let context, contextProblems =
                 match find "context" with
                 | Some index when (memberAt index).ValueKind = JsonValueKind.Object ->
-                    NameContext.read limits file critical (memberAt index)
+                    NameContext.readDetailed limits file critical (memberAt index)
                 | _ -> NameContext.empty critical, []
 
             match
@@ -273,14 +286,14 @@ module MorphirFile =
                     }
             | problems -> Error problems
 
-    let internal readEnvelopeRoot orderPolicy limits file (root: JsonElement) =
+    let internal readEnvelopeRootDetailed orderPolicy limits file (root: JsonElement) =
         let mutable schema = Unchecked.defaultof<JsonElement>
 
         if
             root.ValueKind = JsonValueKind.Object
             && root.TryGetProperty("$schema", &schema)
         then
-            envelope orderPolicy limits file root
+            envelopeDetailed orderPolicy limits file root
         else
             Ok
                 {
@@ -289,12 +302,61 @@ module MorphirFile =
                     Document = root.Clone()
                 }
 
-    let internal readEnvelopeWithOrder
-        orderPolicy
+    let internal readEnvelopeRoot orderPolicy limits file (root: JsonElement) =
+        readEnvelopeRootDetailed orderPolicy limits file root
+        |> Result.mapError StoreErrors.toStoreErrors
+
+    /// <summary>
+    /// Inspects a raw JSON/YAML root before context expansion and returns the first optional envelope or context
+    /// member (such as <c>context.prefixes</c>) that plain JSON IR cannot preserve.
+    /// </summary>
+    let internal findUnrepresentableEnvelopeMember (root: JsonElement) : string option =
+        let mutable schema = Unchecked.defaultof<JsonElement>
+
+        if root.ValueKind <> JsonValueKind.Object || not (root.TryGetProperty("$schema", &schema)) then
+            None
+        else
+            let envelopeUnknown =
+                root.EnumerateObject()
+                |> Seq.tryPick (fun prop ->
+                    match prop.Name with
+                    | "$schema"
+                    | "critical"
+                    | "context"
+                    | "document" -> None
+                    | other -> Some $"envelope.{other}"
+                )
+
+            match envelopeUnknown with
+            | Some found -> Some found
+            | None ->
+                let mutable ctx = Unchecked.defaultof<JsonElement>
+
+                if root.TryGetProperty("context", &ctx) && ctx.ValueKind = JsonValueKind.Object then
+                    ctx.EnumerateObject()
+                    |> Seq.tryPick (fun prop ->
+                        match prop.Name with
+                        | "names"
+                        | "packagePaths"
+                        | "modulePaths"
+                        | "fqNames" -> None
+                        | other -> Some $"context.{other}"
+                    )
+                else
+                    None
+
+    let internal readEnvelopeRootAndInspect orderPolicy limits file (root: JsonElement) =
+        let unrepresentable = findUnrepresentableEnvelopeMember root
+
+        readEnvelopeRoot orderPolicy limits file root
+        |> Result.map (fun parsed -> parsed, unrepresentable)
+
+    let private parseEnvelopeBytesDetailed
         (limits: ContextLimits)
         (file: string)
         (bytes: ReadOnlyMemory<byte>)
-        : Result<MorphirFile<JsonElement>, StoreError list> =
+        (reader: JsonElement -> Result<'a, TreeDiagnostic list>)
+        : Result<'a, TreeDiagnostic list> =
         try
             use document =
                 JsonDocument.Parse(
@@ -302,17 +364,50 @@ module MorphirFile =
                     JsonDocumentOptions(MaxDepth = limits.MaxDepth)
                 )
 
-            readEnvelopeRoot orderPolicy limits file document.RootElement
+            reader document.RootElement
         with :? JsonException as problem ->
             if isJsonAtAnyDepth (withoutByteOrderMark bytes) then
                 Error [
-                    error
+                    diagnostic
                         "depth_limit_exceeded"
                         file
                         $"The file is nested more than {limits.MaxDepth} levels deep."
                 ]
             else
-                Error [ error "invalid_json" file problem.Message ]
+                Error [ diagnostic "invalid_json" file problem.Message ]
+
+    let internal readEnvelopeWithOrderDetailed
+        orderPolicy
+        (limits: ContextLimits)
+        (file: string)
+        (bytes: ReadOnlyMemory<byte>)
+        : Result<MorphirFile<JsonElement>, TreeDiagnostic list> =
+        parseEnvelopeBytesDetailed limits file bytes (readEnvelopeRootDetailed orderPolicy limits file)
+
+    let internal readEnvelopeWithOrderAndInspect
+        orderPolicy
+        (limits: ContextLimits)
+        (file: string)
+        (bytes: ReadOnlyMemory<byte>)
+        : Result<MorphirFile<JsonElement> * string option, StoreError list> =
+        parseEnvelopeBytesDetailed limits file bytes (fun root ->
+            let unrepresentable = findUnrepresentableEnvelopeMember root
+            readEnvelopeRootDetailed orderPolicy limits file root
+            |> Result.map (fun parsed -> parsed, unrepresentable)
+        )
+        |> Result.mapError StoreErrors.toStoreErrors
+
+    let internal readEnvelopeDetailed limits file bytes =
+        readEnvelopeWithOrderDetailed ContextOrder.WholeFile limits file bytes
+
+    let internal readEnvelopeWithOrder
+        orderPolicy
+        (limits: ContextLimits)
+        (file: string)
+        (bytes: ReadOnlyMemory<byte>)
+        : Result<MorphirFile<JsonElement>, StoreError list> =
+        readEnvelopeWithOrderDetailed orderPolicy limits file bytes
+        |> Result.mapError StoreErrors.toStoreErrors
 
     /// <summary>
     /// Reads a Morphir file's bytes, named <paramref name="file"/> in every diagnostic: a plain file has no schema and

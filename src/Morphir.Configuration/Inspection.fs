@@ -125,8 +125,9 @@ module KeyPath =
                                     )
                                 )
 
+                            // A JSON string literal reads as a string, never as null.
                             segments <-
-                                json.RootElement.GetString()
+                                nonNull (json.RootElement.GetString())
                                 :: segments
                         with
                         | :? System.Text.Json.JsonException

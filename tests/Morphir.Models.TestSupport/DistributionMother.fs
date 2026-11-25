@@ -442,9 +442,9 @@ module SingleFiles =
         | Ok bytes ->
             let root = nonNull (JsonNode.Parse(Encoding.UTF8.GetString bytes))
             let modules = nonNull (nonNull (nonNull root["distribution"]).[3]).["modules"]
-            let moduleDefinition = nonNull (nonNull (nonNull (nonNull modules[0]).[1]).["value"])
+            let moduleDefinition = nonNull (nonNull (nonNull modules[0]).[1]).["value"]
             let values = nonNull moduleDefinition["values"]
-            let definition = nonNull (nonNull (nonNull (nonNull values[0]).[1]).["value"])
+            let definition = nonNull (nonNull (nonNull values[0]).[1]).["value"]
             definition.AsObject().["metadata"] <- JsonValue.Create "do-not-drop"
             Encoding.UTF8.GetBytes(root.ToJsonString())
         | Error error -> failwith $"v3Library is written as a single file: {error.Message}"
@@ -472,7 +472,7 @@ module SingleFiles =
         let root = nonNull (JsonNode.Parse(Encoding.UTF8.GetString v3SpecsFile))
         let modules = nonNull (nonNull (nonNull root["distribution"]).[3]).["modules"]
         let values = nonNull (nonNull (nonNull modules[0]).[1]).["values"]
-        let specification = nonNull (nonNull (nonNull (nonNull values[0]).[1]).["value"])
+        let specification = nonNull (nonNull (nonNull values[0]).[1]).["value"]
         specification.AsObject().["metadata"] <- JsonValue.Create "do-not-drop"
         Encoding.UTF8.GetBytes(root.ToJsonString())
 

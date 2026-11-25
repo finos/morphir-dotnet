@@ -87,25 +87,31 @@ type internal StateLock = {
     Entry: StateEntry
     Json: Value
     Bytes: byte array
+    SchemaVersion: ExtensionSchemaVersion
 }
 
 type internal StateCatalog = {
     Entries: StateEntry list
     Json: Value
     Bytes: byte array
+    SchemaVersion: ExtensionSchemaVersion
 }
 
 type internal StateJournal = {
     NextLock: StateLock option
     NextCatalog: StateCatalog option
     Bytes: byte array
+    SchemaVersion: ExtensionSchemaVersion
 }
 
 module internal StateDocuments =
     open SharedJson
 
+    let schemaUrlFor (version: ExtensionSchemaVersion) kind =
+        ExtensionSchemas.url version kind
+
     let schemaUrl kind =
-        $"https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/{kind}.schema.json"
+        schemaUrlFor ExtensionSchemaVersion.Preview3 kind
 
     let private stringValue path name items =
         required path name items
@@ -351,7 +357,9 @@ module internal StateDocuments =
             "package.treeSha256"
         ]
 
-    let private entryPaths =
+    let private entryPathsFor (schemaVersion: ExtensionSchemaVersion) =
+        let claimPaths = Claims.knownPathsFor schemaVersion
+
         set [
             "extensionId"
             "name"
@@ -386,14 +394,14 @@ module internal StateDocuments =
         ]
         |> Set.union packagePaths
         |> Set.union (
-            Claims.knownPaths
+            claimPaths
             |> Set.map (fun path ->
                 "claims."
                 + path
             )
         )
         |> Set.union (
-            Claims.knownPaths
+            claimPaths
             |> Set.filter (fun path ->
                 path.StartsWith("capabilities.frontend", StringComparison.Ordinal)
                 || path.StartsWith("capabilities.backend", StringComparison.Ordinal)
@@ -401,7 +409,9 @@ module internal StateDocuments =
             |> Set.map (fun path -> path.Substring("capabilities.".Length))
         )
 
-    let private entry path isLock value =
+    let private entryPaths = entryPathsFor ExtensionSchemaVersion.Preview4
+
+    let private entry (schemaVersion: ExtensionSchemaVersion) path isLock value =
         let items = members path value
 
         let common =
@@ -538,16 +548,19 @@ module internal StateDocuments =
             else
                 required path "claims" items
 
+        let knownClaimPaths = Claims.knownPathsFor schemaVersion
+
         if isLock then
             closedTree
                 (path
                  + ".index.claims")
                 ""
-                Claims.knownPaths
+                knownClaimPaths
                 claimsValue
 
         let claims =
-            Claims.readEmbedded
+            Claims.readEmbeddedFor
+                schemaVersion
                 (path
                  + ".claims")
                 claimsValue
@@ -634,7 +647,7 @@ module internal StateDocuments =
                 )
 
         if not isLock then
-            Claims.readCritical path entryPaths items
+            Claims.readCritical path (entryPathsFor schemaVersion) items
             |> ignore
 
             let check =
@@ -701,13 +714,13 @@ module internal StateDocuments =
             bytes
             (fun value ->
                 let items = members "catalog" value
-                schema "catalog" (schemaUrl "catalog") items
+                let schemaVersion = ExtensionSchemas.readVersion "catalog" "catalog" items
 
                 let entries =
                     required "catalog" "extensions" items
                     |> array "catalog.extensions"
                     |> List.mapi (fun index value ->
-                        entry $"catalog.extensions[{index + 1}]" false value
+                        entry schemaVersion $"catalog.extensions[{index + 1}]" false value
                     )
 
                 let mutable previous: string option = None
@@ -728,7 +741,7 @@ module internal StateDocuments =
                 let known =
                     set [ "$schema"; "extensions"; "critical" ]
                     |> Set.union (
-                        entryPaths
+                        entryPathsFor schemaVersion
                         |> Set.map (fun name ->
                             "extensions."
                             + name
@@ -751,6 +764,7 @@ module internal StateDocuments =
                     Entries = entries
                     Json = value
                     Bytes = Array.copy bytes
+                    SchemaVersion = schemaVersion
                 }
             )
 
@@ -760,8 +774,8 @@ module internal StateDocuments =
             bytes
             (fun value ->
                 let items = members "lock" value
-                schema "lock" (schemaUrl "lock") items
-                let entry = entry "lock" true value
+                let schemaVersion = ExtensionSchemas.readVersion "lock" "lock" items
+                let entry = entry schemaVersion "lock" true value
 
                 let selection =
                     required "lock" "selection" items
@@ -803,6 +817,7 @@ module internal StateDocuments =
                     Entry = entry
                     Json = value
                     Bytes = Array.copy bytes
+                    SchemaVersion = schemaVersion
                 }
             )
 
@@ -812,7 +827,7 @@ module internal StateDocuments =
             bytes
             (fun value ->
                 let items = members "index-record" value
-                schema "index-record" (schemaUrl "index-record") items
+                let schemaVersion = ExtensionSchemas.readVersion "index-record" "index-record" items
 
                 let id =
                     required "index-record" "id" items
@@ -857,7 +872,7 @@ module internal StateDocuments =
                         "backend"
                     ]
                     |> Set.union (
-                        entryPaths
+                        entryPathsFor schemaVersion
                         |> Set.map (fun name ->
                             "artifacts."
                             + name
@@ -877,7 +892,7 @@ module internal StateDocuments =
                 for artifact in artifacts do
                     let fields = members "artifact" artifact
                     let claimValue = required "artifact" "claims" fields
-                    let claims = Claims.readEmbedded "artifact.claims" claimValue
+                    let claims = Claims.readEmbeddedFor schemaVersion "artifact.claims" claimValue
 
                     let extension =
                         required "claims" "extension" (members "claims" claims.Json)
@@ -1006,7 +1021,7 @@ module internal StateDocuments =
                             ]
                         )
 
-                    entry "index-record.artifact" false selected
+                    entry schemaVersion "index-record.artifact" false selected
                     |> ignore
 
                 value
@@ -1066,7 +1081,7 @@ module internal StateDocuments =
             bytes
             (fun value ->
                 let items = members "repositories" value
-                schema "repositories" (schemaUrl "repositories") items
+                ExtensionSchemas.readVersion "repositories" "repositories" items |> ignore
                 closed "repositories" (set [ "$schema"; "repositories" ]) items
                 let seen = HashSet<string>(StringComparer.Ordinal)
 
@@ -1110,7 +1125,7 @@ module internal StateDocuments =
             bytes
             (fun value ->
                 let fields = members "journal" value
-                schema "journal" (schemaUrl "journal") fields
+                let schemaVersion = ExtensionSchemas.readVersion "journal" "journal" fields
                 closed "journal" (set [ "$schema"; "nextLock"; "nextCatalog" ]) fields
 
                 let saved name (parser: byte array -> Result<'T, InstallationFailure>) =
@@ -1140,5 +1155,6 @@ module internal StateDocuments =
                     NextLock = saved "nextLock" readLock
                     NextCatalog = saved "nextCatalog" readCatalog
                     Bytes = Array.copy bytes
+                    SchemaVersion = schemaVersion
                 }
             )

@@ -43,6 +43,52 @@ type ConfigValueProjections =
             false
 
     /// <summary>
+    /// The origin of a value at a key path that a configuration file of <paramref name="resolution"/> sets, for C#
+    /// callers, which pass the resolution and never hold its F# map: the key's own origin, or, for a nonempty table whose
+    /// origins are on the keys below it, the first such key in key order. An origin of the defaults is not configured.
+    /// False when no file sets the value.
+    /// </summary>
+    static member TryFindConfiguredOrigin
+        (
+            resolution: DocumentResolution,
+            path: IReadOnlyList<string>,
+            [<Out; MaybeNullWhen(false)>] origin: byref<ValueOrigin>
+        ) : bool =
+        let origins = resolution.Origins
+        let key = List.ofSeq path
+        let configured (found: ValueOrigin) = found.Source.Role <> SourceRole.Defaults
+
+        let below (candidate: string list) =
+            List.length candidate > List.length key
+            && List.truncate (List.length key) candidate = key
+
+        let own = Map.tryFind key origins |> Option.filter configured
+
+        let found =
+            match own with
+            | Some _ -> own
+            | None ->
+                origins
+                |> Map.toSeq
+                |> Seq.tryFind (fun (candidate, found) -> below candidate && configured found)
+                |> Option.map snd
+
+        match found with
+        | Some value ->
+            origin <- value
+            true
+        | None ->
+            origin <- Unchecked.defaultof<_>
+            false
+
+    /// <summary>
+    /// Whether the key path of <paramref name="diagnostic"/> is exactly <paramref name="path"/>, one segment for each key,
+    /// for C# callers, so that they do not traverse the F# list.
+    /// </summary>
+    static member IsAt(diagnostic: ConfigDiagnostic, path: IReadOnlyList<string>) : bool =
+        diagnostic.KeyPath = List.ofSeq path
+
+    /// <summary>
     /// A key path as TOML writes it, for messages: the keys joined with dots, and a key that is not a bare key
     /// (letters, digits, <c>-</c> and <c>_</c>) in double quotes, for example <c>codegen."acme.codegen".extension</c>.
     /// </summary>
@@ -106,7 +152,7 @@ type ConfigValueProjections =
             items <-
                 values
                 |> List.choose (fun item ->
-                    let mutable text = null
+                    let mutable text = Unchecked.defaultof<string>
                     if ConfigValueProjections.TryText(item, &text) then Some text else None)
                 |> Array.ofList
                 :> IReadOnlyList<string>

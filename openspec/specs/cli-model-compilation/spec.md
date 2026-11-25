@@ -9,7 +9,7 @@ Exposes source compilation through `morphir compile`. The command resolves setti
 Each setting SHALL come from the first source that supplies it:
 
 1. a CLI flag;
-2. the selected project configuration (`project.name`, `project.source_directory`, `project.exposed_modules`, `ir.format_version`, `frontend.language`, and `[frontend.<language>]` `project_file` and `extension`);
+2. the selected project configuration (`project.name`, `project.source_directory`, `project.exposed_modules`, `ir.format_version`, `ir.layout` or the deprecated `ir.mode`, `ir.format`, `frontend.language`, and `[frontend.<language>]` `project_file` and `extension`);
 3. a documented default.
 
 `--project` and `--config` SHALL select a project through the existing project discovery.
@@ -32,6 +32,65 @@ Each setting SHALL come from the first source that supplies it:
 #### Scenario: Equivalent release spelling
 - **WHEN** `--ir-version 4.0.0` is requested
 - **THEN** it selects the same writer as `4`, and the report records `4.0.0` as requested
+
+### Requirement: Compile resolves the IR layout
+The IR layout SHALL come from `--ir-layout`, else `ir.layout`, else the deprecated `ir.mode` (`classic` is `single-file`, `vfs` is `document-tree`), else `single-file`. A configured `ir.mode` SHALL give the warning `compile.deprecated_setting`, and a layout that is also set SHALL win. A selected value that is not valid SHALL fail with exit code 2 and one `compile.invalid_setting` error; an overridden one SHALL give that code as a warning and be ignored.
+
+#### Scenario: Deprecated mode
+- **WHEN** the configuration sets `ir.mode = "vfs"` and no layout
+- **THEN** the compile writes a document tree, and the report has the warning `compile.deprecated_setting`
+
+#### Scenario: Overridden invalid mode
+- **WHEN** the configuration sets `ir.layout = "document-tree"` and `ir.mode = "folder"`
+- **THEN** the compile writes a document tree, with the warnings `compile.deprecated_setting` and `compile.invalid_setting`
+
+#### Scenario: Invalid configured layout
+- **WHEN** the configuration sets `ir.layout = "folder"`
+- **THEN** the command fails with exit code 2 and exactly one error, `compile.invalid_setting`, naming `ir.layout`, its file, `single-file` and `document-tree`
+
+### Requirement: Compile writes the selected IR layout
+`single-file` SHALL write `compile.dest/morphir-ir.<ext>` (`json`, `yaml`, or `ion`). `document-tree` SHALL write the model under `compile.dest/morphir-ir` as a v3.1.0 or v4 JSON/YAML tree, or an Ion tree (`manifest.ion`, `module.ion`, `*.type.ion`, `*.value.ion`) for Ion versions `3`, `3.0.0`, `3.1.0`, `4`, `4.0.0`. Requesting `document-tree` for IR 1 or 2 SHALL fail before compilation with exit code 2 and `compile.unsupported_setting`.
+
+#### Scenario: Document tree requested
+- **WHEN** the configuration sets `ir.layout = "document-tree"` and the compile succeeds
+- **THEN** `compile.dest/morphir-ir` holds a document tree in the selected format that the corresponding reader reads, and it joins to the model of the single file
+
+#### Scenario: Classic IR 1 or 2
+- **WHEN** `--ir-layout document-tree --ir-version 2` is requested
+- **THEN** the command fails before compilation with `compile.unsupported_setting` and exit code 2
+
+### Requirement: The IR format selects the serialization of the written IR
+`--ir-format` and `ir.format` SHALL accept `json`, `yaml` or `ion` (flag wins; default `json`), writing single-file `morphir-ir.<ext>` or document-tree `manifest.<ext>` with round-trip IR equivalence and reporting `irFormat` origin. Unrecognized values SHALL fail with exit code 2 (configuration error or `compile.invalid_setting`).
+
+#### Scenario: YAML from the configuration
+- **WHEN** `morphir.toml` sets `ir.format = "yaml"` and the command passes no `--ir-format`
+- **THEN** the compile publishes `compile.dest/morphir-ir.yaml`, the canonical YAML of the IR JSON, and the record's `ir.format` is `yaml`
+
+#### Scenario: Ion from the flag
+- **WHEN** `morphir.toml` sets `ir.format = "yaml"` and the command passes `--ir-format ion --ir-version 3`
+- **THEN** the compile publishes `compile.dest/morphir-ir.ion`, whose header states `formatVersion: "3.0.0"`, and the report gives `--ir-format` as the origin of `irFormat`
+
+#### Scenario: Generation from a YAML or Ion compile
+- **WHEN** `compile --ir-format yaml --target fsharp --generate-output gen` or `compile --ir-format ion --target fsharp --generate-output gen` runs
+- **THEN** generation gets the same model as from a JSON compile: the Ion bytes that were published, or YAML read through `GenerationModelLoader`
+
+### Requirement: Ion format version and documentation rules
+Ion SHALL accept only `3`, `3.0.0`, `3.1.0`, `4` and `4.0.0`, writing the exact release in the Ion header and task record, and failing other versions with `compile.unsupported_setting` (exit 2). JSON and YAML at `3.1.0` single-file SHALL fail with `compile.unsupported_ir_version`. An Ion compile SHALL emit missing v3 member docs as empty strings.
+
+#### Scenario: Ion at IR 3.1.0
+- **WHEN** the command passes `--ir-format ion --ir-version 3.1.0`
+- **THEN** `compile.dest/morphir-ir.ion` states `formatVersion: "3.1.0"`, and the record's `ir.version` is `v3.1.0`
+
+#### Scenario: Ion before IR 3
+- **WHEN** the command passes `--ir-format ion --ir-version 2`
+- **THEN** it fails before compilation with `compile.unsupported_setting` and exit code 2, and publishes no IR
+
+### Requirement: Unrepresentable IR format writes fail explicitly
+A write that the selected `--ir-format` cannot represent SHALL fail the write stage with `compile.ir_format_failed` and publish no IR output.
+
+#### Scenario: Unrepresentable write fails write stage
+- **WHEN** an IR value contains data that cannot be encoded in the requested format
+- **THEN** the compile fails at the write stage with `compile.ir_format_failed` and publishes no IR
 
 ### Requirement: Sources are selected without language-specific rules
 The command SHALL choose sources in this order:
@@ -137,16 +196,24 @@ The command SHALL return:
 
 A run with only warnings SHALL succeed. With `--target`, a failure in the generation stages SHALL give the exit code that `morphir generate` gives for the same failure, and the compiled IR SHALL stay published.
 
+#### Scenario: Cancelled while compile.dest is cleared
+- **WHEN** the compile is cancelled while it retries the removal of a staged IR that a crashed run left in `compile.dest`
+- **THEN** the exit code is 130, and `compile.lock` is released
+
 #### Scenario: Source error
 - **WHEN** compilation fails only because of `fsharp.*` errors
 - **THEN** the exit code is 1, and no IR is published or installed
 
 ### Requirement: Output installation preserves foreign content
-`-o/--output` SHALL install a copy of the canonical IR in the given directory after a successful compile. It SHALL replace only files that an earlier install from the same task wrote there. Content it did not write SHALL be preserved. A conflict with such content SHALL fail without changing the directory.
+`-o/--output` SHALL install a copy of the canonical IR in the given directory after a successful compile: the file `morphir-ir.json`, or the tree directory `morphir-ir`. It SHALL replace only files that an earlier install from the same task wrote there. Content it did not write SHALL be preserved. A conflict with such content SHALL fail without changing the directory.
 
 #### Scenario: Reinstall over own file
 - **WHEN** a second successful compile installs to the same `-o` directory
-- **THEN** `morphir-ir.json` is replaced and other files in that directory remain unchanged
+- **THEN** `morphir-ir.json` (or `morphir-ir.yaml` or `morphir-ir.ion` for that IR format) is replaced and other files in that directory remain unchanged
+
+#### Scenario: Reinstall of a document tree
+- **WHEN** a second successful document-tree compile installs to the same `-o` directory
+- **THEN** the files of `morphir-ir` are replaced, and a later single-file install removes only the tree files that the earlier install wrote
 
 ### Requirement: Compile can continue into generation
 With `--target <id>` and `--generate-output <dir>`, the command SHALL pass the compiled model in memory to the registered generation backend for that target. It SHALL use the same backend resolution, `--option` validation and owned publication as `morphir generate`. Generation SHALL NOT run when compilation fails. `--target` without `--generate-output`, or a repeated `--target`, SHALL fail with exit code 2.
@@ -155,16 +222,20 @@ With `--target <id>` and `--generate-output <dir>`, the command SHALL pass the c
 - **WHEN** `compile --target fsharp --generate-output gen` runs, and separately `compile` is followed by `generate --input <compiled IR> --target fsharp --output gen2`
 - **THEN** `gen` and `gen2` contain the same paths and bytes, and both reports list the same backend
 
+#### Scenario: Target from a document tree
+- **WHEN** `compile --ir-layout document-tree --target fsharp --generate-output gen` runs
+- **THEN** the backend gets the single file that the writer wrote, named `morphir-ir.json`, whose model the published tree holds, and `gen` has the same paths and bytes as for a single-file compile
+
 #### Scenario: Incompatible backend
 - **WHEN** `--ir-version 1 --target csharp` is requested and the C# backend does not accept that version
 - **THEN** the command fails before generation with the exit code of `generate` for that refusal, naming the backend and capability, and leaves the generation output unchanged, while the compile output remains published
 
 ### Requirement: Unimplemented options fail explicitly
-These SHALL be rejected with exit code 2 and a diagnostic naming the option and the reason: `--types-only`, Ion or YAML `ir.format`, and `document-tree` layout. They SHALL NOT be ignored. This delivery has no option or key for Specs or Application output or for incremental or baseline compilation; an option or key for one of them that is added before the feature SHALL be rejected in the same way.
+This SHALL be rejected with exit code 2 and a diagnostic naming the option and the reason: `--types-only`. It SHALL NOT be ignored. This delivery has no option or key for Specs or Application output or for incremental or baseline compilation; an option or key for one of them that is added before the feature SHALL be rejected in the same way.
 
-#### Scenario: Document tree requested
-- **WHEN** the configuration sets `ir.layout = "document-tree"`
-- **THEN** the command fails with `compile.unsupported_setting`, naming `ir.layout` and its source file
+#### Scenario: Types-only requested
+- **WHEN** `--types-only` is passed
+- **THEN** the command fails with `compile.unsupported_setting` and exit code 2
 
 ### Requirement: The in-process C# frontend ships in both hosts
 

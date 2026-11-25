@@ -138,3 +138,376 @@ let expectOneStemForEachSharedName (case: DocumentTreeMother.SharedNameCase) (fi
             (moduleText.Replace(" ", "").Split([| quoted |], System.StringSplitOptions.None).Length - 1)
             1
             $"The module file names {key} once in fileNames"
+
+/// A minimal tree carrying an undeclared contextual envelope $schema on its manifest.
+let undeclaredManifestSchemaProvider (fileName: string) =
+    let content =
+        if fileName.EndsWith(".yaml", System.StringComparison.Ordinal) then
+            "$schema: https://example.org/unknown.schema.json\ncontext: {}\ndocument:\n  formatVersion: 4\n"
+        else
+            """{"$schema":"https://example.org/unknown.schema.json","context":{},"document":{"formatVersion":4}}"""
+
+    Map.ofList [ fileName, Morphir.Files.VFile.ofText fileName content ]
+    |> Morphir.Files.VFileTree.fromFileMap
+    |> Morphir.Files.VFileProviders.asFileProvider
+
+/// A frozen bounded orders tree as an IFileProvider.
+let ordersTreeProvider (version: string) (profile: string) =
+    let prefix = Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Directory + version + "/" + profile + "/"
+
+    Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Files
+    |> Seq.filter (fun entry -> entry.RelativePath.StartsWith(prefix, System.StringComparison.Ordinal))
+    |> Seq.map (fun entry ->
+        let location = entry.RelativePath.Substring(prefix.Length)
+
+        location,
+        Morphir.Files.VFile.ofBytes
+            location
+            (System.ReadOnlyMemory(Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes entry))
+    )
+    |> Map.ofSeq
+    |> Morphir.Files.VFileTree.fromFileMap
+    |> Morphir.Files.VFileProviders.asFileProvider
+
+/// An IFileProvider wrapper that invokes a callback on each GetDirectoryContents call (for mid-page cancellation tests).
+let interceptingDirectoryProvider
+    (onGetDirectoryContents: string -> unit)
+    (inner: Microsoft.Extensions.FileProviders.IFileProvider)
+    : Microsoft.Extensions.FileProviders.IFileProvider =
+    { new Microsoft.Extensions.FileProviders.IFileProvider with
+        member _.GetDirectoryContents(subpath) =
+            onGetDirectoryContents subpath
+            inner.GetDirectoryContents(subpath)
+
+        member _.GetFileInfo(subpath) = inner.GetFileInfo(subpath)
+        member _.Watch(filter) = inner.Watch(filter)
+    }
+
+/// A valid flat v4 library tree containing <paramref name="moduleCount"/> modules under <c>pkg/acme/flat/</c>.
+let flatPackageTreeProvider (moduleCount: int) =
+    DocumentTreeMother.flatPackageTree moduleCount
+    |> Morphir.Files.VFileProviders.asFileProvider
+
+/// An in-memory v4 plain JSON tree with <paramref name="moduleCount"/> modules nested under four shared
+/// 100-character directory segments so logical paths overflow an entry-count-scaled discovery cache reservation.
+let longPathFlatPackageTreeProvider (moduleCount: int) =
+    DocumentTreeMother.longPathFlatPackageTree moduleCount
+    |> Morphir.Files.VFileProviders.asFileProvider
+
+/// A frozen bounded orders tree with one named file replaced by an undeclared contextual envelope $schema.
+let ordersTreeWithUndeclaredSchema (version: string) (profile: string) (targetFile: string) =
+    let prefix = Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Directory + version + "/" + profile + "/"
+
+    let undeclared =
+        if targetFile.EndsWith(".yaml", System.StringComparison.Ordinal) then
+            "$schema: https://example.org/unknown.schema.json\ncontext: {}\ndocument:\n  formatVersion: 4\n"
+        else
+            """{"$schema":"https://example.org/unknown.schema.json","context":{},"document":{"formatVersion":4}}"""
+
+    Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Files
+    |> Seq.filter (fun entry -> entry.RelativePath.StartsWith(prefix, System.StringComparison.Ordinal))
+    |> Seq.map (fun entry ->
+        let location = entry.RelativePath.Substring(prefix.Length)
+
+        if location = targetFile then
+            location, Morphir.Files.VFile.ofText location undeclared
+        else
+            location,
+            Morphir.Files.VFile.ofBytes
+                location
+                (System.ReadOnlyMemory(Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes entry))
+    )
+    |> Map.ofSeq
+    |> Morphir.Files.VFileTree.fromFileMap
+    |> Morphir.Files.VFileProviders.asFileProvider
+
+/// A frozen Classic 3.1 bounded orders tree (plain-json or plain-yaml) with a decimal literal
+/// injected into either an expression or a literal pattern inside pkg/acme/orders/domain/order.value.{json,yaml}.
+let classicOrdersTreeWithDecimal (profile: string) (lexeme: string) (inPattern: bool) =
+    let isYaml = profile.EndsWith("yaml", System.StringComparison.Ordinal)
+    let prefix = Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Directory + "v3.1/" + profile + "/"
+
+    let targetFile =
+        if isYaml then
+            "pkg/acme/orders/domain/order.value.yaml"
+        else
+            "pkg/acme/orders/domain/order.value.json"
+
+    let decimalTypeJson =
+        """["Reference",{},[[["morphir"],["s","d","k"]],[["decimal"]],["decimal"]],[]]"""
+
+    let intTypeJson =
+        """["Reference",{},[[["morphir"],["s","d","k"]],[["basics"]],["int"]],[]]"""
+
+    let valueJson =
+        let quotedLexeme = "\"" + lexeme + "\""
+
+        if inPattern then
+            """{"formatVersion":"3.1.0","name":"order","def":{"access":"Public","value":{"doc":"","value":{"inputTypes":[[["x"],"""
+            + decimalTypeJson
+            + ","
+            + decimalTypeJson
+            + """]],"outputType":"""
+            + intTypeJson
+            + ""","body":["PatternMatch","""
+            + intTypeJson
+            + """,["Variable","""
+            + decimalTypeJson
+            + """,["x"]],[[["LiteralPattern","""
+            + decimalTypeJson
+            + """,["DecimalLiteral","""
+            + quotedLexeme
+            + """]],["Literal","""
+            + intTypeJson
+            + """,["WholeNumberLiteral",1]]],[["WildcardPattern","""
+            + decimalTypeJson
+            + """],["Literal","""
+            + intTypeJson
+            + """,["WholeNumberLiteral",0]]]]]}}}}"""
+        else
+            """{"formatVersion":"3.1.0","name":"order","def":{"access":"Public","value":{"doc":"","value":{"inputTypes":[],"outputType":"""
+            + decimalTypeJson
+            + ""","body":["Literal","""
+            + decimalTypeJson
+            + """,["DecimalLiteral","""
+            + quotedLexeme
+            + """]]}}}}"""
+
+    let valueYaml =
+        if inPattern then
+            $"""formatVersion: 3.1.0
+name: order
+def:
+  access: Public
+  value:
+    doc: ""
+    value:
+      inputTypes:
+        - - [x]
+          - - Reference
+            - {{}}
+            - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+            - []
+          - - Reference
+            - {{}}
+            - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+            - []
+      outputType:
+        - Reference
+        - {{}}
+        - [[[morphir], [s, d, k]], [[basics]], [int]]
+        - []
+      body:
+        - PatternMatch
+        - - Reference
+          - {{}}
+          - [[[morphir], [s, d, k]], [[basics]], [int]]
+          - []
+        - - Variable
+          - - Reference
+            - {{}}
+            - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+            - []
+          - [x]
+        - - - - LiteralPattern
+              - - Reference
+                - {{}}
+                - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+                - []
+              - [DecimalLiteral, "{lexeme}"]
+            - - Literal
+              - - Reference
+                - {{}}
+                - [[[morphir], [s, d, k]], [[basics]], [int]]
+                - []
+              - [WholeNumberLiteral, 1]
+          - - - WildcardPattern
+              - - Reference
+                - {{}}
+                - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+                - []
+            - - Literal
+              - - Reference
+                - {{}}
+                - [[[morphir], [s, d, k]], [[basics]], [int]]
+                - []
+              - [WholeNumberLiteral, 0]
+"""
+        else
+            $"""formatVersion: 3.1.0
+name: order
+def:
+  access: Public
+  value:
+    doc: ""
+    value:
+      inputTypes: []
+      outputType:
+        - Reference
+        - {{}}
+        - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+        - []
+      body:
+        - Literal
+        - - Reference
+          - {{}}
+          - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+          - []
+        - [DecimalLiteral, "{lexeme}"]
+"""
+
+    let files =
+        Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Files
+        |> Seq.filter (fun entry -> entry.RelativePath.StartsWith(prefix, System.StringComparison.Ordinal))
+        |> Seq.map (fun entry ->
+            let location = entry.RelativePath.Substring(prefix.Length)
+
+            if location = targetFile then
+                location, Morphir.Files.VFile.ofText location (if isYaml then valueYaml else valueJson)
+            else
+                let bytes = Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes entry
+                location, Morphir.Files.VFile.ofBytes location (System.ReadOnlyMemory bytes)
+        )
+        |> Map.ofSeq
+
+    let paths =
+        files
+        |> Map.keys
+        |> Seq.toArray
+        :> System.Collections.Generic.IReadOnlyList<string>
+
+    Morphir.Files.VFileProviders.asFileProvider (Morphir.Files.VFileTree.fromFileMap files), paths
+
+/// A frozen Classic 3.1 bounded orders tree (plain-json or plain-yaml) whose value carries an opaque attribute
+/// containing `["Literal", {}, ["DecimalLiteral", "-0.00"]]` alongside a lossless decimal literal.
+let classicOrdersTreeWithOpaqueAttribute (profile: string) (lexeme: string) (inPattern: bool) =
+    let isYaml = profile.EndsWith("yaml", System.StringComparison.Ordinal)
+    let prefix = Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Directory + "v3.1/" + profile + "/"
+
+    let targetFile =
+        if isYaml then
+            "pkg/acme/orders/domain/order.value.yaml"
+        else
+            "pkg/acme/orders/domain/order.value.json"
+
+    let decimalTypeJson =
+        """["Reference",{},[[["morphir"],["s","d","k"]],[["decimal"]],["decimal"]],[]]"""
+
+    let intTypeJson =
+        """["Reference",{},[[["morphir"],["s","d","k"]],[["basics"]],["int"]],[]]"""
+
+    let opaqueAttrJson = """["Literal",{},["DecimalLiteral","-0.00"]]"""
+    let quotedLexeme = "\"" + lexeme + "\""
+
+    let valueJson =
+        if inPattern then
+            """{"formatVersion":"3.1.0","name":"order","def":{"access":"Public","value":{"doc":"","value":{"inputTypes":[[["x"],"""
+            + opaqueAttrJson
+            + ","
+            + decimalTypeJson
+            + """]],"outputType":"""
+            + intTypeJson
+            + ""","body":["PatternMatch","""
+            + opaqueAttrJson
+            + """,["Variable","""
+            + opaqueAttrJson
+            + """,["x"]],[[["LiteralPattern","""
+            + opaqueAttrJson
+            + """,["DecimalLiteral","""
+            + quotedLexeme
+            + """]],["Literal","""
+            + opaqueAttrJson
+            + """,["WholeNumberLiteral",1]]],[["WildcardPattern","""
+            + opaqueAttrJson
+            + """],["Literal","""
+            + opaqueAttrJson
+            + """,["WholeNumberLiteral",0]]]]]}}}}"""
+        else
+            """{"formatVersion":"3.1.0","name":"order","def":{"access":"Public","value":{"doc":"","value":{"inputTypes":[],"outputType":"""
+            + decimalTypeJson
+            + ""","body":["Literal","""
+            + opaqueAttrJson
+            + """,["DecimalLiteral","""
+            + quotedLexeme
+            + """]]}}}}"""
+
+    let valueYaml =
+        if inPattern then
+            $"""formatVersion: 3.1.0
+name: order
+def:
+  access: Public
+  value:
+    doc: ""
+    value:
+      inputTypes:
+        - - [x]
+          - [Literal, {{}}, [DecimalLiteral, "-0.00"]]
+          - - Reference
+            - {{}}
+            - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+            - []
+      outputType:
+        - Reference
+        - {{}}
+        - [[[morphir], [s, d, k]], [[basics]], [int]]
+        - []
+      body:
+        - PatternMatch
+        - [Literal, {{}}, [DecimalLiteral, "-0.00"]]
+        - - Variable
+          - [Literal, {{}}, [DecimalLiteral, "-0.00"]]
+          - [x]
+        - - - - LiteralPattern
+              - [Literal, {{}}, [DecimalLiteral, "-0.00"]]
+              - [DecimalLiteral, "{lexeme}"]
+            - - Literal
+              - [Literal, {{}}, [DecimalLiteral, "-0.00"]]
+              - [WholeNumberLiteral, 1]
+          - - - WildcardPattern
+              - [Literal, {{}}, [DecimalLiteral, "-0.00"]]
+            - - Literal
+              - [Literal, {{}}, [DecimalLiteral, "-0.00"]]
+              - [WholeNumberLiteral, 0]
+"""
+        else
+            $"""formatVersion: 3.1.0
+name: order
+def:
+  access: Public
+  value:
+    doc: ""
+    value:
+      inputTypes: []
+      outputType:
+        - Reference
+        - {{}}
+        - [[[morphir], [s, d, k]], [[decimal]], [decimal]]
+        - []
+      body:
+        - Literal
+        - [Literal, {{}}, [DecimalLiteral, "-0.00"]]
+        - [DecimalLiteral, "{lexeme}"]
+"""
+
+    let files =
+        Morphir.TestSupport.Fixtures.FixtureCatalog.BoundedOrders.Files
+        |> Seq.filter (fun entry -> entry.RelativePath.StartsWith(prefix, System.StringComparison.Ordinal))
+        |> Seq.map (fun entry ->
+            let location = entry.RelativePath.Substring(prefix.Length)
+
+            if location = targetFile then
+                location, Morphir.Files.VFile.ofText location (if isYaml then valueYaml else valueJson)
+            else
+                let bytes = Morphir.TestSupport.Fixtures.FixtureCatalog.ReadBytes entry
+                location, Morphir.Files.VFile.ofBytes location (System.ReadOnlyMemory bytes)
+        )
+        |> Map.ofSeq
+
+    let paths =
+        files
+        |> Map.keys
+        |> Seq.toArray
+        :> System.Collections.Generic.IReadOnlyList<string>
+
+    Morphir.Files.VFileProviders.asFileProvider (Morphir.Files.VFileTree.fromFileMap files), paths

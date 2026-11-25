@@ -621,7 +621,8 @@ I/O failure. See [compile]({{< relref "/docs/cli/compile" >}}).
 | `compile.ir_version_not_served` | The selected frontend does not produce the requested IR version. | Request a version that the message lists for the frontend. |
 | `compile.language_required` | No language is selected, and the sources do not select one. A `[frontend.<language>].project_file` is read only for the selected language. | Use `--language`, or set `frontend.language`. |
 | `compile.package_required` | No package name. | Use `--package-name`, or set `project.name`. |
-| `compile.unsupported_setting` | An option or setting that this build does not implement, for example `--types-only` or `ir.layout = "document-tree"`. | Remove it. The message names the option or the key and its file. |
+| `compile.unsupported_setting` | An option or setting that this build does not implement, for example `--types-only`, `ir.layout = "document-tree"` with IR version `1` or `2`, or `ir.format = "ion"` with an uncarried version such as `1` or `2`. | Remove it, or use IR version `3` (`3.1.0` for Ion) or `4`. The message names the option or the key and its file. |
+| `compile.deprecated_setting` (warning) | The configuration sets `ir.mode`, the deprecated name of `ir.layout`. | Use `ir.layout = "single-file"` or `"document-tree"`. |
 | `compile.invalid_arguments` naming `--target` or `--generate-output` | `--target` without `--generate-output`, `--target` more than one time, or `--generate-output` or `--option` without `--target`. | Give one `--target` with `--generate-output <directory>`. `-o` installs the IR; it is not the generation output. |
 | `incompatible-model` after a successful compile with `--target` | The backend of the target does not declare the IR version. The IR stays published. | Use an IR version that the message lists for the backend, or run `generate` later with another target. |
 | `compile.generation_unavailable` | `--target` in a build that registers no generation backends. | Use `dotnet-morphir` or `morphir`, which both register the F# and C# backends, or run `generate` on the published IR. |
@@ -644,9 +645,13 @@ of the most recent `morphir compile` of the project. Use exact target `fsharp` a
 `--option optimize=false` to disable folding. Unknown options and quoted strings
 where Booleans are required return exit 2.
 
-Use JSON/Ion bare IR, or an Ion tree rooted at `manifest.ion`. YAML models,
-JSON/YAML trees and MEP envelopes have explicit unsupported-format/profile
-diagnostics. A codec error identifies the input or tree member and logical
+Use JSON, YAML, or Ion bare IR, or a document tree rooted at `manifest.json`,
+`manifest.yaml` (or `manifest.yml`), or `manifest.ion`. Plain and name-compacted
+JSON and YAML document trees are supported for IR `3.1.0` and `4`/`4.0.0`.
+Trees with multiple root manifests fail with `tree.ambiguous_profile`, an
+explicit `--input-format` that contradicts a tree's manifest fails with
+`unsupported-format`, and MEP envelopes fail with `unsupported-profile`. A
+codec error identifies the input or tree member and its nested logical
 location. A semantic refusal returns exit 1 and preserves previous output.
 
 Keep input and output paths separate and remove links from output paths.

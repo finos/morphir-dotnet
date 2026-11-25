@@ -425,3 +425,321 @@ module internal ClassicTreeFiles =
             (valueDocument false)
             holdsDefinitions
             (root.Clone())
+
+    [<Struct>]
+    type private ClassicDecimalWork =
+        | CheckValue of valueElem: JsonElement
+        | CheckPattern of patternElem: JsonElement
+        | CheckDefinition of defElem: JsonElement
+
+    /// Reads up to 6 elements of a JSON array in a single O(1) EnumerateArray pass without index-based O(N) lookups.
+    let private readUpTo6 (element: JsonElement) =
+        let mutable count = 0
+        let mutable e0 = Unchecked.defaultof<JsonElement>
+        let mutable e1 = Unchecked.defaultof<JsonElement>
+        let mutable e2 = Unchecked.defaultof<JsonElement>
+        let mutable e3 = Unchecked.defaultof<JsonElement>
+        let mutable e4 = Unchecked.defaultof<JsonElement>
+        let mutable enumerator = element.EnumerateArray()
+
+        while count < 6 && enumerator.MoveNext() do
+            match count with
+            | 0 -> e0 <- enumerator.Current
+            | 1 -> e1 <- enumerator.Current
+            | 2 -> e2 <- enumerator.Current
+            | 3 -> e3 <- enumerator.Current
+            | 4 -> e4 <- enumerator.Current
+            | _ -> ()
+
+            count <- count + 1
+
+        count, e0, e1, e2, e3, e4
+
+    let private tryReadPair (element: JsonElement) =
+        if element.ValueKind <> JsonValueKind.Array then
+            ValueNone
+        else
+            let mutable count = 0
+            let mutable first = Unchecked.defaultof<JsonElement>
+            let mutable second = Unchecked.defaultof<JsonElement>
+            let mutable enumerator = element.EnumerateArray()
+
+            while count < 3 && enumerator.MoveNext() do
+                match count with
+                | 0 -> first <- enumerator.Current
+                | 1 -> second <- enumerator.Current
+                | _ -> ()
+
+                count <- count + 1
+
+            if count = 2 then
+                ValueSome(struct (first, second))
+            else
+                ValueNone
+
+    let private checkDecimalLiteral (element: JsonElement) : string option =
+        if element.ValueKind <> JsonValueKind.Array then
+            None
+        else
+            let count, tagElem, dataElem, _, _, _ = readUpTo6 element
+
+            if count = 2 && tagElem.ValueKind = JsonValueKind.String then
+                let tag = tagElem.GetString()
+
+                if tag = "DecimalLiteral" || tag = "decimal_literal" then
+                    let rawOpt =
+                        match dataElem.ValueKind with
+                        | JsonValueKind.String ->
+                            match dataElem.GetString() with
+                            | null -> None
+                            | text -> Some text
+                        | JsonValueKind.Number -> Some(dataElem.GetRawText())
+                        | _ -> None
+
+                    match rawOpt with
+                    | Some raw ->
+                        match Morphir.IR.V4.DecimalLexeme.create raw with
+                        | Ok _ when not (Morphir.IR.V4.DecimalLexeme.isLosslessClassicDecimal raw) -> Some raw
+                        | _ -> None
+                    | None -> None
+                else
+                    None
+            else
+                None
+
+    /// Unwraps Classic `{ "access", "value" }` and optional `{ "doc", "value" }` around a `ValueDefinition` object.
+    let private tryUnwrapValueDefinitionEntry (entry: JsonElement) : JsonElement voption =
+        if entry.ValueKind <> JsonValueKind.Object then
+            ValueNone
+        else
+            let mutable afterAccess = Unchecked.defaultof<JsonElement>
+
+            if entry.TryGetProperty("value", &afterAccess) && afterAccess.ValueKind = JsonValueKind.Object then
+                let mutable docElem = Unchecked.defaultof<JsonElement>
+                let mutable afterDoc = Unchecked.defaultof<JsonElement>
+
+                if afterAccess.TryGetProperty("doc", &docElem) && afterAccess.TryGetProperty("value", &afterDoc) then
+                    ValueSome afterDoc
+                else
+                    ValueSome afterAccess
+            else
+                ValueNone
+
+    /// Grammar-aware, O(N), cancellable iterative scan of Classic IR 3.1 `Value` and `Pattern` positions for
+    /// decimal literals that lose precision, scale, or sign under single-document Classic JSON serialization.
+    /// Skips all opaque attribute slots (`elem[1]`), type definitions, and type expressions.
+    let private findLossyDecimalInValueEntry (ct: System.Threading.CancellationToken) (entry: JsonElement) : string option =
+        match tryUnwrapValueDefinitionEntry entry with
+        | ValueNone -> None
+        | ValueSome defElem ->
+            let stack = System.Collections.Generic.Stack<ClassicDecimalWork>()
+            stack.Push(CheckDefinition defElem)
+            let mutable lossy: string option = None
+
+            let pushArrayItems (wrap: JsonElement -> ClassicDecimalWork) (arrElem: JsonElement) =
+                if arrElem.ValueKind = JsonValueKind.Array then
+                    for item in arrElem.EnumerateArray() do
+                        ct.ThrowIfCancellationRequested()
+                        stack.Push(wrap item)
+
+            let pushPairSecond (wrap: JsonElement -> ClassicDecimalWork) (pairsElem: JsonElement) =
+                if pairsElem.ValueKind = JsonValueKind.Array then
+                    for pair in pairsElem.EnumerateArray() do
+                        ct.ThrowIfCancellationRequested()
+
+                        match tryReadPair pair with
+                        | ValueSome(struct (_, second)) -> stack.Push(wrap second)
+                        | ValueNone -> ()
+
+            while lossy.IsNone && stack.Count > 0 do
+                ct.ThrowIfCancellationRequested()
+
+                match stack.Pop() with
+                | CheckDefinition defObj ->
+                    if defObj.ValueKind = JsonValueKind.Object then
+                        let mutable body = Unchecked.defaultof<JsonElement>
+
+                        if defObj.TryGetProperty("body", &body) then
+                            stack.Push(CheckValue body)
+
+                | CheckPattern patElem ->
+                    if patElem.ValueKind = JsonValueKind.Array then
+                        let count, tagElem, _attr, e2, e3, _ = readUpTo6 patElem
+
+                        if tagElem.ValueKind = JsonValueKind.String then
+                            match tagElem.GetString(), count with
+                            | ("LiteralPattern" | "literal_pattern"), 3 ->
+                                lossy <- checkDecimalLiteral e2
+                            | ("AsPattern" | "as_pattern"), 4 ->
+                                stack.Push(CheckPattern e2)
+                            | ("TuplePattern" | "tuple_pattern"), 3 ->
+                                pushArrayItems CheckPattern e2
+                            | ("ConstructorPattern" | "constructor_pattern"), 4 ->
+                                pushArrayItems CheckPattern e3
+                            | ("HeadTailPattern" | "head_tail_pattern"), 4 ->
+                                stack.Push(CheckPattern e3)
+                                stack.Push(CheckPattern e2)
+                            | _ -> ()
+
+                | CheckValue valElem ->
+                    if valElem.ValueKind = JsonValueKind.Array then
+                        let count, tagElem, _attr, e2, e3, e4 = readUpTo6 valElem
+
+                        if tagElem.ValueKind = JsonValueKind.String then
+                            match tagElem.GetString(), count with
+                            | ("Literal" | "literal"), 3 ->
+                                lossy <- checkDecimalLiteral e2
+                            | ("Tuple" | "tuple"), 3
+                            | ("List" | "list"), 3 ->
+                                pushArrayItems CheckValue e2
+                            | ("Record" | "record"), 3 ->
+                                pushPairSecond CheckValue e2
+                            | ("Field" | "field"), 4 ->
+                                stack.Push(CheckValue e2)
+                            | ("Apply" | "apply"), 4 ->
+                                stack.Push(CheckValue e3)
+                                stack.Push(CheckValue e2)
+                            | ("Lambda" | "lambda"), 4 ->
+                                stack.Push(CheckValue e3)
+                                stack.Push(CheckPattern e2)
+                            | ("LetDefinition" | "let_definition"), 5 ->
+                                stack.Push(CheckValue e4)
+                                stack.Push(CheckDefinition e3)
+                            | ("LetRecursion" | "let_recursion"), 4 ->
+                                stack.Push(CheckValue e3)
+                                pushPairSecond CheckDefinition e2
+                            | ("Destructure" | "destructure"), 5 ->
+                                stack.Push(CheckValue e4)
+                                stack.Push(CheckValue e3)
+                                stack.Push(CheckPattern e2)
+                            | ("IfThenElse" | "if_then_else"), 5 ->
+                                stack.Push(CheckValue e4)
+                                stack.Push(CheckValue e3)
+                                stack.Push(CheckValue e2)
+                            | ("PatternMatch" | "pattern_match"), 4 ->
+                                if e3.ValueKind = JsonValueKind.Array then
+                                    for pair in e3.EnumerateArray() do
+                                        ct.ThrowIfCancellationRequested()
+
+                                        match tryReadPair pair with
+                                        | ValueSome(struct (casePat, caseVal)) ->
+                                            stack.Push(CheckValue caseVal)
+                                            stack.Push(CheckPattern casePat)
+                                        | ValueNone -> ()
+
+                                stack.Push(CheckValue e2)
+                            | ("UpdateRecord" | "update_record"), 4 ->
+                                pushPairSecond CheckValue e3
+                                stack.Push(CheckValue e2)
+                            | _ -> ()
+
+            lossy
+
+    let findLossyDecimalInInlineValue
+        (ct: System.Threading.CancellationToken)
+        (holdsDefinitions: bool)
+        (element: JsonElement)
+        : string option =
+        if holdsDefinitions then
+            findLossyDecimalInValueEntry ct element
+        else
+            None
+
+    let findLossyDecimalInSplitValue
+        (ct: System.Threading.CancellationToken)
+        (holdsDefinitions: bool)
+        (document: JsonElement)
+        : string option =
+        if holdsDefinitions && document.ValueKind = JsonValueKind.Object then
+            let mutable defEntry = Unchecked.defaultof<JsonElement>
+
+            if document.TryGetProperty("def", &defEntry) then
+                findLossyDecimalInValueEntry ct defEntry
+            else
+                None
+        else
+            None
+
+    /// Grammar-aware, O(N), cancellable scan of a single Classic IR document (v1, v2, or v3 Library) for
+    /// decimal literals in expression or pattern positions that lose precision, scale, or sign under
+    /// single-document Classic JSON serialization. Skips opaque attributes, type definitions, and type expressions.
+    let findLossyDecimalInSingleDocument
+        (ct: System.Threading.CancellationToken)
+        (document: JsonElement)
+        : string option =
+        let checkModule (modEntry: JsonElement) =
+            let mutable modAccess = Unchecked.defaultof<JsonElement>
+
+            let foundModAccess =
+                match tryReadPair modEntry with
+                | ValueSome(struct (_, second)) ->
+                    modAccess <- second
+                    true
+                | ValueNone ->
+                    modEntry.ValueKind = JsonValueKind.Object
+                    && modEntry.TryGetProperty("def", &modAccess)
+
+            if not foundModAccess || modAccess.ValueKind <> JsonValueKind.Object then
+                None
+            else
+                let mutable modDef = Unchecked.defaultof<JsonElement>
+                let mutable valuesElem = Unchecked.defaultof<JsonElement>
+
+                if
+                    modAccess.TryGetProperty("value", &modDef)
+                    && modDef.ValueKind = JsonValueKind.Object
+                    && modDef.TryGetProperty("values", &valuesElem)
+                    && valuesElem.ValueKind = JsonValueKind.Array
+                then
+                    let mutable lossy: string option = None
+                    let mutable enumerator = valuesElem.EnumerateArray()
+
+                    while lossy.IsNone && enumerator.MoveNext() do
+                        ct.ThrowIfCancellationRequested()
+
+                        match tryReadPair enumerator.Current with
+                        | ValueSome(struct (_, valAccessEntry)) ->
+                            lossy <- findLossyDecimalInValueEntry ct valAccessEntry
+                        | ValueNone -> ()
+
+                    lossy
+                else
+                    None
+
+        if document.ValueKind <> JsonValueKind.Object then
+            None
+        else
+            let mutable distElem = Unchecked.defaultof<JsonElement>
+
+            if
+                not (document.TryGetProperty("distribution", &distElem))
+                || distElem.ValueKind <> JsonValueKind.Array
+            then
+                None
+            else
+                let count, kindElem, _pkgElem, _depsElem, pkgDefElem, _ = readUpTo6 distElem
+
+                if
+                    count = 4
+                    && kindElem.ValueKind = JsonValueKind.String
+                    && (kindElem.GetString() = "Library" || kindElem.GetString() = "library")
+                    && pkgDefElem.ValueKind = JsonValueKind.Object
+                then
+                    let mutable modulesElem = Unchecked.defaultof<JsonElement>
+
+                    if
+                        pkgDefElem.TryGetProperty("modules", &modulesElem)
+                        && modulesElem.ValueKind = JsonValueKind.Array
+                    then
+                        let mutable lossy: string option = None
+                        let mutable enumerator = modulesElem.EnumerateArray()
+
+                        while lossy.IsNone && enumerator.MoveNext() do
+                            ct.ThrowIfCancellationRequested()
+                            lossy <- checkModule enumerator.Current
+
+                        lossy
+                    else
+                        None
+                else
+                    None

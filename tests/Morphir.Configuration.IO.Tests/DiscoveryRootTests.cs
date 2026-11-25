@@ -18,7 +18,7 @@ public sealed class DiscoveryRootTests
             ["/repo/morphir.toml"] = "[workspace]\nout_dir='toml'"
         }), "/repo/app/src");
         result.Discovery.Root.Sources.Select(s => s.Source.Path).Should().Equal("/repo/morphir-workspace.json", "/repo/morphir.json5", "/repo/morphir.yml", "/repo/morphir.toml");
-        ConfigTree.tryFind(ListModule.OfSeq(new[] { "workspace", "out_dir" }), result.Discovery.Root.Values).Value.Should().Be(ConfigValue.NewString("toml"));
+        ConfigTree.tryFind(ListModule.OfSeq(new[] { "workspace", "out_dir" }), result.Discovery.Root.Values)!.Value.Should().Be(ConfigValue.NewString("toml"));
     }
 
     [Test]

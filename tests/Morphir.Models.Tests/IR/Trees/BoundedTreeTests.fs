@@ -30,7 +30,7 @@ let private ordersSource files =
         Revision = fun () -> revision
         DiscoveryIndexPeakBytes = fun () -> 0L
         ContainsFile = fun location -> Map.containsKey location files
-        NextModule = fun _ _ _ _ -> failtest "Member reads do not enumerate modules"
+        NextModule = fun _ _ _ _ _ -> failtest "Member reads do not enumerate modules"
         FindFile =
             fun location ->
                 lookedUp.Add location
@@ -259,7 +259,7 @@ let private moduleSource version =
     let recording =
         { source with
             NextModule =
-                fun _ _ prefix after ->
+                fun _ _ _ prefix after ->
                     enumerated.Add(prefix, after)
 
                     [ audit; orders; sdk ]
@@ -398,7 +398,7 @@ let modulePages =
 
                 let unsafe =
                     { source with
-                        NextModule = fun _ _ _ _ -> Ok(Some path)
+                        NextModule = fun _ _ _ _ _ -> Ok(Some path)
                     }
 
                 let snapshot = read (BoundedTreeReader.openTree 1024L unsafe)
@@ -416,7 +416,7 @@ let modulePages =
 
             let unordered =
                 { source with
-                    NextModule = fun _ _ _ _ -> Ok(Some repeated)
+                    NextModule = fun _ _ _ _ _ -> Ok(Some repeated)
                 }
 
             let snapshot = read (BoundedTreeReader.openTree 1024L unordered)
@@ -556,7 +556,7 @@ let private frozenOrdersFiles version profile =
         DiscoveryIndexPeakBytes = fun () -> 0L
         ContainsFile = fun location -> Set.contains location files
         NextModule =
-            fun _ _ prefix after ->
+            fun _ _ _ prefix after ->
                 modules
                 |> List.tryFind (fun path ->
                     path.StartsWith(prefix, System.StringComparison.Ordinal)
@@ -998,6 +998,95 @@ let profileTests =
                 opened
                 [ "manifest.yaml"; "pkg/acme/orders/domain/module.yaml" ]
                 "Neither body is opened"
+        }
+
+        test "Refuses manifest.ion beside JSON or YAML manifests before opening either file" {
+            for profile, expectedManifest in [ "plain-json", "manifest.json"; "plain-yaml", "manifest.yaml" ] do
+                let source, opened = frozenOrders "v4" profile
+
+                let ambiguous =
+                    { source with
+                        ContainsFile =
+                            fun path ->
+                                path = "manifest.ion"
+                                || source.ContainsFile path
+                    }
+
+                BoundedTreeReader.openTree 1024L ambiguous
+                |> expectReadError "tree.ambiguous_profile" "manifest"
+
+                Expect.isEmpty opened $"Neither manifest ({profile}) is opened"
+
+                let ionManifest =
+                    """morphir::{ionVersion: "0.1.0-draft.1", formatVersion: "4", kind: library, packageName: "acme/orders", pathBudget: 240}"""
+
+                let treeWithIon =
+                    Orders.catalogDocuments "v4" profile
+                    |> Map.toSeq
+                    |> Seq.map (fun (path, entry) -> path, Morphir.Files.VFile.ofText path (FixtureCatalog.ReadText entry))
+                    |> Map.ofSeq
+                    |> Morphir.Files.VFileTree.fromFileMap
+                    |> Driver.withFile "manifest.ion" ionManifest
+
+                let provider = Morphir.Files.VFileProviders.asFileProvider treeWithIon
+
+                DocumentTreeStore.openManifestSnapshot(
+                    ReadOptions.defaults,
+                    128,
+                    100_000,
+                    10_000L,
+                    System.Func<string>(fun () -> "r1"),
+                    provider,
+                    System.Threading.CancellationToken.None
+                )
+                |> Result.mapError Seq.toList
+                |> expectReadError "tree.ambiguous_profile" "manifest"
+
+                DocumentTreeStore.openPlainSnapshot(
+                    ReadOptions.defaults,
+                    System.Func<string>(fun () -> "r1"),
+                    provider
+                )
+                |> Result.mapError Seq.toList
+                |> expectReadError "tree.ambiguous_profile" "manifest"
+
+                DocumentTreeStore.openDetectedSnapshot(
+                    ReadOptions.defaults,
+                    System.Func<string>(fun () -> "r1"),
+                    provider
+                )
+                |> Result.mapError Seq.toList
+                |> expectReadError "tree.ambiguous_profile" "manifest"
+
+                ignore expectedManifest
+        }
+
+        test "Refuses .ion member file beside JSON or YAML sibling before opening either file" {
+            for profile, moduleLocation in
+                [ "plain-json", "pkg/acme/orders/domain/module.json"
+                  "plain-yaml", "pkg/acme/orders/domain/module.yaml" ] do
+                let source, opened = frozenOrders "v4" profile
+                let ionMember = "pkg/acme/orders/domain/order.value.ion"
+
+                let ambiguous =
+                    { source with
+                        ContainsFile =
+                            fun path ->
+                                path = ionMember
+                                || source.ContainsFile path
+                    }
+
+                let snapshot = read (BoundedTreeReader.openTree 1024L ambiguous)
+
+                BoundedTreeReader.readMember orderAddress snapshot
+                |> expectReadError "tree.ambiguous_profile" "pkg/acme/orders/domain/order.value"
+
+                let manifestLocation = if profile = "plain-json" then "manifest.json" else "manifest.yaml"
+
+                Expect.sequenceEqual
+                    opened
+                    [ manifestLocation; moduleLocation ]
+                    $"Neither {profile} nor .ion body is opened"
         }
 
         test "Refuses a selected file in a different profile before opening it" {
@@ -1573,7 +1662,7 @@ let providerTests =
                 DiscoveryIndexPeakBytes = fun () -> 0L
                 ContainsFile = fun path -> path = manifestLocation
                 FindFile = fun _ -> Some file
-                NextModule = fun _ _ _ _ -> Ok None
+                NextModule = fun _ _ _ _ _ -> Ok None
             }
 
             BoundedTreeReader.openTree limits.MaxFileBytes direct
@@ -2104,18 +2193,18 @@ let discoveryCacheTests =
             let ownCharge = 128L + (ownPaths |> List.sumBy (fun path -> 160L + 4L * int64 path.Length))
             Expect.equal (source.DiscoveryIndexPeakBytes ()) 0L "No index has been constructed"
             Expect.equal (counts ()) (0, 0) "Reading the counter is lazy"
-            source.NextModule None 240 "deps/morphir/_sdk/@/" None |> Result.mapError List.singleton |> read |> ignore
+            source.NextModule None System.Threading.CancellationToken.None 240 "deps/morphir/_sdk/@/" None |> Result.mapError List.singleton |> read |> ignore
             let dependencyCharge = 128L + 160L + 4L * int64 "deps/morphir/_sdk/@/basics/module".Length
             Expect.equal (source.DiscoveryIndexPeakBytes ()) dependencyCharge "The first smaller package charges only its own index"
-            let first = source.NextModule None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read
+            let first = source.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read
             Expect.equal (source.DiscoveryIndexPeakBytes ()) ownCharge "Charge uses actual distinct paths, not the reservation"
             let scanned = counts ()
-            source.NextModule None 240 "pkg/acme/orders/" first |> Result.mapError List.singleton |> read |> ignore
+            source.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" first |> Result.mapError List.singleton |> read |> ignore
             Expect.equal (source.DiscoveryIndexPeakBytes ()) ownCharge "Reuse does not charge the same index twice"
             Expect.equal (counts ()) scanned "Reuse does not walk again"
-            source.NextModule None 240 "deps/morphir/_sdk/@/" None |> Result.mapError List.singleton |> read |> ignore
+            source.NextModule None System.Threading.CancellationToken.None 240 "deps/morphir/_sdk/@/" None |> Result.mapError List.singleton |> read |> ignore
             Expect.equal (source.DiscoveryIndexPeakBytes ()) ownCharge "A smaller replacement preserves the high water mark"
-            source.NextModule None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read |> ignore
+            source.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read |> ignore
             Expect.equal (source.DiscoveryIndexPeakBytes ()) ownCharge "Rebuilding an evicted package is not cumulative"
             Expect.isEmpty opened "The counter and index open no content"
         }
@@ -2125,7 +2214,7 @@ let discoveryCacheTests =
                           |> List.map (fun path -> 128L + 160L + 4L * int64 path.Length)
             let source = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 (List.max charges) (fun () -> "stable") provider
             let attempt after =
-                source.NextModule None 240 "pkg/acme/orders/" after |> Result.mapError List.singleton
+                source.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" after |> Result.mapError List.singleton
                 |> expectReadError "tree.discovery_cache_limit" "pkg/acme/orders/"
             attempt None
             let peak = source.DiscoveryIndexPeakBytes ()
@@ -2140,7 +2229,7 @@ let discoveryCacheTests =
             for budget in [ 127L; 128L ] do
                 let provider, opened, counts = countedProvider ()
                 let source = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 budget (fun () -> "stable") provider
-                let result = source.NextModule None 240 "pkg/absent/" None |> Result.mapError List.singleton
+                let result = source.NextModule None System.Threading.CancellationToken.None 240 "pkg/absent/" None |> Result.mapError List.singleton
                 if budget = 128L then
                     Expect.isNone (read result) "An empty index fits exactly"
                 else
@@ -2175,7 +2264,7 @@ let discoveryCacheTests =
             for budget in [ cap; cap - 1L ] do
                 let provider, opened, _ = countedProvider ()
                 let source = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 budget (fun () -> "stable") provider
-                let result = source.NextModule None 240 "pkg/acme/orders/" None
+                let result = source.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None
                 if budget = cap then
                     Expect.equal (read (result |> Result.mapError List.singleton)) (Some paths.Head) "Exact cap"
                 else
@@ -2186,18 +2275,18 @@ let discoveryCacheTests =
         test "Exact entry cap and uncached fallback preserve admission" {
             let provider, _, counts = countedProvider ()
             let baseline = TreeFileSource.fromFileProvider 1000 (fun () -> "stable") provider
-            baseline.NextModule None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read |> ignore
+            baseline.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read |> ignore
             Expect.equal (baseline.DiscoveryIndexPeakBytes ()) 0L "The ordinary scan has no index"
             let total, _ = counts ()
             for cap in [ total; total - 1 ] do
                 let cached = TreeFileSource.fromFileProviderWithDiscoveryCache cap 65536L (fun () -> "stable") provider
-                let result = cached.NextModule None 240 "pkg/acme/orders/" None
+                let result = cached.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None
                 if cap = total then Expect.isOk result "Exact entry cap"
                 else result |> Result.mapError List.singleton |> expectReadError "tree.too_many_files" "pkg/acme/orders/"
             let fallback = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 0L (fun () -> "stable") provider
-            let first = fallback.NextModule None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read
+            let first = fallback.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read
             let before = counts ()
-            fallback.NextModule None 240 "pkg/acme/orders/" first |> Result.mapError List.singleton |> read |> ignore
+            fallback.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" first |> Result.mapError List.singleton |> read |> ignore
             Expect.isGreaterThan (fst (counts ())) (fst before) "Zero reservation uses the public streaming fallback"
             Expect.equal (fallback.DiscoveryIndexPeakBytes ()) 0L "A disabled index reports zero after repeated scans"
         }
@@ -2205,7 +2294,7 @@ let discoveryCacheTests =
             let provider, _, counts = countedProvider ()
             let mutable revision = "one"
             let source = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 65536L (fun () -> revision) provider
-            let next prefix = source.NextModule None 240 prefix None |> Result.mapError List.singleton |> read
+            let next prefix = source.NextModule None System.Threading.CancellationToken.None 240 prefix None |> Result.mapError List.singleton |> read
             next "pkg/acme/orders/" |> ignore
             let ownCount = counts ()
             next "deps/morphir/_sdk/@/" |> ignore
@@ -2218,11 +2307,11 @@ let discoveryCacheTests =
                 calls <- calls + 1
                 if calls < 3 then "one" else "two"
             let unstable = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 65536L changing provider
-            unstable.NextModule None 240 "pkg/acme/orders/" None
+            unstable.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None
             |> Result.mapError List.singleton |> StoreTestKit.refusal |> StoreTestKit.codesAndFiles
             |> fun errors -> Expect.equal errors [ "tree.revision_changed", None ] "Revision changed during walk"
             let scanned = counts ()
-            unstable.NextModule None 240 "pkg/acme/orders/" None |> ignore
+            unstable.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None |> ignore
             Expect.equal (counts ()) scanned "Rejected revision never reuses partial paths"
         }
         test "Cached metadata preserves physical profile ambiguity" {
@@ -2262,10 +2351,316 @@ let discoveryCacheTests =
         test "Cache lookup remains metered on reuse" {
             let provider, _, _ = countedProvider ()
             let source = TreeFileSource.fromFileProviderWithDiscoveryCache 1000 65536L (fun () -> "stable") provider
-            source.NextModule None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read |> ignore
+            source.NextModule None System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None |> Result.mapError List.singleton |> read |> ignore
             let work = BoundedTreeWorkBudget(1L)
             work.TryCharge 1L |> ignore
-            source.NextModule (Some work) 240 "pkg/acme/orders/" None
+            source.NextModule (Some work) System.Threading.CancellationToken.None 240 "pkg/acme/orders/" None
             |> Result.mapError List.singleton |> expectReadError "extension.bounded_work_limit" "pkg/acme/orders/"
+        }
+        test "OpenDetectedSnapshot detects plain and contextual encodings across JSON and YAML versions" {
+            for version, expectedIr in [ "v3.1", "3.1.0"; "v4", "4.0.0" ] do
+                for profile, expectedSyntax, expectedEncoding in
+                    [
+                        "plain-json", BoundedTreeSyntax.Json, BoundedTreeEncoding.Plain
+                        "plain-yaml", BoundedTreeSyntax.Yaml, BoundedTreeEncoding.Plain
+                        "contextual-json", BoundedTreeSyntax.Json, BoundedTreeEncoding.ContextualDraft1
+                        "contextual-yaml", BoundedTreeSyntax.Yaml, BoundedTreeEncoding.ContextualDraft1
+                    ] do
+                    let provider = StoreTestKit.ordersTreeProvider version profile
+                    let snapshot =
+                        DocumentTreeStore.openDetectedSnapshot(
+                            ReadOptions.defaults, System.Func<string>(fun () -> "r1"), provider)
+                        |> read
+                    Expect.equal snapshot.IrVersion expectedIr $"{version}/{profile} IR version"
+                    Expect.equal snapshot.Syntax expectedSyntax $"{version}/{profile} syntax"
+                    Expect.equal snapshot.NameEncoding expectedEncoding $"{version}/{profile} encoding"
+        }
+        test "OpenSnapshotWithDiscoveryCacheAndEncoding supports contextual JSON and YAML with lazy discovery" {
+            for profile in [ "contextual-json"; "contextual-yaml" ] do
+                let provider = StoreTestKit.ordersTreeProvider "v4" profile
+                let snapshot =
+                    DocumentTreeStore.openSnapshotWithDiscoveryCacheAndEncoding(
+                        ReadOptions.defaults,
+                        BoundedTreeEncoding.ContextualDraft1,
+                        65536L,
+                        System.Func<string>(fun () -> "r1"),
+                        provider)
+                    |> read
+                Expect.equal snapshot.NameEncoding BoundedTreeEncoding.ContextualDraft1 $"{profile} encoding"
+                Expect.equal snapshot.PeakDiscoveryIndexChargedBytes 0L $"{profile} lazy discovery before paging"
+                let page = DocumentTreeStore.pageInventory "root" 10 None snapshot |> read
+                Expect.equal page.Entries.Length 3 $"{profile} root modules"
+                Expect.isGreaterThan snapshot.PeakDiscoveryIndexChargedBytes 0L $"{profile} discovery index charged"
+                let doc = DocumentTreeStore.readDocument "pkg/acme/orders/domain/total-in-_usd.value" snapshot |> read
+                let text = System.Text.Encoding.UTF8.GetString(doc.Span)
+                Expect.stringContains text "ir-context/0.1.0-draft.1/document.schema.json" $"{profile} retains contextual envelope"
+        }
+        test "OpenDetectedSnapshot refuses an undeclared manifest schema in JSON and YAML" {
+            for file in [ "manifest.json"; "manifest.yaml" ] do
+                let provider = StoreTestKit.undeclaredManifestSchemaProvider file
+                match DocumentTreeStore.openDetectedSnapshot(ReadOptions.defaults, System.Func<string>(fun () -> "r1"), provider) with
+                | Ok _ -> failtest $"Expected refusal for undeclared schema in {file}"
+                | Result.Error errors ->
+                    Expect.equal (errors |> Seq.map _.Code |> Seq.toList) [ "context.undeclared_schema" ] $"code for {file}"
+        }
+        test "OpenDetectedSnapshot detects mixed plain manifest with contextual member files from compaction writer" {
+            let tree = V4DocumentTree.split Morphir.Models.TestSupport.DistributionMother.longNameUsedOften
+            let options = { WriteOptions.defaults with Compact = Some CompactMode.Names }
+            let written = DocumentTreeStore.write options (StoredTree.V4Tree tree) |> read
+            let plainFiles = DocumentTreeStore.plainFilesOf written
+            Expect.contains plainFiles "manifest.json" "Compaction leaves manifest.json plain when no alias saves bytes"
+            let provider = VFileProviders.asFileProvider written
+            let snapshot =
+                DocumentTreeStore.openDetectedSnapshot(ReadOptions.defaults, System.Func<string>(fun () -> "r1"), provider)
+                |> read
+            Expect.equal snapshot.NameEncoding BoundedTreeEncoding.ContextualDraft1 "Mixed tree negotiates ContextualDraft1"
+            Expect.equal snapshot.Syntax BoundedTreeSyntax.Json "JSON syntax"
+            Expect.equal snapshot.IrVersion "4.0.0" "v4 IR"
+        }
+        test "OpenDetectedSnapshot refuses an undeclared schema on a later own or dependency file even after contextual manifest or members" {
+            for profile, targetFile in
+                [
+                    "plain-json", "pkg/acme/orders/domain/order.value.json"
+                    "contextual-json", "pkg/acme/orders/domain/total-in-_usd.value.json"
+                    "contextual-json", "deps/morphir/_sdk/@/basics/add.value.json"
+                    "contextual-yaml", "deps/morphir/_sdk/@/basics/add.value.yaml"
+                ] do
+                let provider = StoreTestKit.ordersTreeWithUndeclaredSchema "v4" profile targetFile
+                match DocumentTreeStore.openDetectedSnapshot(ReadOptions.defaults, System.Func<string>(fun () -> "r1"), provider) with
+                | Ok _ -> failtest $"Expected context.undeclared_schema refusal for {profile}/{targetFile}"
+                | Result.Error errors ->
+                    Expect.equal (errors |> Seq.map _.Code |> Seq.toList) [ "context.undeclared_schema" ] $"code for {profile}/{targetFile}"
+        }
+        test "OpenDetectedSnapshotBounded enforces work budget, positive work requirement, depth limit, and mid-page discovery cancellation" {
+            let provider = StoreTestKit.ordersTreeProvider "v4" "contextual-json"
+
+            match DocumentTreeStore.openDetectedSnapshotBounded(
+                ReadOptions.defaults, 128, 0, 0L, System.Func<string>(fun () -> "r1"), provider, System.Threading.CancellationToken.None) with
+            | Ok _ -> failtest "Expected zero work budget to be refused"
+            | Result.Error errors ->
+                Expect.contains (errors |> Seq.map _.Code |> Seq.toList) "tree.invalid_limit" "Zero work budget is refused"
+
+            match DocumentTreeStore.openDetectedSnapshotBounded(
+                ReadOptions.defaults, 128, 0, 2L, System.Func<string>(fun () -> "r1"), provider, System.Threading.CancellationToken.None) with
+            | Ok _ -> failtest "Expected tight work budget to stop detection"
+            | Result.Error errors ->
+                Expect.contains (errors |> Seq.map _.Code |> Seq.toList) "extension.bounded_work_limit" "Work limit refusal"
+
+            match DocumentTreeStore.openDetectedSnapshotBounded(
+                ReadOptions.defaults, 3, 0, 10000L, System.Func<string>(fun () -> "r1"), provider, System.Threading.CancellationToken.None) with
+            | Ok _ -> failtest "Expected tight depth limit to stop detection"
+            | Result.Error errors ->
+                Expect.contains (errors |> Seq.map _.Code |> Seq.toList) "depth_limit_exceeded" "Depth limit refusal"
+
+            use cts = new System.Threading.CancellationTokenSource()
+            let mutable dirCalls = 0
+            let cancellingProvider =
+                StoreTestKit.interceptingDirectoryProvider
+                    (fun _ ->
+                        dirCalls <- dirCalls + 1
+                        if dirCalls >= 2 then cts.Cancel())
+                    provider
+
+            Expect.throwsT<System.OperationCanceledException>
+                (fun () ->
+                    DocumentTreeStore.openDetectedSnapshotBounded(
+                        ReadOptions.defaults, 128, 0, 10000L, System.Func<string>(fun () -> "r1"), cancellingProvider, cts.Token)
+                    |> ignore)
+                "Cancellation during mid-page directory discovery aborts immediately"
+
+            Expect.isGreaterThanOrEqual dirCalls 2 "Cancellation triggered mid-discovery rather than before starting"
+        }
+        test "OpenDetectedSnapshotBounded completes a 600-module flat package within the default 1M work budget" {
+            let provider = StoreTestKit.flatPackageTreeProvider 600
+            let snapshot =
+                DocumentTreeStore.openDetectedSnapshotBounded(
+                    ReadOptions.defaults, 128, 1_000_000, 1_000_000L, System.Func<string>(fun () -> "r1"), provider, System.Threading.CancellationToken.None)
+                |> read
+            Expect.equal snapshot.IrVersion "4.0.0" "v4 IR"
+            Expect.equal snapshot.NameEncoding BoundedTreeEncoding.Plain "Plain encoding"
+            Expect.equal snapshot.Syntax BoundedTreeSyntax.Json "JSON syntax"
+        }
+        test "OpenDetectedSnapshotBounded and OpenDetectedSnapshot fall back to uncached scan on valid long-path trees when discovery cache overflows" {
+            let provider = StoreTestKit.longPathFlatPackageTreeProvider 100
+            let options = { ReadOptions.defaults with MaxFiles = 220 }
+
+            let bounded =
+                DocumentTreeStore.openDetectedSnapshotBounded(
+                    options, 128, 0, 1_000_000L, System.Func<string>(fun () -> "r1"), provider, System.Threading.CancellationToken.None)
+                |> read
+
+            Expect.equal bounded.IrVersion "4.0.0" "bounded long-path v4 IR"
+            Expect.equal bounded.Syntax BoundedTreeSyntax.Json "bounded long-path JSON syntax"
+            Expect.equal bounded.NameEncoding BoundedTreeEncoding.Plain "bounded long-path plain encoding"
+
+            let detected =
+                DocumentTreeStore.openDetectedSnapshot(options, System.Func<string>(fun () -> "r1"), provider)
+                |> read
+
+            Expect.equal detected.IrVersion "4.0.0" "detected long-path v4 IR"
+            Expect.equal detected.Syntax BoundedTreeSyntax.Json "detected long-path JSON syntax"
+            Expect.equal detected.NameEncoding BoundedTreeEncoding.Plain "detected long-path plain encoding"
+        }
+        test "OpenManifestSnapshot reads only the manifest and skips unselected corrupt member bodies while detecting manifest encoding" {
+            let prefix = FixtureCatalog.BoundedOrders.Directory + "v4/plain-json/"
+
+            let mapWithCorruptType =
+                FixtureCatalog.BoundedOrders.Files
+                |> Seq.filter (fun entry -> entry.RelativePath.StartsWith(prefix, System.StringComparison.Ordinal))
+                |> Seq.map (fun entry ->
+                    let location = entry.RelativePath.Substring(prefix.Length)
+
+                    location,
+                    VFile.ofBytes location (System.ReadOnlyMemory(FixtureCatalog.ReadBytes entry)))
+                |> Map.ofSeq
+                |> Map.add orderLocation (VFile.ofBytes orderLocation (System.ReadOnlyMemory(System.Text.Encoding.UTF8.GetBytes "{")))
+
+            let source =
+                {
+                    Revision = fun () -> "r1"
+                    DiscoveryIndexPeakBytes = fun () -> 0L
+                    ContainsFile = fun location -> Map.containsKey location mapWithCorruptType
+                    NextModule = fun _ _ _ _ _ -> failtest "OpenManifestSnapshot must not enumerate modules"
+                    FindFile =
+                        fun location ->
+                            if location = manifestLocation then
+                                Map.tryFind location mapWithCorruptType
+                            else
+                                failtestf "OpenManifestSnapshot must not read non-manifest file %s" location
+                }
+                : TreeFileSource.SnapshotSource
+
+            let plainSnapshot =
+                BoundedTreeReader.openTreeFromManifest
+                    ReadOptions.defaults.MaxFileBytes
+                    128
+                    None
+                    (Some(BoundedTreeWorkBudget 10_000L))
+                    System.Threading.CancellationToken.None
+                    source
+                |> read
+
+            Expect.equal plainSnapshot.NameEncoding BoundedTreeEncoding.Plain "Plain manifest resolves to Plain encoding"
+
+            let contextualProvider = StoreTestKit.ordersTreeProvider "v4" "contextual-yaml"
+            let contextualSnapshot =
+                DocumentTreeStore.openManifestSnapshot(
+                    ReadOptions.defaults, 128, 0, 10_000L, System.Func<string>(fun () -> "r2"), contextualProvider, System.Threading.CancellationToken.None)
+                |> read
+
+            Expect.equal contextualSnapshot.NameEncoding BoundedTreeEncoding.ContextualDraft1 "Contextual manifest resolves to ContextualDraft1"
+            Expect.equal contextualSnapshot.Syntax BoundedTreeSyntax.Yaml "YAML manifest syntax preserved"
+        }
+        test "TryJoinSnapshot refuses Classic 3.1 JSON and YAML trees with lossy decimal sign or scale and accepts lossless decimals" {
+            let lossyLexemes = [
+                "-0"
+                "-0.00"
+                "1.00000000000000000000000000000"
+                "0.00000000000000000000000000001"
+            ]
+            let losslessLexemes = [ "0.00"; "-1.50"; "1.0000000000000000000000000000" ]
+
+            for profile in [ "plain-json"; "plain-yaml" ] do
+                for inPattern in [ false; true ] do
+                    for lexeme in lossyLexemes do
+                        let provider, paths = StoreTestKit.classicOrdersTreeWithDecimal profile lexeme inPattern
+                        let snapshot =
+                            DocumentTreeStore.openDetectedSnapshot(
+                                ReadOptions.defaults, System.Func<string>(fun () -> "r1"), provider)
+                            |> read
+
+                        let mutable model = Unchecked.defaultof<_>
+                        let mutable files = Unchecked.defaultof<_>
+                        let mutable problems = Unchecked.defaultof<_>
+
+                        let ok =
+                            DocumentTreeStore.tryJoinSnapshot(
+                                snapshot,
+                                paths,
+                                ReadOptions.defaults.MaxFiles,
+                                128,
+                                ReadOptions.defaults.MaxFileBytes,
+                                ReadOptions.defaults.MaxFileBytes,
+                                System.Threading.CancellationToken.None,
+                                &model,
+                                &files,
+                                &problems
+                            )
+
+                        Expect.isFalse ok $"Classic 3.1 {profile} (inPattern={inPattern}, lexeme={lexeme}) must be refused as lossy"
+                        let codes = problems |> Seq.map _.Code |> Seq.toList
+                        Expect.contains codes "data.lossy_conversion" $"Classic 3.1 {profile} ({lexeme}) must report data.lossy_conversion, got {codes}"
+
+                    for lexeme in losslessLexemes do
+                        let provider, paths = StoreTestKit.classicOrdersTreeWithDecimal profile lexeme inPattern
+                        let snapshot =
+                            DocumentTreeStore.openDetectedSnapshot(
+                                ReadOptions.defaults, System.Func<string>(fun () -> "r1"), provider)
+                            |> read
+
+                        let mutable model = Unchecked.defaultof<_>
+                        let mutable files = Unchecked.defaultof<_>
+                        let mutable problems = Unchecked.defaultof<_>
+
+                        let ok =
+                            DocumentTreeStore.tryJoinSnapshot(
+                                snapshot,
+                                paths,
+                                ReadOptions.defaults.MaxFiles,
+                                128,
+                                ReadOptions.defaults.MaxFileBytes,
+                                ReadOptions.defaults.MaxFileBytes,
+                                System.Threading.CancellationToken.None,
+                                &model,
+                                &files,
+                                &problems
+                            )
+
+                        Expect.isTrue ok $"Classic 3.1 {profile} (inPattern={inPattern}, lexeme={lexeme}) must join losslessly"
+        }
+        test "TryJoinSnapshot preserves Classic 3.1 opaque attributes containing Literal/DecimalLiteral -0.00 verbatim" {
+            for profile in [ "plain-json"; "plain-yaml" ] do
+                for inPattern in [ false; true ] do
+                    let provider, paths = StoreTestKit.classicOrdersTreeWithOpaqueAttribute profile "-1.50" inPattern
+                    let snapshot =
+                        DocumentTreeStore.openDetectedSnapshot(
+                            ReadOptions.defaults, System.Func<string>(fun () -> "r1"), provider)
+                        |> read
+
+                    let mutable model = Unchecked.defaultof<_>
+                    let mutable files = Unchecked.defaultof<_>
+                    let mutable problems = Unchecked.defaultof<_>
+
+                    let ok =
+                        DocumentTreeStore.tryJoinSnapshot(
+                            snapshot,
+                            paths,
+                            ReadOptions.defaults.MaxFiles,
+                            128,
+                            ReadOptions.defaults.MaxFileBytes,
+                            ReadOptions.defaults.MaxFileBytes,
+                            System.Threading.CancellationToken.None,
+                            &model,
+                            &files,
+                            &problems
+                        )
+
+                    Expect.isTrue ok $"Classic 3.1 {profile} (inPattern={inPattern}) with opaque attribute must join losslessly"
+
+                    match model.Distribution with
+                    | Morphir.IR.Model.DistributionModel.Classic classic ->
+                        let json =
+                            Morphir.Json.Classic.ClassicJsonWriter.writeJsonAttributes
+                                Morphir.Json.Classic.ClassicWireProfile.v3
+                                false
+                                classic
+                            |> function
+                                | Ok bytes -> System.Text.Encoding.UTF8.GetString(bytes: byte array)
+                                | Result.Error err -> failtest $"ClassicJsonWriter failed: {err.Message}"
+
+                        Expect.stringContains json """["Literal",{},["DecimalLiteral","-0.00"]]""" "opaque attribute preserved verbatim"
+                        Expect.stringContains json """["DecimalLiteral","-1.50"]""" "lossless decimal preserved verbatim"
+                    | Morphir.IR.Model.DistributionModel.V4 _ ->
+                        failtest "Expected Classic distribution"
         }
     ]

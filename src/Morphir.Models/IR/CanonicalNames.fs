@@ -27,43 +27,37 @@ module CanonicalNames =
         c >= '0'
         && c <= '9'
 
-    let rec private traverse parse values =
-        match values with
-        | [] -> Ok []
-        | value :: rest ->
-            match parse value with
-            | Error message -> Error message
-            | Ok parsed ->
-                match traverse parse rest with
+    let private traverse parse values =
+        let rec loop acc remaining =
+            match remaining with
+            | [] -> Ok(List.rev acc)
+            | value :: rest ->
+                match parse value with
                 | Error message -> Error message
-                | Ok others ->
-                    Ok(
-                        parsed
-                        :: others
-                    )
+                | Ok parsed -> loop (parsed :: acc) rest
+
+        loop [] values
 
     /// Splits an uppercase segment into one word per letter and one word per digit run.
     let private initialismWords (segment: string) =
-        let rec loop (chars: char list) =
+        let rec loop acc (chars: char list) =
             match chars with
-            | [] -> []
+            | [] -> List.rev acc
             | c :: rest when isDigit c ->
                 let digits =
                     c
                     :: List.takeWhile isDigit rest
 
-                String(Array.ofList digits)
-                :: loop (
-                    List.skip
+                loop
+                    (String(Array.ofList digits) :: acc)
+                    (List.skip
                         (digits.Length
                          - 1)
-                        rest
-                )
+                        rest)
             | c :: rest ->
-                string (Char.ToLowerInvariant c)
-                :: loop rest
+                loop (string (Char.ToLowerInvariant c) :: acc) rest
 
-        loop (List.ofSeq segment)
+        loop [] (List.ofSeq segment)
 
     let private segmentWords (name: string) (segment: string) =
         if String.IsNullOrEmpty segment then

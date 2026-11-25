@@ -34,7 +34,7 @@ public sealed class InspectionSteps
     public void Scoped()
     {
         _result.Found.Should().BeFalse();
-        Inspection.get(QueryScope.Workspace, PathOf("custom", "workspace_only"), _details).Value.Value.Should().Be(ConfigValue.NewString("root"));
+        Inspection.get(QueryScope.Workspace, PathOf("custom", "workspace_only"), _details)!.Value!.Value.Should().Be(ConfigValue.NewString("root"));
         Inspection.get(QueryScope.Effective, PathOf("custom", "workspace_only"), _details).Found.Should().BeTrue();
         NoReads();
     }
@@ -46,10 +46,10 @@ public sealed class InspectionSteps
     public void Entries()
     {
         _result.Entries.Select(e => e.Key).Should().Equal("custom.empty", "custom.\"literal.dot\".enabled", "custom.targets", "project.name");
-        Inspection.get(QueryScope.Project, PathOf("custom", "targets"), _details).Value.Value.Should().Be(ConfigValue.NewArray(FSharpList<ConfigValue>.Empty));
+        Inspection.get(QueryScope.Project, PathOf("custom", "targets"), _details)!.Value!.Value.Should().Be(ConfigValue.NewArray(FSharpList<ConfigValue>.Empty));
         var parsed = KeyPath.parse("custom.\"literal.dot\".enabled");
         parsed.IsOk.Should().BeTrue();
-        Inspection.get(QueryScope.Project, parsed.ResultValue, _details).Value.Value.Should().Be(ConfigValue.NewBoolean(true));
+        Inspection.get(QueryScope.Project, parsed.ResultValue, _details)!.Value!.Value.Should().Be(ConfigValue.NewBoolean(true));
         NoReads();
     }
 
@@ -70,7 +70,7 @@ public sealed class InspectionSteps
     [Then("secrets are redacted and missing source reports remain visible")]
     public void Safe()
     {
-        ConfigTree.tryFind(PathOf("custom", "reference"), _result.Value.Value).Value.Should().Be(ConfigValue.NewString("[REDACTED]"));
+        ConfigTree.tryFind(PathOf("custom", "reference"), _result!.Value!.Value)!.Value.Should().Be(ConfigValue.NewString("[REDACTED]"));
         Inspection.path(QueryScope.Effective, _details).Sources.ToArray().Should().Contain(s => s.Status.IsMissing);
         NoReads();
     }

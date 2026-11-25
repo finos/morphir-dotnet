@@ -42,7 +42,7 @@ module internal TreeReader =
     open TreeLayout
     open TreeFileSource
 
-    let private error code file message = StoreErrors.error code file message
+    let private error code file message = StoreErrors.diagnostic code file message
 
     type private NodeKind =
         | TypeNode
@@ -50,8 +50,15 @@ module internal TreeReader =
 
     /// The optional package metadata file of the parent's v4 tree page ("Package Metadata"), which is not part of
     /// the model.
-    [<Literal>]
-    let private PackageMetadataFile = "package.json"
+    let private isPackageMetadataFile (profile: TreeProfile) (name: string) =
+        match profile with
+        | TreeProfile.Json -> name = "package.json"
+        | TreeProfile.Yaml -> name = "package.yaml" || name = "package.yml"
+
+    let private canonicalExtension (profile: TreeProfile) =
+        match profile with
+        | TreeProfile.Json -> ".json"
+        | TreeProfile.Yaml -> ".yaml"
 
     /// Where a file of a module is: its scope, its module, and what it is.
     type private Placed =
@@ -100,11 +107,12 @@ module internal TreeReader =
             )
         | errors -> Error errors
 
-    /// Where a JSON file below pkg/ or deps/ belongs, none for a file that is not part of the tree, or errors.
+    /// Where a tree file below pkg/ or deps/ belongs, none for a file that is not part of the tree, or errors.
     let private place
+        (profile: TreeProfile)
         (ownStems: string list)
         (location: string)
-        : Result<Placed option, StoreError list> =
+        : Result<Placed option, TreeDiagnostic list> =
         let segments =
             location.Split('/')
             |> List.ofArray
@@ -122,7 +130,7 @@ module internal TreeReader =
             (moduleDirectories: string list)
             =
             match moduleDirectories with
-            | [] when name = PackageMetadataFile -> Ok(Some PackageMetadata)
+            | [] when isPackageMetadataFile profile name -> Ok(Some PackageMetadata)
             | [] ->
                 Error [
                     error
@@ -151,19 +159,39 @@ module internal TreeReader =
                             )
                         )
 
-                    if name = "module.json" then
-                        Ok(Some(ModuleFile(scope (Module modulePath))))
-                    elif name.EndsWith(".type.json", StringComparison.Ordinal) then
-                        node ".type.json" TypeNode
-                    elif name.EndsWith(".value.json", StringComparison.Ordinal) then
-                        node ".value.json" ValueNode
-                    else
-                        Error [
-                            error
-                                "tree.unknown_file"
-                                (Some location)
-                                "A JSON file in a module directory is module.json, a .type.json or a .value.json file."
-                        ]
+                    match profile with
+                    | TreeProfile.Json ->
+                        if name = "module.json" then
+                            Ok(Some(ModuleFile(scope (Module modulePath))))
+                        elif name.EndsWith(".type.json", StringComparison.Ordinal) then
+                            node ".type.json" TypeNode
+                        elif name.EndsWith(".value.json", StringComparison.Ordinal) then
+                            node ".value.json" ValueNode
+                        else
+                            Error [
+                                error
+                                    "tree.unknown_file"
+                                    (Some location)
+                                    "A JSON file in a module directory is module.json, a .type.json or a .value.json file."
+                            ]
+                    | TreeProfile.Yaml ->
+                        if name = "module.yaml" || name = "module.yml" then
+                            Ok(Some(ModuleFile(scope (Module modulePath))))
+                        elif name.EndsWith(".type.yaml", StringComparison.Ordinal) then
+                            node ".type.yaml" TypeNode
+                        elif name.EndsWith(".type.yml", StringComparison.Ordinal) then
+                            node ".type.yml" TypeNode
+                        elif name.EndsWith(".value.yaml", StringComparison.Ordinal) then
+                            node ".value.yaml" ValueNode
+                        elif name.EndsWith(".value.yml", StringComparison.Ordinal) then
+                            node ".value.yml" ValueNode
+                        else
+                            Error [
+                                error
+                                    "tree.unknown_file"
+                                    (Some location)
+                                    "A YAML file in a module directory is module.yaml, a .type.yaml or a .value.yaml file."
+                            ]
                 )
 
         match directories with
@@ -224,7 +252,7 @@ module internal TreeReader =
                             ))
                             reason
                     ]
-        | _ when isNodeFileName name ->
+        | _ when isNodeFileNameFor profile name ->
             Error [
                 error
                     "tree.outside_tree"
@@ -248,26 +276,64 @@ module internal TreeReader =
     /// versioned dependency directory, are given once.
     /// </summary>
     let private readDocuments
-        (options: ReadOptions)
+        (ctx: TreeDecodeContext)
+        (manifestLocation: string)
         (pathBudget: int)
         (own: PackageName)
         (holds: DocumentAddress -> bool)
         (readers: TreeFileReaders<'moduleDoc, 'typ, 'value>)
         (files: (string * Morphir.Files.VFile) list)
-        : Result<TreeFound<'moduleDoc, 'typ, 'value>, StoreError list> =
+        : Result<TreeFound<'moduleDoc, 'typ, 'value>, TreeDiagnostic list> =
         let (PackageName ownPath) = own
         let ownStems = stems ownPath
+        let extension = canonicalExtension ctx.Profile
 
         let placed =
             files
             |> List.map (fun (location, file) ->
-                place ownStems location
+                place ctx.Profile ownStems location
                 |> Result.map (Option.map (fun found -> location, file, found))
             )
 
         let found =
             valuesOf placed
             |> List.choose id
+
+        // Refuse ambiguous physical spellings (for example both .yaml and .yml for one logical document)
+        // before opening or decoding either file.
+        let ambiguousFiles =
+            found
+            |> List.choose (fun (location, _, where) ->
+                match where with
+                | PackageMetadata -> None
+                | ModuleFile address -> Some(Choice1Of2 address, location)
+                | NodeFile(scope, modulePath, stem, kind) ->
+                    Some(Choice2Of2(scope (Module modulePath), stem, kind), location)
+            )
+            |> List.groupBy fst
+            |> List.filter (fun (_, group) -> group.Length > 1)
+            |> List.map (fun (_, group) ->
+                let places =
+                    group
+                    |> List.map snd
+                    |> List.sortWith (fun left right -> String.CompareOrdinal(left, right))
+
+                let logical =
+                    let first = places.Head
+                    let dot = first.LastIndexOf '.'
+                    if dot > 0 then first.Substring(0, dot) else first
+
+                let named = String.concat " and " places
+
+                error
+                    "tree.ambiguous_profile"
+                    (Some logical)
+                    $"More than one physical file has this logical path: {named}."
+            )
+
+        if not ambiguousFiles.IsEmpty then
+            Error ambiguousFiles
+        else
 
         let isTreeFile where =
             match where with
@@ -307,7 +373,7 @@ module internal TreeReader =
                 | NodeFile _ -> None
             )
             |> List.map (fun (location, file, address) ->
-                readFile options.MaxFileBytes location file (readers.Module(holds address))
+                readFileWithDetailed ctx location file (readers.Module(holds address))
                 |> Result.bind (fun (moduleFile, compacted) ->
                     match address with
                     | Own(Module path)
@@ -368,8 +434,8 @@ module internal TreeReader =
 
                 match kind with
                 | TypeNode ->
-                    readFile
-                        options.MaxFileBytes
+                    readFileWithDetailed
+                        ctx
                         location
                         file
                         (readers.Type(holds (scope (Module modulePath))))
@@ -380,8 +446,8 @@ module internal TreeReader =
                         )
                     )
                 | ValueNode ->
-                    readFile
-                        options.MaxFileBytes
+                    readFileWithDetailed
+                        ctx
                         location
                         file
                         (readers.Value(holds (scope (Module modulePath))))
@@ -457,6 +523,13 @@ module internal TreeReader =
             |> List.map (fun (location, _, _) -> location)
             |> Set.ofList
 
+        let hasPresent (basePath: string) =
+            match ctx.Profile with
+            | TreeProfile.Json -> present.Contains(basePath + ".json")
+            | TreeProfile.Yaml ->
+                present.Contains(basePath + ".yaml")
+                || present.Contains(basePath + ".yml")
+
         let inlined =
             inlineDocuments
             |> List.map (fun (address, _, _) -> address)
@@ -481,15 +554,16 @@ module internal TreeReader =
                             valueNames
                         ] do
                         for listed in names do
-                            let expected =
+                            let basePath =
                                 directory
                                 + stemOf address listed
                                 + suffix
-                                + Extension
+
+                            let expected = basePath + extension
 
                             if
                                 not (inlined.Contains(within address (inner listed)))
-                                && not (present.Contains expected)
+                                && not (hasPresent basePath)
                             then
                                 error
                                     "missing_member"
@@ -501,7 +575,7 @@ module internal TreeReader =
         let fileErrors =
             overBudget
             @ (errorsOf placed
-               |> List.distinct)
+               |> List.distinctBy (fun (d: TreeDiagnostic) -> d.Code, d.File, d.Location, d.Message))
             @ errorsOf modules
             @ errorsOf nodes
             @ duplicates
@@ -520,7 +594,7 @@ module internal TreeReader =
                         documents
                         |> List.map (fun (address, location, _) -> address, location)
                         |> Map.ofList
-                        |> Map.add Manifest ManifestFile
+                        |> Map.add Manifest manifestLocation
                     Ignored = ignored
                     Compacted = compacted
                 }
@@ -528,10 +602,13 @@ module internal TreeReader =
     /// The errors of a join of what a read found, each at the file of its document, or at the file its logical path
     /// gives for a document that has none.
     let private joinErrors
+        (profile: TreeProfile)
         (own: PackageName)
         (found: TreeFound<_, _, _>)
         (errors: TreeError list)
-        : StoreError list =
+        : TreeDiagnostic list =
+        let extension = canonicalExtension profile
+
         errors
         |> List.map (fun (e: TreeError) ->
             error
@@ -541,14 +618,63 @@ module internal TreeReader =
                      Map.tryFind address found.Locations
                      |> Option.defaultWith (fun () ->
                          DocumentAddress.logicalPath own address
-                         + Extension
+                         + extension
                      )
                  ))
                 e.Message
         )
 
     /// <summary>
-    /// Reads a tree from its files other than the manifest: its documents, the tree that <paramref name="build"/>
+    /// Reads a tree from its files other than the manifest under <paramref name="ctx"/>, returning the stored tree,
+    /// its joined distribution, and its read report.
+    /// </summary>
+    let readTreeWith
+        (ctx: TreeDecodeContext)
+        (manifestLocation: string)
+        (manifestCompacted: bool)
+        (pathBudget: int)
+        (own: PackageName)
+        (holds: DocumentAddress -> bool)
+        (readers: TreeFileReaders<'moduleDoc, 'typ, 'value>)
+        (build: Map<DocumentAddress, TreeDocument<'moduleDoc, 'typ, 'value>> -> 'tree)
+        (join: System.Threading.CancellationToken -> 'tree -> Result<'joined, TreeError list>)
+        (stored: 'tree -> StoredTree)
+        (notices: TreeNotice list)
+        (files: (string * Morphir.Files.VFile) list)
+        : Result<StoredTree * 'joined * ReadReport * string list, TreeDiagnostic list> =
+        readDocuments ctx manifestLocation pathBudget own holds readers files
+        |> Result.bind (fun found ->
+            ctx.Cancellation.ThrowIfCancellationRequested()
+            let tree = build found.Documents
+
+            match join ctx.Cancellation tree with
+            | Ok joined ->
+                ctx.Cancellation.ThrowIfCancellationRequested()
+                let sortedCompacted = found.Compacted |> List.sortBy fst
+
+                let compactedLocations =
+                    (if manifestCompacted then [ manifestLocation ] else [])
+                    @ (sortedCompacted |> List.map fst)
+                    |> List.distinct
+
+                Ok(
+                    stored tree,
+                    joined,
+                    {
+                        Notices =
+                            notices
+                            @ found.Ignored
+                        CompactedFiles =
+                            (if manifestCompacted then [ Manifest ] else [])
+                            @ (sortedCompacted |> List.map snd)
+                    },
+                    compactedLocations
+                )
+            | Error errors -> Error(joinErrors ctx.Profile own found errors)
+        )
+
+    /// <summary>
+    /// Reads a JSON tree from its files other than the manifest: its documents, the tree that <paramref name="build"/>
     /// makes of them, and that tree's <paramref name="join"/>, whose errors are each at the file of their document. The
     /// report has the manifest's <paramref name="notices"/>, then one for each file the read ignored.
     /// </summary>
@@ -565,24 +691,8 @@ module internal TreeReader =
         (notices: TreeNotice list)
         (files: (string * Morphir.Files.VFile) list)
         : Result<StoredTree * ReadReport, StoreError list> =
-        readDocuments options pathBudget own holds readers files
-        |> Result.bind (fun found ->
-            let tree = build found.Documents
+        let ctx = createLegacyDecodeContext options.MaxFileBytes
 
-            match join tree with
-            | Ok _ ->
-                Ok(
-                    stored tree,
-                    {
-                        Notices =
-                            notices
-                            @ found.Ignored
-                        CompactedFiles =
-                            (if manifestCompacted then [ Manifest ] else [])
-                            @ (found.Compacted
-                               |> List.sortBy fst
-                               |> List.map snd)
-                    }
-                )
-            | Error errors -> Error(joinErrors own found errors)
-        )
+        readTreeWith ctx ManifestFile manifestCompacted pathBudget own holds readers build (fun _ tree -> join tree) stored notices files
+        |> Result.map (fun (tree, _, report, _) -> tree, report)
+        |> Result.mapError StoreErrors.toStoreErrors

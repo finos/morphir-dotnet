@@ -21,23 +21,17 @@ type internal ReleaseDescriptor = {
     Version: SemVer
     Artifacts: ReleaseArtifact list
     Json: Value
+    SchemaVersion: ExtensionSchemaVersion
 }
 
 module internal Descriptors =
     open SharedJson
 
-    let private releaseSchema =
-        "https://morphir.finos.org/schemas/extensions/0.1.0-preview.3/release.schema.json"
-
     let private version path value = parsed path SemVer.tryParse value
-
-    let private knownClaims = Claims.knownPaths
 
     let private critical = Claims.readCritical
 
-    let private claims = Claims.readEmbedded
-
-    let private artifact path value =
+    let private artifact (schemaVersion: ExtensionSchemaVersion) path value =
         let items = members path value
 
         let runtime =
@@ -106,7 +100,7 @@ module internal Descriptors =
 
         let claimSet =
             required path "claims" items
-            |> claims $"{path}.claims"
+            |> Claims.readEmbeddedFor schemaVersion $"{path}.claims"
 
         let package = optional "package" items
 
@@ -126,7 +120,7 @@ module internal Descriptors =
             protect (fun () ->
                 let path = "release.json"
                 let items = members path document
-                schema path releaseSchema items
+                let schemaVersion = ExtensionSchemas.readVersion path "release" items
 
                 let id =
                     required path "extensionId" items
@@ -170,7 +164,7 @@ module internal Descriptors =
                 let artifacts =
                     required path "artifacts" items
                     |> array $"{path}.artifacts"
-                    |> List.mapi (fun i value -> artifact $"{path}.artifacts[{i + 1}]" value)
+                    |> List.mapi (fun i value -> artifact schemaVersion $"{path}.artifacts[{i + 1}]" value)
 
                 if List.isEmpty artifacts then
                     invalid $"{path}.artifacts" "Expected at least one artifact."
@@ -198,7 +192,7 @@ module internal Descriptors =
                         "artifacts.package.treeSha256"
                     ]
                     |> Set.union (
-                        knownClaims
+                        Claims.knownPathsFor schemaVersion
                         |> Set.map (fun value -> $"artifacts.claims.{value}")
                     )
 
@@ -243,5 +237,6 @@ module internal Descriptors =
                     Version = releaseVersion
                     Artifacts = artifacts
                     Json = document
+                    SchemaVersion = schemaVersion
                 }
             )

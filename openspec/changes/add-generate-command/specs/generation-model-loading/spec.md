@@ -8,12 +8,22 @@ Read supported Morphir model representations into versioned typed IR for generat
 
 ### Requirement: Supported generation input representations
 
-The loader SHALL accept versioned classic JSON files, v4 JSON files, supported single-file Ion IR in text or binary, and Ion document trees. It SHALL return one model per input. This delivery SHALL reject YAML model input, JSON/YAML document trees and MEP model-envelope documents with an unsupported-format or unsupported-profile diagnostic.
+The loader SHALL accept classic JSON/YAML (1, 2, 3, 3.0.0, 3.1.0), v4 JSON/YAML (4, 4.0.0), plain and compacted JSON/YAML document trees (`manifest.json`, `manifest.yaml`/`manifest.yml`, IR `3.1.0` and `4`/`4.0.0`), text/binary Ion IR, and Ion trees (`manifest.ion`, `3.0.0`, `3.1.0`, `4.0.0`). It SHALL return one model per input and reject MEP envelopes (`envelopeVersion`, `morphir_model`, `jsonrpc`) with `unsupported-profile`.
 
 #### Scenario: Classic JSON versions
 
 - **WHEN** a nonempty valid classic Library declares integer formatVersion 1, 2 or 3
 - **THEN** loading returns the corresponding typed classic model and its source version
+
+#### Scenario: JSON and YAML document trees (plain and compacted)
+
+- **WHEN** equivalent supported v3.1.0 or v4/4.0.0 models are supplied as plain or name-compacted JSON (`manifest.json`) or YAML (`manifest.yaml`/`manifest.yml`) document trees
+- **THEN** loading returns equivalent typed distributions with the exact declared manifest `formatVersion` preserved and representation `JsonTree` or `YamlTree`
+
+#### Scenario: Single-file YAML models
+
+- **WHEN** a valid classic or v4 bare IR model is supplied as YAML (plain or name-compacted)
+- **THEN** loading returns the typed distribution with exact `formatVersion` and representation `Yaml`
 
 #### Scenario: Ion forms
 
@@ -22,17 +32,17 @@ The loader SHALL accept versioned classic JSON files, v4 JSON files, supported s
 
 #### Scenario: V4 loading is independent of backend selection
 
-- **WHEN** valid v4 JSON or Ion is loaded
+- **WHEN** valid v4 JSON, YAML or Ion is loaded
 - **THEN** loading succeeds independently of whether the selected generator supports v4
 
 #### Scenario: Envelope is not bare IR
 
-- **WHEN** input is a `morphir_model` wrapper or a MEP model-envelope JSON object
-- **THEN** loading reports that model-envelope admission is unavailable and does not treat it as bare IR
+- **WHEN** input is a `morphir_model` wrapper or a MEP model-envelope JSON or YAML object
+- **THEN** loading reports that model-envelope admission is unavailable (`unsupported-profile`) and does not treat it as bare IR
 
 ### Requirement: Deterministic format selection
 
-An explicit format SHALL constrain parser selection. Automatic detection SHALL recognize the Ion binary marker before textual hints and use supported names, manifests and content to select a codec. Recognized malformed input SHALL retain its codec's diagnostic rather than fall through to an unrelated codec and succeed.
+An explicit format (`json`, `yaml`, `ion`) SHALL constrain parser selection and refuse mismatched tree manifests with `unsupported-format`. Undefined formats SHALL return `invalid-input-format`. Auto detection SHALL check the Ion binary marker, file names, manifests, and content to pick a codec. Multi-manifest or mixed `.ion` sibling trees SHALL fail with `tree.ambiguous_profile`. Malformed recognized input SHALL report its own codec diagnostic without falling through.
 
 #### Scenario: Binary Ion without a conventional suffix
 
@@ -41,13 +51,18 @@ An explicit format SHALL constrain parser selection. Automatic detection SHALL r
 
 #### Scenario: Explicit format contradicts input
 
-- **WHEN** JSON is explicitly selected for an Ion input
-- **THEN** loading fails as JSON input and does not silently switch to Ion
+- **WHEN** JSON is explicitly selected for an Ion file or a YAML/Ion document tree, or YAML is explicitly selected for a JSON/Ion document tree, or Ion is explicitly selected for a JSON/YAML document tree
+- **THEN** loading fails without silently switching codecs (`unsupported-format` for tree profile mismatches)
 
-#### Scenario: Malformed Ion
+#### Scenario: Ambiguous multi-manifest tree
 
-- **WHEN** a recognized Ion file is malformed
-- **THEN** the loader reports the Ion reader's error rather than masking it with a JSON error
+- **WHEN** a directory contains more than one manifest file (such as `manifest.json` alongside `manifest.yaml` or `manifest.ion`, or `manifest.yaml` alongside `manifest.yml`)
+- **THEN** loading refuses the tree with `tree.ambiguous_profile` under every `--input-format` setting
+
+#### Scenario: Malformed Ion or YAML
+
+- **WHEN** a recognized Ion or YAML file or tree member is malformed
+- **THEN** the loader reports that codec's error with the member file path and nested logical location rather than masking it with an unrelated error
 
 ### Requirement: Version and distribution identity remain explicit
 
