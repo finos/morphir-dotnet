@@ -369,9 +369,9 @@
       },
       "AngleSharp": {
         "type": "CentralTransitive",
-        "requested": "[1.10.3, )",
-        "resolved": "1.10.3",
-        "contentHash": "HF2owdhRhy84PJ7dk6e7Olc8D3S8RhU+BSXgCpTcafODrHzUUqUquCUWrM81/PeKHKlFA86LCdZBAQCQRK2y7w=="
+        "requested": "[1.10.5, )",
+        "resolved": "1.10.5",
+        "contentHash": "+XcQgYnOCjizDLpBImAscxgyje0ypUdWXvP+TDEVowygb50J6frELXN3YD2SjOR/BuJInWUr6tFUwl9WN1l31w=="
       },
       "BlazorMonaco": {
         "type": "CentralTransitive",
