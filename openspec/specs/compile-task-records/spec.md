@@ -6,14 +6,7 @@ Keeps the Morphir ecosystem's out-directory and task-record contract for compila
 ## Requirements
 
 ### Requirement: Compile output uses the workspace out root
-Compile SHALL write its IR to `<out>/[<member path>/]compile.dest/morphir-ir.json` (`morphir-ir.yaml` or `morphir-ir.ion` for those `ir.format` values), or for the `document-tree` layout to the directory `compile.dest/morphir-ir`, and its record to `compile.json` beside that directory. `<out>` SHALL resolve in this order:
-
-1. `--out-dir`;
-2. `MORPHIR_OUT_DIR`;
-3. the workspace `workspace.out_dir`;
-4. `<workspace root>/.morphir/out`.
-
-The member path SHALL be the member's declared path relative to the workspace root.
+Compile SHALL write its IR to `<out>/[<member path>/]compile.dest/morphir-ir.<ext>` (`json`, `yaml`, `ion`) or `compile.dest/morphir-ir` (`document-tree`), with `compile.json` beside it. `<out>` resolves from `--out-dir`, `MORPHIR_OUT_DIR`, `workspace.out_dir`, then `<workspace root>/.morphir/out`; `<member path>` is relative to the workspace root.
 
 #### Scenario: Workspace member
 - **WHEN** member `packages/orders` of a workspace is compiled with default settings
@@ -57,9 +50,7 @@ A compile SHALL clear `compile.dest` with the same bounded retries when it start
 - **THEN** the compile fails before it compiles with `compile.prepare_failed` and exit code 2, naming `compile.dest` and the file system's reason
 
 ### Requirement: Records follow the ecosystem schema
-A successful compile SHALL write a schema-1 record with these fields: `task` `compile`, `module`, `language`, `inputs`, `value`, `ir {path, layout, format, version}`, `installed` and `completedAt`. `value` SHALL list product paths relative to `.dest`. Unknown fields in an existing record SHALL be preserved on rewrite, except where a tombstone clears them.
-
-`ir.path` SHALL name the published file or directory (`morphir-ir` for `document-tree`), and `ir.format` SHALL be `json`, `yaml` or `ion` as the IR was written.
+A successful compile SHALL write a schema-1 `compile.json` with `task: "compile"`, `module`, `language`, `inputs`, `value` (paths relative to `.dest`), `ir {path, layout, format, version}`, `installed` and `completedAt`, preserving unknown fields except on tombstones. `ir.path` and `ir.format` SHALL match the written file or `morphir-ir` directory and format.
 
 #### Scenario: Document-tree record
 - **WHEN** a compile with `ir.layout = "document-tree"` succeeds
@@ -92,7 +83,7 @@ A compile SHALL hold an exclusive lock on `compile.lock` from clearing `.dest` u
 - **THEN** `generate` waits, then reads the completed record and the IR from that compile
 
 ### Requirement: Generate reads the most recent compile
-When `--input` is absent, `morphir generate` SHALL resolve the project and out root in the same way as compile. It SHALL read the IR through the compile record's `ir` descriptor and keep the recorded format version. A record whose `ir.format` is `json`, `yaml` or `ion` SHALL be read in that format (single file or document tree). A missing record or a tombstone SHALL fail with exit code 2 and a message telling the user to run `morphir compile` first. An explicit `--input` SHALL never read a record.
+Without `--input`, `morphir generate` SHALL resolve project and out root like compile and read the IR via the compile record's `ir` descriptor in its recorded format (`json`, `yaml`, or `ion`; single-file or document-tree) and version. A missing record or tombstone SHALL fail with exit code 2 directing the user to run `compile`. Explicit `--input` SHALL never read a record.
 
 #### Scenario: Compile then generate
 - **WHEN** `morphir compile` succeeds, and then `morphir generate --target fsharp --output gen` runs in the same project

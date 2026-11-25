@@ -8,7 +8,7 @@ Read supported Morphir model representations into versioned typed IR for generat
 
 ### Requirement: Supported generation input representations
 
-The loader SHALL accept versioned classic JSON and YAML files (versions 1, 2, 3, 3.0.0, 3.1.0), v4 JSON and YAML files (versions 4 and 4.0.0), plain and name-compacted JSON document trees (`manifest.json`, IR `3.1.0` and `4`/`4.0.0`), plain and name-compacted YAML document trees (`manifest.yaml` or `manifest.yml`, IR `3.1.0` and `4`/`4.0.0`), supported single-file Ion IR in text or binary (`3.0.0`, `3.1.0`, `4.0.0`), and Ion document trees (`manifest.ion`, `3.0.0`, `3.1.0`, `4.0.0`). It SHALL return one model per input. This delivery SHALL continue to reject MEP model-envelope documents (`envelopeVersion`, `morphir_model`, `jsonrpc`) with an `unsupported-profile` diagnostic.
+The loader SHALL accept classic JSON/YAML (1, 2, 3, 3.0.0, 3.1.0), v4 JSON/YAML (4, 4.0.0), plain and compacted JSON/YAML document trees (`manifest.json`, `manifest.yaml`/`manifest.yml`, IR `3.1.0` and `4`/`4.0.0`), text/binary Ion IR, and Ion trees (`manifest.ion`, `3.0.0`, `3.1.0`, `4.0.0`). It SHALL return one model per input and reject MEP envelopes (`envelopeVersion`, `morphir_model`, `jsonrpc`) with `unsupported-profile`.
 
 #### Scenario: Classic JSON versions
 
@@ -42,7 +42,7 @@ The loader SHALL accept versioned classic JSON and YAML files (versions 1, 2, 3,
 
 ### Requirement: Deterministic format selection
 
-An explicit format (`json`, `yaml`, `ion`) SHALL constrain parser selection and refuse mismatched document-tree manifests with `unsupported-format`. Undefined format values SHALL return a typed invocation failure (`invalid-input-format`). Automatic detection SHALL recognize the Ion binary marker before textual hints and use supported names, manifests (`manifest.json`, `manifest.yaml`/`manifest.yml`, `manifest.ion`) and content to select a codec. A directory containing more than one root manifest across profiles SHALL be refused with `tree.ambiguous_profile` without choosing one. Recognized malformed input SHALL retain its codec's diagnostic rather than fall through to an unrelated codec and succeed.
+An explicit format (`json`, `yaml`, `ion`) SHALL constrain parser selection and refuse mismatched tree manifests with `unsupported-format`. Undefined formats SHALL return `invalid-input-format`. Auto detection SHALL check the Ion binary marker, file names, manifests, and content to pick a codec. Multi-manifest or mixed `.ion` sibling trees SHALL fail with `tree.ambiguous_profile`. Malformed recognized input SHALL report its own codec diagnostic without falling through.
 
 #### Scenario: Binary Ion without a conventional suffix
 
