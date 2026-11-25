@@ -5,12 +5,12 @@
 ### Requirement: C# reporting and exit outcomes
 
 Parsed C# invocations with --json SHALL write one parseable generation report,
-including structured diagnostics, to stdout without plain-text logs: as one
-document with --json=document, and as the report of the one `completed` record
-with --json. Human-mode diagnostics and any emitted log text SHALL use stderr.
-JSON mode need not duplicate structured report diagnostics as human-readable
-stderr text. Exit codes SHALL remain 0 for success, 1 for model/semantic
-failure, 2 for invocation/operational failure and 130 for cancellation.
+with structured diagnostics, to stdout and no plain-text logs: one document
+with --json=document, and the `completed` record's report with --json.
+Human-mode diagnostics and log text SHALL use stderr; JSON mode need not repeat
+report diagnostics there. Exit codes SHALL remain 0 for success, 1 for
+model/semantic failure, 2 for invocation/operational failure and 130 for
+cancellation.
 
 #### Scenario: Structured semantic failure
 
