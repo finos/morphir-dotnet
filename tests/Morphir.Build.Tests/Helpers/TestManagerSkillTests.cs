@@ -171,7 +171,6 @@ public class TestManagerSkillTests
 
     [Test]
     [Arguments("AGENTS.md")]
-    [Arguments("CLAUDE.md")]
     [Arguments(".agents/skills-reference.md")]
     public void TheAgentDocumentsNameTheSkillAndLinkToIt(string document)
     {

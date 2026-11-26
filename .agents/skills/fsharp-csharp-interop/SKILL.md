@@ -106,4 +106,4 @@ To review as a separate agent, run the reviewer agent `fsharp-csharp-interop-rev
 - [references/patterns.md](references/patterns.md): code for each rule.
 - `docs/contributing/fsharp-coding-guide.md`: F# style, including the nullness section.
 - `.agents/aot-optimization.md`: AOT and trimming rules.
-- `AGENTS.md` section 5: functional design rules.
+- `CODING_STANDARDS.md`, `.agents/FSHARP_CODING_STANDARDS.md`, `.agents/CSHARP_CODING_STANDARDS.md`: universal and language-specific coding standards.

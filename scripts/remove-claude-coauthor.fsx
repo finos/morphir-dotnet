@@ -32,7 +32,7 @@
    PR merges and fail CLA verification CI checks. Attribution in commit body
    is acceptable (e.g., "🤖 Generated with [Claude Code]").
 
-   See: AGENTS.md#commit-messages, CLAUDE.md#commit-standards
+   See: AGENTS.md#commit-messages
 *)
 
 #r "nuget: Argu, 6.2.4"

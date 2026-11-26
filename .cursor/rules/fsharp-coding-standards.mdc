@@ -1,0 +1,7 @@
+---
+description: F# coding standards for morphir-dotnet
+globs: "**/*.fs,**/*.fsi,**/*.fsx,**/*.fsproj"
+alwaysApply: false
+---
+
+When writing or reviewing F# files, follow `CODING_STANDARDS.md` and `.agents/FSHARP_CODING_STANDARDS.md`.

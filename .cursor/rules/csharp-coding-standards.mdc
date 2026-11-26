@@ -1,0 +1,7 @@
+---
+description: C# coding standards for morphir-dotnet
+globs: "**/*.cs,**/*.csproj"
+alwaysApply: false
+---
+
+When writing or reviewing C# files, follow `CODING_STANDARDS.md` and `.agents/CSHARP_CODING_STANDARDS.md`.

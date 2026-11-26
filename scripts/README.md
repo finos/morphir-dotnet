@@ -45,7 +45,7 @@ dotnet fsi scripts/remove-claude-coauthor.fsx --commits 5 --verbose
 - Confirmation prompt before applying (unless `--yes` flag)
 - Clear guidance for force-push if needed
 
-See: [AGENTS.md - Commit Messages](../AGENTS.md#11-review-and-contribution-rules), [CLAUDE.md - Commit Standards](../CLAUDE.md)
+See: [AGENTS.md - Commit Messages](../AGENTS.md#commit-messages)
 
 #### `validate-changelog.fsx`
 
