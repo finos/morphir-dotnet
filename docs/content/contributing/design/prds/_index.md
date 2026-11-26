@@ -4,7 +4,7 @@
 | --- | --- | --- | --- |
 | [Migrate diagrams.mbt to .NET](./migrate-diagrams.md) | In Progress | First library increment | Mermaid flowcharts and sequences, SVG, and C# interop |
 | [C# language support](./csharp-language-support.md) | Implemented | Specification archive | Steps 0 to 7 landed in [#664](https://github.com/finos/morphir-dotnet/pull/664); the OpenSpec change is archived and its specs are synced; open: the generator and the code fix in IDEs, and a `net8.0` runtime |
-| [Generic guest kit adoption](./adopt-generic-guest-kit.md) | Draft | Planning review | Distinct OpenSpec adoption of parent #1154; dev morphir-mck; runtime #570 dependency, [#563](https://github.com/finos/morphir-dotnet/issues/563) |
+| [Generic guest kit adoption](./adopt-generic-guest-kit.md) | In Progress | Controlled consumer implemented | One-session 21/16-case plan runs in controlled tests; the development `morphir-mck` runner is on main; root review, generic reports and actual guest notification delivery remain open, [#563](https://github.com/finos/morphir-dotnet/issues/563) |
 | [F# source frontend and compile](./fsharp-source-frontend.md) | In Progress | Tracking and acceptance | #499; compile acceptance and native compilation contracts |
 | [C# generation CLI](./integrate-csharp-generation-cli.md) | Implementation landed | Specification archive | #482 squash landed; 9/9 tasks, both deltas synced and archived; archive follow-up landing and coordinator cleanup pending, [#481](https://github.com/finos/morphir-dotnet/issues/481) |
 | [C# code generation](./add-csharp-code-generation.md) | Implementation landed | Archive follow-up | #478 squash landed; 13/13 tasks, spec synced and archive prepared; follow-up landing and coordinator cleanup pending, #474 |

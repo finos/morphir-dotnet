@@ -18,6 +18,7 @@
     <InternalsVisibleTo Include="Morphir.Toolchain.Tests" />
     <InternalsVisibleTo Include="morphirup" />
     <InternalsVisibleTo Include="Morphir.Tooling" />
+    <InternalsVisibleTo Include="Morphir.Conformance" />
     <InternalsVisibleTo Include="morphir-mck" />
     <InternalsVisibleTo Include="Morphir.Mck.Tests" />
     <InternalsVisibleTo Include="Morphir.Compilation.Mep" />

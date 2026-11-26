@@ -120,6 +120,8 @@ type internal IHostChannel =
     abstract ConformanceSnapshot: ConformanceSnapshot option
     abstract ConformanceToken: CancellationToken
     abstract ConformanceEnd: ConformanceTransportEnd option
+    /// Why the transport's owned output no longer accepts writes, when it can say so.
+    abstract OwnedTransportUnavailable: unit -> string option
     abstract AdmitOperation: unit -> ConformanceOperationId option
     abstract LocalRefused: RpcError -> unit
     abstract OperationCancelled: ConformanceOperationId -> unit
@@ -154,6 +156,7 @@ type internal StreamChannel(connection: Connection) =
         member _.ConformanceSnapshot = connection.ConformanceSnapshot
         member _.ConformanceToken = connection.ConformanceToken
         member _.ConformanceEnd = connection.ConformanceEnd
+        member _.OwnedTransportUnavailable() = connection.OwnedTransportUnavailable()
         member _.AdmitOperation() = connection.AdmitOperation()
         member _.LocalRefused cause = connection.LocalRefused cause
         member _.OperationCancelled operation = connection.OperationCancelled operation
@@ -396,6 +399,7 @@ type internal SingleMessageChannel private
         member _.ConformanceSnapshot = capture |> Option.map (fun owned -> owned.Snapshot())
         member _.ConformanceToken = capture |> Option.map _.Token |> Option.defaultValue CancellationToken.None
         member _.ConformanceEnd = capture |> Option.bind _.EndReason
+        member _.OwnedTransportUnavailable() = None
         member _.AdmitOperation() = capture |> Option.bind (fun owned -> owned.AdmitOperation())
         member _.LocalRefused cause = capture |> Option.iter (fun owned -> owned.LocalRefused cause)
         member _.OperationCancelled operation = capture |> Option.iter (fun owned -> owned.OperationCancelled operation)

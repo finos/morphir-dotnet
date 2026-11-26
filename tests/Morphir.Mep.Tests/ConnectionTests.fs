@@ -64,6 +64,18 @@ type private ClosedOwnedOutput() =
     interface ITransportWriteAvailability with
         member _.EnsureWriteAvailable() = raise (IOException "The owned peer has exited.")
 
+/// An output whose every write fails as the stdin of an exited worker does.
+type private FailingOutput() =
+    inherit MemoryStream()
+    override _.Write(_: byte array, _: int, _: int) = raise (IOException "The owned peer has exited.")
+    override _.Write(_: ReadOnlySpan<byte>) = raise (IOException "The owned peer has exited.")
+
+    override _.WriteAsync(_: byte array, _: int, _: int, _: CancellationToken) =
+        Task.FromException(IOException "The owned peer has exited.")
+
+    override _.WriteAsync(_: ReadOnlyMemory<byte>, _: CancellationToken) =
+        ValueTask(Task.FromException(IOException "The owned peer has exited."))
+
 /// A handler that waits until its token cancels and records that it saw the cancellation, where Task.Delay ends
 /// with it. It does not use token.Register inside `use` (issue 585): the cancel can run Task.Delay's callback first;
 /// the handler then resumes on another thread and disposes that registration before the cancelling thread reaches
@@ -598,6 +610,34 @@ let conformanceStreamTests =
     let moduleName = "MEP conformance stream evidence"
     let wait = ConformanceFixture.wait
     testSequenced <| testList moduleName [
+        testCase "a request whose write fails keeps the transport's reason in its local error" <| fun _ ->
+            let fromPeer = Pipe()
+            use input = fromPeer.Reader.AsStream()
+            use output = new FailingOutput()
+            use lifetime = new CancellationTokenSource()
+            let session = HostSession.CreateConformance(input, output, ConformanceFixture.host, ConformanceFixture.limits (), lifetime.Token)
+            let run = session.RunAsync lifetime.Token
+            match wait (session.DescribeAsync CancellationToken.None) with
+            | Error error ->
+                Expect.stringContains error.Message "did not complete" "The request did not complete"
+                Expect.stringContains error.Message "The owned peer has exited." "The transport's reason is kept"
+            | Ok _ -> failtest "A failed write cannot succeed"
+            lifetime.Cancel()
+            try wait run |> ignore with _ -> ()
+
+        testCase "a request after end of stream keeps the owned transport's reason without writing" <| fun _ ->
+            use input = new MemoryStream()
+            use output = new ClosedOwnedOutput()
+            use lifetime = new CancellationTokenSource()
+            let session = HostSession.CreateConformance(input, output, ConformanceFixture.host, ConformanceFixture.limits (), lifetime.Token)
+            wait (session.RunAsync lifetime.Token) |> ignore
+            match wait (session.DescribeAsync CancellationToken.None) with
+            | Error error ->
+                Expect.stringContains error.Message "The connection ended" "The connection ended"
+                Expect.stringContains error.Message "The owned peer has exited." "The owner identifies the stopped transport"
+            | Ok _ -> failtest "A closed connection cannot answer"
+            Expect.equal output.Length 0L "No request bytes are written"
+
         testCase "describe starts at one and retains exact sent and whitespace reply bodies" <| fun _ ->
             use edge = new ConformanceFixture.StreamEdge()
             let pending = edge.Session.DescribeAsync CancellationToken.None
