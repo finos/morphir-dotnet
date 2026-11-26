@@ -32,7 +32,7 @@ Skills work across all AI coding agents, though invocation methods differ. This 
 
 ### Claude Code (Native `@skill` Support)
 
-**Configuration**: [CLAUDE.md](../CLAUDE.md) + [.claude/skills/](./.claude/skills/)
+**Configuration**: [AGENTS.md](../AGENTS.md) + [.claude/skills/](../.claude/skills/)
 
 **Invocation**: Use `@skill {skill-name}` command
 ```

@@ -14,11 +14,13 @@ While [AGENTS.md](../AGENTS.md) in the project root provides comprehensive guida
 
 ```
 .agents/
-├── README.md                  # This file
-├── skills-reference.md        # All expert skills documented (NEW)
-├── capabilities-matrix.md     # Cross-agent feature availability (NEW)
-├── qa-testing.md              # QA testing guidance (all agents)
-└── aot-optimization.md        # AOT and size optimization guidance
+├── README.md                     # This file
+├── FSHARP_CODING_STANDARDS.md    # F# coding standards (progressive disclosure)
+├── CSHARP_CODING_STANDARDS.md    # C# coding standards (progressive disclosure)
+├── skills-reference.md           # All expert skills documented
+├── capabilities-matrix.md        # Cross-agent feature availability
+├── qa-testing.md                 # QA testing guidance (all agents)
+└── aot-optimization.md           # AOT and size optimization guidance
 ```
 
 ## For AI Coding Agents
@@ -36,12 +38,12 @@ This directory provides deep-dive guidance for specific areas:
 
 | Topic | File | When to Use |
 |-------|------|-------------|
+| **F# Coding Standards** | [FSHARP_CODING_STANDARDS.md](FSHARP_CODING_STANDARDS.md) | Writing or reviewing F# files (extends [CODING_STANDARDS.md](../CODING_STANDARDS.md)) |
+| **C# Coding Standards** | [CSHARP_CODING_STANDARDS.md](CSHARP_CODING_STANDARDS.md) | Writing or reviewing C# files (extends [CODING_STANDARDS.md](../CODING_STANDARDS.md)) |
 | **Skills Reference** | [skills-reference.md](skills-reference.md) | Overview of all expert skills (QA Tester, AOT Guru, Release Manager) |
 | **Capabilities Matrix** | [capabilities-matrix.md](capabilities-matrix.md) | Cross-agent feature availability and compatibility |
 | QA Testing | [qa-testing.md](qa-testing.md) | Creating test plans, running tests, reporting bugs |
 | AOT Optimization | [aot-optimization.md](aot-optimization.md) | Native AOT compilation, trimming, size optimization |
-| [Future] Security Testing | security-testing.md | Security scanning, vulnerability management |
-| [Future] Documentation | documentation.md | Writing docs, ADRs, PRDs |
 
 ### Claude Code Users
 If you're using Claude Code, you also have access to:
@@ -55,7 +57,7 @@ If you're using Claude Code, you also have access to:
   - AOT Guru: Quarterly project review for reflection, size trends
   - Release Manager: Process consistency, changelog quality checks
 
-See [CLAUDE.md](../CLAUDE.md) and [.claude/skills/](../.claude/skills/) for details.
+See [AGENTS.md](../AGENTS.md) and [.claude/skills/](../.claude/skills/) for details.
 
 ### Other Agents (Copilot, Cursor, Windsurf, Aider)
 - **Documentation Access**: Read skills-reference.md and capabilities-matrix.md
@@ -129,12 +131,15 @@ When adding new specialized guidance:
 ```
 morphir-dotnet/
 ├── AGENTS.md                    # Primary agent guidance (START HERE)
-├── CLAUDE.md                    # Claude Code-specific guidance
+├── CODING_STANDARDS.md          # Universal coding standards
 ├── README.md                    # Project README
 ├── .github/
-│   └── copilot-instructions.md  # GitHub Copilot-specific guidance
+│   ├── copilot-instructions.md  # GitHub Copilot pointer + firewall notes
+│   └── instructions/            # Path-scoped Copilot instructions
 ├── .agents/                     # Specialized agent guidance (THIS DIRECTORY)
 │   ├── README.md                # This file
+│   ├── FSHARP_CODING_STANDARDS.md # F# coding standards
+│   ├── CSHARP_CODING_STANDARDS.md # C# coding standards
 │   ├── skills-reference.md      # All expert skills documented
 │   ├── capabilities-matrix.md   # Cross-agent compatibility
 │   ├── qa-testing.md            # QA testing guide
@@ -145,19 +150,18 @@ morphir-dotnet/
 │       ├── aot-guru/            # AOT optimization skill
 │       └── release-manager/     # Release management skill
 └── docs/                        # User-facing documentation
-    ├── content/
-    │   └── contributing/
-    │       ├── aot-trimming-guide.md  # User-facing AOT guide
-    │       └── fsharp-coding-guide.md # F# patterns including AOT
+    ├── contributing/
+    │   ├── aot-trimming-guide.md  # User-facing AOT guide
+    │   └── fsharp-coding-guide.md # Long-form F# reference
     └── spec/
 ```
 
 **Navigation**:
 - New to project? → Read `AGENTS.md`
+- Writing or reviewing code? → Read `CODING_STANDARDS.md` + language guide
 - Need overview of skills? → Check `.agents/skills-reference.md`
 - Which features work with my agent? → See `.agents/capabilities-matrix.md`
 - Need specialized guidance? → Check `.agents/{topic}.md`
-- Using Claude Code? → See `CLAUDE.md` and use `@skill {skill-name}`
 - Using Copilot? → See `.github/copilot-instructions.md`
 - Writing docs? → See `docs/`
 
@@ -263,6 +267,6 @@ Found issues with agent guidance?
 ## See Also
 
 - [AGENTS.md](../AGENTS.md) - Main agent guidance
-- [CLAUDE.md](../CLAUDE.md) - Claude Code guidance
+- [CODING_STANDARDS.md](../CODING_STANDARDS.md) - Universal coding standards
 - [Contributing Guide](../docs/content/contributing/) - For all contributors
 - [FINOS Code of Conduct](https://www.finos.org/code-of-conduct)

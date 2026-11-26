@@ -21,7 +21,7 @@ This matrix helps you understand what's available for your agent and how to acce
 |---------|-------------|----------------|--------|----------|-------|-------|
 | **Primary Guidance** (AGENTS.md) | ✅ | ✅ | ✅ | ✅ | ✅ | All agents read AGENTS.md |
 | **Specialized Guides** (.agents/*.md) | ✅ | ✅ | ✅ | ✅ | ✅ | Topic-specific documentation |
-| **Agent-Specific Instructions** | ✅ CLAUDE.md | ✅ copilot-instructions.md | ✅ .cursorrules | ✅ .windsurf/rules.md | ✅ .aider.conf.yml | Platform-specific guidance |
+| **Agent-Specific Instructions** | ✅ AGENTS.md | ✅ copilot-instructions.md | ✅ .cursorrules | ✅ .windsurf/rules/morphir.md | ✅ .aider.conf.yml | Claude Code reads AGENTS.md directly |
 | **Automation Scripts** (.fsx) | ✅ | ✅ | ✅ | ✅ | ✅ | All agents can run F# scripts |
 | **Decision Trees** | ✅ | ✅ | ✅ | ✅ | ✅ | In documentation |
 | **Playbooks** | ✅ | ✅ | ✅ | ✅ | ✅ | Step-by-step procedures |
