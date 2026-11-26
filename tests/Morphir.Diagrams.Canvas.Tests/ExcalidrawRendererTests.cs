@@ -57,6 +57,23 @@ public partial class ExcalidrawRendererTests
     }
 
     [Test]
+    [Category("PlatformSpecific")]
+    public async Task ScenesAndNotesUseLfLineEndings()
+    {
+        var layout = CanvasMother.Layout(CanvasMother.OneLink);
+        var scene = CanvasMother.Render(new ExcalidrawRenderer(), layout);
+        var note = CanvasMother.Render(new ObsidianExcalidrawRenderer(), layout);
+
+        using (Assert.Multiple())
+        {
+            await Assert.That(scene).Contains((byte)'\n');
+            await Assert.That(scene).DoesNotContain((byte)'\r');
+            await Assert.That(note).Contains((byte)'\n');
+            await Assert.That(note).DoesNotContain((byte)'\r');
+        }
+    }
+
+    [Test]
     public void ADatabaseCylinderIsDegraded()
     {
         var degradations = CanvasMother.Degradations(DiagramExport.Assess([CanvasMother.Layout("flowchart LR\n  C[(Ledger)]\n")], new ExcalidrawRenderer()));

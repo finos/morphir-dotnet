@@ -364,17 +364,16 @@ let tests =
                 Expect.equal readVersion version "reads back"
         }
 
-        test "indented output uses two spaces and reads back equal" {
+        test "indented output uses two spaces and LF line endings and reads back equal" {
             match
                 ClassicJsonWriter.writeTyped ClassicWireProfile.v3 true typedSample,
                 ClassicJsonWriter.writeTyped ClassicWireProfile.v3 false typedSample
             with
             | Ok indented, Ok compact ->
-                Expect.stringContains
-                    (Encoding.UTF8.GetString indented)
-                    "\n  \"distribution\""
-                    "two spaces"
+                let text = Encoding.UTF8.GetString indented
 
+                Expect.stringContains text "\n  \"distribution\"" "two spaces"
+                Expect.isFalse (text.Contains '\r') "uses LF line endings"
                 Expect.equal (readNormalized indented) (readNormalized compact) "same model"
             | _ -> failtest "write failed"
         }

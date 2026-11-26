@@ -9,8 +9,10 @@ namespace Morphir.Diagrams.Canvas.Tests;
 
 /// <summary>
 /// Pins the output of each canvas renderer for one diagram of each family. The files behind these digests were opened
-/// in the applications before they were recorded (see the package README).
+/// in the applications before they were recorded (see the package README). The marker runs it on each operating
+/// system in a pull request, so that line endings and formatting are compared across platforms.
 /// </summary>
+[Category("PlatformSpecific")]
 public class CanvasDigestTests
 {
     public static IEnumerable<Func<DiagramRenderer>> Renderers() =>
